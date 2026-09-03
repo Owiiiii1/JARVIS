@@ -220,8 +220,8 @@ class RemindersTest extends TestCase
             $conversation = Conversation::query()->where('user_id', $user->id)->first();
             $this->assertNotNull($conversation);
             $this->assertSame(1, Reminder::query()->where('user_id', $user->id)->count());
-            $this->assertSame(2, count($fake->calls));
-            $this->assertNotEmpty($fake->calls[0]['request']->tools);
+            $this->assertSame(2, count($fake->conversationCalls()));
+            $this->assertNotEmpty($fake->conversationCalls()[0]['request']->tools);
             $this->assertTrue(
                 collect($fake->calls[1]['request']->messages)->contains(
                     fn (AiChatMessage $message): bool => $message->role === 'tool'
@@ -277,7 +277,7 @@ class RemindersTest extends TestCase
             $this->postTelegramUpdate($externalUserId, 'Напомни через час', 940106, 90);
 
             $this->assertSame(1, Reminder::query()->where('user_id', $user->id)->count());
-            $this->assertSame(2, count($fake->calls));
+            $this->assertSame(2, count($fake->conversationCalls()));
         } finally {
             $this->restoreAiRoleSettings();
             $this->deleteTelegramIdentity($externalUserId);
@@ -348,7 +348,7 @@ class RemindersTest extends TestCase
                 'client_message_id' => (string) Str::uuid(),
             ])->assertOk()->assertJsonPath('error', ConversationAiService::AI_FAILURE);
 
-            $this->assertSame(ConversationAiService::MAX_TOOL_ROUNDS + 1, count($fake->calls));
+            $this->assertSame(ConversationAiService::MAX_TOOL_ROUNDS + 1, count($fake->conversationCalls()));
             $this->assertSame(0, Reminder::query()->where('user_id', $user->id)->count());
         } finally {
             $this->restoreAiRoleSettings();

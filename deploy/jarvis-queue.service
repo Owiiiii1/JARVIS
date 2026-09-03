@@ -1,0 +1,17 @@
+[Unit]
+Description=Jarvis database queue worker
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+Restart=always
+RestartSec=3
+WorkingDirectory=/var/www/jarvis
+ExecStart=/usr/bin/php /var/www/jarvis/artisan queue:work database --queue=memory,default --sleep=3 --tries=3 --timeout=120 --max-time=3600
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

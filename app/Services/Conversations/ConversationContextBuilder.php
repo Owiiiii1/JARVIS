@@ -11,7 +11,10 @@ use App\Models\User;
 use App\Models\UserAiSetting;
 use App\Services\Ai\DTO\AiChatMessage;
 use App\Services\Ai\DTO\ToolDefinition;
+use App\Services\Memory\DTO\MemoryContextPackage;
+use App\Services\Memory\PersonalMemoryRetriever;
 use App\Services\Tools\CreateReminderTool;
+use App\Services\Tools\SearchConversationHistoryTool;
 use Carbon\CarbonImmutable;
 use DateTimeZone;
 use Exception;
@@ -23,6 +26,10 @@ final class ConversationContextBuilder
     public const MIN_RECENT_LIMIT = 5;
 
     public const MAX_RECENT_LIMIT = 40;
+
+    public function __construct(
+        private readonly PersonalMemoryRetriever $memoryRetriever,
+    ) {}
 
     /**
      * @param  list<ToolDefinition>  $tools
@@ -37,6 +44,12 @@ final class ConversationContextBuilder
         array $tools = [],
     ): array {
         $sections = [trim((string) $configuration->system_prompt)];
+        $sections[] = $this->currentTimeContext($user);
+        $toolContext = $this->toolContext($tools);
+
+        if ($toolContext !== null) {
+            $sections[] = $toolContext;
+        }
 
         $generalPrompt = $this->generalPromptFor($user);
 
@@ -44,11 +57,15 @@ final class ConversationContextBuilder
             $sections[] = "User General Prompt:\n".$generalPrompt;
         }
 
-        $sections[] = $this->currentTimeContext($user);
-        $toolContext = $this->toolContext($tools);
+        $memory = $this->memoryRetriever->retrieve(
+            $user,
+            $conversation,
+            $currentInbound?->body,
+        );
+        $memorySections = $this->memorySections($memory, $conversation, $configuration);
 
-        if ($toolContext !== null) {
-            $sections[] = $toolContext;
+        if ($memorySections !== []) {
+            $sections = array_merge($sections, $memorySections);
         }
 
         if (filled($applicationEvent)) {
@@ -120,7 +137,64 @@ final class ConversationContextBuilder
             $lines[] = 'After a successful create_reminder, confirm in natural language using the returned local time. Do not mention tool names.';
         }
 
+        if (in_array(SearchConversationHistoryTool::NAME, $names, true)) {
+            $lines[] = 'search_conversation_history looks up snippets from this user’s own past chats. Use it when the user asks about a previous conversation, decision, or detail that is not already in context.';
+            $lines[] = 'Do not assume raw messages from other chats are already available. Other chats may appear only as short summaries.';
+            $lines[] = 'Never pass user_id. Never search another user’s history.';
+        }
+
         return implode("\n", $lines);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function memorySections(MemoryContextPackage $package, Conversation $conversation, AiRoleSetting $configuration): array
+    {
+        $sections = [];
+
+        if ($package->memories !== []) {
+            $lines = ['Relevant personal memory:'];
+
+            foreach ($package->memories as $memory) {
+                $lines[] = '- '.$memory->content;
+            }
+
+            $sections[] = implode("\n", $lines);
+        }
+
+        $profile = trim((string) ($package->profile?->summary ?? ''));
+
+        if ($profile !== '') {
+            $sections[] = "User profile:\n".$profile;
+        }
+
+        if ($package->crossChatSummaries !== []) {
+            $lines = ['Relevant summaries from other chats of this user:'];
+
+            foreach ($package->crossChatSummaries as $summary) {
+                $title = $summary->conversation?->title ?: 'Chat';
+                $lines[] = '- '.$title.': '.$summary->summary;
+            }
+
+            $sections[] = implode("\n", $lines);
+        }
+
+        if ($package->currentSummary !== null && $this->shouldIncludeCurrentSummary($conversation, $configuration)) {
+            $sections[] = "Current conversation summary:\n".$package->currentSummary->summary;
+        }
+
+        return $sections;
+    }
+
+    private function shouldIncludeCurrentSummary(Conversation $conversation, AiRoleSetting $configuration): bool
+    {
+        $recentLimit = $this->recentLimit($configuration);
+        $count = Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->count();
+
+        return $count > $recentLimit;
     }
 
     /**

@@ -74,8 +74,8 @@ class AiRuntimeTest extends TestCase
             $assistant = Message::query()->where('conversation_id', $conversation->id)->where('role', MessageRole::Assistant)->first();
             $this->assertSame($inbound->id, $assistant->parent_message_id);
             $this->assertSame(AiRoleKey::UserConversation->value, $assistant->metadata['ai']['configuration'] ?? null);
-            $this->assertSame(1, count($fake->calls));
-            $this->assertSame(AiRoleKey::UserConversation->value, $fake->calls[0]['role_key']);
+            $this->assertSame(1, count($fake->conversationCalls()));
+            $this->assertSame(AiRoleKey::UserConversation->value, $fake->conversationCalls()[0]['role_key']);
             $this->assertStringContainsString('Always answer with the word banana.', $fake->calls[0]['request']->systemPrompt);
         } finally {
             $this->restoreAiRoleSettings();
@@ -138,7 +138,7 @@ class AiRuntimeTest extends TestCase
             $this->assertSame('Welcome to Jarvis.', $assistant->body);
             $this->assertSame(AiRoleKey::UserConversation->value, $assistant->metadata['ai']['configuration'] ?? null);
             $this->assertSame('pairing_greeting', $assistant->metadata['ai']['event'] ?? null);
-            $this->assertSame(1, count($fake->calls));
+            $this->assertSame(1, count($fake->conversationCalls()));
             $this->assertStringContainsString('Пользователь только что подключил Jarvis', $fake->calls[0]['request']->systemPrompt);
             $this->assertSame(0, Message::query()->where('user_id', $user->id)->where('role', MessageRole::User)->count());
         } finally {

@@ -56,6 +56,16 @@ trait CleansTemporaryJarvisRecords
             return;
         }
 
+        $memoryIds = \App\Models\Memory::query()->where('user_id', $user->id)->pluck('id');
+        \App\Models\MemorySource::query()->whereIn('memory_id', $memoryIds)->delete();
+        \App\Models\MemoryRevision::query()->whereIn('memory_id', $memoryIds)->delete();
+        \App\Models\Memory::query()->where('user_id', $user->id)->delete();
+        $topicIds = \App\Models\Topic::query()->where('user_id', $user->id)->pluck('id');
+        \App\Models\MessageTopicRelation::query()->whereIn('topic_id', $topicIds)->delete();
+        \App\Models\Topic::query()->where('user_id', $user->id)->delete();
+        \App\Models\ConversationSummary::query()->where('user_id', $user->id)->delete();
+        \App\Models\MemoryAnalysisRun::query()->where('user_id', $user->id)->delete();
+        \App\Models\UserProfile::query()->where('user_id', $user->id)->delete();
         Reminder::query()->where('user_id', $user->id)->delete();
         Message::query()->where('user_id', $user->id)->delete();
         UserAiSetting::query()->where('user_id', $user->id)->delete();

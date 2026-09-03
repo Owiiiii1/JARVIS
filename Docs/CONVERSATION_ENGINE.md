@@ -149,7 +149,10 @@ Tool loop в одном turn: несколько последовательны�
 
 Реализовано в Core (`ConversationAiService`): AI → tool call(s) → `ToolRegistry` → tool result(s) → AI → возможно ещё tools → final answer. Telegram и Cabinet не знают, какой tool сработал.
 
-Первый tool: `create_reminder` (Reminder Engine). [REMINDERS.md](REMINDERS.md).
+Tools:
+
+- `create_reminder` — Reminder Engine. [REMINDERS.md](REMINDERS.md).
+- `search_conversation_history` — targeted raw-on-demand по **текущему** user. Аргументы модели: `query`, optional `conversation_hint`, optional `limit`. Core задаёт `user_id`. Bounded snippets. Capability `memory` (owner и обычный user).
 
 Gemini — production provider с function calling (`functionDeclarations` / `functionCall` / `functionResponse`). OpenAI и Anthropic chat работают; tool-enabled request им **не** отправляется молча (`supportsTools=false`).
 

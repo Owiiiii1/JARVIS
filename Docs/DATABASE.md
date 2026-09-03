@@ -170,6 +170,23 @@ Many-to-many memories ↔ topics.
 
 См. Identity выше. Стабильные предпочтения, язык, ограничения. Один на `user_id`. Версионирование — `TBD`.
 
+### M12 implemented tables
+
+Production MySQL (`2026_09_03_220000_create_memory_engine_tables`):
+
+- `conversation_summaries` — `user_id`, `conversation_id`, `summary`, `from_message_id`/`to_message_id`, `message_count`, `version`, `status` (`current`/`superseded`), provider/model, `generated_at`, `metadata`.
+- `topics` — personal only: `user_id` + unique `(user_id, normalized_name)`.
+- `message_topic_relations` — unique `(message_id, topic_id)`, confidence, source.
+- `memories` — M12 `scope=personal` + required `user_id`; kind `fact|preference|instruction|relationship|project_context|other`; status `active|superseded|disputed|obsolete`; confidence; `valid_from`/`valid_until`; `normalized_key`.
+- `memory_sources` — provenance (`message_id` / `conversation_id` / `summary_id`, `source_kind`). Long-term fact without provenance is rejected.
+- `memory_revisions` — trail; old rows are not deleted on supersede.
+- `user_profiles` — compact `summary` per `user_id`, `updated_from_memory_at`.
+- `memory_analysis_runs` — job idempotency per conversation/type/message range.
+
+`memory_topics`, group knowledge, entities — not in M12 runtime. Group schema later M14.
+
+Indexes: `user_id`, `conversation_id`, memory `(user_id, status, confidence)`, topic `normalized_name`, summary status/version.
+
 ---
 
 ## AI
@@ -187,7 +204,7 @@ Many-to-many memories ↔ topics.
 | Config | Обязательность | Назначение |
 | --- | --- | --- |
 | Owner Conversation AI | M4 | только Owner Space |
-| Owner Analysis AI | M4 конфиг; jobs later | группы, extract, project analysis |
+| Owner Analysis AI | M4 конфиг; M12 jobs | personal memory extract/summaries; группы later |
 | Default User Conversation AI | M4 | все User Spaces; не наследует owner |
 
 Позже без смены business logic можно добавить: `classification`, `summarization`, `embeddings`, `memory_extraction`, `voice_reasoning`.

@@ -149,7 +149,7 @@ class ConversationsCoreTest extends TestCase
             $this->assertSame(1, Message::query()->where('conversation_id', $conversation->id)->where('role', MessageRole::User)->count());
             $this->assertSame('Привет', Message::query()->where('conversation_id', $conversation->id)->where('role', MessageRole::User)->value('body'));
             $this->assertSame(1, Message::query()->where('conversation_id', $conversation->id)->where('role', MessageRole::Assistant)->count());
-            $this->assertSame(1, count($fake->calls));
+            $this->assertSame(1, count($fake->conversationCalls()));
         } finally {
             $this->restoreAiRoleSettings();
             $this->deleteTelegramIdentity($externalUserId);

@@ -176,7 +176,7 @@ Engine: MySQL 8.0.46. **16 tables**. Migrations run: **10**.
 | `sessions` | session driver | users migration |
 | `password_reset_tokens` | Laravel reset tokens | users migration — **no reset routes** |
 | `cache`, `cache_locks` | cache driver | `0001_01_01_000001_create_cache_table.php` |
-| `jobs`, `job_batches`, `failed_jobs` | queue driver | `0001_01_01_000002_create_jobs_table.php` — **no worker** |
+| `jobs`, `job_batches`, `failed_jobs` | queue driver | `0001_01_01_000002_create_jobs_table.php` — Telegram crontab worker + systemd `jarvis-queue.service` (memory,default) |
 
 ---
 
@@ -509,16 +509,16 @@ New providers without changing Jarvis Core.
 | Logs | PLACEHOLDER |
 | Settings General / App | PLACEHOLDER |
 | Conversation Engine | PARTIAL (personal DM + recent window + tool loop; first tool `create_reminder`) |
-| Memory Engine | DOCUMENTED ONLY |
+| Memory Engine | IMPLEMENTED (personal v1; no vector DB; no group knowledge) |
 | Telegram Groups module | DOCUMENTED ONLY |
-| Role-based Conversation/Analysis AI | PARTIAL (configs + conversation runtime; analysis jobs later) |
+| Role-based Conversation/Analysis AI | IMPLEMENTED (conversation runtime + Analysis AI background memory jobs) |
 | User Cabinet | IMPLEMENTED |
 | Impersonation / ownership policies | DOCUMENTED ONLY |
 | Public/mobile API | DOCUMENTED ONLY |
 | Voice / ElevenLabs | DOCUMENTED ONLY |
 | Google Calendar / Gmail | DOCUMENTED ONLY / MISSING FROM DOCS |
 | Integrations registry | DOCUMENTED ONLY / MISSING FROM DOCS |
-| Queue workers / scheduler | PARTIAL (Telegram queue worker + reminder scheduler implemented) |
+| Queue workers / scheduler | IMPLEMENTED (Telegram queue worker + memory/default systemd worker + reminder scheduler) |
 | Redis | UNUSED |
 | CRM customers/orders/staff/services | UNUSED / LEGACY |
 
@@ -645,5 +645,11 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 `reminders` table; channel-neutral `ReminderService` / `ReminderDeliveryService`; Tool Layer (`create_reminder`); Gemini function calling; multi-tool loop (max 5); current local time + timezone injection; no Telegram identity → reminder not created; production scheduler + cron; Telegram delivery `⏰ Напоминание: {text}` without an AI turn; one-time only (recurrence later). Settings → Users shows `reminders_count`. Manual owner smoke awaiting.
 
 Production hotfix: Telegram webhook only validates and queues an update, then returns immediately. A dedicated database queue worker performs Gemini calls. Gemini 3 tool turns preserve `thoughtSignature`. Failed/pending historical user turns are excluded from later AI context, preventing a stale reminder request from authorizing tools for messages such as «Ты тут?». `create_reminder` is idempotent per source message.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 12 — Structured Memory / Memory Engine v1 — COMPLETED (2026-09-03)
+
+Personal derived memory on production MySQL. Raw `messages` remain immutable source of truth. Owner Analysis AI extracts topics/memories and writes incremental conversation summaries in the background (`memory` queue). `PersonalMemoryRetriever` is `user_id`-scoped, relational, bounded. Cross-chat is summary-first; raw other chats only via `search_conversation_history`. Settings → Users → Memory is owner-only read-only diagnostics. Group knowledge and Projects are not in this milestone. Vector DB is not installed.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).

@@ -170,8 +170,21 @@ Retrieval **сначала** фиксирует scope (`user_id` / group / globa
 
 Не отправлять всю БД. Не отправлять все summaries «на всякий случай».
 
-В Phase 1 пакет = prompt + recent messages (+ пустой/ручной profile).  
-В Phase 2 тот же объект пакета наполняется retrieval.
+M12 пакет (порядок в `ConversationContextBuilder`):
+
+1. Platform prompt выбранного Conversation AI;
+2. current local time / timezone;
+3. tool context (`create_reminder`, `search_conversation_history`);
+4. User General Prompt;
+5. relevant personal memories (labelled system block);
+6. compact user profile, если есть;
+7. relevant summaries **других** chats того же user (не их raw);
+8. current conversation summary, если чат длиннее recent window;
+9. recent raw **текущего** conversation + current inbound.
+
+Бюджеты: `config/memory.php` (`max_memories=10`, `max_cross_chat_summaries=5`, `min_confidence=0.65`). Retrieval всегда `WHERE user_id = current user` в SQL, затем ranking. Vector DB нет.
+
+Raw другого чата — только tool `search_conversation_history`.
 
 ---
 
@@ -182,15 +195,14 @@ Retrieval **сначала** фиксирует scope (`user_id` / group / globa
 ```
 incoming personal message
   → persist raw
-  → intent / topic analysis
-  → personal memory retrieval
+  → personal memory retrieval (ready derived layer only)
   → context assembly
   → Conversation AI
   → response
   → persist response
-  → post-processing
-  → memory extraction / update (personal scope)
-  → persistence of derived layer
+  → dispatch background jobs (does not block the user reply)
+  → Owner Analysis AI extracts topics/memories
+  → incremental conversation summary at threshold
 ```
 
 Групповой inbound не идёт в этот reply-цикл: persist → optional Analysis AI → group knowledge. См. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
@@ -201,9 +213,9 @@ incoming personal message
 
 ## Retrieval: сейчас и потом
 
-**Phase 1:** recent window по `conversation_id` **и** `user_id` + timestamps. Достаточно для MVP. Другие чаты того же user в raw window не подмешиваются.
+**Phase 1:** recent window по `conversation_id` **и** `user_id` + timestamps. Другие чаты того же user в raw window не подмешиваются.
 
-**Phase 2:** topic + keyword/SQL filters + freshness + profile. Relational DB как основной store.
+**M12:** `PersonalMemoryRetriever` — SQL/hybrid: `user_id` first, затем topic/keyword/`normalized_key`, freshness, confidence, status, `valid_from`/`valid_until`. Disputed/superseded/obsolete и expired не подаются как current truth. Bounded candidate queries, без fetch-all-then-filter.
 
 **Future (не обязательно для MVP):**
 
@@ -218,10 +230,11 @@ incoming personal message
 
 ## Summarization
 
-- Запускается, когда разговор или тема превышают порог (`TBD`).
-- Пишет в `summaries`, ссылается на диапазон message id.
-- Raw не трогает.
-- Summary можно пересобрать другой моделью.
+- Порог: `config('memory.summary_message_threshold')` (MVP 20 semantic messages с последней summary).
+- Incremental: previous summary + raw после `to_message_id`. Initial long history — chunk/reduce, не один гигантский prompt.
+- Пишет в `conversation_summaries` (версии; `current` / `superseded`).
+- Raw не трогает. Summary не source of truth.
+- Пересчёт: `jarvis:memory:backfill` / `UpdateConversationSummaryJob`. Owner Analysis AI.
 
 ---
 

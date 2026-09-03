@@ -1,5 +1,5 @@
 import { useForm, usePage, router } from '@inertiajs/react';
-import { Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Pencil, Plus, Trash2, X, Brain } from 'lucide-react';
 import { useState } from 'react';
 
 const TIMEZONE_OPTIONS = ['Europe/Rome'];
@@ -264,14 +264,23 @@ export default function UsersPanel() {
                                         <td className="px-4 py-3">{u.reminders_count ?? 0}</td>
                                         <td className="px-4 py-3 text-slate-500">{formatCreated(u.created_at)}</td>
                                         <td className="px-4 py-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => openEditModal(u)}
-                                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
-                                            >
-                                                <Pencil className="h-3.5 w-3.5" />
-                                                Edit
-                                            </button>
+                                            <div className="flex flex-wrap gap-2">
+                                                <a
+                                                    href={route('settings.users.memory.show', u.id)}
+                                                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                                                >
+                                                    <Brain className="h-3.5 w-3.5" />
+                                                    Memory
+                                                </a>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openEditModal(u)}
+                                                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                                                >
+                                                    <Pencil className="h-3.5 w-3.5" />
+                                                    Edit
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

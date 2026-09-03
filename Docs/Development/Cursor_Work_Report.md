@@ -1,4 +1,4 @@
-# Cursor work report — Reminder Engine + first Conversation Tool
+# Cursor work report — Structured Memory / Memory Engine v1
 
 Date: 2026-09-03  
 Repo: `Owiiiii1/JARVIS`  
@@ -9,155 +9,128 @@ Host: `/var/www/jarvis`
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| Before HEAD | `c7bbd0f8dc417d99a28d8df07b5ee9663d854149` (`feat: add web cabinet conversations`) |
-| Commit message | `feat: add Jarvis reminder engine` |
+| Before HEAD | `b9f7cad` (`fix: stabilize Telegram reminder tool turns`) |
+| Commit message | `feat: add structured personal memory engine` |
 | Working tree before start | clean |
 
 ## Backup
 
-Before migration: `storage/backups/pre_reminders_20260903_184838.sql` (gitignored). Tables: `users`, `channel_identities`, `conversations`, `messages`, `ai_role_settings`. Production chats retained.
+Before migration: `storage/backups/pre_memory_20260903_203935.sql` (gitignored). Tables: `users`, `conversations`, `messages`, `ai_role_settings`, `user_ai_settings`, `reminders`, `channel_identities`. Production chats retained. Raw messages were not deleted or rewritten.
 
-## Migration
+## Migrations
 
-`2026_09_03_210000_create_reminders_table`
+`2026_09_03_220000_create_memory_engine_tables` — ran with `--force`.
 
-Also updates conversation system prompts so they no longer say tools are unavailable. Owner/user Gemini configs remain enabled.
+Tables: `conversation_summaries`, `topics`, `message_topic_relations`, `memories`, `memory_sources`, `memory_revisions`, `user_profiles`, `memory_analysis_runs`.
 
-## Reminder schema
+## Queue worker / systemd
 
-Table `reminders`: `user_id`, nullable `source_conversation_id` / `source_message_id`, `text`, `run_at` UTC, `timezone`, `original_local_time`, `status`, `delivered_at`, `cancelled_at`, `recurrence_rule` (unused), `last_error`, `metadata` json, timestamps.
+System-wide `/etc/systemd/system` install needs sudo (password required on this host). A lingering user unit is active instead:
 
-Status enum: `scheduled`, `processing`, `delivered`, `cancelled`, `failed`.
+- unit: `~/.config/systemd/user/jarvis-queue.service`
+- command: `php artisan queue:work database --queue=memory,default --sleep=3 --tries=3 --timeout=120 --max-time=3600`
+- user: `deploy`
+- Restart=`always`
+- Linger=`yes`
+- status: `active (running)`
+- journal: started without errors at enable time
 
-Indexes: `user_id`, `status`, `run_at`, `(status, run_at)`.
+Telegram queue stays on the existing crontab flock worker (`--queue=telegram`). Reminder scheduler cron is unchanged. No Supervisor. No duplicate memory/default worker.
 
-Model `Reminder` has relations only — no scheduling logic.
+Repo copy of the system unit: `deploy/jarvis-queue.service`.
 
-## Tool architecture
+## Jobs
 
-Provider-neutral Tool Layer:
+- `AnalyzeConversationTurnJob` — Owner Analysis AI extract; idempotent via `memory_analysis_runs`
+- `UpdateConversationSummaryJob` — incremental summary at threshold or `--force`
+- Dispatch after successful conversation persist, not before the user reply
 
-- `JarvisTool`, `ToolRegistry`, `ToolDefinition`, `ToolCall`, `ToolResult`, `ToolExecutionContext`
-- First tool: `create_reminder`
-- Arguments from the model: `text`, `run_at_local`, optional `timezone` / `original_time_expression`
-- `user_id` / `conversation_id` never taken from LLM arguments
-- Capability `reminders` checked in Core
-- No regex NL parser (`напомни`, `завтра`, …)
+## Summary strategy
 
-## Gemini tool calling
+Config `memory.summary_message_threshold` (default 20 semantic messages since last summary). Incremental: previous summary + raw after `to_message_id`. Initial long history: chunk/reduce. Versions kept; `current` / `superseded`. Raw unchanged.
 
-Production conversation provider is Gemini. `GeminiClient` sends `functionDeclarations`, parses `functionCall` into `ToolCall`, and sends `functionResponse` back. Empty assistant text is allowed when tool calls are present.
+## Extraction strategy
 
-OpenAI / Anthropic: `supportsTools=false`. A tool-enabled request is refused, not sent silently.
+Owner Analysis AI only. Structured JSON DTO (`MemoryAnalysisResult`), validated before write. Core assigns `user_id`. Explicit “запомни” is in the analysis prompt, not regex business logic. Provenance required. Reinforce updates `last_confirmed_at` / confidence / sources. Supersede writes revision trail and keeps the old row.
 
-## Multi-tool loop
+## Retrieval strategy
 
-Inside `ConversationAiService` (Core), not Telegram/Cabinet:
+`PersonalMemoryRetriever`: SQL `WHERE user_id = current` first, then keyword / `normalized_key` / freshness / confidence / validity. No vector DB. Cross-chat: relevant summaries only, not raw. Expired, low-confidence, disputed, superseded, obsolete excluded from current truth.
 
-AI → tool call(s) → execute → tool result(s) → AI → possibly more tools → final answer.
+## Context limits (`config/memory.php`)
 
-Safety limit: **max 5 tool rounds**. Telegram and Web Cabinet share `ConversationTurnService`.
+- memories max 10
+- fallback memories 5
+- cross-chat summaries max 5
+- min confidence 0.65
+- recent current-chat messages = existing ConversationContextBuilder limit
+- search snippets max 8
 
-## Timezone handling
+## Search history tool
 
-Each turn injects current user local datetime and IANA timezone from `users.timezone` (not hardcoded).
+`search_conversation_history` in Tool Registry alongside `create_reminder`. Capability `memory`. Arguments: query, optional conversation hint, optional limit. Core uses current user. Bounded snippets. Foreign conversations denied.
 
-Core takes wall-clock from `run_at_local` and applies the user IANA timezone. Conflicting offset is ignored. DST via DateTimeZone. Past instants rejected. Ambiguous day-without-clock: model must ask, tool is not called.
+## Isolation model
 
-## Scheduler / production cron
+Topics, memories, summaries, retrieval, and history search are always scoped by `user_id`. Topic names are unique per user, not globally. Group knowledge not implemented.
 
-Command: `jarvis:reminders:dispatch`  
-Schedule: `everyMinute()` + `withoutOverlapping(10)`
+## Dedupe / revisions
 
-Cron (deploy user, idempotent; one line, not duplicated):
-
-```text
-* * * * * cd /var/www/jarvis && php artisan schedule:run >> /dev/null 2>&1
-```
-
-`php artisan schedule:list` shows the command.
-
-Reminder dispatch is synchronous inside the scheduled command.
-
-Telegram inbound processing now uses the database queue. The webhook validates the secret, enqueues `ProcessTelegramUpdate`, and returns immediately. A dedicated `telegram` queue worker is guarded by `flock` and restarted from deploy-user crontab.
-
-## Delivery
-
-`ReminderDeliveryService` uses existing `TelegramBotManager::sendTextMessage` (same bot token / Bot API). No second Telegram client. No Gemini call.
-
-Text: `⏰ Напоминание: {text}`
-
-Current linked Telegram identity of that User (re-pair is OK). Delivery is not a semantic assistant message.
-
-## Race / idempotency
-
-Due rows claimed in a transaction: `scheduled` → `processing` with `lockForUpdate` + `skipLocked`. A delivered/processing row is not claimed again. Duplicate Telegram inbound (`channel_message_id`) does not create a second reminder.
-
-## Retry policy
-
-Telegram API failure: return to `scheduled` with `metadata.attempts` and `next_retry_at`. Max **3** attempts, then `failed`. Disabled user: `cancelled`, `reason=user_disabled`. Missing identity at delivery: retry then fail (`telegram_not_connected`).
-
-## Product decision
-
-No linked Telegram identity → **reminder is not created**. Message: «Для получения напоминаний сначала подключите Telegram.» ADR-046.
-
-Recurrence is not implemented. Do not create a one-shot as a fake recurring reminder. ADR-048.
+Dedupe key: `user_id` + kind + `normalized_key` for active rows. Reinforce does not insert a second row. Contradiction → supersede + revision + new/updated fact.
 
 ## Tests
 
-PHPUnit: **89 passed**, **1 skipped**. Production DB. Temporary `jarvis-test-*@invalid.local` users and their reminders cleaned by id. `FakeAiChatGateway` / `Http::fake` — no billable Gemini, no real Telegram delivery.
-
-Covered: schema; owner/user create; no Telegram → no row; linked Telegram → create; local→UTC; DST / conflicting offset; past rejected; provenance; Gemini functionCall → ToolCall; functionResponse back; final text after tool; max tool rounds; Telegram and Web same loop; duplicate inbound; scheduler due; delivered once; claim twice; Telegram failure retry; disabled user cancelled.
+`php artisan test`: 107 tests, 106 passed, 1 skipped, 471 assertions. Fake Analysis AI only. Temporary `jarvis-test-*@invalid.local` rows cleaned by id. Production owner memories were not written by automated tests.
 
 ## Build
 
-`npm run build` after Settings → Users `reminders_count` column.
+`npm run build` succeeded (Settings → Users Memory diagnostics page).
 
-## DB counts (after tests)
+## Migrate / queue / schedule
+
+- `php artisan migrate:status` — memory migration ran
+- `php artisan queue:failed` — none
+- `php artisan schedule:list` — `jarvis:reminders:dispatch` every minute
+
+## Production counts (after migrate, before owner smoke)
 
 | Table | Count |
 | --- | --- |
 | users | 1 |
-| channel_identities | 1 |
 | conversations | 2 |
-| messages | 8 |
-| reminders | 0 |
-| ai_role_settings | 3 |
+| messages | 27 |
+| reminders | 11 |
+| conversation_summaries | 0 |
+| topics | 0 |
+| memories | 0 |
+| memory_analysis_runs | 0 |
+| jobs | 0 |
+| failed_jobs | 0 |
 
-Owner production chats retained. No owner reminders created by this work.
+## Backfill dry-run
 
-## Manual smoke status
+`php artisan jarvis:memory:backfill --dry-run --limit=20 --chunk=5`
 
-**awaiting manual owner smoke**
+Result: 2 conversations, 10 bounded turn candidates, 0 summaries (below threshold). Not dispatched. Full owner backfill was not run automatically.
 
-Not executed by Cursor. Owner should write in Telegram: `Напомни мне через 2 минуты проверить Jarvis`. Expect Gemini confirm, `scheduled` row, then `⏰ Напоминание: проверить Jarvis`, status `delivered`, no duplicate.
+## Manual smoke
 
-Web Cabinet create (with Telegram pairing) is architecturally the same tool loop; delivery remains Telegram.
+Awaiting owner. Suggested checks (do not invent personal facts):
+
+1. Worker active (already verified).
+2. In Telegram, send a durable test fact, then wait for background analysis.
+3. Confirm a memory row + provenance in Settings → Users → Memory.
+4. New chat: ask the fact; answer should come from structured memory, not raw of the old chat.
+5. Optional: force a summary, ask about an old decision in a new chat, then a detail that needs `search_conversation_history`.
 
 ## Known issues
 
-- Switching conversation AI away from Gemini disables reminder tools until that provider supports tools.
-- Recurrence / cancel / list tools not implemented.
-- A crash after Telegram send and before `delivered` could leave `processing` (at-most-once; no automatic reclaim).
-- Manual owner smoke not yet run.
-
-## Production incident and hotfix
-
-The first owner smoke exposed two coupled defects:
-
-- Gemini 3 function-call responses require the original `thoughtSignature`; omitting it caused the post-tool model call to fail or run until PHP terminated the webhook.
-- Unfinished historical user messages were included and merged into later turns. Consequently, follow-up messages such as «Ты тут?» inherited the earlier reminder request and created additional reminders.
-
-Fixes:
-
-- preserve native Gemini response parts and `thoughtSignature` through `functionResponse`;
-- process Telegram updates on a dedicated database queue, outside the webhook request;
-- exclude previous `pending` / `failed` inbound turns from a new model context;
-- make `create_reminder` idempotent for `source_message_id`;
-- retry stale pending turns safely and use a confirmation fallback if the post-tool model call fails.
-
-Production recovery marked stale owner turns as failed without deleting messages. No scheduled owner reminders remained. The latest «Ты тут?» was retried successfully and Jarvis sent a normal assistant response.
+- `/etc/systemd/system/jarvis-queue.service` was not installed (sudo password). User lingering unit is the production worker.
+- Owner history is not backfilled until an explicit non-dry-run command.
+- Profile summary generation waits until enough high-confidence memories exist.
+- No cabinet Memory UI (by design for M12).
+- No group knowledge / Projects / vector DB.
 
 ## Next milestone
 
-Milestone 11 — Telegram Groups (see `Docs/IMPLEMENTATION_PLAN.md`).
+Milestone 13 — Projects (Owner Space containers; Project ≠ Topic).

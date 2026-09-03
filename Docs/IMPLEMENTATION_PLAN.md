@@ -372,6 +372,8 @@ Personal DM persist → recent context of the **current** conversation → Conve
 
 ## Milestone 12 — Structured Memory
 
+**Статус.** COMPLETED (2026-09-03).
+
 **Цель.** Topics/memories/summaries per user; Owner Analysis AI на extract/classify. Summary-first cross-chat.
 
 **Реализуем** по [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md).

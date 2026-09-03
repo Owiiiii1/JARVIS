@@ -13,7 +13,7 @@ Jarvis не зависит от одного HTTP API и одной модели
 | Config | Кто использует | Назначение |
 | --- | --- | --- |
 | **Owner Conversation AI** | только Owner Space | общение owner, tool calls (Calendar/Gmail/group search/reminders) |
-| **Owner Analysis AI** | jobs Owner Space | Telegram Groups, summaries, decisions, tasks, memory/project analysis |
+| **Owner Analysis AI** | jobs (any user_id scope) | personal memory extract, conversation summaries; groups/projects later |
 | **Default User Conversation AI** | все User Spaces | общение обычных users; **не** наследует Owner Conversation AI |
 
 Каждая:
@@ -28,7 +28,7 @@ Owner может держать дорогую модель; users — отде�
 
 Optional **later**: per-user model override поверх Default User Conversation AI. Не обязателен для MVP.
 
-Analysis AI **не** обслуживает обычный user DM.
+Analysis AI **не** обслуживает обычный user DM. Background Memory Engine uses Owner Analysis AI as the analysis engine; derived rows stay on the source `user_id`. User A output never becomes User B context.
 
 Слоты later (classification, embeddings, …) выделяются из Owner Analysis без смены engines.
 
@@ -46,7 +46,7 @@ resolveConversationAI(user):
 ```
 resolveAnalysisAI():
   → Owner Analysis AI
-  (вызов только из owner jobs / tools)
+  (background memory extract/summaries for any user; result scope is always source user_id)
 ```
 
 Conversation Engine не знает vendor. Не `if user_id === 1`.
@@ -56,11 +56,14 @@ Conversation Engine не знает vendor. Не `if user_id === 1`.
 ## Prompt hierarchy (personal turn)
 
 1. Platform prompt **выбранного** conversation config (owner vs default user);
-2. Channel / system rules;
-3. **User General Prompt** этого space (owner и каждый user свой);
-4. Personal context: relevant summaries других чатов, structured memory/profile — **того же** space;
-5. Current conversation recent/raw + summary;
-6. Current message.
+2. Current local time / timezone;
+3. Tool context;
+4. **User General Prompt** этого space;
+5. Relevant personal memories (labelled block);
+6. Compact user profile if present;
+7. Relevant summaries of **other** chats of this user (not their raw);
+8. Current conversation summary if the chat is longer than the recent window;
+9. Current conversation recent/raw + current inbound.
 
 User General Prompt редактирует **сам user** в Cabinet (owner — в своих settings). Не отменяет platform/security.
 
@@ -68,9 +71,9 @@ User General Prompt редактирует **сам user** в Cabinet (owner —
 
 ## Tools
 
-Owner Conversation AI: multi-step tool loop в одном turn. [INTEGRATIONS.md](INTEGRATIONS.md).
+Owner Conversation AI: multi-step tool loop в одном turn. [INTEGRATIONS.md](INTEGRATIONS.md). Tools: `create_reminder`, `search_conversation_history`.
 
-User Conversation AI: reminders (и later узкий набор). Не Gmail/Calendar/groups.
+User Conversation AI: same reminder + history search. Не Gmail/Calendar/groups.
 
 Порт chat/complete возвращает text **и** tool requests. `one message ≠ max one tool call`. Max 5 tool rounds в Core.
 

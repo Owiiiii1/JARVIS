@@ -18,6 +18,7 @@ use App\Services\Ai\DTO\AiChatResponse;
 use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\DTO\ToolResult;
 use App\Services\Ai\Exceptions\AiConfigurationException;
+use App\Services\Memory\MemoryTurnDispatcher;
 use App\Services\Tools\CreateReminderTool;
 use App\Services\Tools\ToolExecutionContext;
 use App\Services\Tools\ToolRegistry;
@@ -40,6 +41,7 @@ final class ConversationAiService
         private readonly MessagePersistenceService $messages,
         private readonly AiChatGateway $gateway,
         private readonly ToolRegistry $tools,
+        private readonly MemoryTurnDispatcher $memoryTurns,
     ) {}
 
     public function completeUserTurn(Message $inbound): ConversationAiTurnResult
@@ -187,6 +189,7 @@ final class ConversationAiService
 
             if ($inbound !== null) {
                 $this->markInbound($inbound, 'completed');
+                $this->memoryTurns->afterSuccessfulTurn($user, $conversation, $inbound, $assistant);
             }
 
             return new ConversationAiTurnResult(assistantMessage: $assistant);

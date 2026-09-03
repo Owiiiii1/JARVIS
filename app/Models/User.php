@@ -78,4 +78,24 @@ class User extends Authenticatable
     {
         return $this->hasOne(UserAiSetting::class);
     }
+
+    public function memories(): HasMany
+    {
+        return $this->hasMany(Memory::class);
+    }
+
+    public function topics(): HasMany
+    {
+        return $this->hasMany(Topic::class);
+    }
+
+    public function conversationSummaries(): HasMany
+    {
+        return $this->hasMany(ConversationSummary::class);
+    }
+
+    public function profile(): HasOne
+    {
+        return $this->hasOne(UserProfile::class);
+    }
 }

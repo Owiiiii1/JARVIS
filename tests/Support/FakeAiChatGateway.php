@@ -2,6 +2,7 @@
 
 namespace Tests\Support;
 
+use App\Enums\AiRoleKey;
 use App\Models\AiRoleSetting;
 use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\DTO\AiChatRequest;
@@ -14,6 +15,8 @@ final class FakeAiChatGateway implements AiChatGateway
     public array $calls = [];
 
     public string $responseText = 'Fake assistant reply';
+
+    public string $analysisResponseText = '{"topics":[],"memories":[],"profile_candidate":null}';
 
     public ?\Throwable $exception = null;
 
@@ -45,8 +48,12 @@ final class FakeAiChatGateway implements AiChatGateway
             throw $this->exception;
         }
 
+        $text = $configuration->roleKey() === AiRoleKey::OwnerAnalysis
+            ? $this->analysisResponseText
+            : $this->responseText;
+
         return new AiChatResponse(
-            text: $this->responseText,
+            text: $text,
             provider: (string) $configuration->provider,
             model: (string) $configuration->model,
             finishReason: 'stop',
@@ -59,6 +66,17 @@ final class FakeAiChatGateway implements AiChatGateway
     public function supportsTools(AiRoleSetting $configuration): bool
     {
         return $this->supportsTools;
+    }
+
+    /**
+     * @return list<array{role_key: string, provider: string, model: string, request: AiChatRequest}>
+     */
+    public function conversationCalls(): array
+    {
+        return array_values(array_filter(
+            $this->calls,
+            static fn (array $call): bool => $call['role_key'] !== AiRoleKey::OwnerAnalysis->value,
+        ));
     }
 
     /**

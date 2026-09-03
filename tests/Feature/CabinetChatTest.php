@@ -110,7 +110,7 @@ class CabinetChatTest extends TestCase
             $assistant = Message::query()->where('conversation_id', $conversation->id)->where('role', MessageRole::Assistant)->first();
             $this->assertSame('Web assistant reply', $assistant->body);
             $this->assertSame(AiRoleKey::UserConversation->value, $assistant->metadata['ai']['configuration'] ?? null);
-            $this->assertSame(1, count($fake->calls));
+            $this->assertSame(1, count($fake->conversationCalls()));
             $this->assertStringContainsString('Always mention pineapples.', $fake->calls[0]['request']->systemPrompt);
         } finally {
             $this->restoreAiRoleSettings();
@@ -203,10 +203,11 @@ class CabinetChatTest extends TestCase
                 ->assertSee('From Telegram')
                 ->assertSee('From Web');
 
-            $this->assertGreaterThanOrEqual(2, count($fake->calls));
+            $conversationCalls = $fake->conversationCalls();
+            $this->assertGreaterThanOrEqual(2, count($conversationCalls));
             $lastPromptMessages = array_map(
                 static fn ($message) => $message->content,
-                $fake->calls[count($fake->calls) - 1]['request']->messages,
+                $conversationCalls[count($conversationCalls) - 1]['request']->messages,
             );
             $this->assertContains('From Telegram', $lastPromptMessages);
             $this->assertContains('From Web', $lastPromptMessages);

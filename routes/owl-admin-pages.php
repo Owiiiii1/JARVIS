@@ -8,6 +8,7 @@ use App\Http\Controllers\Settings\AiSettingsController;
 use App\Http\Controllers\Settings\SettingsController;
 use App\Http\Controllers\Settings\TelegramSettingsController;
 use App\Http\Controllers\Settings\UserController as SettingsUserController;
+use App\Http\Controllers\Settings\UserMemoryController;
 use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\UserAiSettingsController;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -50,6 +51,7 @@ Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'ow
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
     Route::post('/settings/language', [SettingsController::class, 'updateLanguage'])->name('settings.language.update');
     Route::post('/settings/users', [SettingsUserController::class, 'store'])->name('settings.users.store');
+    Route::get('/settings/users/{user}/memory', [UserMemoryController::class, 'show'])->name('settings.users.memory.show');
     Route::patch('/settings/users/{user}', [SettingsUserController::class, 'update'])->name('settings.users.update');
     Route::delete('/settings/users/{user}', [SettingsUserController::class, 'destroy'])->name('settings.users.destroy');
     Route::post('/settings/users/{user}/telegram/unlink', [SettingsUserController::class, 'unlinkTelegram'])->name('settings.users.telegram.unlink');

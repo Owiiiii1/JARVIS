@@ -496,15 +496,63 @@
 
 ---
 
+## ADR-049 — Derived memory is async
+
+**Контекст.** Extraction/summarization на Owner Analysis AI не должны увеличивать Telegram/Web latency.
+
+**Решение.** После persist inbound → Conversation AI → persist assistant → ответ пользователю. Затем `AnalyzeConversationTurnJob` / `UpdateConversationSummaryJob` на queue `memory`. Conversation turn не ждёт Analysis AI.
+
+**Следствие.** Structured memory может появиться с небольшой задержкой после реплики.
+
+---
+
+## ADR-050 — Relational retrieval first
+
+**Контекст.** Vector DB улучшает semantic search, но не нужна, чтобы изолировать users и не раздувать prompt.
+
+**Решение.** M12 retrieval — MySQL: `user_id` first, keyword/`normalized_key`/topic, confidence, freshness, validity. Нет Pinecone/Qdrant/Weaviate/pgvector.
+
+**Следствие.** Embeddings — later, когда relational quality станет узким местом.
+
+---
+
+## ADR-051 — Raw-on-demand via Core tool
+
+**Контекст.** Summary-first недостаточно, если пользователь спрашивает деталь старого чата.
+
+**Решение.** Tool `search_conversation_history`. Модель не передаёт `user_id`. Core использует `ToolExecutionContext.user`. Bounded snippets. Чужие conversations игнорируются.
+
+**Следствие.** Chat A не получает raw Chat B автоматически.
+
+---
+
+## ADR-052 — Analysis AI processes derived memory; scope stays user_id
+
+**Контекст.** Один Analysis config проще, чем отдельная модель на каждого user.
+
+**Решение.** Owner Analysis AI — background engine для extract/summary любых users. `user_id` всегда задаёт Core. Model-generated user_id игнорируется. Derived rows User A никогда не читаются в retrieval User B.
+
+**Следствие.** Не нужен отдельный User Analysis AI в M12.
+
+---
+
+## ADR-053 — Queue worker via systemd
+
+**Контекст.** Database queue без worker не обрабатывает memory jobs. Telegram уже имеет crontab flock worker на queue `telegram`.
+
+**Решение.** `jarvis-queue.service` (`queue:work database --queue=memory,default`). Telegram worker crontab не дублируется этим unit. Reminder scheduler cron не трогается. Supervisor не ставится.
+
+**Следствие.** Memory jobs и default queue обрабатывает systemd; Telegram updates — отдельный worker.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Алфавит generated access_code (кроме зарезервированного 2000).
 - 403 vs redirect когда user открывает admin URL.
 - Есть ли у owner отдельный cabinet UI или «мои чаты» в админке.
-- Технология очередей.
 - Auth схема mobile/desktop.
 - Realtime транспорт voice/text streaming; STT/TTS/interruption — практические тесты.
-- Пороги confidence и summarization.
 - Набор service updates (`my_chat_member`).
 - Retention raw messages по закону/желанию пользователя (отдельно от derived lifecycle).
 - UX явного переноса group knowledge → personal fact.
