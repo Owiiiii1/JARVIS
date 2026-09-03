@@ -46,6 +46,8 @@
 
 ## Milestone 1 — Identity / Roles / Users foundation
 
+**Статус.** COMPLETED (2026-09-03).
+
 **Цель.** `owner` vs `user`, access_code, раздельный web access.
 
 **Реализуем**

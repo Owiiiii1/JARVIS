@@ -588,3 +588,9 @@ Host CRM leftover removed. No Identity/Telegram/AI-runtime work.
 - `npm run build` succeeded. Telegram webhook route and stored bot settings unchanged.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 1 — COMPLETED (2026-09-03)
+
+Identity foundation: `users.role`, `access_code`, `status`, `timezone`; existing admin promoted to owner (`2000`, `Europe/Rome`); `AccessCodeGenerator`; `UserCapabilities`; owner-only admin middleware; `/cabinet` shell; login redirect by role; Settings → Users catalog columns; disabled-user blocking; production-safe tests on `jarvis` DB.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).

@@ -1,4 +1,4 @@
-# Cursor work report — Milestone 0
+# Cursor work report — Milestone 1
 
 Date: 2026-09-03  
 Repo: `Owiiiii1/JARVIS`  
@@ -9,108 +9,152 @@ Host: `/var/www/jarvis`
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| Before HEAD | `f900093` (`docs: finalize spaces chats reminders projects and group intelligence`) |
-| After HEAD | `3ca890d` on `origin/main` |
-| Working tree before start | clean, matched `origin/main` |
+| Before HEAD | `fe8888028b60cd08b9375702148344ea69e56516` (`docs: record Milestone 0 after HEAD`) |
+| Commit message | `feat: add Jarvis owner and user identity foundation` |
+| Working tree before start | clean |
 
-## Changed files
+## Users backup (pre-migration)
 
-- `database/migrations/2026_09_03_162500_drop_legacy_crm_tables.php` (new)
-- `tests/Feature/BaselineTest.php` (new)
-- `phpunit.xml` (removed sqlite `:memory:` overrides; host PHP 8.5 has no `pdo_sqlite`)
-- `resources/js/Layouts/AuthLayout.jsx` (removed leftover CRM marketing copy)
-- `Docs/IMPLEMENTATION_PLAN.md` (Milestone 0 marked COMPLETED)
-- `Docs/CURRENT_STATE.md` (Implementation progress only)
-- `Docs/Development/Cursor_Work_Report.md` (this file)
-
-## Deleted files
-
-- `app/Models/Customer.php`
-- `app/Models/Service.php`
-- `app/Models/Staff.php`
-- `app/Models/Order.php`
-- `app/Http/Controllers/CustomersController.php`
-- `app/Http/Controllers/ServicesController.php`
-- `app/Http/Controllers/StaffController.php`
-- `app/Http/Controllers/OrdersController.php`
-- `resources/js/Pages/Customers/Index.jsx`
-- `resources/js/Pages/Services/Index.jsx`
-- `resources/js/Pages/Staff/Index.jsx`
-- `resources/js/Pages/Orders/Index.jsx`
-
-Old CRM create-migrations were **not** edited.
+| Item | Value |
+| --- | --- |
+| Path | `/var/www/jarvis/storage/backups/users_pre_milestone1_20260903_180004.sql` |
+| Scope | `users` table schema + data only |
+| Committed to Git | **no** (under `storage/backups/`, gitignored) |
+| Note | `mysqldump` emitted a harmless tablespaces privilege warning; dump file contains 58 lines and was verified present |
 
 ## Migration
 
-`2026_09_03_162500_drop_legacy_crm_tables`
+`2026_09_03_180000_add_identity_fields_to_users_table`
 
-- `up()`: refuse if any legacy table has rows; drop `order_staff` → `orders` → `customers` / `services` / `staff`.
-- `down()`: recreate the original empty CRM schema and FKs.
+- Added columns: `role`, `access_code`, `status`, `timezone`
+- Safe owner promotion when exactly one user exists and `2000` is free
+- Enforced non-null `access_code` + unique index
+- `down()` drops unique index and the four columns without touching core auth columns
 
-## DB before / after legacy tables
+Command: `php artisan migrate --force`
 
-| Table | Before | After |
+## Production DB before / after
+
+| Check | Before | After |
 | --- | --- | --- |
-| `order_staff` | exists, 0 rows | dropped |
-| `orders` | exists, 0 rows | dropped |
-| `customers` | exists, 0 rows | dropped |
-| `services` | exists, 0 rows | dropped |
-| `staff` | exists, 0 rows | dropped |
-| `users` | 1 row | 1 row (unchanged) |
-| `ai_provider_settings` | 3 rows | 3 rows (unchanged) |
-| `telegram_bot_settings` | 1 row | 1 row (unchanged) |
+| `users` count | 1 | 1 |
+| Owner role | n/a | `owner` |
+| Owner access_code | n/a | `2000` |
+| Owner status | n/a | `active` |
+| Owner timezone | n/a | `Europe/Rome` |
+| `ai_provider_settings` rows | 3 | 3 (unchanged) |
+| `telegram_bot_settings` | `@owl_jarvis_bot`, connected, webhook set | unchanged |
+| Unique index on `access_code` | no | yes |
 
-`php artisan migrate --force`: `2026_09_03_162500_drop_legacy_crm_tables` batch 3 DONE.
+Existing admin account (id=1) promoted in place. Email not reproduced in this report.
 
-## Tests
+## Capability implementation
+
+- `App\Services\Users\UserCapability` — capability constants
+- `App\Services\Users\UserCapabilities` — role → default map; owner `*`, user limited set
+- `User::canUseCapability()` delegates to service
+- No DB capability rows (code map only, per plan)
+
+## Access code generation
+
+- `App\Services\Users\AccessCodeGenerator`
+- 6-digit numeric codes, retry on collision, excludes reserved `2000`
+- New users receive auto-generated code on create via Settings → Users
+- Owner code `2000` set only by migration / system invariant, not via user form
+
+## Auth routing & authorization
+
+- Login redirect: owner → `/dashboard`, user → `/cabinet`
+- Admin routes: middleware stack `web`, `auth`, `user.active`, `owner` → HTTP 403 for non-owner
+- Cabinet route `/cabinet`: authenticated active users
+- Disabled users blocked at login and session invalidated on next request (`EnsureUserIsActive`)
+- Owner cannot be deleted via Users CRUD; second owner cannot be created via CRUD
+
+## Cabinet shell
+
+- Route: `GET /cabinet` (`cabinet.index`)
+- Page: `resources/js/Pages/Cabinet/Index.jsx`
+- Layout: `resources/js/Layouts/CabinetLayout.jsx`
+- Placeholder: “Jarvis Cabinet” + basic user info + logout
+
+## Users admin UI
+
+- `Settings → Users` shows: name, email, role, access_code, status, timezone, created_at
+- Create user: auto role `user`, generated code, active, `Europe/Rome`
+- Edit: owner can change name, email, status, timezone, password for regular users
+- Owner row: role/code/status/timezone read-only in form
+
+## Test strategy (production-safe)
+
+No `RefreshDatabase`, `DatabaseMigrations`, factories without cleanup, or destructive traits.
+
+| Suite | Approach |
+| --- | --- |
+| `tests/Unit/AccessCodeGeneratorTest.php` | Generator logic, reserved code, format |
+| `tests/Unit/UserCapabilitiesTest.php` | Static capability map / denied admin caps |
+| `tests/Feature/IdentityAuthorizationTest.php` | Schema assertion; owner access; temp user with marker email `@invalid.local` created/deleted in `finally` |
+| `tests/Feature/BaselineTest.php` | Updated to use existing owner |
+
+Temporary test users use email prefix `jarvis-test-*@invalid.local`; deleted only when marker matches.
+
+## Temporary user cleanup
+
+- Feature tests: cleanup in `finally` blocks — confirmed
+- Manual smoke script: created id=5, verified, deleted — `users` count returned to 1
+- Final state: single owner row only
+
+## Test results
 
 ```
 php artisan test
-8 passed, 22 assertions
+29 passed (64 assertions)
 ```
 
-Coverage: guest login 200; guest `/dashboard` redirect; authenticated dashboard/settings/Telegram tab 200; `/customers|/services|/staff|/orders` 404.
+## Build result
 
-Auth tests use the existing admin row. No `RefreshDatabase` / no factory inserts (no sqlite driver; production MySQL must not be wiped).
+```
+npm run build — success (Vite 8.2.2)
+New chunks: Cabinet/Index, updated UsersPanel
+```
 
-## Build
+## HTTP smoke
 
-`npm run build` — success (Vite 8.2.2). CRM page chunks gone.
+| Request | Result |
+| --- | --- |
+| `GET /` | 200 |
+| `GET /dashboard` (guest) | 302 → login |
+| `GET /cabinet` (guest) | 302 → login |
+| `POST /telegram/webhook` (no secret) | 403 (unchanged ACK path) |
 
-## Route verification
+## Telegram unchanged
 
-32 routes, same surface as before cleanup. No CRM routes. Present: login, dashboard, settings, Telegram settings POSTs, `POST /telegram/webhook`, calendar, logs, AI settings.
+- Webhook route and controller not modified
+- `TelegramBotManager`, Nutgram handlers, token storage untouched
+- DB: `@owl_jarvis_bot`, `is_connected=1`, `is_webhook_set=1`
 
-Live HTTP:
+## AI unchanged
 
-- `GET /` → 200
-- guest `/dashboard`, `/settings` → 302 `/`
-- `/customers`, `/orders`, `/staff`, `/services` → 404
-- in-process authenticated: `/dashboard`, `/settings`, `/settings?tab=telegram`, `/calendar` → 200
-
-## Telegram baseline
-
-- `nutgram/nutgram` 4.50.0 installed
-- `POST /telegram/webhook` unchanged (ACK-only controller)
-- settings row present; webhook still marked set/connected
-- bot token not read or rewritten; Telegram API not called
-
-## AI baseline
-
-- AI settings UI/routes unchanged
-- 3 provider rows still present
-- no AI runtime/architecture change
+- `AiProviderClient` / manager / settings UI not modified
+- DB: 3 provider rows, none active (same as before)
 
 ## Problems / deviations
 
-- PHP 8.5 has `pdo_mysql` only. phpunit.xml no longer forces sqlite `:memory:`.
-- `custom-admin-kit` vendor stubs still contain CRM presets. Host routes do not load them. Re-publishing the admin preset could restore files; vendor was not modified.
-- `storage/app/owl-admin-kit.json` still lists originally published CRM paths (historical kit inventory).
-- Login-page AuthLayout copy no longer mentions customers/orders/staff.
+- `mysqldump` tablespaces warning (non-blocking; dump usable)
+- Migration initially failed on redundant `use RuntimeException;` under PHP 8.5 strict lint — fixed before successful run
+- Temporary user HTTP kernel smoke returned 302 (session not bound); PHPUnit `actingAs` tests are authoritative for authz
 
-## Left for Milestone 1
+## Remaining for Milestone 2
 
-- `users.role` (`owner` / `user`), `access_code` (owner `2000`), `status`, timezone contract
-- capability defaults from role
-- web split: owner → Admin Panel; user → Cabinet (not admin)
-- do **not** do Telegram pairing, Nutgram handlers, AI chat, conversations, reminders, projects, groups
+- Nutgram webhook handlers (pairing flow)
+- `/start` diagnostic response
+- `channel_identities` table + pairing service
+- Telegram link/unlink admin minimal UI
+- No AI greeting yet (Milestone 4)
+
+## Changed files (summary)
+
+**New:** enums, `AccessCodeGenerator`, `UserCapabilities`, middleware, migration, `CabinetController`, Cabinet pages/layout, identity tests
+
+**Updated:** `User` model, auth login redirect, `LoginRequest`, routes, `UserController`, `SettingsController`, `UsersPanel.jsx`, `bootstrap/app.php`, docs
+
+**Not committed:** `storage/backups/users_pre_milestone1_20260903_180004.sql`

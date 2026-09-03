@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CabinetController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\TelegramWebhookController;
@@ -24,7 +25,11 @@ Route::post('/telegram/webhook', TelegramWebhookController::class)
     ])
     ->name('telegram.webhook');
 
-Route::middleware(AdminRouteMiddleware::stack())->group(function () {
+Route::middleware(['web', 'auth', 'user.active'])->group(function () {
+    Route::get('/cabinet', [CabinetController::class, 'index'])->name('cabinet.index');
+});
+
+Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'owner']))->group(function () {
     Route::get('/dashboard', function () {
         return Inertia::render('Dashboard');
     })->name('dashboard');

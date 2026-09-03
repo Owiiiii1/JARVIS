@@ -2,6 +2,8 @@ import { useForm, usePage } from '@inertiajs/react';
 import { Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 
+const TIMEZONE_OPTIONS = ['Europe/Rome'];
+
 export default function UsersPanel() {
     const { locale = 'en', users = [], auth } = usePage().props;
     const me = auth?.user;
@@ -20,16 +22,22 @@ export default function UsersPanel() {
         email: '',
         password: '',
         password_confirmation: '',
+        status: 'active',
+        timezone: 'Europe/Rome',
     });
     const deleteForm = useForm({ confirm: '' });
 
     const text = {
         en: {
             usersTitle: 'Users',
-            usersDescription: 'Accounts allowed to sign in to the admin panel.',
+            usersDescription: 'Jarvis user accounts for admin and personal cabinet access.',
             addUser: 'Add user',
             colName: 'Name',
             colEmail: 'Email',
+            colRole: 'Role',
+            colAccessCode: 'Access code',
+            colStatus: 'Status',
+            colTimezone: 'Timezone',
             colCreated: 'Created',
             colActions: 'Actions',
             empty: 'No users yet.',
@@ -39,6 +47,10 @@ export default function UsersPanel() {
             fieldEmail: 'Email',
             fieldPassword: 'Password',
             fieldPasswordConfirm: 'Confirm password',
+            fieldStatus: 'Status',
+            fieldTimezone: 'Timezone',
+            statusActive: 'Active',
+            statusDisabled: 'Disabled',
             cancel: 'Cancel',
             save: 'Create user',
             update: 'Save changes',
@@ -49,13 +61,18 @@ export default function UsersPanel() {
             deleteConfirmLabel: 'Confirmation',
             deleteConfirmPlaceholder: 'DELETE',
             cannotDeleteSelf: 'You cannot delete your own account here.',
+            ownerLocked: 'Owner role and access code are managed by the system.',
         },
         ru: {
             usersTitle: 'Users',
-            usersDescription: 'Accounts allowed to sign in to the admin panel.',
+            usersDescription: 'Учётные записи Jarvis для админки и личного кабинета.',
             addUser: 'Add user',
             colName: 'Name',
             colEmail: 'Email',
+            colRole: 'Role',
+            colAccessCode: 'Access code',
+            colStatus: 'Status',
+            colTimezone: 'Timezone',
             colCreated: 'Created',
             colActions: 'Actions',
             empty: 'No users yet.',
@@ -65,6 +82,10 @@ export default function UsersPanel() {
             fieldEmail: 'Email',
             fieldPassword: 'Password',
             fieldPasswordConfirm: 'Confirm password',
+            fieldStatus: 'Status',
+            fieldTimezone: 'Timezone',
+            statusActive: 'Active',
+            statusDisabled: 'Disabled',
             cancel: 'Cancel',
             save: 'Create user',
             update: 'Save changes',
@@ -75,13 +96,18 @@ export default function UsersPanel() {
             deleteConfirmLabel: 'Confirmation',
             deleteConfirmPlaceholder: 'DELETE',
             cannotDeleteSelf: 'You cannot delete your own account here.',
+            ownerLocked: 'Owner role and access code are managed by the system.',
         },
         uk: {
             usersTitle: 'Users',
-            usersDescription: 'Accounts allowed to sign in to the admin panel.',
+            usersDescription: 'Облікові записи Jarvis для адмінки та особистого кабінету.',
             addUser: 'Add user',
             colName: 'Name',
             colEmail: 'Email',
+            colRole: 'Role',
+            colAccessCode: 'Access code',
+            colStatus: 'Status',
+            colTimezone: 'Timezone',
             colCreated: 'Created',
             colActions: 'Actions',
             empty: 'No users yet.',
@@ -91,6 +117,10 @@ export default function UsersPanel() {
             fieldEmail: 'Email',
             fieldPassword: 'Password',
             fieldPasswordConfirm: 'Confirm password',
+            fieldStatus: 'Status',
+            fieldTimezone: 'Timezone',
+            statusActive: 'Active',
+            statusDisabled: 'Disabled',
             cancel: 'Cancel',
             save: 'Create user',
             update: 'Save changes',
@@ -101,6 +131,7 @@ export default function UsersPanel() {
             deleteConfirmLabel: 'Confirmation',
             deleteConfirmPlaceholder: 'DELETE',
             cannotDeleteSelf: 'You cannot delete your own account here.',
+            ownerLocked: 'Owner role and access code are managed by the system.',
         },
     };
     const t = text[locale] ?? text.en;
@@ -122,6 +153,8 @@ export default function UsersPanel() {
             email: user.email ?? '',
             password: '',
             password_confirmation: '',
+            status: user.status ?? 'active',
+            timezone: user.timezone ?? 'Europe/Rome',
         });
         editForm.clearErrors();
         deleteForm.reset();
@@ -161,6 +194,10 @@ export default function UsersPanel() {
                             <tr>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colName}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colEmail}</th>
+                                <th className="px-4 py-3 text-left font-semibold">{t.colRole}</th>
+                                <th className="px-4 py-3 text-left font-semibold">{t.colAccessCode}</th>
+                                <th className="px-4 py-3 text-left font-semibold">{t.colStatus}</th>
+                                <th className="px-4 py-3 text-left font-semibold">{t.colTimezone}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colCreated}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colActions}</th>
                             </tr>
@@ -168,7 +205,7 @@ export default function UsersPanel() {
                         <tbody className="divide-y divide-slate-100 text-slate-700">
                             {users.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-400">
+                                    <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-400">
                                         {t.empty}
                                     </td>
                                 </tr>
@@ -177,6 +214,10 @@ export default function UsersPanel() {
                                     <tr key={u.id} className="hover:bg-slate-50/60">
                                         <td className="px-4 py-3 font-medium text-slate-900">{u.name}</td>
                                         <td className="px-4 py-3">{u.email}</td>
+                                        <td className="px-4 py-3 capitalize">{u.role}</td>
+                                        <td className="px-4 py-3 font-mono text-xs">{u.access_code}</td>
+                                        <td className="px-4 py-3 capitalize">{u.status}</td>
+                                        <td className="px-4 py-3">{u.timezone}</td>
                                         <td className="px-4 py-3 text-slate-500">{formatCreated(u.created_at)}</td>
                                         <td className="px-4 py-3">
                                             <button
@@ -294,7 +335,38 @@ export default function UsersPanel() {
                                     label={t.fieldPasswordConfirm}
                                     type="password"
                                 />
+                                {editingUser.role === 'owner' ? (
+                                    <>
+                                        <ReadOnlyField label={t.colRole} value={editingUser.role} />
+                                        <ReadOnlyField label={t.colAccessCode} value={editingUser.access_code} />
+                                        <ReadOnlyField label={t.colStatus} value={editingUser.status} />
+                                        <ReadOnlyField label={t.colTimezone} value={editingUser.timezone} />
+                                    </>
+                                ) : (
+                                    <>
+                                        <ReadOnlyField label={t.colRole} value={editingUser.role} />
+                                        <ReadOnlyField label={t.colAccessCode} value={editingUser.access_code} />
+                                        <SelectField
+                                            form={editForm}
+                                            field="status"
+                                            label={t.fieldStatus}
+                                            options={[
+                                                { value: 'active', label: t.statusActive },
+                                                { value: 'disabled', label: t.statusDisabled },
+                                            ]}
+                                        />
+                                        <SelectField
+                                            form={editForm}
+                                            field="timezone"
+                                            label={t.fieldTimezone}
+                                            options={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
+                                        />
+                                    </>
+                                )}
                             </div>
+                            {editingUser.role === 'owner' ? (
+                                <p className="text-sm text-slate-500">{t.ownerLocked}</p>
+                            ) : null}
                             <div className="flex justify-end gap-2">
                                 <button
                                     type="button"
@@ -315,8 +387,12 @@ export default function UsersPanel() {
                         </form>
 
                         <div className="mt-5 border-t border-slate-200 pt-4">
-                            {Number(editingUser.id) === Number(me?.id) ? (
-                                <p className="text-sm text-slate-500">{t.cannotDeleteSelf}</p>
+                            {Number(editingUser.id) === Number(me?.id) || editingUser.role === 'owner' ? (
+                                <p className="text-sm text-slate-500">
+                                    {Number(editingUser.id) === Number(me?.id)
+                                        ? t.cannotDeleteSelf
+                                        : 'The owner account cannot be deleted here.'}
+                                </p>
                             ) : !showDeleteConfirm ? (
                                 <button
                                     type="button"
@@ -401,6 +477,37 @@ function Field({ form, field, label, type = 'text' }) {
                 className="block h-11 w-full rounded-lg border border-slate-300 px-3 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
             />
             <ErrorText message={form.errors[field]} />
+        </div>
+    );
+}
+
+function SelectField({ form, field, label, options }) {
+    return (
+        <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">{label}</label>
+            <select
+                value={form.data[field]}
+                onChange={(e) => form.setData(field, e.target.value)}
+                className="block h-11 w-full rounded-lg border border-slate-300 px-3 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            >
+                {options.map((option) => (
+                    <option key={option.value} value={option.value}>
+                        {option.label}
+                    </option>
+                ))}
+            </select>
+            <ErrorText message={form.errors[field]} />
+        </div>
+    );
+}
+
+function ReadOnlyField({ label, value }) {
+    return (
+        <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">{label}</label>
+            <div className="flex h-11 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
+                {value ?? '—'}
+            </div>
         </div>
     );
 }

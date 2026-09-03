@@ -17,11 +17,15 @@ class SettingsController extends Controller
     {
         $users = User::query()
             ->orderBy('name')
-            ->get(['id', 'name', 'email', 'created_at'])
+            ->get(['id', 'name', 'email', 'role', 'access_code', 'status', 'timezone', 'created_at'])
             ->map(static fn (User $user): array => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                'role' => $user->role->value,
+                'access_code' => $user->access_code,
+                'status' => $user->status->value,
+                'timezone' => $user->timezone,
                 'created_at' => optional($user->created_at)->toIso8601String(),
             ])
             ->all();

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Tests\TestCase;
 
@@ -17,23 +18,23 @@ class BaselineTest extends TestCase
         $this->get('/dashboard')->assertRedirect();
     }
 
-    public function test_authenticated_user_can_access_the_dashboard(): void
+    public function test_owner_can_access_the_dashboard(): void
     {
-        $this->actingAs($this->existingAdmin())
+        $this->actingAs($this->existingOwner())
             ->get('/dashboard')
             ->assertOk();
     }
 
-    public function test_authenticated_user_can_access_settings(): void
+    public function test_owner_can_access_settings(): void
     {
-        $this->actingAs($this->existingAdmin())
+        $this->actingAs($this->existingOwner())
             ->get('/settings')
             ->assertOk();
     }
 
-    public function test_authenticated_user_can_access_telegram_settings(): void
+    public function test_owner_can_access_telegram_settings(): void
     {
-        $this->actingAs($this->existingAdmin())
+        $this->actingAs($this->existingOwner())
             ->get('/settings?tab=telegram')
             ->assertOk();
     }
@@ -42,15 +43,15 @@ class BaselineTest extends TestCase
     {
         foreach (['/customers', '/services', '/staff', '/orders'] as $url) {
             $this->get($url)->assertNotFound();
-            $this->actingAs($this->existingAdmin())->get($url)->assertNotFound();
+            $this->actingAs($this->existingOwner())->get($url)->assertNotFound();
         }
     }
 
-    private function existingAdmin(): User
+    private function existingOwner(): User
     {
-        $user = User::query()->first();
+        $user = User::query()->where('role', UserRole::Owner)->first();
 
-        $this->assertNotNull($user, 'Baseline auth tests require an existing admin user.');
+        $this->assertNotNull($user, 'Baseline auth tests require an existing owner user.');
 
         return $user;
     }
