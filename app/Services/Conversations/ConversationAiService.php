@@ -14,13 +14,14 @@ use App\Services\Ai\AiConfigurationResolver;
 use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\DTO\AiChatRequest;
 use App\Services\Ai\Exceptions\AiConfigurationException;
-use App\Services\Telegram\TelegramConversationMessages;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 final class ConversationAiService
 {
     public const PAIRING_GREETING_EVENT = 'Пользователь только что подключил Jarvis. Поприветствуй его и коротко представься.';
+
+    public const AI_FAILURE = 'Не удалось получить ответ от AI. Попробуйте ещё раз позже.';
 
     public function __construct(
         private readonly AiConfigurationResolver $resolver,
@@ -148,7 +149,7 @@ final class ConversationAiService
                 'latency_ms' => $latencyMs,
             ]);
 
-            $errorText = TelegramConversationMessages::AI_FAILURE;
+            $errorText = self::AI_FAILURE;
 
             $this->messages->persistSystem(new PersistMessageData(
                 conversation: $conversation,

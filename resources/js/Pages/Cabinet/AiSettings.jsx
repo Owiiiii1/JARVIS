@@ -31,9 +31,12 @@ export default function CabinetAiSettings() {
     const t = text[locale] ?? text.en;
 
     return (
-        <CabinetLayout title={t.title}>
+        <CabinetLayout>
             <Head title={t.title} />
 
+            <div className="h-full overflow-y-auto p-6">
+            <div className="mx-auto max-w-3xl">
+            <h1 className="mb-4 text-2xl font-semibold text-slate-900">{t.title}</h1>
             <div className="app-widget space-y-4 p-6">
                 <p className="text-sm text-slate-600">{t.subtitle}</p>
                 <form
@@ -64,6 +67,8 @@ export default function CabinetAiSettings() {
                         {t.save}
                     </button>
                 </form>
+            </div>
+            </div>
             </div>
         </CabinetLayout>
     );

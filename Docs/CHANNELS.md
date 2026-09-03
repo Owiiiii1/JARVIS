@@ -38,7 +38,7 @@ Telegram adapter один: и личные чаты, и группы. После
 
 ## Web Cabinet
 
-Клиент того же Core и **того же каталога conversations**, что Telegram. `role=user` → cabinet. Chat + Profile + свой General Prompt + timezone. Ownership на каждом запросе. Access code не для web-login. Reminders: создать в чате, доставка только в Telegram.
+Клиент того же Core и **того же каталога conversations**, что Telegram. `role=user` → cabinet chat UI (`/cabinet/chats/{id}`). Chat + свой General Prompt. Ownership на каждом запросе. Web inbound: `channel=web`, `channel_message_id` = client UUID. Telegram и Web messages в одном conversation смешиваются хронологически и входят в AI context. Access code не для web-login.
 
 ---
 

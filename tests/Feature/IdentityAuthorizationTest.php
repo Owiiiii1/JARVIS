@@ -39,6 +39,7 @@ class IdentityAuthorizationTest extends TestCase
             $this->actingAs($temporaryUser)->get('/settings?tab=ai')->assertForbidden();
             $this->actingAs($temporaryUser)->get('/calendar')->assertForbidden();
             $this->actingAs($temporaryUser)->get('/statistics/logs')->assertForbidden();
+            $this->actingAs($temporaryUser)->get('/cabinet')->assertRedirect();
             $this->actingAs($temporaryUser)->get('/cabinet/ai-settings')->assertOk();
         } finally {
             $this->deleteTemporaryUser($temporaryUser);
@@ -52,7 +53,7 @@ class IdentityAuthorizationTest extends TestCase
         try {
             $temporaryUser = $this->createTemporaryUser();
 
-            $this->actingAs($temporaryUser)->get('/cabinet')->assertOk();
+            $this->actingAs($temporaryUser)->get('/cabinet')->assertRedirect();
         } finally {
             $this->deleteTemporaryUser($temporaryUser);
         }

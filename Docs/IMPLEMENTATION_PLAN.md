@@ -266,34 +266,24 @@ Personal DM persist → recent context of the **current** conversation → Conve
 
 ## Milestone 8 — User Cabinet
 
+**Статус.** COMPLETED (2026-09-03). Delivered as Web Cabinet Chat UI (requested as Milestone 5 in the product sequence after M4 runtime).
+
 **Цель.** `role=user` работает в Web как ChatGPT-минимум.
 
-**Реализуем**
+**Реализовано**
 
-- Login → cabinet.
-- Profile (name/password/timezone).
-- Свой General Prompt (не отменяет platform rules).
-- Chats list, New Chat, history, input → Conversation Engine + Default User Conversation AI.
-- Strict ownership. Reminders через чат (delivery — Telegram, M10).
+- Login → cabinet → `/cabinet/chats/{id}` (auto `Основной`).
+- Свой General Prompt (`/cabinet/ai-settings`).
+- Chats list, Новый чат, history, composer → `ConversationTurnService` + Default User Conversation AI.
+- Same `conversations` / `messages` as Telegram. `channel=web` + UUID idempotency.
+- Strict ownership. Telegram adapter calls the same turn service.
 
-**Migrations:** нет.
+**Frontend:** cabinet sidebar + messenger UI; Load older; timezone display.
 
-**Backend:** cabinet routes + policies.
+**Tests:** own/foreign chats; create/rename; web persist; idempotency; shared Telegram+web history; General Prompt; AI failure; admin routes forbidden.
 
-**Frontend:** cabinet layout, messenger UI, lazy history.
+**DoD** — met. Group UI, tools, User Card impersonation — later.
 
-**Tests:** user A cannot open B conversation; New Chat empty raw; same user prompt on all chats; user blocked from `/settings`.
-
-**Deploy:** build.
-
-**DoD**
-
-- User логинится в cabinet, не в admin.
-- Несколько независимых chats; raw изолирован; summaries/memory — later M12.
-
-**Зависимости:** M4, M1. M5 желателен (тот же engine).
-
-**Не входит:** group UI, tools.
 
 ---
 

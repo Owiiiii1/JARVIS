@@ -3,14 +3,12 @@
 namespace App\Services\Telegram\Handlers;
 
 use App\Enums\MessageChannel;
-use App\Enums\MessageRole;
-use App\Enums\MessageType;
 use App\Models\ChannelIdentity;
 use App\Models\Conversation;
+use App\Services\Conversations\ChannelContext;
 use App\Services\Conversations\ConversationAiService;
 use App\Services\Conversations\ConversationService;
-use App\Services\Conversations\MessagePersistenceService;
-use App\Services\Conversations\PersistMessageData;
+use App\Services\Conversations\ConversationTurnService;
 use App\Services\Telegram\Pairing\TelegramInboundContext;
 use App\Services\Telegram\Pairing\TelegramPairingMessages;
 use App\Services\Telegram\Pairing\TelegramPairingOutcome;
@@ -32,10 +30,10 @@ final class TelegramUpdateHandler
     public function __construct(
         private readonly TelegramPairingService $pairingService,
         private readonly ConversationService $conversationService,
-        private readonly MessagePersistenceService $messagePersistence,
         private readonly TelegramIdentityState $identityState,
         private readonly TelegramChatKeyboard $keyboard,
         private readonly ConversationAiService $conversationAi,
+        private readonly ConversationTurnService $conversationTurns,
     ) {}
 
     public function handleMessage(Nutgram $bot): void
@@ -261,22 +259,22 @@ final class TelegramUpdateHandler
         Conversation $conversation,
         string $text,
     ): void {
-        $inbound = $this->messagePersistence->persistInbound(new PersistMessageData(
-            conversation: $conversation,
-            role: MessageRole::User,
-            channel: MessageChannel::Telegram,
-            messageType: MessageType::Text,
-            body: $text,
-            channelMessageId: (string) $message->message_id,
-            occurredAt: (new DateTimeImmutable)->setTimestamp((int) $message->date),
-        ));
+        $turn = $this->conversationTurns->handleUserMessage(
+            $identity->user,
+            $conversation,
+            $text,
+            new ChannelContext(
+                channel: MessageChannel::Telegram,
+                channelMessageId: (string) $message->message_id,
+                occurredAt: (new DateTimeImmutable)->setTimestamp((int) $message->date),
+            ),
+        );
 
-        if (! $inbound->created) {
+        if (! $turn->created) {
             return;
         }
 
-        $turn = $this->conversationAi->completeUserTurn($inbound->message);
-        $reply = $turn->replyText() ?? TelegramConversationMessages::AI_FAILURE;
+        $reply = $turn->replyText() ?? ConversationAiService::AI_FAILURE;
 
         $this->reply($bot, $reply, $identity);
     }

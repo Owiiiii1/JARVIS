@@ -12,7 +12,7 @@ use App\Models\TelegramBotSetting;
 use App\Models\UserAiSetting;
 use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\Exceptions\AiProviderException;
-use App\Services\Telegram\TelegramConversationMessages;
+use App\Services\Conversations\ConversationAiService;
 use Illuminate\Support\Facades\Schema;
 use Tests\Support\CleansTemporaryJarvisRecords;
 use Tests\Support\FakeAiChatGateway;
@@ -104,7 +104,7 @@ class AiRuntimeTest extends TestCase
             $this->assertSame(0, Message::query()->where('user_id', $user->id)->where('role', MessageRole::Assistant)->count());
             $this->assertSame(1, Message::query()->where('user_id', $user->id)->where('role', MessageRole::System)->count());
             $this->assertSame(
-                TelegramConversationMessages::AI_FAILURE,
+                ConversationAiService::AI_FAILURE,
                 Message::query()->where('user_id', $user->id)->where('role', MessageRole::System)->value('body')
             );
         } finally {

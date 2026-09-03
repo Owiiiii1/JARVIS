@@ -14,7 +14,11 @@ final class ConversationService
 {
     public const LIST_LIMIT = 20;
 
+    public const CABINET_LIST_LIMIT = 50;
+
     public const TITLE_MAX_LENGTH = 120;
+
+    public const NEW_CHAT_TITLE = 'Новый чат';
 
     public function createPersonal(User $user, string $title): Conversation
     {
@@ -66,6 +70,32 @@ final class ConversationService
         }
 
         return $this->createPersonal($user, Conversation::DEFAULT_TITLE);
+    }
+
+    public function rename(User $user, Conversation $conversation, string $title): Conversation
+    {
+        $owned = $this->findOwned($user, (int) $conversation->id);
+
+        if ($owned === null) {
+            throw new InvalidArgumentException('Conversation is not owned by this user.');
+        }
+
+        $owned->forceFill([
+            'title' => $this->normalizeTitle($title),
+        ])->save();
+
+        return $owned->fresh();
+    }
+
+    public function ensureOwned(User $user, int $conversationId): Conversation
+    {
+        $conversation = $this->findOwned($user, $conversationId);
+
+        if ($conversation === null) {
+            abort(404);
+        }
+
+        return $conversation;
     }
 
     public function ensureActiveConversation(ChannelIdentity $identity): Conversation

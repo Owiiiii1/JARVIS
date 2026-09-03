@@ -1,0 +1,99 @@
+<?php
+
+namespace App\Services\Conversations;
+
+use App\Enums\MessageRole;
+use App\Models\Conversation;
+use App\Models\Message;
+
+final class MessageHistoryService
+{
+    public const PAGE_SIZE = 80;
+
+    public function __construct(
+        private readonly ConversationContextBuilder $contextBuilder,
+    ) {}
+
+    /**
+     * @return array{messages: list<array<string, mixed>>, has_more: bool, oldest_id: int|null}
+     */
+    public function page(Conversation $conversation, ?int $beforeId = null, int $limit = self::PAGE_SIZE): array
+    {
+        $limit = max(1, min(100, $limit));
+
+        $query = Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->orderByDesc('occurred_at')
+            ->orderByDesc('id');
+
+        if ($beforeId !== null) {
+            $query->where('id', '<', $beforeId);
+        }
+
+        $rows = $query->limit($limit * 3)->get();
+        $visible = [];
+
+        foreach ($rows as $message) {
+            if (! $this->isCabinetVisible($message)) {
+                continue;
+            }
+
+            $visible[] = $message;
+
+            if (count($visible) >= $limit + 1) {
+                break;
+            }
+        }
+
+        $hasMore = count($visible) > $limit;
+        $page = array_slice($visible, 0, $limit);
+        $page = array_reverse($page);
+
+        return [
+            'messages' => array_map(fn (Message $message): array => $this->toArray($message), $page),
+            'has_more' => $hasMore,
+            'oldest_id' => $page === [] ? null : (int) $page[0]->id,
+        ];
+    }
+
+    public function isCabinetVisible(Message $message): bool
+    {
+        if ($this->contextBuilder->isSemanticDialogue($message)) {
+            return true;
+        }
+
+        if ($message->role !== MessageRole::System) {
+            return false;
+        }
+
+        $body = (string) $message->body;
+
+        if (str_contains($body, 'Сообщение сохранено')) {
+            return false;
+        }
+
+        return ($message->metadata['technical'] ?? false) === true
+            || $body === ConversationAiService::AI_FAILURE;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(Message $message): array
+    {
+        $kind = match ($message->role) {
+            MessageRole::Assistant => 'assistant',
+            MessageRole::System => 'error',
+            default => 'user',
+        };
+
+        return [
+            'id' => $message->id,
+            'kind' => $kind,
+            'role' => $message->role->value,
+            'channel' => $message->channel->value,
+            'body' => $message->body,
+            'occurred_at' => optional($message->occurred_at)?->toIso8601String(),
+        ];
+    }
+}

@@ -9,7 +9,7 @@ User A, User B и Owner personal context **никогда** не смешива�
 
 Связано: [CHANNELS.md](CHANNELS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [REMINDERS.md](REMINDERS.md), [PROJECTS.md](PROJECTS.md), [INTEGRATIONS.md](INTEGRATIONS.md), ADR-016–045.
 
-Фактический код (M4): user на admin route получает 403; `/cabinet` и `/cabinet/ai-settings` доступны активному user. Owner General Prompt — Admin Profile. User General Prompt — Cabinet AI Settings. System AI configs — только owner Settings → AI.
+Фактический код (M4/M8): user на admin route получает 403; `/cabinet` редирект на `/cabinet/chats/{id}`; web chat и Telegram используют один catalog и `ConversationTurnService`. Owner General Prompt — Admin Profile. User General Prompt — Cabinet AI Settings. System AI configs — только owner Settings → AI.
 
 ---
 
@@ -169,13 +169,11 @@ Impersonation: только owner, без пароля жертвы. ADR-020.
 
 ## Personal Cabinet (`role=user`)
 
-Минимум: **Chat**, **Profile**, плюс редактирование **своего General Prompt**. Timezone в profile.
+Минимум: **Chat**, плюс редактирование **своего General Prompt**. Timezone используется для отображения времени сообщений.
 
-Chat как ChatGPT: список, New Chat, history, input. Тот же каталог conversations, что в Telegram.
+Chat: sidebar список, Новый чат, history, composer. URL `/cabinet/chats/{id}`. Тот же каталог conversations и те же messages, что в Telegram. Engine: `ConversationTurnService` (тот же, что Telegram DM).
 
-New Chat: пустой raw. Другие чаты — **summaries** в context, не их raw. Targeted raw-on-demand. ADR-036.
-
-AI: **Default User Conversation AI**, не Owner Conversation AI.
+New Chat: title `Новый чат`, пустой raw. AI: **Default User Conversation AI**, не Owner Conversation AI.
 
 ---
 
@@ -183,7 +181,7 @@ AI: **Default User Conversation AI**, не Owner Conversation AI.
 
 Факт с аудита: webhook ACK `{ok:true}`, handlers нет, бот не отвечает. Целевая логика ниже. Транспорт: **webhook** + Nutgram. Long polling не нужен.
 
-Адаптер **не** вызывает LLM. Неверный код и `/start` без pairing — системные ответы, не Conversation AI.
+Адаптер **не** вызывает LLM. Web Cabinet и Telegram DM вызывают `ConversationTurnService`. Неверный код и `/start` без pairing — системные ответы, не Conversation AI.
 
 ### Один Telegram identity
 

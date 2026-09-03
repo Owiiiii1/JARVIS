@@ -337,7 +337,7 @@ No `app/Services` conversation classes. No controllers for chats.
 | User General Prompt | IMPLEMENTED | Owner: Profile; User: `/cabinet/ai-settings`. Self-only |
 | User AI override | DOCUMENTED ONLY | No per-user model override |
 | User conversations / topics | PARTIAL | Personal conversations exist; topics later |
-| Cabinet | PARTIAL | `/cabinet` catalog + AI Settings |
+| Cabinet | IMPLEMENTED | Chat UI `/cabinet/chats/{id}`, New chat, rename, General Prompt |
 | Cabinet login | IMPLEMENTED | Role-based redirect after login |
 | Chat list / new chat / history | DOCUMENTED ONLY | |
 | Impersonation | DOCUMENTED ONLY | |
@@ -512,7 +512,7 @@ New providers without changing Jarvis Core.
 | Memory Engine | DOCUMENTED ONLY |
 | Telegram Groups module | DOCUMENTED ONLY |
 | Role-based Conversation/Analysis AI | PARTIAL (configs + conversation runtime; analysis jobs later) |
-| User Cabinet | PARTIAL |
+| User Cabinet | IMPLEMENTED |
 | Impersonation / ownership policies | DOCUMENTED ONLY |
 | Public/mobile API | DOCUMENTED ONLY |
 | Voice / ElevenLabs | DOCUMENTED ONLY |
@@ -631,5 +631,11 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 ### Milestone 4 — COMPLETED (2026-09-03)
 
 Three independent AI configurations (`ai_role_settings`); User General Prompt; provider `chat()` for OpenAI/Anthropic/Gemini; ConversationContextBuilder (current chat only); Telegram DM + pairing greeting call Conversation AI; Analysis config exists but is not used in DM. Runtime source of truth is `ai_role_settings`, not `is_active`. No live provider keys were stored at deploy; AI replies after the owner connects a provider and enables role configs.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Web Cabinet Chat — COMPLETED (2026-09-03)
+
+User Cabinet messenger UI. `/cabinet` ensures `Основной` and redirects to `/cabinet/chats/{id}`. Web and Telegram share conversations/messages and `ConversationTurnService`. Ownership 404. Web idempotency: `channel=web` + client UUID.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).

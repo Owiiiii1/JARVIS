@@ -2,19 +2,24 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AiRoleKey;
 use App\Enums\MessageRole;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\TelegramBotSetting;
+use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Conversations\ConversationService;
 use App\Services\Telegram\TelegramIdentityState;
 use Illuminate\Support\Facades\Schema;
 use Tests\Support\CleansTemporaryJarvisRecords;
+use Tests\Support\FakeAiChatGateway;
+use Tests\Support\RestoresAiRoleSettings;
 use Tests\TestCase;
 
 class ConversationsCoreTest extends TestCase
 {
     use CleansTemporaryJarvisRecords;
+    use RestoresAiRoleSettings;
 
     public function test_conversations_and_messages_tables_exist(): void
     {
@@ -125,8 +130,13 @@ class ConversationsCoreTest extends TestCase
     {
         $user = null;
         $externalUserId = '920106';
+        $fake = new FakeAiChatGateway;
 
         try {
+            $this->snapshotAiRoleSettings();
+            $this->enableRoleForTests(AiRoleKey::UserConversation);
+            $this->app->instance(AiChatGateway::class, $fake);
+
             $user = $this->createTemporaryUser();
             $identity = $this->createTemporaryTelegramIdentity($user, $externalUserId);
             $this->postTelegramUpdate($externalUserId, '/start', 920501);
@@ -138,8 +148,10 @@ class ConversationsCoreTest extends TestCase
             $this->assertSame($conversation->id, $identity->fresh()->active_conversation_id);
             $this->assertSame(1, Message::query()->where('conversation_id', $conversation->id)->where('role', MessageRole::User)->count());
             $this->assertSame('Привет', Message::query()->where('conversation_id', $conversation->id)->where('role', MessageRole::User)->value('body'));
-            $this->assertSame(1, Message::query()->where('conversation_id', $conversation->id)->where('role', MessageRole::System)->count());
+            $this->assertSame(1, Message::query()->where('conversation_id', $conversation->id)->where('role', MessageRole::Assistant)->count());
+            $this->assertSame(1, count($fake->calls));
         } finally {
+            $this->restoreAiRoleSettings();
             $this->deleteTelegramIdentity($externalUserId);
             $this->deleteTemporaryUser($user);
         }
@@ -157,7 +169,7 @@ class ConversationsCoreTest extends TestCase
             $this->postTelegramUpdate($externalUserId, 'Новый чат', 920602);
             $this->postTelegramUpdate($externalUserId, 'Cabinet Visible', 920603);
 
-            $response = $this->actingAs($user)->get('/cabinet');
+            $response = $this->actingAs($user)->followingRedirects()->get('/cabinet');
             $response->assertOk();
             $this->assertStringContainsString('Cabinet Visible', $response->getContent());
         } finally {

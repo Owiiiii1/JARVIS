@@ -90,6 +90,29 @@ class ConversationServiceTest extends TestCase
         }
     }
 
+    public function test_rename_updates_owned_conversation_only(): void
+    {
+        $userA = null;
+        $userB = null;
+
+        try {
+            $userA = $this->createTemporaryUser();
+            $userB = $this->createTemporaryUser();
+            $service = app(ConversationService::class);
+            $own = $service->createPersonal($userA, 'Draft');
+            $foreign = $service->createPersonal($userB, 'Keep');
+
+            $renamed = $service->rename($userA, $own, '  Работа  ');
+            $this->assertSame('Работа', $renamed->title);
+
+            $this->expectException(\InvalidArgumentException::class);
+            $service->rename($userA, $foreign, 'Hijack');
+        } finally {
+            $this->deleteTemporaryUser($userA);
+            $this->deleteTemporaryUser($userB);
+        }
+    }
+
     public function test_set_active_conversation_for_owner(): void
     {
         $user = null;
