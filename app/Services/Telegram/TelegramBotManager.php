@@ -113,6 +113,56 @@ class TelegramBotManager
         return rtrim((string) config('app.url'), '/').'/telegram/webhook';
     }
 
+    /**
+     * @return array{
+     *     url: string|null,
+     *     has_custom_certificate: bool,
+     *     pending_update_count: int,
+     *     last_error_date: int|null,
+     *     last_error_message: string|null,
+     *     max_connections: int|null,
+     *     ip_address: string|null
+     * }
+     */
+    public function getWebhookInfo(string $token): array
+    {
+        try {
+            if (class_exists(Nutgram::class)) {
+                $bot = new Nutgram($token);
+                $info = $bot->getWebhookInfo();
+
+                return [
+                    'url' => $info->url ?? null,
+                    'has_custom_certificate' => (bool) ($info->has_custom_certificate ?? false),
+                    'pending_update_count' => (int) ($info->pending_update_count ?? 0),
+                    'last_error_date' => isset($info->last_error_date) ? (int) $info->last_error_date : null,
+                    'last_error_message' => $info->last_error_message ?? null,
+                    'max_connections' => isset($info->max_connections) ? (int) $info->max_connections : null,
+                    'ip_address' => $info->ip_address ?? null,
+                ];
+            }
+        } catch (Throwable $e) {
+            throw new RuntimeException('Telegram getWebhookInfo failed: '.$e->getMessage(), 0, $e);
+        }
+
+        $response = Http::timeout(15)->get($this->apiUrl($token, 'getWebhookInfo'));
+        if (! $response->successful() || ! ($response->json('ok') === true)) {
+            throw new RuntimeException('Telegram getWebhookInfo failed: '.$response->body());
+        }
+
+        $result = $response->json('result') ?? [];
+
+        return [
+            'url' => $result['url'] ?? null,
+            'has_custom_certificate' => (bool) ($result['has_custom_certificate'] ?? false),
+            'pending_update_count' => (int) ($result['pending_update_count'] ?? 0),
+            'last_error_date' => isset($result['last_error_date']) ? (int) $result['last_error_date'] : null,
+            'last_error_message' => $result['last_error_message'] ?? null,
+            'max_connections' => isset($result['max_connections']) ? (int) $result['max_connections'] : null,
+            'ip_address' => $result['ip_address'] ?? null,
+        ];
+    }
+
     private function apiUrl(string $token, string $method): string
     {
         return 'https://api.telegram.org/bot'.$token.'/'.$method;

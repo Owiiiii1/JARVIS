@@ -1,4 +1,4 @@
-# Cursor work report — Milestone 1
+# Cursor work report — Milestone 2
 
 Date: 2026-09-03  
 Repo: `Owiiiii1/JARVIS`  
@@ -9,152 +9,145 @@ Host: `/var/www/jarvis`
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| Before HEAD | `fe8888028b60cd08b9375702148344ea69e56516` (`docs: record Milestone 0 after HEAD`) |
-| Commit message | `feat: add Jarvis owner and user identity foundation` |
+| Before HEAD | `45873bdd91faca1475dffeffc6ec3f01bbca39d9` (`feat: add Jarvis owner and user identity foundation`) |
+| Commit message | `feat: add Telegram user pairing` |
 | Working tree before start | clean |
-
-## Users backup (pre-migration)
-
-| Item | Value |
-| --- | --- |
-| Path | `/var/www/jarvis/storage/backups/users_pre_milestone1_20260903_180004.sql` |
-| Scope | `users` table schema + data only |
-| Committed to Git | **no** (under `storage/backups/`, gitignored) |
-| Note | `mysqldump` emitted a harmless tablespaces privilege warning; dump file contains 58 lines and was verified present |
 
 ## Migration
 
-`2026_09_03_180000_add_identity_fields_to_users_table`
+`2026_09_03_190000_create_channel_identities_table`
 
-- Added columns: `role`, `access_code`, `status`, `timezone`
-- Safe owner promotion when exactly one user exists and `2000` is free
-- Enforced non-null `access_code` + unique index
-- `down()` drops unique index and the four columns without touching core auth columns
+- Table `channel_identities` with FK `user_id`, Telegram fields, `linked_at`, `last_seen_at`, nullable `active_conversation_id`, `metadata` json
+- Unique `(channel, external_user_id)`
+- Indexes on `user_id`, `channel`
 
 Command: `php artisan migrate --force`
 
-## Production DB before / after
+## channel_identities schema
 
-| Check | Before | After |
+| Column | Notes |
+| --- | --- |
+| `user_id` | FK → users, cascade delete |
+| `channel` | `telegram` for MVP |
+| `external_user_id` | Telegram user id (string) |
+| `external_chat_id` | private chat id |
+| `username`, `first_name`, `last_name` | nullable, refreshed on updates |
+| `linked_at`, `last_seen_at` | timestamps |
+| `active_conversation_id` | nullable, reserved for Milestone 3 |
+| `metadata` | json nullable |
+
+## Nutgram integration
+
+- Webhook: `POST /telegram/webhook` validates secret, then `TelegramWebhookProcessor` hydrates Update and calls `$bot->processUpdate()`
+- `TelegramBotFactory` + `TelegramHandlerRegistrar` register `onMessage` handler
+- `TelegramUpdateHandler` — private DM pairing flow only
+- `TelegramPairingService` — business logic (no AI, no User auto-create)
+- Nutgram 4.50.0 via existing dependency; no second Telegram framework
+- Default Nutgram logger = NullLogger (no access codes in debug logs)
+
+## Handlers / pairing behaviour
+
+| Case | Response |
+| --- | --- |
+| Unknown `/start` (private) | Request access code (RU) |
+| Unknown text | Exact access_code lookup |
+| Invalid code | Code not found message |
+| Disabled user code | Access disabled message |
+| Success | Authorization success + connected messages |
+| Already paired `/start` | Already authorized + AI coming soon |
+| Paired non-text | Unsupported message type |
+| Paired text | AI coming soon (no LLM) |
+| Group/supergroup | Auth only in private chat hint |
+| User already has Telegram | Cannot bind second Telegram account |
+| Telegram already linked | Re-entering another code → already authorized |
+
+## Users UI
+
+Settings → Users:
+
+- New column **Telegram**: Connected / Not connected (+ `@username` when present)
+- Edit modal: **Disconnect Telegram** (owner-only route, deletes identity only)
+- Edit modal: **Regenerate access code** for non-owner users (not `2000`; does not unlink Telegram)
+
+Routes:
+
+- `POST /settings/users/{user}/telegram/unlink`
+- `POST /settings/users/{user}/access-code/regenerate`
+
+## Tests (production-safe)
+
+No destructive DB traits. Temporary users `jarvis-test-*@invalid.local`; Telegram test external ids `9000xx` / `9100xx`; cleanup in `finally`.
+
+| File | Coverage |
+| --- | --- |
+| `tests/Unit/TelegramPairingServiceTest.php` | invalid/disabled/pair/idempotent/one-user-one-telegram/owner service-level (skipped if owner already paired) |
+| `tests/Feature/TelegramPairingTest.php` | schema, webhook 403, start no identity, bad code, group no pair, good code creates identity |
+
+```
+php artisan test — 41 passed (100 assertions)
+```
+
+## Production data before / after
+
+| Check | Before migration | After deploy |
 | --- | --- | --- |
 | `users` count | 1 | 1 |
-| Owner role | n/a | `owner` |
-| Owner access_code | n/a | `2000` |
-| Owner status | n/a | `active` |
-| Owner timezone | n/a | `Europe/Rome` |
-| `ai_provider_settings` rows | 3 | 3 (unchanged) |
-| `telegram_bot_settings` | `@owl_jarvis_bot`, connected, webhook set | unchanged |
-| Unique index on `access_code` | no | yes |
+| `channel_identities` | n/a (table absent) | 0 |
+| `ai_provider_settings` | 3 | 3 (unchanged) |
+| `telegram_bot_settings` | connected, webhook set | unchanged (token not modified) |
 
-Existing admin account (id=1) promoted in place. Email not reproduced in this report.
+## Build
 
-## Capability implementation
+`npm run build` — success
 
-- `App\Services\Users\UserCapability` — capability constants
-- `App\Services\Users\UserCapabilities` — role → default map; owner `*`, user limited set
-- `User::canUseCapability()` delegates to service
-- No DB capability rows (code map only, per plan)
+## Webhook diagnostics
 
-## Access code generation
+Via `TelegramBotManager::getWebhookInfo()` (no token logged):
 
-- `App\Services\Users\AccessCodeGenerator`
-- 6-digit numeric codes, retry on collision, excludes reserved `2000`
-- New users receive auto-generated code on create via Settings → Users
-- Owner code `2000` set only by migration / system invariant, not via user form
-
-## Auth routing & authorization
-
-- Login redirect: owner → `/dashboard`, user → `/cabinet`
-- Admin routes: middleware stack `web`, `auth`, `user.active`, `owner` → HTTP 403 for non-owner
-- Cabinet route `/cabinet`: authenticated active users
-- Disabled users blocked at login and session invalidated on next request (`EnsureUserIsActive`)
-- Owner cannot be deleted via Users CRUD; second owner cannot be created via CRUD
-
-## Cabinet shell
-
-- Route: `GET /cabinet` (`cabinet.index`)
-- Page: `resources/js/Pages/Cabinet/Index.jsx`
-- Layout: `resources/js/Layouts/CabinetLayout.jsx`
-- Placeholder: “Jarvis Cabinet” + basic user info + logout
-
-## Users admin UI
-
-- `Settings → Users` shows: name, email, role, access_code, status, timezone, created_at
-- Create user: auto role `user`, generated code, active, `Europe/Rome`
-- Edit: owner can change name, email, status, timezone, password for regular users
-- Owner row: role/code/status/timezone read-only in form
-
-## Test strategy (production-safe)
-
-No `RefreshDatabase`, `DatabaseMigrations`, factories without cleanup, or destructive traits.
-
-| Suite | Approach |
+| Field | Value |
 | --- | --- |
-| `tests/Unit/AccessCodeGeneratorTest.php` | Generator logic, reserved code, format |
-| `tests/Unit/UserCapabilitiesTest.php` | Static capability map / denied admin caps |
-| `tests/Feature/IdentityAuthorizationTest.php` | Schema assertion; owner access; temp user with marker email `@invalid.local` created/deleted in `finally` |
-| `tests/Feature/BaselineTest.php` | Updated to use existing owner |
+| URL | `https://jarvis.owlsolutions.net/telegram/webhook` |
+| Expected URL | matches |
+| Pending updates | 0 |
+| Last error | none |
 
-Temporary test users use email prefix `jarvis-test-*@invalid.local`; deleted only when marker matches.
+## Manual smoke status
 
-## Temporary user cleanup
+**Awaiting user.** Owner Telegram pairing with code `2000` must be performed manually in `@owl_jarvis_bot`:
 
-- Feature tests: cleanup in `finally` blocks — confirmed
-- Manual smoke script: created id=5, verified, deleted — `users` count returned to 1
-- Final state: single owner row only
+1. `/start` → code request
+2. Send `2000` → success messages
+3. Repeat `/start` → already authorized (no code prompt)
 
-## Test results
-
-```
-php artisan test
-29 passed (64 assertions)
-```
-
-## Build result
-
-```
-npm run build — success (Vite 8.2.2)
-New chunks: Cabinet/Index, updated UsersPanel
-```
-
-## HTTP smoke
-
-| Request | Result |
-| --- | --- |
-| `GET /` | 200 |
-| `GET /dashboard` (guest) | 302 → login |
-| `GET /cabinet` (guest) | 302 → login |
-| `POST /telegram/webhook` (no secret) | 403 (unchanged ACK path) |
-
-## Telegram unchanged
-
-- Webhook route and controller not modified
-- `TelegramBotManager`, Nutgram handlers, token storage untouched
-- DB: `@owl_jarvis_bot`, `is_connected=1`, `is_webhook_set=1`
+Automated tests intentionally avoid binding production owner Telegram identity. `channel_identities` count = 0 before manual smoke.
 
 ## AI unchanged
 
-- `AiProviderClient` / manager / settings UI not modified
-- DB: 3 provider rows, none active (same as before)
+No changes to `app/Services/Ai/*`, AI settings UI, or provider runtime. Pairing path does not invoke AI services.
 
-## Problems / deviations
+## Documentation
 
-- `mysqldump` tablespaces warning (non-blocking; dump usable)
-- Migration initially failed on redundant `use RuntimeException;` under PHP 8.5 strict lint — fixed before successful run
-- Temporary user HTTP kernel smoke returned 302 (session not bound); PHPUnit `actingAs` tests are authoritative for authz
+- `Docs/IMPLEMENTATION_PLAN.md` — Milestone 2 COMPLETED
+- `Docs/CURRENT_STATE.md` — Milestone 2 section
+- `Docs/USERS_AND_CABINET.md` — one User ↔ one Telegram identity (MVP)
+- `Docs/DECISIONS.md` — ADR-046
 
-## Remaining for Milestone 2
+## Known issues
 
-- Nutgram webhook handlers (pairing flow)
-- `/start` diagnostic response
-- `channel_identities` table + pairing service
-- Telegram link/unlink admin minimal UI
-- No AI greeting yet (Milestone 4)
+- Nutgram uses Guzzle directly; Laravel `Http::fake()` does not intercept outbound Bot API calls in feature tests. Behaviour verified via DB state and unit/service tests.
+- Outbound Telegram API errors during webhook handling are reported internally; webhook still returns `{ok:true}` to avoid unnecessary Telegram retries for handled updates.
+
+## Remaining for Milestone 3
+
+- `conversations` + `messages` tables
+- Conversation Service; wire `active_conversation_id` FK
+- Persist inbound/outbound messages (still no full LLM requirement in M3)
+- Channel-neutral DTO for cabinet later
 
 ## Changed files (summary)
 
-**New:** enums, `AccessCodeGenerator`, `UserCapabilities`, middleware, migration, `CabinetController`, Cabinet pages/layout, identity tests
+**New:** migration, `ChannelIdentity` model, Telegram pairing/handlers/factory/processor classes, pairing tests
 
-**Updated:** `User` model, auth login redirect, `LoginRequest`, routes, `UserController`, `SettingsController`, `UsersPanel.jsx`, `bootstrap/app.php`, docs
+**Updated:** `TelegramWebhookController`, `TelegramBotManager`, `User` relations, `UserController`, `SettingsController`, `UsersPanel.jsx`, routes, docs
 
-**Not committed:** `storage/backups/users_pre_milestone1_20260903_180004.sql`
+**Not changed:** bot token, webhook secret storage, AI runtime, CRM cleanup from M0/M1

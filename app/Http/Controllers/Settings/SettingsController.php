@@ -16,6 +16,7 @@ class SettingsController extends Controller
     public function index(Request $request): Response
     {
         $users = User::query()
+            ->with('telegramIdentity')
             ->orderBy('name')
             ->get(['id', 'name', 'email', 'role', 'access_code', 'status', 'timezone', 'created_at'])
             ->map(static fn (User $user): array => [
@@ -27,6 +28,10 @@ class SettingsController extends Controller
                 'status' => $user->status->value,
                 'timezone' => $user->timezone,
                 'created_at' => optional($user->created_at)->toIso8601String(),
+                'telegram' => [
+                    'connected' => $user->telegramIdentity !== null,
+                    'username' => $user->telegramIdentity?->username,
+                ],
             ])
             ->all();
 

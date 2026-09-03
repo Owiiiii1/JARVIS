@@ -594,3 +594,9 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 Identity foundation: `users.role`, `access_code`, `status`, `timezone`; existing admin promoted to owner (`2000`, `Europe/Rome`); `AccessCodeGenerator`; `UserCapabilities`; owner-only admin middleware; `/cabinet` shell; login redirect by role; Settings → Users catalog columns; disabled-user blocking; production-safe tests on `jarvis` DB.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 2 — COMPLETED (2026-09-03)
+
+Telegram webhook wired to Nutgram; `channel_identities` table; pairing by access code (`/start`, text code, no AI); owner unlink + access code regenerate in Settings → Users; group pairing blocked; production-safe tests.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).

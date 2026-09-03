@@ -41,6 +41,8 @@ Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'ow
     Route::post('/settings/users', [SettingsUserController::class, 'store'])->name('settings.users.store');
     Route::patch('/settings/users/{user}', [SettingsUserController::class, 'update'])->name('settings.users.update');
     Route::delete('/settings/users/{user}', [SettingsUserController::class, 'destroy'])->name('settings.users.destroy');
+    Route::post('/settings/users/{user}/telegram/unlink', [SettingsUserController::class, 'unlinkTelegram'])->name('settings.users.telegram.unlink');
+    Route::post('/settings/users/{user}/access-code/regenerate', [SettingsUserController::class, 'regenerateAccessCode'])->name('settings.users.access-code.regenerate');
 
     Route::post('/settings/telegram/save-token', [TelegramSettingsController::class, 'saveToken'])
         ->name('settings.telegram.save-token');

@@ -1,4 +1,4 @@
-import { useForm, usePage } from '@inertiajs/react';
+import { useForm, usePage, router } from '@inertiajs/react';
 import { Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 
@@ -38,6 +38,7 @@ export default function UsersPanel() {
             colAccessCode: 'Access code',
             colStatus: 'Status',
             colTimezone: 'Timezone',
+            colTelegram: 'Telegram',
             colCreated: 'Created',
             colActions: 'Actions',
             empty: 'No users yet.',
@@ -62,6 +63,10 @@ export default function UsersPanel() {
             deleteConfirmPlaceholder: 'DELETE',
             cannotDeleteSelf: 'You cannot delete your own account here.',
             ownerLocked: 'Owner role and access code are managed by the system.',
+            telegramConnected: 'Connected',
+            telegramNotConnected: 'Not connected',
+            unlinkTelegram: 'Disconnect Telegram',
+            regenerateCode: 'Regenerate access code',
         },
         ru: {
             usersTitle: 'Users',
@@ -73,6 +78,7 @@ export default function UsersPanel() {
             colAccessCode: 'Access code',
             colStatus: 'Status',
             colTimezone: 'Timezone',
+            colTelegram: 'Telegram',
             colCreated: 'Created',
             colActions: 'Actions',
             empty: 'No users yet.',
@@ -97,6 +103,10 @@ export default function UsersPanel() {
             deleteConfirmPlaceholder: 'DELETE',
             cannotDeleteSelf: 'You cannot delete your own account here.',
             ownerLocked: 'Owner role and access code are managed by the system.',
+            telegramConnected: 'Connected',
+            telegramNotConnected: 'Not connected',
+            unlinkTelegram: 'Disconnect Telegram',
+            regenerateCode: 'Regenerate access code',
         },
         uk: {
             usersTitle: 'Users',
@@ -108,6 +118,7 @@ export default function UsersPanel() {
             colAccessCode: 'Access code',
             colStatus: 'Status',
             colTimezone: 'Timezone',
+            colTelegram: 'Telegram',
             colCreated: 'Created',
             colActions: 'Actions',
             empty: 'No users yet.',
@@ -132,6 +143,10 @@ export default function UsersPanel() {
             deleteConfirmPlaceholder: 'DELETE',
             cannotDeleteSelf: 'You cannot delete your own account here.',
             ownerLocked: 'Owner role and access code are managed by the system.',
+            telegramConnected: 'Connected',
+            telegramNotConnected: 'Not connected',
+            unlinkTelegram: 'Disconnect Telegram',
+            regenerateCode: 'Regenerate access code',
         },
     };
     const t = text[locale] ?? text.en;
@@ -143,6 +158,18 @@ export default function UsersPanel() {
         } catch {
             return iso;
         }
+    };
+
+    const formatTelegram = (user) => {
+        if (!user.telegram?.connected) {
+            return t.telegramNotConnected;
+        }
+
+        if (user.telegram.username) {
+            return `${t.telegramConnected} (@${user.telegram.username})`;
+        }
+
+        return t.telegramConnected;
     };
 
     const openEditModal = (user) => {
@@ -198,6 +225,7 @@ export default function UsersPanel() {
                                 <th className="px-4 py-3 text-left font-semibold">{t.colAccessCode}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colStatus}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colTimezone}</th>
+                                <th className="px-4 py-3 text-left font-semibold">{t.colTelegram}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colCreated}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colActions}</th>
                             </tr>
@@ -205,7 +233,7 @@ export default function UsersPanel() {
                         <tbody className="divide-y divide-slate-100 text-slate-700">
                             {users.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-400">
+                                    <td colSpan={9} className="px-4 py-6 text-center text-sm text-slate-400">
                                         {t.empty}
                                     </td>
                                 </tr>
@@ -218,6 +246,7 @@ export default function UsersPanel() {
                                         <td className="px-4 py-3 font-mono text-xs">{u.access_code}</td>
                                         <td className="px-4 py-3 capitalize">{u.status}</td>
                                         <td className="px-4 py-3">{u.timezone}</td>
+                                        <td className="px-4 py-3">{formatTelegram(u)}</td>
                                         <td className="px-4 py-3 text-slate-500">{formatCreated(u.created_at)}</td>
                                         <td className="px-4 py-3">
                                             <button
@@ -367,6 +396,36 @@ export default function UsersPanel() {
                             {editingUser.role === 'owner' ? (
                                 <p className="text-sm text-slate-500">{t.ownerLocked}</p>
                             ) : null}
+
+                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                <p className="text-sm font-medium text-slate-700">{t.colTelegram}</p>
+                                <p className="mt-1 text-sm text-slate-600">{formatTelegram(editingUser)}</p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {editingUser.telegram?.connected ? (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                router.post(route('settings.users.telegram.unlink', editingUser.id), {}, { preserveScroll: true, onSuccess: closeEditModal })
+                                            }
+                                            className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                                        >
+                                            {t.unlinkTelegram}
+                                        </button>
+                                    ) : null}
+                                    {editingUser.role !== 'owner' ? (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                router.post(route('settings.users.access-code.regenerate', editingUser.id), {}, { preserveScroll: true, onSuccess: closeEditModal })
+                                            }
+                                            className="inline-flex h-9 items-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                                        >
+                                            {t.regenerateCode}
+                                        </button>
+                                    ) : null}
+                                </div>
+                            </div>
+
                             <div className="flex justify-end gap-2">
                                 <button
                                     type="button"

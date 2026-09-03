@@ -262,7 +262,17 @@
 
 **Решение.** Строка `channel_identities`: telegram, external_user_id unique, names, user_id, linked_at. Дальше сообщения резолвят User без кода.
 
-**Следствие.** Один Telegram id — один User.
+**Следствие.** Один Telegram id — один User. Обратно: один User — одна Telegram identity на MVP (ADR-046).
+
+---
+
+## ADR-046 — Один Telegram identity на Jarvis User (MVP)
+
+**Контекст.** User мог бы иметь несколько Telegram accounts; это усложняет pairing и admin UX на Phase 1.
+
+**Решение.** На MVP у каждого `users` row не более одной `channel_identities` записи с `channel=telegram`. Вторая попытка pairing для того же User отклоняется. Переподключение другого Telegram account — только после owner unlink.
+
+**Следствие.** Pairing service проверяет существующую identity User до создания новой. Regenerate access code не unlink-ит Telegram автоматически.
 
 ---
 

@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\Telegram\Pairing\TelegramPairingService;
 use App\Services\Users\AccessCodeGenerator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -97,6 +98,28 @@ class UserController extends Controller
         }
 
         $user->delete();
+
+        return Redirect::route('settings.index', ['tab' => 'users']);
+    }
+
+    public function unlinkTelegram(User $user, TelegramPairingService $pairingService): RedirectResponse
+    {
+        $pairingService->unlinkTelegram($user);
+
+        return Redirect::route('settings.index', ['tab' => 'users']);
+    }
+
+    public function regenerateAccessCode(User $user, AccessCodeGenerator $accessCodeGenerator): RedirectResponse
+    {
+        if ($user->isOwner()) {
+            return Redirect::route('settings.index', ['tab' => 'users'])->withErrors([
+                'access_code' => 'The owner access code cannot be regenerated.',
+            ]);
+        }
+
+        $user->forceFill([
+            'access_code' => $accessCodeGenerator->generate(),
+        ])->save();
 
         return Redirect::route('settings.index', ['tab' => 'users']);
     }

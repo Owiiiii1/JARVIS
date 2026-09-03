@@ -189,6 +189,8 @@ AI: **Default User Conversation AI**, не Owner Conversation AI.
 
 `(channel=telegram, external_user_id)` уникален. Нельзя привязать один Telegram account к двум Jarvis Users одновременно.
 
+На MVP также действует обратное ограничение: **один Jarvis User — одна Telegram identity**. Второй Telegram account к тому же User не привязывается; переподключение только через owner unlink. ADR-046.
+
 Owner может unlink / later relink и regenerate access code.
 
 ### `/start` — identity нет

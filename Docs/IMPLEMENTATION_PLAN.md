@@ -84,6 +84,8 @@
 
 ## Milestone 2 — Telegram pairing
 
+**Статус.** COMPLETED (2026-09-03).
+
 **Цель.** Бот отвечает. Pairing кодом. Без AI.
 
 **Реализуем**
