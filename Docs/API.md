@@ -11,7 +11,7 @@ API нужен Web Cabinet, Mobile, Desktop и интеграциям. Telegram 
 - Все клиентские операции идут в Jarvis Core, не в «mobile backend».
 - Личная история и personal memory — только **текущего** `user_id`. Те же данные, что у его Telegram DM / Cabinet.
 - Ownership: id в URL недостаточен. Policy проверяет, что conversation/message/topic принадлежит user. ADR-021.
-- Клиент не присылает platform prompt и не выбирает произвольный vendor. User General Prompt и override задаются в админке / user settings, ядро резолвит само.
+- Клиент не присылает platform prompt и не выбирает произвольный vendor. Ядро резолвит Owner Conversation AI или Default User Conversation AI. User General Prompt правит сам user в Cabinet.
 - Group administration — не cabinet API. `TBD` узкий read для owner.
 - Два web context: owner → admin; `role=user` → cabinet. User на admin API/routes — deny.
 - Access code не является API/web password.
@@ -69,7 +69,9 @@ API нужен Web Cabinet, Mobile, Desktop и интеграциям. Telegram 
 - публичный статус: модель подключена, бот подключен, «Jarvis доступен»;
 - **не** выставлять наружу секреты провайдеров и bot token;
 - пользовательские предпочтения профиля — узкий subset, не вся админка;
-- свой General Prompt — только если продуктово разрешено править из кабинета (`TBD`; админ правит всегда с User Card).
+- свой General Prompt — user правит в Cabinet; owner видит/может править с User Card;
+- timezone (IANA) своего профиля;
+- reminders не через отдельный push API: создание в чате, доставка только Telegram.
 
 Админские CRUD провайдеров, Users, impersonation — admin surface, не cabinet/mobile API.
 

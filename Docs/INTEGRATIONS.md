@@ -14,9 +14,11 @@ Conversation Engine
 
 ## Кто имеет доступ
 
-**Owner only** на старте. ADR-028.
+Google / ElevenLabs / Integrations admin — **owner only**. ADR-028.
 
-Обычный `user` не видит Integrations, не получает Gmail/Calendar tools в своём Conversation package, не читает чужие OAuth tokens.
+Обычный `user` не видит Integrations, не получает Gmail/Calendar tools, не читает чужие OAuth tokens.
+
+**Reminders** — не этот слой и не Calendar. Core Reminder Engine доступен owner и users. [REMINDERS.md](REMINDERS.md).
 
 Проверка permission в Tool Layer / Core, не в UI.
 
@@ -73,7 +75,7 @@ Conversation AI вызывает через Tool Registry:
 - free/busy;
 - create / update / delete event.
 
-Write-actions только через tools, с permission owner. Confirmation/safety для разрушительных write — `TBD` (особенно delete).
+Write только через tools + confirmation policy ниже. Reminder ≠ Calendar event.
 
 ---
 
@@ -87,9 +89,30 @@ Write-actions только через tools, с permission owner. Confirmation/s
 - send;
 - labels при необходимости.
 
-Write (send/reply) — Tool Layer + явная safety boundary где уместно (`TBD` confirm).
-
 Не встраивать Gmail SDK в Nutgram handlers.
+
+---
+
+## Multi-step tools
+
+Один conversational turn может содержать **несколько** последовательных tool calls.
+
+Примеры: free/busy → reasoning → create event; Gmail search/read → extract → Calendar create.
+
+Conversation Engine **не** предполагает `one message = max one tool call`.
+
+---
+
+## Confirmation policy (conceptual)
+
+| Класс | Confirm? |
+| --- | --- |
+| Read-only (Gmail/Calendar search, group analysis, project lookup) | обычно нет |
+| Write, который user **явно** попросил («создай встречу», «отправь письмо») | команда = authorization |
+| Write, который модель **предложила сама** | требуется confirmation |
+| Destructive (delete calendar event) | повышенный confirm |
+
+UX уточняется на implementation.
 
 ---
 
@@ -120,7 +143,8 @@ Conversation AI может запросить tool; Analysis AI — нет, ес
 
 ## Связь с AI roles
 
-- **Conversation AI** — общение, tool calls, owner Calendar/Gmail.
-- **Analysis AI** — группы, classification, extraction, summaries. Не ходит в Gmail/Calendar по умолчанию.
+- **Owner Conversation AI** — общение owner + tool loop (Calendar/Gmail/group search/reminders).
+- **Default User Conversation AI** — без Google tools; reminders да.
+- **Owner Analysis AI** — группы/jobs. Не user DM.
 
 ADR-013, ADR-029.

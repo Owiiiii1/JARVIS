@@ -1,6 +1,6 @@
 # Conversation Engine
 
-Жизненный цикл **личного** сообщения **конкретного** `user_id`. Один engine для Telegram DM, Web Cabinet, mobile, desktop и голоса после STT. Owner и дополнительные users проходят тот же путь.
+Жизненный цикл личного сообщения в **User Space или Owner Space**. Один engine. Разные AI configurations и capabilities. Cross-space retrieval запрещён.
 
 Входящие из Telegram-групп **не** проходят этот reply path: persist + passive monitoring. См. ветку ниже и [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
 
@@ -13,7 +13,7 @@ Channel adapter (или Voice layer) передаёт в Core структуру
 - `channel` (`telegram` / `mobile` / `desktop`, `TBD` точный enum);
 - `modality` (`text` / `voice`) — голос не отдельный ассистент и не отдельный канал-мозг;
 - `external_identity` (telegram user id, app user id, …);
-- `conversation_hint` (telegram chat id, cabinet conversation id, или «продолжить active» / «new chat»);
+- `conversation_id` или hint: Telegram → `channel_identities.active_conversation_id`; Cabinet → открытый chat;
 - `payload` (текст; медиа — refs, `TBD`);
 - `occurred_at`;
 - `channel_message_id` для идемпотентности.
@@ -28,7 +28,7 @@ Channel adapter (или Voice layer) передаёт в Core структуру
 
 Системные ответы: `/start` без identity, неверный код. AI не вызывается. Неверный ввод не пишется как normal conversation.
 
-После успешного pairing Core получает событие «первый контакт» → Conversation AI greeting (не статическое «Вы авторизованы» как финал).
+После pairing: conversation **`Основной`**, active, greeting от Conversation AI **этого** space.
 
 ---
 
@@ -42,7 +42,8 @@ normalize
         optional lightweight / async Analysis AI
         do not reply unless group policy says so
   → if direct:
-        шаги ниже (Conversation Engine + Conversation AI)
+        resolve active conversation того же user_id
+        шаги ниже (Conversation Engine + space Conversation AI)
 ```
 
 ---
@@ -52,16 +53,21 @@ normalize
 1. **Сообщение приходит через channel adapter или Cabinet API.**
 2. **Определяется пользователь** — session / `channel_identities` → `users`. Ownership проверяется здесь. Неизвестная Telegram identity **не** входит в этот AI path: pairing в адаптере ([USERS_AND_CABINET.md](USERS_AND_CABINET.md)). Нет auto-create User. Owner и user — один pipeline.
 3. **Сохраняется raw message** до вызова модели. Падение LLM не должно терять входящее. `user_id` + `conversation_id` обязательны для personal.
-4. **Определяется conversation** — существующий тред этого user или новый (New Chat). Чужой id отвергается. ADR-021.
-5. **Анализируется intent/topic** — в Phase 1 no-op/heuristic; в Phase 2 — classifier **в scope этого user**.
-6. **Выбираются связанные topics только этого user.**
-7. **Memory engine достаёт релевантную память только этого `user_id`.** Phase 1: recent **этого** conversation. Phase 2: + его long-term memories. Другие его чаты raw не подмешиваются. ADR-016, ADR-017.
-8. **Context builder** собирает hierarchy: platform → channel rules → User General Prompt → memories/topics → history этого чата → message. ADR-018.
-9. **Вызывается Conversation AI** через `resolve(role=conversation, user_id)` (platform default или user override). ADR-019.
+4. **Conversation** — active / указанный id **этого** space. Чужой id отвергается.
+5. Intent/topic — scope этого space (Phase 2).
+6. Topics только этого space.
+7. Context Builder (**summary-first, raw-on-demand**):
+   - recent/raw **текущего** conversation + его summary;
+   - relevant **summaries** других conversations **этого** user;
+   - relevant structured personal memory / profile;
+   - current message.
+   Raw другого чата **не** кладётся автоматически. Если модель/ретривер видит запрос вроде «что решили в старом чате про Python» — targeted conversation search → нужный raw fragment. ADR-036.
+8. Hierarchy: platform prompt **Owner Conversation AI или Default User Conversation AI** → channel rules → User General Prompt → (7) → message.
+9. **Conversation AI этого space.** Owner Analysis AI на DM не вызывается. User никогда не получает Owner Conversation config.
 10. **Сохраняется ответ** как raw message роли assistant в ту же conversation.
 11. **Ответ отправляется** в исходный канал / cabinet stream.
 12. **Post-processing** (после или параллельно с отправкой).
-13. **Извлекаются потенциальные personal memories** этого user (Phase 2; роль `analysis` или позже `memory_extraction`).
+13. **Извлекаются потенциальные personal memories** этого user (Phase 2; Owner Analysis AI или позже слот `memory_extraction`).
 14. **Обновляются topics / summaries / memory / revisions** в **его** personal scope.
 
 Порядок 12–14 не должен блокировать шаг 11, если это ухудшает latency. Архитектура разделяет sync и async пути.
@@ -81,8 +87,7 @@ normalize
 - persist outbound;
 - send to channel.
 
-В Phase 1 retrieve = recent window.  
-В Phase 2 retrieve = selective, но всё ещё sync-бюджет. Тяжёлый graph walk — не в критическом пути, либо жёсткий timeout + fallback на recent (`TBD` политика).
+Sync retrieve: current recent + summaries + compact memory. Тяжёлый raw-on-demand и group hierarchical analysis — tool/job, не обязательный sync dump.
 
 ---
 
@@ -99,7 +104,7 @@ normalize
 
 Ядро должно позволять подключить queue, не требуя её в Phase 1 (достаточно sync no-op или inline post-process).
 
-Групповой analysis (summaries, decisions, tasks) — только async и только роль `analysis`. Не в sync-пути personal reply.
+Групповой analysis — async **Owner Analysis AI**. Owner personal chat ходит в group knowledge только через explicit Group Search tool.
 
 ---
 
@@ -129,16 +134,20 @@ LLM здесь не участвует, если администратор пр
 
 ## New Chat
 
-Создаётся пустая conversation того же `user_id`. Следующий inbound идёт по шагам выше: raw пустой, User General Prompt и long-term memory user остаются. Не вызывать «сброс профиля».
+Пустая conversation того же space; становится active в Telegram, если создана оттуда. Raw пустой. Summaries других чатов и structured memory остаются. Не «сброс профиля». Не копировать raw старых чатов.
 
 ---
 
 ## Голос
 
-После STT голосовой сегмент входит в тот же engine как inbound text. После ответа TTS читает outbound text. Interruption не создаёт отдельную память: это тот же conversation. См. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
+Тот же User Space, тот же selected conversation, тот же Conversation Engine, тот же AI config space, одна memory. Нет отдельных voice memories. Transport/STT/TTS/`TBD` практикой. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
 
 ---
 
 ## Tools / actions
 
-Будущие tool calls встраиваются **внутрь** шага LLM / после него, в AI Layer, не в adapter. Phase 1 их не реализует; engine не должен предполагать, что единственный выход — чистый текст навсегда (поле structured actions в outbound — `TBD`).
+Tool loop в одном turn: несколько последовательных calls (free/busy → create; Gmail read → Calendar create). Не `one message = max one tool call`.
+
+Confirmation: read-only обычно без confirm. Явная команда user авторизует write. Самопредложенный моделью write — confirm. Destructive (delete event) — повышенный confirm. [INTEGRATIONS.md](INTEGRATIONS.md).
+
+Reminders: Reminder Tool → Reminder Engine, не Calendar. [REMINDERS.md](REMINDERS.md).

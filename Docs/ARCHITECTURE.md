@@ -10,9 +10,10 @@
                  Jarvis Core
      /     |      |       |        |         \
   Users  Memory Groups  AI Layer  Tools     Admin
-  owner/  Engine         conv +   Google/   owner
-  user                   analysis Calendar  only
-                         + prompts Gmail
+  spaces Engine         Owner     Google/   owner
+  +caps                 Conv/     Calendar  only
+                        Analysis  Gmail
+                        User Conv Reminders
                       |
                    Database
 ```
@@ -25,15 +26,17 @@
 
 Отвечает за:
 
-- users: `role` owner|user, `access_code`, status (owner ≠ второй Core, ≠ hardcoded id);
+- Owner Space / User Spaces; capabilities поверх role;
+- users: role, access_code, timezone, status;
 - channel identities (Telegram pairing кодом; без auto-create User);
 - привязку внешних identity;
 - conversations и messages (kind: `direct` | `group`; personal всегда с `user_id`);
 - Telegram Groups: авторегистрация, group conversations; **owner-only** admin;
 - Tool / Integration Layer (owner-only: Google, ElevenLabs; Telegram channel отдельно);
 - memory и topics (с Phase 2; retrieval всегда scoped);
-- AI orchestration: `resolve(role, user_id)` — platform default + user override;
-- context building: prompt hierarchy (platform → channel → user prompt → memory → conversation);
+- AI: Owner Conversation / Owner Analysis / Default User Conversation;
+- Reminder Engine; Projects (owner); Proactive placeholder;
+- context: summary-first, raw-on-demand; Telegram `active_conversation_id`;
 - configuration (platform + per-user);
 - channel abstraction;
 - APIs и Web Cabinet для тех же accounts;
@@ -67,7 +70,7 @@
 | Response generator | финальный ответ пользователю | 1 |
 | Analysis jobs | группы, extraction, summaries | конфиг с Phase 1; тяжёлая работа с Phase 2 |
 
-Не привязывать систему к одной модели или одному provider. Минимум две независимые роли: **`conversation`** и **`analysis`**. Одна глобальная модель на весь Jarvis запрещена как архитектура (физически на MVP они могут совпасть, конфиги всё равно раздельные). ADR-013.
+Не привязывать систему к одной модели или одному provider. Три независимых config: **Owner Conversation AI**, **Owner Analysis AI**, **Default User Conversation AI**. Одна глобальная модель на весь Jarvis запрещена. User не наследует Owner Conversation. ADR-013, ADR-034, ADR-035.
 
 См. [AI_PROVIDER_ARCHITECTURE.md](AI_PROVIDER_ARCHITECTURE.md).
 
@@ -111,7 +114,7 @@ Web Cabinet — клиент того же Core. [USERS_AND_CABINET.md](USERS_AN
 
 - **только owner** (сейчас в коде любой auth = admin — это будет сломано в Milestone 1);
 - **Users**: каталог Jarvis (не «admin accounts»), User Card, access_code, Telegram link, Chats / Topics / AI Settings, impersonation;
-- role-based AI: Conversation + Analysis, не один global active;
+- три AI config: Owner Conversation / Owner Analysis / Default User Conversation;
 - Telegram bot settings и/или Integrations overview того же source of truth;
 - **Settings → Integrations**: Google, ElevenLabs;
 - **Telegram Groups** owner-only;
@@ -153,7 +156,11 @@ Web Cabinet — клиент того же Core. [USERS_AND_CABINET.md](USERS_AN
 
 ### Конфигурация
 
-`Admin writes platform settings/prompts` + `user_ai_settings` → `DB` → `AI Layer.resolve(role, user_id)`
+`Owner пишет три AI config` + User General Prompt → `resolveConversationAI(user)` / Owner Analysis для jobs
+
+### Proactive Engine (placeholder)
+
+`event/trigger` → policy → relevance → Conversation/Notification → Telegram. Reminders — первый scheduled trigger. Autonomous proactive **не** MVP.
 
 ### Cabinet / клиенты
 
@@ -167,7 +174,7 @@ Web Cabinet — клиент того же Core. [USERS_AND_CABINET.md](USERS_AN
 - Обязательная Vector DB.
 - Точный протокол realtime (WebSocket / WebRTC / HTTP streaming).
 - Механизм auth (два context: admin vs cabinet; token flavour для mobile/desktop).
-- Подтверждение write-tools Gmail/Calendar.
+- Точный UX confirmation (политика концептуально в [INTEGRATIONS.md](INTEGRATIONS.md)).
 - Алфавит access_code кроме зарезервированного `2000`.
 - Multi-tenant «много независимых инстансов». На одном инстансе: один `owner` + много `user`.
 
@@ -175,5 +182,4 @@ Web Cabinet — клиент того же Core. [USERS_AND_CABINET.md](USERS_AN
 
 ## Связь с фазами
 
-Исполнение по вехам 0–19: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).  
-Users: [USERS_AND_CABINET.md](USERS_AND_CABINET.md). Integrations: [INTEGRATIONS.md](INTEGRATIONS.md).
+Исполнение: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Spaces: [USERS_AND_CABINET.md](USERS_AND_CABINET.md). Reminders: [REMINDERS.md](REMINDERS.md). Projects: [PROJECTS.md](PROJECTS.md).

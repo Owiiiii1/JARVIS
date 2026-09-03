@@ -92,7 +92,7 @@
 
 **Решение.** Админка пишет settings/prompts и показывает логи/чаты. Ответ пользователю всегда через Core.
 
-**Следствие.** Один **platform** conversation prompt на продукт. User General Prompt — отдельный слой на user (ADR-018). Analysis — отдельный prompt. Нет скрытой логики и нет прямых вызовов Telegram/LLM из Inertia. Уточнение: ADR-013, ADR-015, ADR-020.
+**Следствие.** Platform prompt принадлежит выбранному conversation config (Owner vs Default User), не «один prompt на весь инстанс». User General Prompt — отдельный слой на user (ADR-018). Analysis — отдельный prompt. Нет скрытой логики и нет прямых вызовов Telegram/LLM из Inertia. Уточнение: ADR-013, ADR-015, ADR-020, ADR-034.
 
 ---
 
@@ -130,9 +130,9 @@
 
 **Контекст.** Общение и анализ — разные нагрузка, цена и промпты. Один vendor на всё — ложная экономия архитектуры.
 
-**Решение.** Минимум роли `conversation` и `analysis`. Каждая: provider, model, credentials reference, prompt, parameters. Не обязаны совпадать. Позже добавляются classification / summarization / embeddings / memory extraction / voice reasoning без смены business logic.
+**Решение.** Независимые configuration domains. Уточнение ADR-034 / ADR-035: минимум **Owner Conversation AI**, **Owner Analysis AI**, **Default User Conversation AI**. Каждая: provider, model, credentials reference, prompt, parameters. Не обязаны совпадать. Позже слоты classification / summarization / embeddings без смены business logic.
 
-**Следствие.** Запрещена архитектура «одна глобальная модель Jarvis». Админка конфигурирует роли раздельно.
+**Следствие.** Запрещена архитектура «одна глобальная модель Jarvis» и «одна Conversation AI на owner и users». Админка конфигурирует domains раздельно.
 
 ---
 
@@ -190,9 +190,9 @@
 
 **Контекст.** Не у каждого user свой vendor.
 
-**Решение.** AI configuration: platform default на роль → user override, если задан. Минимум для Conversation AI; позже Analysis. `resolve(role, user_id)`.
+**Решение.** Default User Conversation AI — отдельный platform default, **не** наследует Owner Conversation AI. Optional later: per-user model override **поверх Default User Conversation AI**. `resolveConversationAI(user)`.
 
-**Следствие.** Пустой override = default. Core не ветвится по «owner vs child» для выбора SDK.
+**Следствие.** Пустой override = Default User Conversation AI. User никогда не получает Owner Conversation config «по умолчанию».
 
 ---
 
@@ -316,6 +316,146 @@
 
 ---
 
+## ADR-032 — Owner Space и User Spaces изолированы
+
+**Контекст.** Различия только через `role` недостаточно: легко смешать context.
+
+**Решение.** Логические пространства. Owner Space и каждый User Space полностью изолированы: conversations, summaries, memory, General Prompt, Telegram DM, reminders, timezone. Owner personal context не смешивается с User contexts. User A не видит User B.
+
+**Следствие.** Isolation = scope / ownership / configuration, не второй продукт.
+
+---
+
+## ADR-033 — Общие engines, раздельные scopes
+
+**Контекст.** Иначе появится N реализаций Conversation Engine.
+
+**Решение.** Общие технические engines: Conversation, Context Builder, Telegram Adapter, Reminder Engine, AI Provider Layer. Различие — `user_id`, capabilities, AI config domain.
+
+**Следствие.** Новый permission не создаёт новый engine.
+
+---
+
+## ADR-034 — Owner Conversation AI ≠ Default User Conversation AI
+
+**Контекст.** Owner может держать дорогую модель; users не должны её наследовать.
+
+**Решение.** Два независимых conversation configs. User не резолвит Owner Conversation AI. Optional later: per-user override поверх Default User Conversation AI.
+
+**Следствие.** Уточняет ADR-013 и ADR-019.
+
+---
+
+## ADR-035 — Owner Analysis AI отдельный
+
+**Контекст.** Groups, summaries, extract, project analysis — другая нагрузка.
+
+**Решение.** Owner Analysis AI — отдельный provider/model/prompt. Не обслуживает обычный user DM. Не обязан совпадать с Owner Conversation AI.
+
+**Следствие.** Jobs и DM не делят один «активный» model switch.
+
+---
+
+## ADR-036 — Cross-chat: summary-first / raw-on-demand
+
+**Контекст.** Нельзя считать, что каждый chat знает raw всех остальных.
+
+**Решение.** В пакет: current raw/recent + relevant summaries других chats того же user + structured memory. Raw другого чата — только targeted retrieval. Cross-user retrieval запрещён.
+
+**Следствие.** New Chat пустой по raw, не «амнезия профиля».
+
+---
+
+## ADR-037 — Telegram выбирает active conversation
+
+**Контекст.** Telegram ≠ один вечный conversation. Cabinet уже предполагает каталог.
+
+**Решение.** Один каталог conversations на space. `channel_identities.active_conversation_id` (тот же `user_id`). Меню «Чаты»: выбрать / создать / текущий. Первый pairing: conversation `Основной`, active, greeting туда.
+
+**Следствие.** Web и Telegram видят одни и те же chats.
+
+---
+
+## ADR-038 — Reminders — Core subsystem, не Google Calendar
+
+**Контекст.** Легко отдать «напомни» в Calendar API.
+
+**Решение.** Reminder Engine — своя сущность и pipeline: Conversation AI → Reminder Tool → Engine → DB → worker → Telegram. Calendar — другой owner tool.
+
+**Следствие.** «Напомни завтра» ≠ calendar event. Доступно owner и users.
+
+---
+
+## ADR-039 — Reminder delivery сейчас Telegram-only
+
+**Контекст.** Нет product-ready web/mobile push.
+
+**Решение.** Доставка только через Telegram Adapter. Нет web/email/mobile/desktop notification. Без linked Telegram identity — сообщить, что нужно подключить Telegram.
+
+**Следствие.** Cabinet может создать reminder текстом, но канал доставки — бот.
+
+---
+
+## ADR-040 — Timezone per user и per group
+
+**Контекст.** «Завтра в 11» и «сегодня в группе» без TZ бессмысленны.
+
+**Решение.** `users.timezone` IANA для relative dates и reminders (`run_at` UTC). `telegram_groups.timezone` для group date queries; fallback → owner timezone.
+
+**Следствие.** Не интерпретировать «сегодня» в TZ сервера.
+
+---
+
+## ADR-041 — Project ≠ Topic
+
+**Контекст.** Тема классификации ≠ рабочий контейнер.
+
+**Решение.** Projects — сущность Owner Space. Relations к conversations/topics/groups/memories/group knowledge, без копирования raw. Users на MVP не получают Projects.
+
+**Следствие.** Topic `Jarvis` и project `JARVIS` — разные вещи.
+
+---
+
+## ADR-042 — Group knowledge в Owner AI только через explicit tool
+
+**Контекст.** Auto-merge всех групп в owner prompt сломает личный контекст и окно модели.
+
+**Решение.** Group knowledge не personal memory. Owner Conversation AI ходит в stored raw/derived через Group Search/Analysis Tool по запросу.
+
+**Следствие.** «Что решили в группе 1?» — tool. Молчаливого подмешивания нет.
+
+---
+
+## ADR-043 — Hierarchical analysis больших group histories
+
+**Контекст.** Вся raw history групп в нашей DB — нормально. Один prompt на archive — нет.
+
+**Решение.** Date range per group TZ → retrieve → chunk → analyse → aggregate per group → reduce across groups. Jobs/queue. Не зависеть от одного context window.
+
+**Следствие.** Analysis AI не обязан «видеть всё сразу».
+
+---
+
+## ADR-044 — Tool loop: несколько calls в одном turn
+
+**Контекст.** «Свободен завтра и поставь встречу» = free/busy + create.
+
+**Решение.** Conversation Engine поддерживает последовательные tool calls в одном turn. Не `one message = max one tool call`. Read-only обычно без confirm; явная команда авторизует write; самопредложенный write — confirm; destructive — повышенный confirm.
+
+**Следствие.** Multi-step Google/Gmail/reminders/group search — один user message.
+
+---
+
+## ADR-045 — Capability layer поверх roles
+
+**Контекст.** Десятки `if role === owner` размажут политику.
+
+**Решение.** Capabilities (`chat`, `memory`, `telegram_dm`, `reminders`, `projects`, `telegram_groups`, `group_analysis`, `gmail`, `google_calendar`, `integrations_admin`, `users_admin`, `voice`, `impersonation`). Role задаёт default set. Проверка в Core. Owner = все; user сейчас = chat/memory/telegram_dm/reminders/cabinet.
+
+**Следствие.** Новые permissions без нового Conversation Engine.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Алфавит generated access_code (кроме зарезервированного 2000).
@@ -323,10 +463,10 @@
 - Есть ли у owner отдельный cabinet UI или «мои чаты» в админке.
 - Технология очередей.
 - Auth схема mobile/desktop.
-- Realtime транспорт voice/text streaming.
+- Realtime транспорт voice/text streaming; STT/TTS/interruption — практические тесты.
 - Пороги confidence и summarization.
-- Как Telegram DM мапится на одну из многих cabinet conversations того же user.
+- Точный enum статусов reminder и группы; набор service updates (`my_chat_member`).
 - Retention raw messages по закону/желанию пользователя (отдельно от derived lifecycle).
-- Точный enum статусов группы и набор service updates (`my_chat_member`).
 - UX явного переноса group knowledge → personal fact.
-- Как владелец инициирует анализ группы (DM vs админка).
+- Сохранять ли reminder без Telegram identity или только отказывать в доставке.
+- Persisted capability overrides (сейчас достаточно default из role).

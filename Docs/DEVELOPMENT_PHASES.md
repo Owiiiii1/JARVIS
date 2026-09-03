@@ -5,7 +5,7 @@
 Общие правила:
 
 - Phase 1 должна быть простой и рабочей.
-- Контракты ядра (users, isolation by `user_id`, conversation kind, message, telegram_groups, channel adapter, AI roles, prompt hierarchy, default→override) закладываются сразу.
+- Контракты ядра (spaces, capabilities, users, isolation by `user_id`, conversation kind, message, telegram_groups, channel adapter, три AI configs, prompt hierarchy) закладываются сразу.
 - То, что рано фиксировать (конкретная Vector DB, очередь, точные URL API) — `TBD`.
 
 ---
@@ -16,7 +16,7 @@
 
 ### Цель
 
-Owner (и затем users) общаются с Jarvis в Telegram **после pairing**. История не теряется. Исполнение: вехи 1–5 в [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+Owner (и затем users) общаются с Jarvis в Telegram **после pairing**. История не теряется. Chat Selector переключает active conversation. Исполнение: вехи 1–6 (MVP + selector), users/reminders — 7–10 в [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
 ### Функциональность
 
@@ -25,7 +25,7 @@ Owner (и затем users) общаются с Jarvis в Telegram **после 
 - Авторизованный user/owner пишет **личные** DM.
 - Channel adapter нормализует входящее и передаёт в Jarvis Core.
 - Core сохраняет raw message.
-- **Conversation AI** получает ограниченный объём предыдущего личного общения (recent window).
+- Conversation AI **пространства** получает recent **текущего** chat (+ later summaries других чатов того же space).
 - AI отвечает в DM.
 - Ответ сохраняется и уходит в тот же канал.
 - Параллельно: бот в группах → авторегистрация, persist всех увиденных сообщений, админ-чат, исходящие через adapter, **без автоответа**.
@@ -41,7 +41,7 @@ Owner (и затем users) общаются с Jarvis в Telegram **после 
 - Jarvis Core: users, conversations (direct + group, много на user), messages, configuration
 - Channel Layer: Telegram adapter (DM и group updates)
 - Модуль Telegram Groups: discovery, persist, Group Messaging Service
-- AI Layer: role-based config + `resolve(role, user_id)` (override может быть пустым)
+- AI Layer: Owner Conversation / Owner Analysis / Default User Conversation + `resolveConversationAI(user)`
 - Admin Panel: Conversation AI, Analysis AI, Telegram bot, Telegram Groups; слот Users / User Card
 - Контракт Cabinet (тот же engine); UI кабинета — инкремент после persist, см. ниже
 
@@ -60,7 +60,7 @@ Owner (и затем users) общаются с Jarvis в Telegram **после 
 - После рестарта процесса контекст читается из БД.
 - Новый Telegram-апдейт не создаёт «чистый» чат без истории того же пользователя.
 - AI-логики нет в Telegram-specific коде.
-- Админка задаёт **отдельно** Conversation AI и Analysis AI, плюс token бота.
+- Админка задаёт **три** AI config, плюс token бота. User DM не зовёт Owner Conversation / Analysis.
 - Неизвестная группа после первого update появляется в админке без ручного ID.
 - Сообщения группы пишутся в raw history; Jarvis в группу сам не пишет, кроме явной отправки из админки.
 - Personal persist и retrieval принимают `user_id`; нет глобального «контекста инстанса» в prompt.
@@ -79,9 +79,9 @@ Owner (и затем users) общаются с Jarvis в Telegram **после 
 
 ---
 
-## Users & Cabinet — вехи 6–8
+## Users & Cabinet — вехи 6–10
 
-Не ждать Phase 4. Не делать второй backend. Owner pairing и Telegram MVP — вехи 1–5, раньше полного Cabinet.
+Не ждать Phase 4. Не делать второй backend. Owner pairing и Telegram MVP — вехи 1–5; Chat Selector — веха 6; Cabinet / User Telegram / Reminders — 7–10.
 
 ### Цель
 
@@ -92,7 +92,7 @@ Owner (и затем users) общаются с Jarvis в Telegram **после 
 - Admin: Users, User Card, Chats (read), Topics, AI Settings, Open Cabinet (impersonation).
 - Cabinet: Chat (несколько независимых conversations) + Profile.
 - User General Prompt на все чаты этого user.
-- Platform default модели → optional user override.
+- Default User Conversation AI; User General Prompt правит сам user; optional later override.
 - Auth: admin context ≠ cabinet context; ownership на каждом запросе.
 
 Memory в этом инкременте может оставаться recent-window + user prompt. Phase 2 наполняет topics/memories **уже per-user**.
@@ -154,7 +154,7 @@ Jarvis имеет большую долговременную память, но
 
 - Memory engine: topics, memories, summaries, retrieval, extraction — **owner/scope обязателен**
 - Расширенный Context Builder (hierarchy + только scoped retrieval)
-- Отдельные AI roles: `analysis` закрывает classification / extraction / summarization на старте фазы (позже можно выделить вложенные роли, не меняя бизнес-логику)
+- Owner Analysis AI закрывает classification / extraction / summarization / group jobs (позже вложенные слоты, не меняя бизнес-логику)
 - Group knowledge с provenance ≠ personal memory; personal memory ≠ другой user
 - Админка: User Topics / диагностика памяти, не полноценный ручной редактор на старте фазы
 
@@ -263,7 +263,7 @@ Jarvis имеет большую долговременную память, но
 | `conversations`, `messages` | те же таблицы; много chats на user; `kind=direct|group`; плюс classification links |
 | `telegram_groups` + persist | analysis jobs, group knowledge + provenance |
 | recent-window retriever | selective retriever за тем же интерфейсом |
-| Conversation AI на DM | Analysis AI на jobs (группы, extract, summarize) |
-| system prompt conversation + User General Prompt | плюс analysis prompt + memory package с provenance и `user_id` |
+| Owner / Default User Conversation AI на DM | Owner Analysis AI на jobs (группы, extract, summarize) |
+| system prompt выбранного conversation config + User General Prompt | плюс analysis prompt + memory package с provenance и `user_id` |
 
 Raw messages не удаляются при появлении summary.

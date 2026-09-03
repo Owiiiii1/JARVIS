@@ -17,8 +17,10 @@ Account entity. Ядро работает с `user_id`, не с Telegram id. Р�
 - `role`: `owner` | `user`;
 - `access_code` unique (owner зарезервирован **`2000`**);
 - `status`;
-- last activity (`TBD` денормализация);
+- `timezone` IANA (например `Europe/Rome`);
+- last activity (`TBD`);
 - timestamps.
+- capabilities: default из role; persisted overrides optional later.
 
 Пароль и access_code — разные поля. Access code виден owner на User Card; не секрет web-login. Plaintext password не хранить.
 
@@ -38,12 +40,15 @@ Per-user AI слой. Не финальная migration schema.
 
 - `user_id`;
 - `general_prompt` (User General Prompt);
-- conversation provider / model override (nullable → platform default);
-- analysis provider / model override (nullable, later);
-- parameters / settings;
+- `general_prompt` — правит сам user в Cabinet;
+- optional future model override (поверх **Default User Conversation AI**, не Owner Conversation);
 - timestamps.
 
-ADR-018, ADR-019.
+Platform configs (отдельные записи, не одна `is_active`):
+
+- Owner Conversation AI;
+- Owner Analysis AI;
+- Default User Conversation AI.
 
 ### channel_identities
 
@@ -54,8 +59,9 @@ ADR-018, ADR-019.
 - `external_id` (Telegram user id)
 - username, first/last name
 - `linked_at`, `last_seen_at`
+- `active_conversation_id` nullable FK → conversations того же `user_id`
 
-Unique `(channel, external_id)`: один Telegram account — один Jarvis User. Один user — много каналов. Создаётся **только** после верного access_code. Не из `/start`. Не auto-register.
+Unique `(channel, external_id)`. Создаётся только после верного access_code.
 
 ---
 
@@ -75,7 +81,11 @@ Unique `(channel, external_id)`: один Telegram account — один Jarvis U
 - для `group`: связь с `telegram_groups` (не путать sender сообщений с `user_id` бота/owner)
 - указатель на active topic (`TBD`, скорее Phase 2)
 
-Cabinet: много `direct` conversations на одного user. Telegram DM Phase 1 может мапить один bot-chat на одну conversation того же user. New Chat создаёт ещё одну строку, не новый memory store.
+Много `direct` на user. Telegram и Cabinet — один каталог. Telegram пишет в `active_conversation_id`. New Chat — новая строка, не новый memory store.
+
+### conversation_summaries
+
+Сжатие **одного** conversation (или диапазона его messages). Owner = тот же `user_id`. Нужны для summary-first cross-chat. Не заменяют raw.
 
 **Почему общая таблица, а не отдельный message engine.** Group и personal history — разные *контекстные области* (ADR-012), но один pipeline persist / pagination / attachments / идемпотентности. Второй набор таблиц «group_messages» дублировал бы engine без выигрыша. Различие — `conversations.kind` + `telegram_groups` + поля sender на сообщении. См. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
 
@@ -167,7 +177,7 @@ Many-to-many memories ↔ topics.
 
 ## AI
 
-Конфигурация **ролевая**, не «одна глобальная модель Jarvis». ADR-013.
+Конфигурация **трёх domains**, не «одна глобальная модель Jarvis». ADR-013, ADR-034.
 
 ### ai_providers / ai_provider_settings
 
@@ -177,10 +187,11 @@ Many-to-many memories ↔ topics.
 
 Логические роли — first-class:
 
-| Роль | Обязательность | Назначение |
+| Config | Обязательность | Назначение |
 | --- | --- | --- |
-| `conversation` | Phase 1 | общение с любым user (DM, cabinet, mobile, desktop, voice) |
-| `analysis` | конфиг в Phase 1; jobs в Phase 2 | группы, classification, summarization, extraction, memory processing |
+| Owner Conversation AI | M4 | только Owner Space |
+| Owner Analysis AI | M4 конфиг; jobs later | группы, extract, project analysis |
+| Default User Conversation AI | M4 | все User Spaces; не наследует owner |
 
 Позже без смены business logic можно добавить: `classification`, `summarization`, `embeddings`, `memory_extraction`, `voice_reasoning`.
 
@@ -218,6 +229,7 @@ Token (encrypted), webhook, username, статус. Уже концептуал�
 - `status` (connected / restricted / left — enum `TBD`)
 - `first_seen_at`
 - `last_message_at`
+- `timezone` IANA (owner задаёт; fallback → owner `users.timezone`)
 - `settings` (policy: persist-only по умолчанию)
 - timestamps
 
@@ -239,9 +251,17 @@ Privileged действия: просмотр user/chats, impersonation, сме�
 
 Phase 3: связь с conversation, состояние listening/speaking, provider refs. Аудиофайлы как blob — `TBD` (лучше объектное хранилище, не обязательно в Phase 3 MVP).
 
+### reminders
+
+См. [REMINDERS.md](REMINDERS.md). `user_id`, source conversation/message, text, `run_at` UTC, timezone, status, recurrence nullable.
+
+### projects и relations (Owner Space)
+
+`projects`; `project_conversations`; `project_topics`; `project_groups`; `project_memories` (и group knowledge). Не копии raw. [PROJECTS.md](PROJECTS.md).
+
 ### integration_accounts / tool_execution_logs
 
-Owner-only. Provider, status, encrypted tokens, scopes, connected_at, last_used_at. Логи без секретов. [INTEGRATIONS.md](INTEGRATIONS.md).
+Owner-only. Encrypted tokens. [INTEGRATIONS.md](INTEGRATIONS.md).
 
 ---
 
@@ -253,6 +273,9 @@ users 1—1 user_ai_settings
 users 1—N channel_identities   unique (channel, external_id)
 users.access_code unique; один row role=owner
 users 1—N conversations (kind=direct; много чатов)
+users 1—N reminders
+users 1—N projects (owner space)
+channel_identities.active_conversation_id → conversations (тот же user_id)
 telegram_groups 1—1 conversations (kind=group)
 telegram_groups 1—N telegram_group_participants
 conversations 1—N messages
@@ -263,6 +286,7 @@ memories N—N topics (тот же scope)
 memories 1—N revisions
 memories N—N messages (sources)
 conversations 1—N summaries
+projects N—N conversations / topics / telegram_groups / memories / group knowledge
 ```
 
 ---

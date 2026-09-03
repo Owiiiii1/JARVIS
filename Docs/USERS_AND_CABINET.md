@@ -1,10 +1,15 @@
-# Users, roles, Cabinet, Telegram pairing
+# Users, spaces, Cabinet, Telegram pairing
 
-Два уровня на одном Core: **owner** и **user**. Owner — обычная строка `users` с ролью `owner`, не hardcoded `user_id`. Conversation Engine один. Различия — authorization и enabled features.
+Два **логических пространства** на общих engines. Role задаёт default **capability set**, не второй Conversation Engine.
 
-Связано: [CHANNELS.md](CHANNELS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [DATABASE.md](DATABASE.md), [INTEGRATIONS.md](INTEGRATIONS.md), ADR-016–031 в [DECISIONS.md](DECISIONS.md).
+- **Owner Space** — полностью изолированный AI-контекст владельца + admin/integrations/groups/projects.
+- **User Space** — полностью независимое пространство каждого `role=user`.
 
-Фактический код сегодня: любой залогиненный человек видит Admin Panel. Это **баг относительно целевой модели**, не целевое поведение. См. [CURRENT_STATE.md](CURRENT_STATE.md).
+User A, User B и Owner personal context **никогда** не смешиваются. Изоляция: `user_id` / scope / configuration domain / capabilities.
+
+Связано: [CHANNELS.md](CHANNELS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [REMINDERS.md](REMINDERS.md), [PROJECTS.md](PROJECTS.md), [INTEGRATIONS.md](INTEGRATIONS.md), ADR-016–045.
+
+Фактический код сегодня: любой залогиненный человек видит Admin Panel. Это **баг относительно целевой модели**, не целевое поведение. [CURRENT_STATE.md](CURRENT_STATE.md).
 
 ---
 
@@ -17,7 +22,48 @@
 | `owner` | один главный владелец инстанса | **Admin Panel** | тот же pairing, код `2000` | `*` |
 | `user` | все остальные в каталоге Users | **Personal Cabinet** | pairing своим `access_code` | нет |
 
-Ровно один owner на инстанс (unique constraint или эквивалент). Не ветвить AI Core `if ($userId === 1)`.
+Ровно один owner на инстанс. Не `if ($userId === 1)`.
+
+## Spaces
+
+### Owner Space
+
+conversations; conversation summaries; personal memories; **projects**; topics; General Prompt; **Owner Conversation AI** + **Owner Analysis AI**; reminders; Telegram DM; Telegram Groups + group knowledge; integrations; Gmail; Calendar; voice later; tools; proactive later.
+
+### User Space
+
+conversations; summaries; personal memory; General Prompt; **Default User Conversation AI**; Telegram DM; Web Cabinet; reminders; timezone.
+
+Нет: Admin, Groups, Projects, Google, owner AI config.
+
+Engines общие: Conversation, Context Builder, Telegram Adapter, Reminder Engine, AI Provider Layer.
+
+---
+
+## Capabilities
+
+Не размазывать `if role === owner` по всему коду. Role → default set. Проверка в Core.
+
+| Capability | owner | user (сейчас) |
+| --- | --- | --- |
+| chat | да | да |
+| memory | да | да |
+| telegram_dm | да | да |
+| reminders | да | да |
+| cabinet / profile | да | да |
+| projects | да | нет |
+| telegram_groups | да | нет |
+| group_analysis | да | нет |
+| gmail | да | нет |
+| google_calendar | да | нет |
+| integrations_admin | да | нет |
+| users_admin | да | нет |
+| voice | later | later / нет |
+| impersonation | да | нет |
+
+Owner = все. Расширение permissions без нового engine.
+
+---
 
 ### Owner (`*`)
 
@@ -37,8 +83,9 @@ Owner **также** обычный участник Conversation Core: своя
 
 Пока **только**:
 
-- Web Cabinet: login, Profile, Chat (список, New Chat, свои треды);
-- Telegram DM после pairing кодом.
+- Web Cabinet: login, Profile (timezone), Chat (список, New Chat, свои треды), свой General Prompt;
+- Telegram DM после pairing кодом + Chat Selector;
+- reminders (доставка только Telegram).
 
 **Не** имеет (backend 403 / deny, не только скрытое меню):
 
@@ -113,7 +160,7 @@ Impersonation: только owner, без пароля жертвы. ADR-020.
 - password set / reset (hash only; plaintext никогда);
 - Chats (read/debug);
 - Topics;
-- AI Settings (User General Prompt, override);
+- AI Settings (User General Prompt; optional future override поверх Default User Conversation AI);
 - Open Cabinet / impersonate.
 
 Обычный user эту страницу не видит.
@@ -122,16 +169,13 @@ Impersonation: только owner, без пароля жертвы. ADR-020.
 
 ## Personal Cabinet (`role=user`)
 
-Минимум: **Chat**, **Profile**.
+Минимум: **Chat**, **Profile**, плюс редактирование **своего General Prompt**. Timezone в profile.
 
-Chat как ChatGPT:
+Chat как ChatGPT: список, New Chat, history, input. Тот же каталог conversations, что в Telegram.
 
-- sidebar списка своих chats;
-- New Chat;
-- открыть чат;
-- history + input.
+New Chat: пустой raw. Другие чаты — **summaries** в context, не их raw. Targeted raw-on-demand. ADR-036.
 
-Каждый chat = `conversations` с этим `user_id`. Long-term memory общая **внутри** user. New Chat ≠ новая память. ADR-017.
+AI: **Default User Conversation AI**, не Owner Conversation AI.
 
 ---
 
@@ -183,29 +227,38 @@ Telegram update
 - username, first/last name если есть;
 - `user_id`;
 - `linked_at`;
-- `last_seen_at`.
+- `last_seen_at`;
+- `active_conversation_id` (тот же `user_id`).
 
-Дальше Telegram ID — авторизованный канал этого User. Код больше не спрашивать.
+Дальше Telegram ID — авторизованный канал. Код не спрашивать.
 
-Сразу после pairing:
+**Первый pairing UX:** создать conversation **`Основной`**, сделать active, записать AI greeting туда. Каталог тот же, что Cabinet.
 
-```
-Telegram Adapter
-  → Conversation Engine
-  → Conversation AI
-```
+Приветствие — Conversation AI **пространства** (Owner vs Default User config). Не только «Вы авторизованы».
 
-Первое приветствие генерирует **Conversation AI** (platform prompt + User General Prompt + profile + memory, на старте memory может быть пустой). Не заканчивать статическим «Вы авторизованы» как единственным ответом. Короткое системное «привязка успешна» перед AI — допустимо.
+### Telegram Chat Selector
+
+Telegram ≠ один вечный conversation. Меню / commands / buttons **«Чаты»**:
+
+- список conversations этого user;
+- выбрать существующий;
+- создать новый;
+- показать текущий.
+
+После выбора: `Выбран чат «<name>».` Дальнейшие DM → `channel_identities.active_conversation_id`.
+
+New Chat из Telegram = обычная `conversation`, видна в Cabinet.
+
+Active conversation **обязана** принадлежать тому же `user_id`. Хранение: **`channel_identities.active_conversation_id`** (один Telegram identity = одно active). Чище, чем отдельная session, пока один бот-чат на identity.
 
 ### Авторизованный DM
 
 ```
-Webhook → Nutgram / Adapter → identity → User → Conversation
-  → persist inbound → Context Builder → Conversation AI
-  → persist outbound → Adapter send
+Webhook → Adapter → identity → User → active conversation
+  → persist → Context Builder (space AI) → persist → send
 ```
 
-Тот же путь для owner и user. Права tools/groups проверяет Core, не адаптер.
+Tools/groups — capabilities, не адаптер.
 
 ### Повторный `/start` при уже связанной identity
 
@@ -243,3 +296,5 @@ Cross-user retrieval запрещён. Group knowledge не льётся в cabi
 - Не давать `role=user` admin routes «потому что залогинен».
 - Не hardcode owner по `id=1`.
 - Не строить второй Conversation Engine для owner.
+- Не резолвить Owner Conversation AI для `role=user`.
+- Не считать Telegram одним вечным чатом.

@@ -2,7 +2,18 @@
 
 Целевые фазы: **Phase 3** (подключение голоса к тому же ядру), **Phase 4** (естественный realtime). В Phase 1–2 голос не реализуется, но текстовой pipeline не должен мешать появлению STT/TTS.
 
-Voice — другой интерфейс к **тому же** Jarvis, не отдельный ассистент. После распознавания реплика идёт в [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md). Память общая.
+Voice — experimental / future. Другой интерфейс к **тому же** Jarvis, не отдельный ассистент. После распознавания реплика идёт в [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md).
+
+### Invariants (фиксированы)
+
+- тот же User Space;
+- тот же selected conversation (`active_conversation_id` / открытый chat);
+- тот же Conversation Engine;
+- тот же AI configuration соответствующего space (Owner Conversation AI или Default User Conversation AI);
+- одна memory;
+- никаких отдельных voice memories.
+
+Transport / STT / TTS / realtime / interruption — `TBD` практическими тестами. Не закрывать эти решения в docs как будто уже выбраны.
 
 ---
 

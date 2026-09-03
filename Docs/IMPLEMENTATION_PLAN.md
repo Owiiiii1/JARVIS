@@ -2,7 +2,7 @@
 
 Исполняемые вехи. Не путать с уже работающим кодом: [CURRENT_STATE.md](CURRENT_STATE.md).
 
-Порядок фиксирован. Не начинать Google/Voice до Identity + Conversation + AI roles.
+Порядок фиксирован. Не начинать Google/Voice до Identity + Conversation + AI configs. Reminders — до Google. Chat Selector — вместе с Telegram/User conversation, не optional later.
 
 Исходная база: Laravel 13, Inertia/React, custom-admin-kit v0.5.0, Nutgram 4.50.0, webhook ACK-only, один admin login для всех `users`, CRM leftover, AI = listModels + one `is_active`.
 
@@ -48,18 +48,19 @@
 
 **Реализуем**
 
-- `users.role` (`owner`|`user`); `users.access_code` unique; `users.status`.
+- `users.role` (`owner`|`user`); `users.access_code` unique; `users.status`; `users.timezone` IANA (можно отложить колонку до M4/M10, контракт — здесь).
+- Capability defaults из role (проверка в Core, не россыпь `if role`).
 - Owner seed/migration: существующий admin → `role=owner`, `access_code=2000` (если свободно).
 - Генерация human-readable unique codes для новых `user` (retry + unique).
 - Middleware: owner → admin routes; user → cabinet routes; user на admin → 403 или redirect.
 - Policies skeleton; не полагаться на меню.
-- Settings Users больше не «admin accounts» (минимальный backend; полный User Card — M6).
+- Settings Users больше не «admin accounts» (минимальный backend; полный User Card — M7).
 
 **Migrations:** alter `users`; unique `access_code`; check/unique one owner.
 
 **Backend:** User model, generator, `EnsureOwner` / `EnsureCabinetUser`, login redirect by role.
 
-**Frontend:** login redirect; user не видит admin layout. Cabinet shell-заглушка допустима до M7, но **не** admin.
+**Frontend:** login redirect; user не видит admin layout. Cabinet shell-заглушка допустима до M8, но **не** admin.
 
 **Tests:** owner dashboard 200; user dashboard 403/redirect; codes unique; `2000` reserved; access_code ≠ password.
 
@@ -96,7 +97,7 @@
 
 **Backend:** Telegram Adapter pairing service; Nutgram handlers **без** LLM; webhook передаёт update в Nutgram.
 
-**Frontend:** на User Card хотя бы linked yes/no + unlink (полный card — M6).
+**Frontend:** на User Card хотя бы linked yes/no + unlink (полный card — M7).
 
 **Tests:** start unknown; bad code; good code links; same telegram cannot bind two users; linked start no re-ask; no AI client called.
 
@@ -122,9 +123,10 @@
 **Реализуем**
 
 - Tables `conversations`, `messages`.
-- Conversation Service: resolve/create personal conversation (Telegram DM 1:1 mapping `TBD` — один active telegram conversation на user).
+- Conversation Service + `channel_identities.active_conversation_id` (должен принадлежать тому же user).
+- При pairing (wire в M4/M5): создать `Основной`, сделать active.
 - Inbound/outbound DTO; persist до и после AI (AI ещё stub/no-op).
-- Channel-neutral: cabinet сможет писать в те же таблицы в M7.
+- Channel-neutral: cabinet сможет писать в те же таблицы в M8.
 
 **Migrations:** conversations, messages + indexes (user_id, channel_message_id uniqueness).
 
@@ -147,33 +149,31 @@
 
 ---
 
-## Milestone 4 — AI Roles Runtime
+## Milestone 4 — AI Configurations Runtime
 
-**Цель.** Настоящий chat/complete. Roles `conversation` и `analysis`. Greeting после pairing.
+**Цель.** Chat/complete. Три независимых config. Greeting после pairing в `Основной`.
 
 **Реализуем**
 
-- Расширить `AiProviderClient`: chat/complete (messages, system, params, usage).
-- Platform config **per role** (не один `is_active` на весь продукт).
-- Platform Prompt + User General Prompt storage.
-- `resolve(role, user_id)` + inheritance.
-- После успешного pairing: системное подтверждение optional + **Conversation AI greeting**.
-- Mocks/fakes в тестах. Analysis role конфиг есть, jobs — later.
+- `AiProviderClient`: chat/complete + tool requests.
+- Configs: **Owner Conversation AI**, **Owner Analysis AI**, **Default User Conversation AI**. Не наследование owner→user.
+- User General Prompt (позже Cabinet edit).
+- `resolveConversationAI(user)` по space.
+- Pairing → create `Основной` → greeting **соответствующим** conversation config.
+- Analysis config есть; jobs later. User DM никогда не зовёт Owner Conversation / Analysis.
 
-**Migrations:** role settings (новая таблица или expand `ai_provider_settings`); `user_ai_settings.general_prompt`.
+**Migrations:** три config records; `user_ai_settings.general_prompt`; `users.timezone` можно здесь или M1.
 
-**Backend:** AI Layer rewrite; Conversation Engine вызывает только `conversation` role; Settings UI: два блока Conversation / Analysis.
+**Backend / Frontend:** три блока в Owner Settings. Сломать one `is_active`.
 
-**Frontend:** Settings AI role-based (сломать «one global model»).
-
-**Tests:** mock provider; pairing triggers one conversation complete; analysis not used on DM; user prompt included; platform prompt cannot be omitted.
+**Tests:** owner greeting uses owner config; user (когда появится) uses default user config; analysis not on DM.
 
 **Deploy:** migrate; owner задаёт Conversation provider/model/prompt.
 
 **DoD**
 
 - Pairing заканчивается AI-приветствием, не только «Вы авторизованы».
-- Roles разделены в config.
+- Три AI config разделены; user не наследует owner.
 - Нет LLM в Nutgram handler.
 
 **Зависимости:** M2, M3.
@@ -190,7 +190,8 @@
 
 - Авторизованный owner DM: persist → recent context → Conversation AI → send.
 - Restart-safe: history из БД.
-- Recent window N.
+- Recent **текущего** chat + заготовка summary-first (полные summaries — M12).
+- Telegram пишет в active (`Основной` до Chat Selector).
 
 **Migrations:** нет, если M3 полон.
 
@@ -209,11 +210,43 @@
 
 **Зависимости:** M4.
 
-**Не входит:** Cabinet, groups, memory extraction, Google.
+**Не входит:** Cabinet, groups, Google. Chat Selector меню — следующая веха.
 
 ---
 
-## Milestone 6 — Users Admin
+## Milestone 6 — Telegram Chat Selector
+
+**Цель.** Telegram и Cabinet делят каталог chats. Active conversation на identity.
+
+**Реализуем**
+
+- Команды/кнопки «Чаты»: список, выбрать, New Chat, текущий.
+- Ответ `Выбран чат «<name>».`
+- New Chat = `conversations` row, виден в Cabinet.
+- `active_conversation_id` ownership check.
+
+**Migrations:** колонка active, если не в M3.
+
+**Backend:** Nutgram menu; Conversation Service.
+
+**Frontend:** Cabinet список уже совместим по данным (UI M8).
+
+**Tests:** switch chat; new chat isolated raw; cannot activate чужой id.
+
+**Deploy:** smoke bot menu.
+
+**DoD**
+
+- DM после выбора идут в выбранный chat.
+- Web и Telegram видят один каталог.
+
+**Зависимости:** M3, M5.
+
+**Не входит:** reminders, groups.
+
+---
+
+## Milestone 7 — Users Admin
 
 **Цель.** Каталог Users и User Card для owner.
 
@@ -222,8 +255,8 @@
 - Users table UI: колонки из [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
 - User Card: profile, role, status, access_code, regenerate, Telegram status, unlink, password set/reset, links to Chats/Topics/AI Settings/Open Cabinet.
 - Chats list+read (после M3).
-- Topics/AI settings: слоты (topics могут быть empty до M10).
-- Impersonation skeleton (полный cabinet — M7).
+- Topics/AI settings: слоты (topics могут быть empty до M12).
+- Impersonation skeleton (полный cabinet — M8).
 
 **Migrations:** нет обязательных.
 
@@ -240,22 +273,23 @@
 - Owner управляет кодами и Telegram link.
 - User Card не доступен `role=user`.
 
-**Зависимости:** M1, M3; impersonate UX зависит от M7.
+**Зависимости:** M1, M3; impersonate UX зависит от M8.
 
 **Не входит:** group admin, integrations.
 
 ---
 
-## Milestone 7 — User Cabinet
+## Milestone 8 — User Cabinet
 
 **Цель.** `role=user` работает в Web как ChatGPT-минимум.
 
 **Реализуем**
 
 - Login → cabinet.
-- Profile (name/password).
-- Chats list, New Chat, history, input → Conversation Engine.
-- Strict ownership.
+- Profile (name/password/timezone).
+- Свой General Prompt (не отменяет platform rules).
+- Chats list, New Chat, history, input → Conversation Engine + Default User Conversation AI.
+- Strict ownership. Reminders через чат (delivery — Telegram, M10).
 
 **Migrations:** нет.
 
@@ -270,7 +304,7 @@
 **DoD**
 
 - User логинится в cabinet, не в admin.
-- Несколько независимых chats, одна long-term memory scope (пока recent per chat + shared prompt).
+- Несколько независимых chats; raw изолирован; summaries/memory — later M12.
 
 **Зависимости:** M4, M1. M5 желателен (тот же engine).
 
@@ -278,37 +312,73 @@
 
 ---
 
-## Milestone 8 — User Telegram AI
+## Milestone 9 — User Telegram AI
 
-**Цель.** Обычные users в DM на том же engine.
+**Цель.** Обычные users в DM на том же engine и том же Chat Selector.
 
 **Реализуем**
 
 - Тот же authorized Telegram path, что owner.
-- User General Prompt + isolated history/memory scope.
-- Tools/groups не доступны user.
+- **Default User Conversation AI**, не Owner Conversation / Analysis.
+- User General Prompt + isolated User Space.
+- Тот же Chat Selector (M6): каталог Cabinet = Telegram.
+- Capabilities: chat, memory, telegram_dm, reminders later; deny groups/Google.
 
 **Migrations:** нет.
 
-**Backend:** permission checks on tools (deny user).
+**Backend:** capability checks (deny projects/groups/gmail/calendar).
 
 **Frontend:** нет.
 
-**Tests:** two users two identities; no cross history; user pairing greeting uses their prompt.
+**Tests:** two users two identities; no cross history; greeting uses Default User Conversation AI; cannot activate чужой chat.
 
 **Deploy:** smoke.
 
 **DoD**
 
-- User после своего кода получает AI в Telegram и cabinet на одних conversations/memory scope.
+- User после своего кода получает AI в Telegram и cabinet на одном каталоге conversations.
+- Owner AI config не используется.
 
-**Зависимости:** M5, M7.
+**Зависимости:** M5, M6, M8.
 
-**Не входит:** groups, analysis.
+**Не входит:** groups, analysis, Google.
 
 ---
 
-## Milestone 9 — Telegram Groups
+## Milestone 10 — Reminder foundation
+
+**Цель.** Reminders как Core subsystem. Доступны owner и users. Delivery только Telegram. Раньше Google.
+
+**Реализуем** по [REMINDERS.md](REMINDERS.md).
+
+- Reminder Tool + Reminder Engine + scheduler/worker.
+- Relative dates в `users.timezone`; store `run_at` UTC.
+- Cross-user reminder запрещён обычному user.
+- Нет Telegram identity → сообщить, что для доставки нужно подключить Telegram.
+- Не Calendar event.
+
+**Migrations:** `reminders`; `users.timezone` если ещё нет.
+
+**Backend:** tool + worker; Telegram Adapter delivery.
+
+**Frontend:** timezone в Cabinet/profile (M8 слот допустим).
+
+**Tests:** owner и user создают свой reminder; user A не ставит user B; без pairing — отказ/пояснение; Calendar tool не вызывается.
+
+**Deploy:** queue/cron worker.
+
+**DoD**
+
+- «Напомни завтра в 11…» создаёт reminder текущего `user_id` и доходит в Telegram.
+- Google не участвует.
+
+**Зависимости:** M5, M9 (оба space умеют DM). M1 timezone.
+
+**Не входит:** web/email/push; recurrence polish; Google Calendar.
+
+---
+
+## Milestone 11 — Telegram Groups
 
 **Цель.** Owner-only groups: discovery, persist, admin chat, outbound, passive.
 
@@ -332,76 +402,142 @@
 
 **Зависимости:** M3, M1. Analysis не обязателен.
 
-**Не входит:** group summaries (M11).
+**Не входит:** group summaries (M14).
 
 ---
 
-## Milestone 10 — Structured Memory
+## Milestone 12 — Structured Memory
 
-**Цель.** Topics/memories/summaries per user; Analysis AI на extract/classify.
+**Цель.** Topics/memories/summaries per user; Owner Analysis AI на extract/classify. Summary-first cross-chat.
 
 **Реализуем** по [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md).
 
-**Migrations:** topics (owner scope), memories, sources, summaries, revisions.
+- Conversation summaries; targeted raw-on-demand.
+- Не класть raw Chat B в Chat A автоматически.
+
+**Migrations:** topics (owner scope), memories, sources, conversation summaries, revisions.
 
 **Backend:** retriever, extractor jobs (queue — завести worker если ещё нет).
 
 **Frontend:** User Card Topics (owner); optional cabinet later.
 
-**Tests:** retrieval scoped; no cross-user; raw not deleted.
+**Tests:** retrieval scoped; no cross-user; raw not deleted; other-chat raw not in default package.
 
 **Deploy:** queue worker **нужен** (systemd/supervisor) — первое deployment change очереди.
 
 **DoD**
 
-- Prompt не содержит всю историю.
+- Prompt не содержит всю историю и не содержит raw чужих chats.
 - Facts с provenance и `user_id`.
 
-**Зависимости:** M4, M5/M8.
+**Зависимости:** M4, M5/M9.
 
-**Не входит:** vector DB, group analysis.
+**Не входит:** vector DB, group analysis, Projects.
 
 ---
 
-## Milestone 11 — Group Analysis
+## Milestone 13 — Projects
 
-**Цель.** Analysis AI по group raw: summaries, decisions, tasks, time range.
+**Цель.** Owner Space контейнеры. Project ≠ Topic. Relations, не копии.
 
-**Реализуем** owner queries; group knowledge ≠ user memory.
+**Реализуем** по [PROJECTS.md](PROJECTS.md).
 
-**Migrations:** group knowledge rows / summaries as needed.
+- `projects` + `project_conversations` / `project_topics` / `project_groups` / `project_memories`.
+- Capability `projects` = owner. User 403.
+- Owner Conversation AI: project lookup по запросу, не все projects в каждый prompt.
+
+**Migrations:** projects + relation tables.
+
+**Backend:** services + owner policies.
+
+**Frontend:** Admin Projects (минимальный CRUD + attach).
+
+**Tests:** user denied; relation не дублирует messages; conversation может быть в нескольких projects.
+
+**Deploy:** migrate; build.
+
+**DoD**
+
+- Owner связывает chats/topics/groups с project `JARVIS` без копирования raw.
+
+**Зависимости:** M12. Groups attach — после M11.
+
+**Не входит:** GitHub/files; user-level projects.
+
+---
+
+## Milestone 14 — Group Analysis
+
+**Цель.** Owner Analysis AI по group raw: Summary / Decision / Task / Event-Fact. Hierarchical jobs. Group timezone.
+
+**Реализуем** owner-only; group knowledge ≠ personal memory. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
+
+- Date range per `telegram_groups.timezone` (fallback owner timezone).
+- Никогда не слать весь archive одним prompt: chunk → per group → reduce.
+
+**Migrations:** group knowledge rows; `telegram_groups.timezone` если ещё нет.
 
 **Backend:** analysis jobs; retrieval filters; owner-only.
 
 **Frontend:** admin group analysis actions `TBD`.
 
-**Tests:** user cannot query group knowledge; full dump not sent.
+**Tests:** user cannot query group knowledge; full dump not sent; timezone used for «сегодня».
 
 **Deploy:** workers.
 
 **DoD**
 
-- Owner может получить выжимку; raw сохранён.
+- Owner может получить выжимку; raw сохранён; derived types с provenance.
 
-**Зависимости:** M9, M10.
+**Зависимости:** M11, M12.
 
-**Не входит:** auto-reply policies beyond docs.
+**Не входит:** auto-reply; owner DM tool search (M15).
 
 ---
 
-## Milestone 12 — Integration Framework
+## Milestone 15 — Group Knowledge Search
 
-**Цель.** Registry + encrypted accounts + tools + logs + owner check.
+**Цель.** Owner Conversation AI получает group knowledge только через explicit tool.
+
+**Реализуем**
+
+- Group Search / Analysis Tool: «анализ за сегодня по всем группам», «что решили в группе 1?», «важное по JARVIS?».
+- Не auto-mix groups в owner personal prompt.
+- Может запускать hierarchical job (M14) и вернуть result в turn.
+
+**Migrations:** нет обязательных.
+
+**Backend:** tool + capability `group_analysis`.
+
+**Frontend:** нет.
+
+**Tests:** user tool denied; default owner DM package без group dump; explicit query hits stored raw/derived.
+
+**Deploy:** workers already.
+
+**DoD**
+
+- Owner в личке спрашивает группы и получает ответ через tool, не через silent merge.
+
+**Зависимости:** M14, M5.
+
+**Не входит:** user access; proactive alerts.
+
+---
+
+## Milestone 16 — Integration Framework
+
+**Цель.** Registry + encrypted accounts + tools + logs + owner check. Multi-step tool loop.
 
 **Реализуем** [INTEGRATIONS.md](INTEGRATIONS.md) каркас без Google OAuth ещё.
 
 **Migrations:** `integration_accounts`, `tool_execution_logs`.
 
-**Backend:** Tool Registry; permission `owner`; Settings → Integrations page skeleton (Telegram status reuse).
+**Backend:** Tool Registry; capability checks; confirmation policy skeleton; loop ≠ max one call.
 
 **Frontend:** Integrations list.
 
-**Tests:** user 403; tokens never in logs.
+**Tests:** user 403; tokens never in logs; two sequential mocked tool calls in one turn.
 
 **Deploy:** migrate.
 
@@ -415,7 +551,7 @@
 
 ---
 
-## Milestone 13 — Google OAuth
+## Milestone 17 — Google OAuth
 
 **Цель.** Owner connect Google.
 
@@ -439,17 +575,17 @@
 
 - Owner видит Connected + account email/scopes.
 
-**Зависимости:** M12.
+**Зависимости:** M16.
 
 **Не входит:** Calendar/Gmail API calls.
 
 ---
 
-## Milestone 14 — Google Calendar
+## Milestone 18 — Google Calendar
 
-**Цель.** Tools read/write calendar.
+**Цель.** Tools read/write calendar. Не reminder engine.
 
-**Реализуем** list/read/search/free-busy/create/update/delete + Conversation AI tool defs.
+**Реализуем** list/read/search/free-busy/create/update/delete + Owner Conversation AI tool defs + confirmation policy.
 
 **Migrations:** нет обязательных.
 
@@ -457,29 +593,30 @@
 
 **Frontend:** last successful use on Integrations.
 
-**Tests:** mocked Google; user tools denied; write goes through tools.
+**Tests:** mocked Google; user tools denied; write через tools; reminder tool не создаёт Calendar event.
 
 **Deploy:** scopes include calendar.
 
 **DoD**
 
-- Owner в Telegram/cabinet (если tools enabled) может создать событие через Conversation AI.
+- Owner может создать событие через Conversation AI.
+- «Напомни» по-прежнему Reminder Engine (M10).
 
-**Зависимости:** M13, M5.
+**Зависимости:** M17, M5, M10.
 
 **Не входит:** Gmail.
 
 ---
 
-## Milestone 15 — Gmail
+## Milestone 19 — Gmail
 
-**Цель.** Mail tools + safety на write.
+**Цель.** Mail tools + confirmation на write.
 
-**Реализуем** search/read/thread/inbox/draft/reply/send/labels; confirm policy `TBD` на send.
+**Реализуем** search/read/thread/inbox/draft/reply/send/labels; confirmation policy.
 
 **Backend:** Gmail adapter + tools.
 
-**Tests:** mocks; send not in Telegram adapter; user denied.
+**Tests:** mocks; send not in Telegram adapter; user denied; multi-step Gmail → Calendar.
 
 **Deploy:** gmail scopes.
 
@@ -487,17 +624,17 @@
 
 - Owner читает/шлёт через tools.
 
-**Зависимости:** M13, M5.
+**Зависимости:** M17, M5.
 
 **Не входит:** user-level Gmail.
 
 ---
 
-## Milestone 16 — Mobile/Desktop API
+## Milestone 20 — Mobile/Desktop API
 
 **Цель.** Public API: auth, chats, messages, realtime transport choice.
 
-**Реализуем** [API.md](API.md). Ownership. Same engine.
+**Реализуем** [API.md](API.md). Ownership. Same engine. Тот же каталог conversations.
 
 **Migrations:** personal access tokens / sanctum if chosen.
 
@@ -513,17 +650,17 @@
 
 - Документированный auth + CRUD messages.
 
-**Зависимости:** M7, M8.
+**Зависимости:** M8, M9.
 
 **Не входит:** native apps, voice.
 
 ---
 
-## Milestone 17 — Mobile/Desktop Clients
+## Milestone 21 — Mobile/Desktop Clients
 
 **Цель.** Тонкие клиенты: profile, chats, text.
 
-**Реализуем** apps hitting M16.
+**Реализуем** apps hitting M20.
 
 **Tests:** E2E smoke `TBD`.
 
@@ -533,31 +670,46 @@
 
 - Тот же user видит cabinet/Telegram history.
 
-**Зависимости:** M16.
+**Зависимости:** M20.
 
 **Не входит:** voice barge-in.
 
 ---
 
-## Milestone 18 — ElevenLabs / Voice
+## Milestone 22 — ElevenLabs / Voice
 
-**Цель.** STT/TTS/realtime, тот же engine, interruptions.
+**Цель.** STT/TTS/realtime. Тот же User Space, selected conversation, Conversation Engine, space AI config, одна memory.
 
-**Реализуем** [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Integrations card.
+**Реализуем** [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Transport/STT/TTS/`TBD` практикой.
 
 **Deploy:** voice credentials encrypted.
 
 **DoD**
 
-- Голосовая реплика = message того же user.
+- Голосовая реплика = message того же user и той же conversation.
+- Нет отдельных voice memories.
 
-**Зависимости:** M12, M16/M17, M4.
+**Зависимости:** M16, M20/M21, M4.
 
-**Не входит:** Phase 4 human-like quality.
+**Не входит:** Phase 4 human-like quality; autonomous proactive.
 
 ---
 
-## Milestone 19 — Human-like Layer
+## Milestone 23 — Proactive Engine (future)
+
+**Цель.** Placeholder, не MVP. `event/trigger` → policy → relevance → Conversation/Notification → Telegram.
+
+**Реализуем** позже: group important decision, important email, calendar conflict, approaching event.
+
+Reminders (M10) — первый простой scheduled trigger. Autonomous proactive **не** делать раньше integrations.
+
+**Зависимости:** M10; желательны M15, M18, M19.
+
+**Не входит в MVP.** Не реализовывать сейчас.
+
+---
+
+## Milestone 24 — Human-like Layer
 
 **Цель.** Latency, turn-taking, references, incomplete phrases, initiative, topic transitions.
 
@@ -567,24 +719,28 @@
 
 - Не переписывать storage; не один prompt вместо retrieval.
 
-**Зависимости:** M10, M18.
+**Зависимости:** M12, M22.
 
 **Не входит:** смена vendor lock-in.
 
 ---
 
-## Карта на старые фазы
+## Карта фаз → вехи
 
 | Фаза docs | Вехи |
 | --- | --- |
 | Cleanup | 0 |
-| Phase 1 MVP | 1–5 |
-| Users/Cabinet | 6–8 |
-| Groups | 9 |
-| Phase 2 memory | 10–11 |
-| Integrations | 12–15 |
-| Phase 3 clients/voice | 16–18 |
-| Phase 4 | 19 |
+| Phase 1 identity + Telegram MVP | 1–5 |
+| Chat Selector | 6 |
+| Users / Cabinet / User Telegram | 7–9 |
+| Reminder foundation | 10 |
+| Groups persist | 11 |
+| Phase 2 memory + Projects | 12–13 |
+| Group analysis + search | 14–15 |
+| Integrations / Google | 16–19 |
+| Phase 3 clients/voice | 20–22 |
+| Proactive (future) | 23 |
+| Phase 4 | 24 |
 
 ---
 
@@ -595,4 +751,8 @@
 - Нет access_code как web password.
 - Нет cross-user retrieval.
 - Нет Google SDK в Telegram adapter.
+- Owner Conversation AI не резолвится для `role=user`.
+- Analysis AI не обслуживает user DM.
+- Chat A не получает автоматически raw Chat B.
+- Reminder ≠ Calendar Event.
 - CURRENT_STATE не обновлять как «уже сделано» до реального кода.

@@ -571,4 +571,4 @@ Approved target (2026-09-03, after this file’s first version):
 - Conversation AI ≠ Analysis AI; Google/Gmail/ElevenLabs via Tool Layer, owner-only.
 - Telegram Groups owner-only; memory isolated per user.
 
-Canonical write-up: [USERS_AND_CABINET.md](USERS_AND_CABINET.md), [INTEGRATIONS.md](INTEGRATIONS.md), [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), ADR-022–031 in [DECISIONS.md](DECISIONS.md).
+Canonical write-up of later target architecture (spaces, Chat Selector, reminders, projects, group intelligence): other `Docs/` files and ADR-032–045. This file remains a **code snapshot**, not the target.

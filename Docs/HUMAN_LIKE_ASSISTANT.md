@@ -32,7 +32,7 @@ Phase 4 — не «улучшили prompt». Это отдельный **conver
 
 ### Short-term conversational memory
 
-Working context: «это», «он», последняя уточнённая сущность. Живёт в текущем разговоре, опирается на recent messages + активные topics.
+Working context: «это», «он», последняя уточнённая сущность. Живёт в **текущем** разговоре. Другие чаты того же space — через summaries / targeted raw, не авто-dump.
 
 ### Long-term memory
 

@@ -38,7 +38,7 @@ Telegram adapter один: и личные чаты, и группы. После
 
 ## Web Cabinet
 
-Клиент того же Core. **Только `role=user`** (owner пользуется Admin + своим personal context). Login user → cabinet, не admin. Chat + Profile. Ownership на каждом запросе. Не содержит LLM. Access code не используется для входа в cabinet.
+Клиент того же Core и **того же каталога conversations**, что Telegram. `role=user` → cabinet. Chat + Profile + свой General Prompt + timezone. Ownership на каждом запросе. Access code не для web-login. Reminders: создать в чате, доставка только в Telegram.
 
 ---
 
@@ -53,7 +53,8 @@ Telegram adapter один: и личные чаты, и группы. После
 - normalize (включая group metadata и sender);
 - передать в Jarvis Core (DM → Conversation Engine; группа → Groups module);
 - pairing: `/start` и access_code **до** Core AI;
-- для авторизованного DM: получить response Core и отправить;
+- Chat Selector: список / выбрать / новый / текущий; писать в `active_conversation_id`;
+- для авторизованного DM: persist в **active** conversation → Core → send;
 - для группы: persist; не отвечать; исходящие из админки (owner) — тот же adapter → Bot API.
 
 ### Что запрещено
@@ -77,7 +78,9 @@ Telegram adapter один: и личные чаты, и группы. После
 
 Настройки бота (token, webhook URL) живут в конфигурации и админке, читаются адаптером, не дублируют AI settings.
 
-Личный разговор в Telegram после Phase 3 виден в приложениях как те же **personal** conversations. Группы — модуль [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md); основной просмотр — админка (`TBD`, дублировать group UI в mobile не обязательно).
+Один каталог conversations на space. Telegram переключает active; Cabinet открывает любой. Группы — [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md), owner-only.
+
+Доставка reminders — только этот adapter.
 
 ---
 
@@ -130,12 +133,9 @@ Desktop и Mobile используют API того же Jarvis Core. ADR-006.
 
 | Событие | Результат |
 | --- | --- |
-| Пишет в Telegram DM | personal messages **его** `user_id` |
-| Пишет в Cabinet New Chat | новая пустая conversation того же user; memory user жива |
-| Пишет в Telegram-группу | group raw history; бот молчит (дефолт) |
-| Открывает Cabinet / mobile | видит **свои** conversations, не чужие |
-| Меняет platform Conversation AI | default для users без override |
-| Меняет User General Prompt | все чаты **этого** user |
-| Меняет Analysis AI | следующие analysis jobs, не тон DM |
-
-Cabinet явно допускает много conversations на user. Как именно Telegram DM стыкуется с этим списком — `TBD`.
+| Пишет в Telegram DM | messages **active** conversation его space |
+| Чаты / New Chat в Telegram | тот же каталог, что Cabinet; смена `active_conversation_id` |
+| Cabinet New Chat | пустой raw; summaries других чатов доступны ретриверу |
+| Меняет Owner Conversation AI | только Owner Space |
+| Меняет Default User Conversation AI | все User Spaces (без per-user override) |
+| Меняет User General Prompt | все чаты **этого** space |

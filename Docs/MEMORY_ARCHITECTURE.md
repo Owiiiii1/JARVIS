@@ -42,7 +42,9 @@ Derived memory — производный слой. Это позволяет:
 
 Полная история сообщений. Phase 1 уже обязана это хранить. Поля уровня: conversation (`kind` direct|group), channel, role, body, timestamps, внешние id канала, для групп — sender и thread/reply.
 
-Личные DM и group raw лежат в одном message engine, но это **разные области retrieval**. Group history не есть personal memory.
+Личные DM и group raw — один message engine, разные retrieval scopes. Group history не personal memory.
+
+**Cross-chat:** новый chat не получает raw всех старых. В пакет: current raw/recent + relevant **summaries** других чатов того же space + structured memory. Raw другого чата — только targeted retrieval. ADR-036.
 
 ### 2. Topic memory
 
@@ -66,7 +68,7 @@ Group knowledge не копируется в personal автоматически
 
 Контекст **текущего** чата: последние реплики, активная тема, незакрытый clarification. Короткоживущий. Не заменяет long-term facts и не переносится сырьём в другой conversation.
 
-New Chat обнуляет только этот слой. User long-term memory остаётся. ADR-017.
+New Chat обнуляет raw/working **этого** чата. Structured memory и summaries других чатов остаются. Raw других чатов не копируется. ADR-017, ADR-036.
 
 ### 6. Summaries
 
@@ -154,12 +156,13 @@ Retrieval **сначала** фиксирует scope (`user_id` / group / globa
 
 Перед вызовом LLM собирается пакет примерно из:
 
-1. Platform / System Prompt роли `conversation`;
+1. Platform / System Prompt **выбранного** conversation config (Owner или Default User);
 2. Channel / System Rules;
 3. **User General Prompt** этого user (не заменяет п.1);
 4. релевантные **его** memories;
 5. релевантные **его** topics;
-6. summary / recent **текущего** conversation (не все чаты raw);
+6. summary / recent **текущего** conversation;
+6b. relevant summaries **других** conversations того же space (не их raw);
 7. user profile этого user;
 8. current message.
 
@@ -236,7 +239,7 @@ Telegram Group history **не** становится автоматически 
 
 Пример: «в рабочей группе решили сменить API» → group knowledge. «Ребёнок учит Python» → personal memory этого ребёнка, не владельца и не сиблинга.
 
-Analysis jobs используют роль `analysis`, не `conversation`.
+Analysis jobs используют **Owner Analysis AI**, не conversation config и не User Conversation AI.
 
 ---
 
@@ -248,6 +251,8 @@ Telegram DM, Cabinet, mobile, desktop и voice этого user пишут в е�
 
 Голосовая реплика после STT — обычный inbound text для **его** памяти.
 
-Несколько чатов одного user делят long-term memory. Сырой history другого чата в prompt не копируется. ADR-017.
+Несколько чатов одного space делят structured memory и могут подтягивать **summaries**. Сырой history другого чата — только по запросу. ADR-036.
+
+Group knowledge → owner personal prompt только через Group Search/Analysis tool, не auto-merge.
 
 Групповые сообщения — тот же message store с `conversation.kind = group`, другая область retrieval.

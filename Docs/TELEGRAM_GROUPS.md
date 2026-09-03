@@ -6,7 +6,9 @@ Telegram остаётся **channel adapter**. Модуль Groups живёт в
 
 Личные DM любого Jarvis User и групповые чаты — **разные области**. ADR-012.
 
-**Admin Groups — только `role=owner`.** Обычный user не видит список групп, не читает group raw в cabinet, не получает group knowledge в personal retrieval, не отправляет сообщения в группы. Enforcement в backend.
+**Admin Groups и group knowledge — только Owner Space** (`telegram_groups`, `group_analysis`). Обычный user не видит группы и не получает group knowledge в personal prompt.
+
+Каждая группа: `timezone` (IANA). Owner задаёт в Group Settings. Для today/yesterday/morning/daily summaries / date-range. Если пусто — **owner timezone**.
 
 Подробности памяти: [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md). Роли моделей: [AI_PROVIDER_ARCHITECTURE.md](AI_PROVIDER_ARCHITECTURE.md).
 
@@ -214,20 +216,45 @@ Conversation Engine для **личных** DM по-прежнему отвеч�
 - выжимка за неделю;
 - найти обсуждение проблемы.
 
-Делает **Analysis AI** (`analysis` role), не Conversation model. Не слать всю историю группы в модель.
+Делает **Owner Analysis AI**, не User Conversation AI. Вся raw history групп хранится в нашей DB — это нормально. **Никогда** не слать весь archive одним prompt.
 
-Будущие опоры retrieval:
+Derived types (group knowledge, не personal memory):
 
-- time range;
-- search;
-- topics;
-- summaries;
-- semantic retrieval (не обязателен сразу);
-- фильтр по участнику;
-- reply / thread;
-- relevance.
+| Type | Смысл |
+| --- | --- |
+| Summary | что обсуждали |
+| Decision | что решили |
+| Task | кто что должен |
+| Event / Fact | что произошло / изменилось |
 
-Вопросы владельца про группу («что там решили?») идут в **personal conversation** с Conversation model; в context package кладётся **выжимка Analysis**, не простыня raw. Как именно owner инициирует анализ (команда в DM, кнопка в админке) — `TBD`.
+У каждой: group provenance, source messages, timestamps, confidence, analysis model metadata.
+
+### Hierarchical analysis (большие объёмы)
+
+Запрос «анализ за сегодня по всем группам»:
+
+1. date range **per group timezone** (fallback owner timezone);
+2. retrieve messages;
+3. chunk;
+4. analyse chunks;
+5. aggregate per group;
+6. reduce across groups.
+
+Jobs/queue. Не зависеть от одного context window.
+
+### Owner personal chat → group knowledge
+
+Не auto-mix в Owner personal memory. По запросу:
+
+```
+Owner Conversation AI
+  → Group Search / Analysis Tool
+  → stored raw/derived
+  → result
+  → ответ
+```
+
+Примеры: «анализ за сегодня по всем группам», «что решили в группе 1?», «важное по JARVIS?». Не класть все группы в каждый prompt.
 
 ---
 
@@ -282,7 +309,7 @@ Group knowledge можно **показать** Conversation model, если з�
 
 | Phase | Groups |
 | --- | --- |
-| 1 | Discovery, persist, админ-список и chat UI, outbound через adapter, passive, role `analysis` в конфиге (может ещё не гоняться) |
+| 1 | Discovery, persist, админ-список и chat UI, outbound через adapter, passive, Owner Analysis AI в конфиге (может ещё не гоняться); group timezone |
 | 2 | Analysis jobs, group knowledge + provenance, selective retrieval для вопросов про группу |
 | 3–4 | Те же данные; клиенты не обязаны дублировать group admin UI (`TBD`, админка остаётся основным просмотром групп) |
 
