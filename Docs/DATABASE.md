@@ -1,6 +1,6 @@
 # Концептуальная модель данных
 
-Это **не** финальная schema и **не** задание на migrations. Имена могут измениться. Группы сущностей фиксируют границы, чтобы Phase 1 storage пережил Phase 2. Telegram Groups: [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
+Это **не** финальная schema и **не** задание на migrations. Имена могут измениться. Группы сущностей фиксируют границы, чтобы Phase 1 storage пережил Phase 2. Telegram Groups: [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md). Users / Cabinet: [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
 
 Source of truth — relational database (сейчас MySQL в окружении проекта). Vector DB не обязательна.
 
@@ -10,7 +10,38 @@ Source of truth — relational database (сейчас MySQL в окружени�
 
 ### users
 
-Человек в системе Jarvis (владелец ассистента; позже, возможно, админы панели). Ядро работает с `user_id`, не с Telegram id.
+Account entity: владелец инстанса, дополнительные собеседники, админы панели. Ядро работает с `user_id`, не с Telegram id. Owner — роль/permissions, не отдельная таблица «богов».
+
+- login / email;
+- status;
+- timestamps;
+- last activity (`TBD` денормализация);
+- role / type.
+
+Пароль — только hash. Plaintext не хранить и не отдавать в User Card.
+
+### user_profiles
+
+Опциональное отделение расширенных profile data от account:
+
+- display name;
+- предпочтения;
+- возрастные/прочие флаги (`TBD`).
+
+Один профиль на user.
+
+### user_ai_settings
+
+Per-user AI слой. Не финальная migration schema.
+
+- `user_id`;
+- `general_prompt` (User General Prompt);
+- conversation provider / model override (nullable → platform default);
+- analysis provider / model override (nullable, later);
+- parameters / settings;
+- timestamps.
+
+ADR-018, ADR-019.
 
 ### channel_identities
 
@@ -31,14 +62,17 @@ Source of truth — relational database (сейчас MySQL в окружени�
 
 Логический тред. Не обязан 1:1 совпадать с Telegram chat навсегда.
 
-- `kind`: `direct` | `group` (личные DM / приложения vs Telegram-группа)
-- для `direct`: `user_id` владельца
-- для `group`: связь с `telegram_groups` (владелец инстанса не равен «автору каждого сообщения»)
-- опционально origin channel
-- статус, заголовок, timestamps
+- `user_id` — **обязателен** для personal (`kind=direct`); владелец чата
+- `kind`: `direct` | `group`
+- `channel` (telegram / cabinet / mobile / desktop / …)
+- `type` при необходимости
+- `title`
+- `status` (active / archived / …)
+- `last_activity_at`
+- для `group`: связь с `telegram_groups` (не путать sender сообщений с `user_id` бота/owner)
 - указатель на active topic (`TBD`, скорее Phase 2)
 
-Phase 1: один active **direct** conversation на identity владельца; плюс по одному group conversation на каждую обнаруженную группу.
+Cabinet: много `direct` conversations на одного user. Telegram DM Phase 1 может мапить один bot-chat на одну conversation того же user. New Chat создаёт ещё одну строку, не новый memory store.
 
 **Почему общая таблица, а не отдельный message engine.** Group и personal history — разные *контекстные области* (ADR-012), но один pipeline persist / pagination / attachments / идемпотентности. Второй набор таблиц «group_messages» дублировал бы engine без выигрыша. Различие — `conversations.kind` + `telegram_groups` + поля sender на сообщении. См. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
 
@@ -47,7 +81,7 @@ Phase 1: один active **direct** conversation на identity владельц�
 Raw history. Закладывается в Phase 1 и **не ломается** в Phase 2. Одна таблица для direct и group.
 
 - `conversation_id`
-- `user_id` — владелец инстанса для personal; для group может быть null или тот же owner как «аккаунт бота», не путать с sender
+- `user_id` — владелец personal conversation; для group может быть null / bot account, не путать с sender
 - `role` (user / assistant / system / group_member — точный enum `TBD`)
 - `channel` (telegram / mobile / desktop)
 - `modality` / `message_type` (text / voice / photo / document / video / …)
@@ -73,7 +107,15 @@ Raw history. Закладывается в Phase 1 и **не ломается** 
 
 ### topics
 
-Устойчивые темы (`Jarvis`, `travel`, …). `user_id`, имя, статус, timestamps.
+Устойчивые темы с owner/scope. Не смешивать автоматически.
+
+Концептуально: `owner_type` + `owner_id` (или эквивалент):
+
+- user topic → `owner_type=user`, `owner_id=user_id`;
+- group topic → группа;
+- global topic → instance / system.
+
+Имя, статус, timestamps. Retrieval всегда с owner filter.
 
 ### message_topic_relations
 
@@ -83,11 +125,11 @@ Many-to-many: message ↔ topic, confidence, classifier version. Нужны, ч�
 
 Долговременные факты/заметки. Не одна куча «всё, что Jarvis знает».
 
-- `scope`: `personal` | `group_knowledge`
+- `scope`: `personal` | `group_knowledge` | `global_system`
+- для `personal` — обязательный `user_id` (owner памяти, не обязательно автор исходной реплики в группе)
 - текст/структура факта (`TBD` свободный текст vs typed)
 - confidence, status (active / superseded / obsolete / disputed)
 - valid_from / valid_until
-- `user_id` — владелец инстанса (кому принадлежит запись), не обязательно автор исходной реплики
 - `source_kind`: `direct_conversation` | `telegram_group` | `summary` | `manual_admin` | иное
 - `source_group_id` — если извлечено из группы
 - provenance на message ids
@@ -116,7 +158,7 @@ Many-to-many memories ↔ topics.
 
 ### user_profile
 
-Стабильный профиль: предпочтения, как обращаться, язык, жёсткие ограничения. Один профиль на владельца на старте. Версионирование — `TBD` (можно через revisions).
+См. Identity выше. Стабильные предпочтения, язык, ограничения. Один на `user_id`. Версионирование — `TBD`.
 
 ---
 
@@ -134,7 +176,7 @@ Many-to-many memories ↔ topics.
 
 | Роль | Обязательность | Назначение |
 | --- | --- | --- |
-| `conversation` | Phase 1 | общение с владельцем (DM, mobile, desktop, voice) |
+| `conversation` | Phase 1 | общение с любым user (DM, cabinet, mobile, desktop, voice) |
 | `analysis` | конфиг в Phase 1; jobs в Phase 2 | группы, classification, summarization, extraction, memory processing |
 
 Позже без смены business logic можно добавить: `classification`, `summarization`, `embeddings`, `memory_extraction`, `voice_reasoning`.
@@ -143,7 +185,7 @@ Many-to-many memories ↔ topics.
 
 ### prompts
 
-Промпты **на роль** (conversation system prompt ≠ analysis prompt). Редактируются в админке. Версии — желательно (`TBD`), чтобы debug log ссылался на revision.
+Промпты **на роль** (conversation system prompt ≠ analysis prompt) — platform слой. User General Prompt живёт в `user_ai_settings`, не заменяет platform prompt. ADR-018.
 
 ### ai_settings
 
@@ -182,9 +224,13 @@ Token (encrypted), webhook, username, статус. Уже концептуал�
 
 Опционально: Telegram user ↔ группа (display name, username, first/last seen). Не обязательно маппить на `users`. Схема не финальная.
 
-### mobile_sessions / desktop_sessions
+### admin_audit_logs (концептуально)
 
-Сессии приложений: auth token/device, last seen. Не хранят копию памяти.
+Privileged действия: просмотр user/chats, impersonation, смена AI settings, password reset. Имя и обязательность на старте — `TBD`.
+
+### cabinet_sessions / mobile_sessions / desktop_sessions
+
+Сессии кабинета и приложений: auth token/device, last seen. Отдельный permission context от admin session. Impersonation — отдельная сессия/флаг, не пароль user. Не хранят копию памяти.
 
 ### voice_sessions
 
@@ -195,19 +241,20 @@ Phase 3: связь с conversation, состояние listening/speaking, prov
 ## Отношения (кратко)
 
 ```
+users 1—1 user_profiles
+users 1—1 user_ai_settings
 users 1—N channel_identities
-users 1—N conversations (kind=direct)
+users 1—N conversations (kind=direct; много чатов)
 telegram_groups 1—1 conversations (kind=group)
 telegram_groups 1—N telegram_group_participants
 conversations 1—N messages
-users 1—N topics
-messages N—N topics
-users 1—N memories          (scope=personal | group_knowledge)
-memories N—N topics
+topics.owner → user | group | global
+users 1—N memories (scope=personal + user_id)
+group / global memories — свой owner, не чужой user
+memories N—N topics (тот же scope)
 memories 1—N revisions
-memories N—N messages (sources + source_kind / source_group)
+memories N—N messages (sources)
 conversations 1—N summaries
-users 1—1 user_profile   (на старте; только personal)
 ```
 
 ---
@@ -217,4 +264,4 @@ users 1—1 user_profile   (на старте; только personal)
 - Индексы и типы колонок.
 - JSON vs нормализованные атрибуты фактов.
 - Обязательные embeddings-таблицы.
-- Мультитенантность «много владельцев Jarvis на одном инстансе».
+- Multi-tenant «много независимых инстансов». Много users на одном инстансе — да, с isolation.

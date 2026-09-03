@@ -1,6 +1,6 @@
 # API
 
-API нужен Mobile, Desktop и возможным интеграциям. Telegram в Phase 1 может ходить в Core in-process (тот же backend), не через публичный HTTP. Публичный API становится обязательным к Phase 3.
+API нужен Web Cabinet, Mobile, Desktop и интеграциям. Telegram в Phase 1 может ходить в Core in-process. Cabinet использует тот же контракт, что Phase 3 клиенты (поверхность раньше публичного mobile API).
 
 Окончательные URL и форматы payload **не фиксируются**. Ниже — логические группы и инварианты.
 
@@ -9,11 +9,13 @@ API нужен Mobile, Desktop и возможным интеграциям. Tel
 ## Инварианты
 
 - Все клиентские операции идут в Jarvis Core, не в «mobile backend».
-- Личная история и personal memory те же, что у Telegram **DM**.
-- Клиент не присылает prompt и не выбирает произвольный provider/роль (админка: Conversation AI / Analysis AI).
-- Group chat UI — админка; публичный API групп в Phase 3 не обязателен (`TBD`).
-- Аутентификация обязательна для mobile/desktop. Схема (sanctum, JWT, cookies) — `TBD`.
-- Realtime и voice — отдельные группы, не обязаны существовать в Phase 1.
+- Личная история и personal memory — только **текущего** `user_id`. Те же данные, что у его Telegram DM / Cabinet.
+- Ownership: id в URL недостаточен. Policy проверяет, что conversation/message/topic принадлежит user. ADR-021.
+- Клиент не присылает platform prompt и не выбирает произвольный vendor. User General Prompt и override задаются в админке / user settings, ядро резолвит само.
+- Group administration — не cabinet API. `TBD` узкий read для owner.
+- Два auth context: admin vs cabinet. Обычный user не получает admin endpoints.
+- Схема токенов (sanctum, JWT, cookies) — `TBD`.
+- Realtime и voice — отдельные группы.
 
 ---
 
@@ -21,19 +23,21 @@ API нужен Mobile, Desktop и возможным интеграциям. Tel
 
 ### Authentication
 
-- вход / выход / refresh;
+- вход / выход / refresh кабинета (не admin login);
 - привязка device session;
-- кто я (`user` + доступные channels).
+- кто я (`user` + доступные features/channels).
 
-Точные flows — `TBD`.
+Точные flows — `TBD`. Impersonation не является обычным login API.
 
 ### Conversations
 
-- список разговоров пользователя;
-- создать / выбрать active;
-- метаданные (заголовок, последняя активность).
+- список **своих** разговоров;
+- создать новый (пустой raw, та же user memory);
+- открыть / переименовать;
+- метаданные (заголовок, последняя активность, статус);
+- архив/удаление — later (`TBD`).
 
-Не отдавать derived memory целиком в списке.
+Не отдавать derived memory целиком в списке. Не отдавать чужие conversations.
 
 ### Messages
 
@@ -62,9 +66,10 @@ API нужен Mobile, Desktop и возможным интеграциям. Tel
 
 - публичный статус: модель подключена, бот подключен, «Jarvis доступен»;
 - **не** выставлять наружу секреты провайдеров и bot token;
-- пользовательские предпочтения профиля — узкий subset, не вся админка.
+- пользовательские предпочтения профиля — узкий subset, не вся админка;
+- свой General Prompt — только если продуктово разрешено править из кабинета (`TBD`; админ правит всегда с User Card).
 
-Админские CRUD провайдеров остаются в web/admin, не обязательно в mobile API.
+Админские CRUD провайдеров, Users, impersonation — admin surface, не cabinet/mobile API.
 
 ---
 
@@ -82,4 +87,4 @@ API нужен Mobile, Desktop и возможным интеграциям. Tel
 
 ## Связь с Phase 1
 
-Если Phase 1 живёт только Telegram webhook → Core, отдельный public API можно не открывать. Контракт engine всё равно тот же, чтобы Phase 3 не переписывала оркестрацию.
+Telegram-срез Phase 1 может обойтись без public HTTP. Cabinet и Phase 3 бьют в тот же engine и те же ownership-правила, чтобы не переписывать оркестрацию.

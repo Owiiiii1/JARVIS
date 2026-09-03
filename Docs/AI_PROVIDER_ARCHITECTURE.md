@@ -10,7 +10,8 @@ Jarvis не зависит от одного HTTP API и одной модели
 
 - смена OpenAI → Anthropic → Gemini (или mix) без переписывания engine;
 - **разные** provider/model на общение и на анализ;
-- админка задаёт mapping роль → provider / model / prompt / parameters;
+- админка задаёт **platform** mapping роль → provider / model / prompt / parameters;
+- optional **per-user override** той же роли (пусто = default);
 - тесты подменяют provider;
 - секреты остаются в settings, не в коде адаптеров каналов.
 
@@ -26,7 +27,7 @@ Jarvis не зависит от одного HTTP API и одной модели
 
 | Роль | Назначение | Где используется |
 | --- | --- | --- |
-| `conversation` | общение с человеком | Telegram DM, Mobile, Desktop, будущий voice assistant, human-like поведение |
+| `conversation` | общение с человеком | Telegram DM, Cabinet, Mobile, Desktop, voice; один путь для всех users |
 | `analysis` | аналитика и фон | Telegram-группы, topic classification, summarization, extraction (decisions / tasks / facts), memory processing, оркестрация embeddings-related jobs |
 
 Роли независимы:
@@ -55,7 +56,7 @@ Jarvis не зависит от одного HTTP API и одной модели
 
 | Задача | Кто закрывает сейчас | Phase |
 | --- | --- | --- |
-| Ответ владельцу | `conversation` | 1 |
+| Ответ любому user | `conversation` + optional user override | 1 |
 | Group analysis / summaries / extract | `analysis` | конфиг 1; jobs 2 |
 | Topic classification | `analysis`, позже `classification` | 2 |
 | Memory extraction | `analysis`, позже `memory_extraction` | 2 |
@@ -63,16 +64,16 @@ Jarvis не зависит от одного HTTP API и одной модели
 
 ---
 
-## Admin: AI Settings
+## Platform AI Settings
 
-Отдельная конфигурация ролей, не один экран «модель Jarvis».
+Отдельная конфигурация ролей, не один экран «модель Jarvis». Это **defaults инстанса**.
 
 ### Conversation AI
 
 - provider;
 - model;
 - credentials reference;
-- system / general prompt;
+- platform system / general prompt;
 - parameters (temperature и др. при необходимости).
 
 ### Analysis AI
@@ -84,6 +85,20 @@ Jarvis не зависит от одного HTTP API и одной модели
 - parameters.
 
 Ядро читает эти записи в runtime. Inertia-страница только пишет settings. ADR-009.
+
+## Per-user assignment
+
+```
+resolve(role, user_id):
+  if user_ai_settings имеет override для роли → его provider/model/params
+  else → platform default этой роли
+```
+
+Не обязан у каждого user быть свой provider. ADR-019.
+
+User General Prompt — отдельное поле user, не замена platform Conversation prompt. ADR-018.
+
+Админ смотрит/меняет user слой с User Card. [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
 
 ---
 
@@ -104,15 +119,20 @@ Speech не входит в этот документ: [VOICE_ARCHITECTURE.md](V
 
 ## Prompt management
 
-- Промпт **привязан к роли**. Conversation prompt не используется как analysis prompt и наоборот.
-- Хранится централизованно (БД / prompts), редактируется в админке.
-- Ядро подставляет conversation prompt в personal context package; analysis prompt — в analysis jobs.
+Два слоя conversation-текста:
+
+1. **Platform / System Prompt** роли — правила продукта, safety, изоляция. Один на инстанс для роли. Нельзя дать user его отменить.
+2. **User General Prompt** — стиль и ограничения **этого** user; действует во всех его чатах и личных каналах.
+
+Hierarchy в context package: platform → channel rules → user prompt → memory → topics → conversation history → current message. [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
+
+- Conversation platform prompt ≠ analysis prompt.
 - Каналы не хранят свою копию «на всякий случай».
 - Версии промпта желательны для debug (`TBD`).
 
-Личность Phase 4 крутится в **conversation** prompt + user profile, не в клиенте и не в analysis prompt.
+Личность Phase 4: platform prompt + User General Prompt + user profile, не клиент и не analysis prompt.
 
-Один conversation prompt на все **личные** каналы (Telegram DM, mobile, desktop, voice). Это не один prompt на группы и анализ. ADR-009 уточняется ADR-013.
+ADR-009 уточняется ADR-013 и ADR-018.
 
 ---
 
@@ -120,9 +140,9 @@ Speech не входит в этот документ: [VOICE_ARCHITECTURE.md](V
 
 Порядок:
 
-1. Вызывающий слой указывает роль (`conversation` | `analysis` | later).
-2. Админский mapping роль → provider/model/prompt/params.
-3. AI Layer резолвит реализацию.
+1. Вызывающий слой указывает роль и `user_id` (для personal path).
+2. AI Layer: user override или platform mapping.
+3. Подставляются platform prompt + User General Prompt (conversation path).
 4. Conversation Engine и Analysis jobs не знают vendor.
 
 Fallback при недоступности провайдера — `TBD` (ошибка vs запасная модель **той же роли**). Не подменять молча Analysis моделью Conversation и наоборот, если это не явная настройка.

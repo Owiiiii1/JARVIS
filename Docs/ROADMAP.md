@@ -8,23 +8,24 @@
 
 ## Phase 1 — Telegram + persistent conversations
 
-**Результат.** Пользователь постоянно общается с Jarvis в Telegram DM; история не теряется. Группы автоматически появляются в админке и пишутся в raw history без автоответов.
+**Результат.** Пользователь постоянно общается с Jarvis в Telegram DM; история не теряется. Группы автоматически появляются в админке. Схема и Core уже multi-user: isolation, много chats, prompt/override слоты.
 
 ### Goals
 
 - Первый канал: Telegram adapter (DM + groups).
-- Raw messages и conversations в БД (`kind=direct|group`).
-- Личный ответ через **Conversation AI**.
+- Raw messages и conversations в БД (`kind=direct|group`, `user_id` на personal).
+- Личный ответ через **Conversation AI** (`resolve(role, user_id)`).
 - Telegram Groups: discovery, persist, админ-чат, outbound через adapter, passive monitoring.
-- Админка: отдельно Conversation AI и Analysis AI; Telegram bot; Telegram Groups; просмотр личных чатов.
+- Админка: platform Conversation / Analysis AI; Telegram bot; Telegram Groups.
+- Контракты Users / Cabinet (UI кабинета — следующий инкремент).
 
 ### Основные компоненты
 
-- Core (users, identities, conversations, messages, telegram_groups)
+- Core (users, identities, conversations, messages, telegram_groups, user_ai_settings слот)
 - Telegram adapter
 - Groups module + Group Messaging Service
-- Recent-window retriever (personal)
-- Role-based AI: `conversation` + `analysis` в конфиге
+- Recent-window retriever **per user + conversation**
+- Role-based AI: `conversation` + `analysis` + inheritance
 - Admin config
 
 ### Prerequisites
@@ -41,10 +42,26 @@
 
 - Topics / extraction / vector search / глубокий group analysis
 - Автоответы и сложные group policies
-- Смешение group history с personal memory
+- Смешение group history с personal memory или context разных users
+- Обязательный полный Cabinet в первом Telegram-срезе
 - Mobile, Desktop, Voice
 - Tools как продукт
 - Human-like barge-in
+
+---
+
+## Users & Cabinet (после persist Phase 1)
+
+**Результат.** Несколько изолированных пользователей; Web Cabinet как ChatGPT; админ видит User Card.
+
+### Goals
+
+- Admin Users / User Card / Chats (read) / Topics / AI Settings / impersonated Open Cabinet
+- Cabinet: список чатов, New Chat, Profile
+- User General Prompt; platform default → user override
+- Ownership на всех user endpoints
+
+См. [USERS_AND_CABINET.md](USERS_AND_CABINET.md). Не ждать Phase 4.
 
 ---
 
@@ -62,7 +79,7 @@
 
 ### Основные компоненты
 
-- Memory engine (personal + group scopes)
+- Memory engine (personal per `user_id` + group + optional global)
 - Расширенный context builder
 - Роль `analysis` на jobs; позже вложенные роли без смены бизнес-логики
 - Диагностика памяти и group knowledge в админке (базовая)
@@ -93,7 +110,7 @@
 - Public API для клиентов
 - Тонкие приложения без своей AI-логики
 - Voice I/O через abstraction (ElevenLabs по умолчанию)
-- Те же conversations/memory
+- Те же accounts, conversations и **личная** memory каждого user
 
 ### Основные компоненты
 
@@ -106,11 +123,11 @@
 
 - Стабильный engine Phase 1
 - Желателен retrieval Phase 2; не блокировать API, если память ещё recent-window
-- Решения `TBD`: auth, realtime transport
+- Auth: те же cabinet accounts; realtime transport `TBD`
 
 ### Definition of done
 
-Смена клиента не меняет «личность» и историю. Голосовая реплика пишется в те же messages.
+Смена клиента не меняет «личность» и историю **этого** user. Голосовая реплика пишется в его messages.
 
 ### Не входит
 
@@ -157,9 +174,10 @@
 
 ## Принцип приоритизации
 
-1. Сначала простая рабочая система (Phase 1).
-2. Затем memory intelligence (Phase 2).
-3. Затем поверхность доступа (Phase 3).
-4. Затем естественность (Phase 4).
+1. Сначала простая рабочая система (Phase 1) с multi-user контрактами.
+2. Users / Cabinet — когда нужны дополнительные люди, сразу после persist.
+3. Затем memory intelligence (Phase 2), уже per-user.
+4. Затем native клиенты (Phase 3) на тех же accounts.
+5. Затем естественность (Phase 4).
 
 Не over-engineer Phase 1. Не принимать решений, которые ломают этот порядок (например, AI внутри Telegram handler).

@@ -1,6 +1,6 @@
 # Каналы
 
-Канал — адаптер. У него нет своей памяти, своего prompt и своего LLM. Один Jarvis Core. Личные каналы делят один **personal** memory context. Telegram-группы — отдельная область ([TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md)).
+Канал — адаптер. У него нет своей памяти, своего prompt и своего LLM. Один Jarvis Core. Личный канал работает с **personal** memory **резолвленного** `user_id`. Telegram-группы — отдельная область ([TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md)). Cabinet — клиент того же ядра ([USERS_AND_CABINET.md](USERS_AND_CABINET.md)).
 
 ```
 Native event → Adapter.normalize → Core (Conversation Engine | Groups module) → Adapter.render
@@ -32,7 +32,13 @@ Telegram adapter один: и личные чаты, и группы. После
 - как устроен retrieval;
 - как устроены topics.
 
-Идентичность: внешний id канала связывается с `users` через `channel_identities`. Один человек — один `user_id`, несколько identity.
+Идентичность: внешний id канала связывается с `users` через `channel_identities`. Один человек — один `user_id`, несколько identity. Два человека — два `user_id`, даже на одном боте.
+
+---
+
+## Web Cabinet
+
+Клиент того же Core после persist. Auth — cabinet context, не admin. Список чатов, New Chat, Profile. Ownership на каждом запросе. Не содержит LLM.
 
 ---
 
@@ -119,11 +125,12 @@ Desktop и Mobile используют API того же Jarvis Core. ADR-006.
 
 | Событие | Результат |
 | --- | --- |
-| Пишет в Telegram DM | personal messages + тот же user |
+| Пишет в Telegram DM | personal messages **его** `user_id` |
+| Пишет в Cabinet New Chat | новая пустая conversation того же user; memory user жива |
 | Пишет в Telegram-группу | group raw history; бот молчит (дефолт) |
-| Открывает mobile | видит те же **личные** conversations |
-| Говорит с desktop | новая personal message |
-| Меняет Conversation AI в админке | личные каналы на следующем ходе |
+| Открывает Cabinet / mobile | видит **свои** conversations, не чужие |
+| Меняет platform Conversation AI | default для users без override |
+| Меняет User General Prompt | все чаты **этого** user |
 | Меняет Analysis AI | следующие analysis jobs, не тон DM |
 
-Политика «один active conversation vs много тредов» — продуктовая, `TBD`. Хранение должно допускать несколько conversations на пользователя с первого дня.
+Cabinet явно допускает много conversations на user. Как именно Telegram DM стыкуется с этим списком — `TBD`.

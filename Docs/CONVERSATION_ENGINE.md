@@ -1,6 +1,6 @@
 # Conversation Engine
 
-Жизненный цикл **личного** сообщения владельца. Один engine для Telegram DM, mobile, desktop и голоса после STT.
+Жизненный цикл **личного** сообщения **конкретного** `user_id`. Один engine для Telegram DM, Web Cabinet, mobile, desktop и голоса после STT. Owner и дополнительные users проходят тот же путь.
 
 Входящие из Telegram-групп **не** проходят этот reply path: persist + passive monitoring. См. ветку ниже и [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
 
@@ -13,7 +13,7 @@ Channel adapter (или Voice layer) передаёт в Core структуру
 - `channel` (`telegram` / `mobile` / `desktop`, `TBD` точный enum);
 - `modality` (`text` / `voice`) — голос не отдельный ассистент и не отдельный канал-мозг;
 - `external_identity` (telegram user id, app user id, …);
-- `conversation_hint` (telegram chat id, client conversation uuid, или «продолжить active»);
+- `conversation_hint` (telegram chat id, cabinet conversation id, или «продолжить active» / «new chat»);
 - `payload` (текст; медиа — refs, `TBD`);
 - `occurred_at`;
 - `channel_message_id` для идемпотентности.
@@ -41,20 +41,20 @@ normalize
 
 ## Шаги (личный DM / mobile / desktop / voice)
 
-1. **Сообщение приходит через channel adapter.**
-2. **Определяется пользователь** — `channel_identities` → `users`. Если identity неизвестна: политика Phase 1 — `TBD` (whitelist владельца / автосоздание единственного owner).
-3. **Сохраняется raw message** до вызова модели. Падение LLM не должно терять входящее.
-4. **Определяется active conversation** — существующий тред или новый. Канал может подсказать, ядро решает.
-5. **Анализируется intent/topic** — в Phase 1 может быть no-op или лёгкий heuristic; в Phase 2 — classifier. Не обязан быть тем же вызовом, что ответ.
-6. **Выбираются связанные topics.**
-7. **Memory engine достаёт релевантную память** — в Phase 1 recent messages.
-8. **Context builder формирует prompt / context package.**
-9. **Вызывается Conversation AI** через provider abstraction (роль `conversation`).
-10. **Сохраняется ответ** как raw message роли assistant.
-11. **Ответ отправляется в исходный канал.**
+1. **Сообщение приходит через channel adapter или Cabinet API.**
+2. **Определяется пользователь** — session / `channel_identities` → `users`. Ownership conversation проверяется здесь. Неизвестная Telegram identity: политика `TBD` (whitelist / привязка / отказ), не «один магический owner в Core».
+3. **Сохраняется raw message** до вызова модели. Падение LLM не должно терять входящее. `user_id` + `conversation_id` обязательны для personal.
+4. **Определяется conversation** — существующий тред этого user или новый (New Chat). Чужой id отвергается. ADR-021.
+5. **Анализируется intent/topic** — в Phase 1 no-op/heuristic; в Phase 2 — classifier **в scope этого user**.
+6. **Выбираются связанные topics только этого user.**
+7. **Memory engine достаёт релевантную память только этого `user_id`.** Phase 1: recent **этого** conversation. Phase 2: + его long-term memories. Другие его чаты raw не подмешиваются. ADR-016, ADR-017.
+8. **Context builder** собирает hierarchy: platform → channel rules → User General Prompt → memories/topics → history этого чата → message. ADR-018.
+9. **Вызывается Conversation AI** через `resolve(role=conversation, user_id)` (platform default или user override). ADR-019.
+10. **Сохраняется ответ** как raw message роли assistant в ту же conversation.
+11. **Ответ отправляется** в исходный канал / cabinet stream.
 12. **Post-processing** (после или параллельно с отправкой).
-13. **Извлекаются потенциальные personal memories** (Phase 2; роль `analysis` или позже `memory_extraction`).
-14. **Обновляются topics / summaries / memory / revisions** в personal scope.
+13. **Извлекаются потенциальные personal memories** этого user (Phase 2; роль `analysis` или позже `memory_extraction`).
+14. **Обновляются topics / summaries / memory / revisions** в **его** personal scope.
 
 Порядок 12–14 не должен блокировать шаг 11, если это ухудшает latency. Архитектура разделяет sync и async пути.
 
@@ -64,10 +64,10 @@ normalize
 
 Нужно, чтобы пользователь получил ответ:
 
-- identify user;
+- identify user + authorize conversation;
 - persist inbound;
-- resolve conversation;
-- retrieve **минимально достаточный** контекст;
+- resolve conversation **этого** user (или создать пустую);
+- retrieve **минимально достаточный** контекст в его scope;
 - build package;
 - Conversation AI;
 - persist outbound;
@@ -116,6 +116,12 @@ LLM здесь не участвует, если администратор пр
 - Повтор одного и того же `channel_message_id` не создаёт дубликат raw (уникальность в рамках канала).
 - Если LLM упал после persist inbound — можно retry generation, не принимая сообщение заново из Telegram.
 - Если send в канал упал после persist outbound — retry send, не генерировать второй ответ без политики (`TBD`: at-least-once vs exactly-once на доставку).
+
+---
+
+## New Chat
+
+Создаётся пустая conversation того же `user_id`. Следующий inbound идёт по шагам выше: raw пустой, User General Prompt и long-term memory user остаются. Не вызывать «сброс профиля».
 
 ---
 

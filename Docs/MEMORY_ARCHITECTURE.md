@@ -46,21 +46,27 @@ Derived memory — производный слой. Это позволяет:
 
 ### 2. Topic memory
 
-Информация, сгруппированная вокруг темы (`Jarvis`, `машина`, `отпуск`). Тема живёт дольше одного разговора. Сообщение может относиться к нескольким темам.
+Информация, сгруппированная вокруг темы. Тема живёт дольше одного разговора и **принадлежит owner scope** (user / group / global). Сообщение может относиться к нескольким темам того же scope.
+
+Примеры user topics: Programming, Python, School. Набор user A не виден user B.
 
 ### 3. Facts / long-term memories
 
-Утверждения с **scope** и **provenance**. Personal: «предпочитает тёмную тему». Group knowledge: «в группе X решили сменить API». У факта есть confidence, время, source_kind, ссылки на raw messages (и группу), возможность revision.
+Утверждения с **scope**, **owner** и **provenance**. Personal user: «учит Python» — обязательно `user_id`. Group knowledge: «в группе X решили сменить API». Global/system knowledge — отдельный scope, не чужие personal facts.
 
-Group knowledge не копируется в personal / user profile автоматически.
+У факта есть confidence, время, source_kind, ссылки на raw messages, возможность revision.
+
+Group knowledge не копируется в personal автоматически. Personal user A не копируется в B.
 
 ### 4. User profile
 
-Стабильная информация о пользователе и предпочтениях. Меняется редко. Всегда кандидат в context package, но компактный.
+Стабильная информация **конкретного** пользователя и предпочтения. Один профиль на `user_id`. Компактный кандидат в **его** context package.
 
-### 5. Working context
+### 5. Working context / conversation context
 
-Контекст **текущего** разговора: последние реплики, активная тема, незакрытый clarification. Короткоживущий. Не заменяет long-term facts.
+Контекст **текущего** чата: последние реплики, активная тема, незакрытый clarification. Короткоживущий. Не заменяет long-term facts и не переносится сырьём в другой conversation.
+
+New Chat обнуляет только этот слой. User long-term memory остаётся. ADR-017.
 
 ### 6. Summaries
 
@@ -75,14 +81,14 @@ Group knowledge не копируется в personal / user profile автом�
 - **conversations** — логический диалог (`direct` | `group`); не равен «Telegram chat id» навечно, но group conversation связан с `telegram_groups`.
 - **messages** — raw history (личный и групповой в одной таблице).
 - **telegram_groups** / **telegram_group_participants** — discovery групп и участники.
-- **topics** — устойчивые темы.
+- **topics** — устойчивые темы с owner (`user` | `group` | `global`).
 - **message_topic_relations** — many-to-many, с весом/confidence классификации.
-- **memories** — извлечённые факты/заметки с **provenance** и областью (`personal` / `group_knowledge` / …).
+- **memories** — факты с **owner/scope** (`personal` + `user_id` | `group_knowledge` | `global/system`) и provenance.
 - **memory_topics** — привязка фактов к темам.
 - **entities** — люди, проекты, места, вещи (`TBD` глубина в Phase 2 vs later).
 - **entity_relations** — связи («проект X принадлежит клиенту Y»), без обязательного graph DB.
 - **summaries** — сжатия диапазонов messages или topics.
-- **user_profile** — стабильный профиль (один на владельца на старте).
+- **user_profile** — стабильный профиль на каждого user.
 - **memory_revisions** — история изменений факта (было → стало, причина, source messages).
 
 ---
@@ -110,7 +116,8 @@ Topic classification и memory extraction — **разные** шаги. Их м
 
 Каждая derived-запись несёт как минимум:
 
-- **scope** — `personal` | `group_knowledge` (иные — later)
+- **scope** — `personal` | `group_knowledge` | `global_system`
+- **owner** — для `personal` обязателен `user_id`; для group — group id; global — без user
 - **source_kind** — `direct_conversation` | `telegram_group` | `summary` | `manual_admin` | иное
 - **source_group_id** — если источник группа
 - **created_at / updated_at**
@@ -120,9 +127,11 @@ Topic classification и memory extraction — **разные** шаги. Их м
 - **status**: active / superseded / obsolete / disputed (`TBD` точный enum)
 - **valid_from / valid_until** для временных фактов, если известно
 
-Retrieval учитывает:
+Retrieval **сначала** фиксирует scope (`user_id` / group / global). Глобальный поиск «всех memories инстанса» запрещён. ADR-016.
 
-- совпадение topics;
+Затем учитывает:
+
+- совпадение topics того же owner;
 - свежесть;
 - confidence;
 - явное supersede;
@@ -145,13 +154,16 @@ Retrieval учитывает:
 
 Перед вызовом LLM собирается пакет примерно из:
 
-1. system / general prompt **роли conversation** (из админки, централизованно);
-2. глобальные настройки Jarvis;
-3. текущий conversation / working context;
-4. релевантные topics;
-5. релевантные memories;
-6. необходимые recent messages (не вся история);
-7. user profile — если полезен.
+1. Platform / System Prompt роли `conversation`;
+2. Channel / System Rules;
+3. **User General Prompt** этого user (не заменяет п.1);
+4. релевантные **его** memories;
+5. релевантные **его** topics;
+6. summary / recent **текущего** conversation (не все чаты raw);
+7. user profile этого user;
+8. current message.
+
+См. иерархию в [USERS_AND_CABINET.md](USERS_AND_CABINET.md). ADR-018.
 
 Не отправлять всю БД. Не отправлять все summaries «на всякий случай».
 
@@ -186,7 +198,7 @@ incoming personal message
 
 ## Retrieval: сейчас и потом
 
-**Phase 1:** recent window по `conversation_id` + timestamps. Достаточно для MVP.
+**Phase 1:** recent window по `conversation_id` **и** `user_id` + timestamps. Достаточно для MVP. Другие чаты того же user в raw window не подмешиваются.
 
 **Phase 2:** topic + keyword/SQL filters + freshness + profile. Relational DB как основной store.
 
@@ -210,27 +222,32 @@ incoming personal message
 
 ---
 
-## Области памяти: personal vs group
+## Области памяти
 
-Telegram Group history **не** становится автоматически персональной памятью владельца. ADR-012.
+Telegram Group history **не** становится автоматически персональной памятью. ADR-012. Personal user A **не** становится контекстом user B. ADR-016.
 
-| Область | Что хранит | Кто пишет | Кто читает в prompt |
+| Область | Owner | Кто пишет | Кто читает в prompt |
 | --- | --- | --- | --- |
-| Personal conversation history | DM / mobile / desktop / voice raw | Conversation path | Recent / retrieval личного треда |
-| Personal memory | факты о владельце | extraction с DM + явный перенос | Conversation package |
-| Group conversation history | raw группы | Groups persist | Админ-чат; Analysis retrieval |
-| Group knowledge | решения/задачи/саммари группы | **Analysis AI** | В Conversation package **только** если запрос про эту группу |
+| Personal conversation history | `user_id` + `conversation_id` | Conversation path | Только этот чат (recent/summary) |
+| Personal / user memory | `user_id` | extraction + явный перенос | Все чаты **этого** user, если релевантно |
+| Group conversation history | group | Groups persist | Админ-чат; Analysis retrieval |
+| Group knowledge | group | **Analysis AI** | В personal package только по правилу provenance / запросу |
+| Global / system knowledge | instance | admin / system | Явно, не как чужие personal facts |
 
-Пример: «в рабочей группе решили сменить API» → `group memory` с provenance на группу и сообщения. Это не `personal user fact`, пока владелец явно не закрепит иначе (`TBD` UX).
+Пример: «в рабочей группе решили сменить API» → group knowledge. «Ребёнок учит Python» → personal memory этого ребёнка, не владельца и не сиблинга.
 
 Analysis jobs используют роль `analysis`, не `conversation`.
 
 ---
 
-## Единство личной памяти между каналами
+## Единство личной памяти между чатами и каналами
 
-Personal memory engine не зависит от канала. Один `user_id`. Telegram **DM**, mobile, desktop и voice пишут в personal messages и читают один personal retrieval.
+Personal memory принадлежит `user_id`, не conversation и не каналу.
 
-Голосовая реплика после STT — обычный inbound text для **личной** памяти.
+Telegram DM, Cabinet, mobile, desktop и voice этого user пишут в его messages (разные conversations) и читают **его** retrieval.
+
+Голосовая реплика после STT — обычный inbound text для **его** памяти.
+
+Несколько чатов одного user делят long-term memory. Сырой history другого чата в prompt не копируется. ADR-017.
 
 Групповые сообщения — тот же message store с `conversation.kind = group`, другая область retrieval.

@@ -80,7 +80,7 @@ Classifier и topic stack: новая тема не обязана стират�
 
 - Не переписывает messages/conversations.
 - Не вводит второй AI core «для голоса».
-- Не заменяет админский system prompt скрытым hardcoded prompt в клиенте.
+- Не заменяет platform system prompt и User General Prompt скрытым hardcoded prompt в клиенте.
 
 ---
 

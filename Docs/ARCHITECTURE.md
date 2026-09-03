@@ -3,17 +3,18 @@
 Целевая модульная архитектура. Реализация наращивается по фазам; границы модулей фиксируются сразу.
 
 ```
-[Telegram DM] [Telegram Groups] [Mobile] [Desktop]
-        \            |              /       /
-         Channel Layer (один Telegram adapter)
-                |
-           Jarvis Core
-      /     |      |       \
- Memory  Groups  AI Layer   Admin
- Engine  module  conversation
-                 + analysis
-                |
-              Database
+[Telegram DM] [Cabinet] [Mobile] [Desktop] [Telegram Groups]
+        \         |         |        /            |
+              Channel / Client Layer
+                      |
+                 Jarvis Core
+        /      |       |        |        \
+     Users  Memory  Groups   AI Layer    Admin
+     +auth  Engine  module   conversation
+                             + analysis
+                             + user override
+                      |
+                   Database
 ```
 
 ---
@@ -24,15 +25,17 @@
 
 Отвечает за:
 
-- users и привязку внешних identity;
-- conversations и messages (kind: `direct` | `group`);
-- Telegram Groups: авторегистрация, group conversations, политики;
-- memory и topics (с Phase 2; в Phase 1 — заготовки интерфейсов);
-- AI orchestration: вызов AI Layer **по роли** (`conversation` / `analysis`), не провайдера из канала;
-- context building (делегирует AI Layer / Context Builder);
-- configuration (читает централизованные настройки);
-- channel abstraction (вход/выход нормализованных сообщений);
-- APIs для будущих клиентов.
+- users, профили, роли/permissions (owner ≠ второй Core);
+- привязку внешних identity;
+- conversations и messages (kind: `direct` | `group`; personal всегда с `user_id`);
+- Telegram Groups: авторегистрация, group conversations, политики (feature permission);
+- memory и topics (с Phase 2; retrieval всегда scoped);
+- AI orchestration: `resolve(role, user_id)` — platform default + user override;
+- context building: prompt hierarchy (platform → channel → user prompt → memory → conversation);
+- configuration (platform + per-user);
+- channel abstraction;
+- APIs и Web Cabinet для тех же accounts;
+- authorization / ownership на user resources.
 
 Не отвечает за:
 
@@ -52,10 +55,10 @@
 | Компонент | Роль | Phase |
 | --- | --- | --- |
 | LLM Provider abstraction | единый контракт chat/complete | 1 |
-| Prompt management | system/general prompt, шаблоны ролей | 1 |
-| Context builder | сбор context package | 1 (простой), 2 (полный) |
-| Topic classifier | тема(ы) сообщения | 2 |
-| Memory retriever | выбор релевантной памяти | 1 recent / 2 selective |
+| Prompt management | platform prompt роли + User General Prompt | 1 |
+| Context builder | hierarchy package, всегда с `user_id` | 1 (простой), 2 (полный) |
+| Topic classifier | тема(ы) сообщения **этого** user | 2 |
+| Memory retriever | память только scoped owner | 1 recent / 2 selective |
 | Memory extractor | факты из диалога | 2 |
 | Summarizer | сжатие длинных разговоров | 2 |
 | Tool/function calling | действия во внешнем мире | later; ядро не блокирует |
@@ -82,9 +85,11 @@ Classification и extraction **не обязаны** быть одним LLM-в�
 4. получает `OutboundMessage`;
 5. отправляет в канал.
 
-Личные каналы работают с одним user identity (через `channel_identities`) и **одной personal history/memory**.
+Личный канал резолвит `user_id` через `channel_identities` и работает только с **его** personal history/memory.
 
-Разговор, начатый в Telegram DM, доступен в mobile/desktop как те же personal `conversations` / `messages`.
+Разговор пользователя в Telegram DM / Cabinet виден в mobile/desktop как его же `conversations` / `messages`. Чужой user не видит этот набор.
+
+Web Cabinet — клиент того же Core. [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
 
 Тот же Telegram adapter принимает **group updates**. Они не идут в personal reply path: регистрация группы, persist, optional analysis. См. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
 
@@ -102,13 +107,15 @@ Classification и extraction **не обязаны** быть одним LLM-в�
 
 Нужно прежде всего:
 
-- role-based AI: отдельно Conversation AI и Analysis AI (provider, model, prompt, parameters);
+- **Users**: таблица, User Card, чаты / topics / AI settings пользователя, Open Cabinet (impersonation);
+- role-based AI: platform Conversation AI и Analysis AI; per-user override;
 - Telegram bot settings;
 - **Telegram Groups**: список автообнаруженных групп, страница-чат, отправка через adapter;
 - позднее — настройки других каналов;
 - debugging / monitoring;
-- просмотр personal conversations/messages;
 - позднее — диагностика памяти, topics и group knowledge.
+
+Просмотр чатов user — privileged read/debug, не «писать как пользователь».
 
 Не одна «глобальная модель на всё Jarvis». Исходящие в группу — не из UI в Bot API, а через Group Messaging Service → adapter. ADR-015.
 
@@ -136,11 +143,11 @@ Classification и extraction **не обязаны** быть одним LLM-в�
 
 ### Конфигурация
 
-`Admin writes settings/prompts` → `DB` → `Core/AI Layer reads at runtime`
+`Admin writes platform settings/prompts` + `user_ai_settings` → `DB` → `AI Layer.resolve(role, user_id)`
 
-### Клиентские приложения
+### Cabinet / клиенты
 
-`Mobile/Desktop` → `HTTP/API (+ realtime TBD)` → `Core` (тот же engine, что у Telegram)
+`Cabinet или Mobile/Desktop` → auth (cabinet vs admin context) → ownership check → `Core` (тот же engine)
 
 ---
 
@@ -149,15 +156,17 @@ Classification и extraction **не обязаны** быть одним LLM-в�
 - Конкретная очередь/worker runtime (Redis, database queue, иное).
 - Обязательная Vector DB.
 - Точный протокол realtime (WebSocket / WebRTC / HTTP streaming).
-- Механизм auth для mobile/desktop (token flavour, session model).
+- Механизм auth (два context: admin vs cabinet; token flavour для mobile/desktop).
 - Набор tools/actions.
-- Мультипользовательский multi-tenant режим сверх «один владелец Jarvis». На старте предполагается **один основной пользователь** (владелец инстанса); модель `users` всё равно нужна для админов и будущих identity.
+- Multi-tenant «много независимых инстансов Jarvis». На одном инстансе — **много users** с изоляцией; owner — роль, не единственная запись.
 
 ---
 
 ## Связь с фазами
 
-Phase 1 реализует Core + Telegram adapter (DM + Groups persist/UI) + AI Layer с ролями conversation/analysis + админ-конфиг.  
-Phase 2 наполняет Memory Engine и group analysis (group knowledge ≠ personal memory).  
-Phase 3 добавляет API-адаптеры и Voice I/O.  
-Phase 4 наращивает conversational intelligence **над** тем же engine.
+Phase 1: Core + Telegram + Groups persist/UI + AI roles + **контракты multi-user** (`user_id`, много conversations, hierarchy/override слоты). Users / Cabinet — инкремент после persist, не Phase 4.  
+Phase 2: Memory Engine per-user + group analysis (group knowledge ≠ personal memory).  
+Phase 3: API, mobile, desktop, voice — те же accounts.  
+Phase 4: conversational intelligence **над** тем же engine.
+
+Users / Cabinet: [USERS_AND_CABINET.md](USERS_AND_CABINET.md).

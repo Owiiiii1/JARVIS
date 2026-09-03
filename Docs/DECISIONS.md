@@ -60,9 +60,9 @@
 
 **Контекст.** Иначе появятся три ассистента.
 
-**Решение.** Приложения — клиенты API того же Core. Нет локального memory engine. Речь о **личной** памяти владельца. Group knowledge не подмешивается в клиентский чат автоматически.
+**Решение.** Приложения и Cabinet — клиенты API того же Core. Нет локального memory engine. Речь о **личной** памяти **текущего** `user_id`. Group knowledge не подмешивается автоматически.
 
-**Следствие.** Личный разговор из Telegram DM виден в приложениях. Группы — отдельная область; основной просмотр в админке.
+**Следствие.** Чаты этого user видны в Cabinet / mobile / desktop / его Telegram DM. Чужой user их не видит. Группы — отдельная область.
 
 ---
 
@@ -92,7 +92,7 @@
 
 **Решение.** Админка пишет settings/prompts и показывает логи/чаты. Ответ пользователю всегда через Core.
 
-**Следствие.** Один **conversation** prompt на все личные каналы. Analysis — отдельный prompt. Нет скрытой логики и нет прямых вызовов Telegram/LLM из Inertia-страниц. Уточнение: ADR-013, ADR-015.
+**Следствие.** Один **platform** conversation prompt на продукт. User General Prompt — отдельный слой на user (ADR-018). Analysis — отдельный prompt. Нет скрытой логики и нет прямых вызовов Telegram/LLM из Inertia. Уточнение: ADR-013, ADR-015, ADR-020.
 
 ---
 
@@ -156,6 +156,66 @@
 
 ---
 
+## ADR-016 — Изоляция user context
+
+**Контекст.** Несколько людей на одном backend и одном боте.
+
+**Решение.** У каждого user независимые profile, conversations, messages, topics, memories, summaries, AI settings, cabinet access. Retrieval всегда scoped by `user_id` (или явный иной owner scope). Context user A не попадает к user B.
+
+**Следствие.** Общий provider/модель/бот не означают общую память. Глобальный unscoped memory search запрещён.
+
+---
+
+## ADR-017 — New Chat не создаёт новую long-term memory
+
+**Контекст.** Несколько независимых чатов в Cabinet.
+
+**Решение.** Новая conversation имеет пустую raw history. Long-term memory принадлежит user и может использоваться во всех его чатах, если retrieval признал факт релевантным. Сырые сообщения других чатов не копируются.
+
+**Следствие.** `New Chat ≠ New User Memory`. Обнуление чата ≠ обнуление профиля/memories.
+
+---
+
+## ADR-018 — User General Prompt поверх platform rules
+
+**Контекст.** Ребёнку нужен другой стиль, чем владельцу. Platform safety и изоляция общие.
+
+**Решение.** User General Prompt — отдельный слой. Hierarchy: platform/system → channel rules → user prompt → memory → topics → conversation history → current message. User prompt не отменяет критические platform rules.
+
+**Следствие.** Не хранить «один personality prompt на весь инстанс» как единственную личность всех users.
+
+---
+
+## ADR-019 — Platform defaults и optional per-user AI override
+
+**Контекст.** Не у каждого user свой vendor.
+
+**Решение.** AI configuration: platform default на роль → user override, если задан. Минимум для Conversation AI; позже Analysis. `resolve(role, user_id)`.
+
+**Следствие.** Пустой override = default. Core не ветвится по «owner vs child» для выбора SDK.
+
+---
+
+## ADR-020 — Admin открывает Cabinet через impersonation
+
+**Контекст.** Диагностика кабинета. Пароль user нельзя показывать.
+
+**Решение.** Open Cabinet создаёт impersonated session. UI показывает режим, есть выход, действие логируется. Пароль не передаётся и не отображается.
+
+**Следствие.** Запрещён «войти, подсмотрев пароль». Запись в чат от имени user — не часть этого ADR.
+
+---
+
+## ADR-021 — User resources защищены ownership layer
+
+**Контекст.** URL с id легко перебрать.
+
+**Решение.** Все user endpoints проверяют, что ресурс принадлежит текущему user (или это явный privileged admin action). Policies / authorization в Core, не только UI.
+
+**Следствие.** Залогиненный user B не читает `/conversations/123` user A.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Webhook vs long polling для Telegram.
@@ -163,7 +223,7 @@
 - Auth схема mobile/desktop.
 - Realtime транспорт voice/text streaming.
 - Пороги confidence и summarization.
-- Политика одного vs многих conversations на пользователя в UI.
+- Как Telegram DM мапится на одну из многих cabinet conversations того же user.
 - Retention raw messages по закону/желанию пользователя (отдельно от derived lifecycle).
 - Точный enum статусов группы и набор service updates (`my_chat_member`).
 - UX явного переноса group knowledge → personal fact.
