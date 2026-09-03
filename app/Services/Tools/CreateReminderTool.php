@@ -2,6 +2,8 @@
 
 namespace App\Services\Tools;
 
+use App\Enums\ReminderStatus;
+use App\Models\Reminder;
 use App\Services\Ai\DTO\ToolCall;
 use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\DTO\ToolResult;
@@ -76,6 +78,28 @@ final class CreateReminderTool implements JarvisTool
                 'success' => false,
                 'error' => 'unsupported_recurrence',
             ]);
+        }
+
+        if ($context->inbound !== null) {
+            $existing = Reminder::query()
+                ->where('user_id', $context->user->id)
+                ->where('source_message_id', $context->inbound->id)
+                ->whereIn('status', [ReminderStatus::Scheduled, ReminderStatus::Processing])
+                ->orderBy('id')
+                ->first();
+
+            if ($existing !== null) {
+                $local = $existing->run_at->setTimezone($timezone);
+
+                return ToolResult::success($call->id, $this->name(), [
+                    'success' => true,
+                    'reminder_id' => $existing->id,
+                    'text' => $existing->text,
+                    'run_at_local' => $local->format('Y-m-d\TH:i:sP'),
+                    'timezone' => $timezone,
+                    'existing' => true,
+                ]);
+            }
         }
 
         try {

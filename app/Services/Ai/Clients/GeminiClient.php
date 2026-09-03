@@ -136,7 +136,7 @@ class GeminiClient implements AiProviderClient
                 continue;
             }
 
-            if (isset($part['text'])) {
+            if (isset($part['text']) && ($part['thought'] ?? false) !== true) {
                 $chunks[] = trim((string) $part['text']);
             }
 
@@ -158,6 +158,9 @@ class GeminiClient implements AiProviderClient
                     id: (string) ($functionCall['id'] ?? 'gemini_'.$index.'_'.Str::lower(Str::random(8))),
                     name: (string) $functionCall['name'],
                     arguments: $args,
+                    providerExtras: array_filter([
+                        'thought_signature' => $part['thoughtSignature'] ?? $part['thought_signature'] ?? $functionCall['thoughtSignature'] ?? null,
+                    ]),
                 );
             }
         }
@@ -182,6 +185,7 @@ class GeminiClient implements AiProviderClient
             totalTokens: isset($usage['totalTokenCount']) ? (int) $usage['totalTokenCount'] : null,
             metadata: [
                 'model_version' => $body['modelVersion'] ?? null,
+                'native_parts' => is_array($parts) ? $parts : [],
             ],
             toolCalls: $toolCalls,
         );
@@ -239,17 +243,29 @@ class GeminiClient implements AiProviderClient
      */
     private function contentFromMessage(AiChatMessage $message): ?array
     {
+        if ($message->nativeParts !== []) {
+            return [
+                'role' => $message->role === 'assistant' ? 'model' : 'user',
+                'parts' => $message->nativeParts,
+            ];
+        }
+
         if ($message->toolResponse !== null || $message->role === 'tool') {
             $name = $message->toolName ?: 'unknown_tool';
             $payload = $message->toolResponse ?? [];
+            $response = [
+                'name' => $name,
+                'response' => $payload === [] ? (object) [] : $payload,
+            ];
+
+            if (filled($message->toolCallId) && ! str_starts_with((string) $message->toolCallId, 'gemini_')) {
+                $response['id'] = $message->toolCallId;
+            }
 
             return [
                 'role' => 'user',
                 'parts' => [[
-                    'functionResponse' => [
-                        'name' => $name,
-                        'response' => $payload === [] ? (object) [] : $payload,
-                    ],
+                    'functionResponse' => $response,
                 ]],
             ];
         }
@@ -261,13 +277,29 @@ class GeminiClient implements AiProviderClient
                 $parts[] = ['text' => $message->content];
             }
 
-            foreach ($message->toolCalls as $call) {
-                $parts[] = [
-                    'functionCall' => [
-                        'name' => $call->name,
-                        'args' => $call->arguments === [] ? (object) [] : $call->arguments,
-                    ],
+            foreach ($message->toolCalls as $index => $call) {
+                $functionCall = [
+                    'name' => $call->name,
+                    'args' => $call->arguments === [] ? (object) [] : $call->arguments,
                 ];
+
+                if (filled($call->id) && ! str_starts_with($call->id, 'gemini_')) {
+                    $functionCall['id'] = $call->id;
+                }
+
+                $part = [
+                    'functionCall' => $functionCall,
+                ];
+
+                $signature = $call->providerExtras['thought_signature'] ?? null;
+
+                if (is_string($signature) && $signature !== '') {
+                    $part['thoughtSignature'] = $signature;
+                } elseif ($index === 0) {
+                    $part['thoughtSignature'] = 'skip_thought_signature_validator';
+                }
+
+                $parts[] = $part;
             }
 
             return [

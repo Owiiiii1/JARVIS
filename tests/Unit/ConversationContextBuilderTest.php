@@ -117,4 +117,53 @@ class ConversationContextBuilderTest extends TestCase
             $this->deleteTemporaryUser($user);
         }
     }
+
+    public function test_unfinished_previous_user_turns_are_excluded_from_new_turn(): void
+    {
+        $user = null;
+
+        try {
+            $user = $this->createTemporaryUser();
+            $conversation = app(ConversationService::class)->createPersonal($user, 'Основной');
+
+            Message::query()->create([
+                'conversation_id' => $conversation->id,
+                'user_id' => $user->id,
+                'role' => MessageRole::User,
+                'channel' => MessageChannel::Telegram,
+                'body' => 'Напомни через две минуты проверить почту',
+                'message_type' => MessageType::Text,
+                'metadata' => ['ai' => ['status' => 'pending']],
+                'occurred_at' => now()->subMinute(),
+            ]);
+
+            $current = Message::query()->create([
+                'conversation_id' => $conversation->id,
+                'user_id' => $user->id,
+                'role' => MessageRole::User,
+                'channel' => MessageChannel::Telegram,
+                'body' => 'Ты тут?',
+                'message_type' => MessageType::Text,
+                'metadata' => ['ai' => ['status' => 'pending']],
+                'occurred_at' => now(),
+            ]);
+
+            $configuration = AiRoleSetting::query()
+                ->where('role_key', AiRoleKey::UserConversation->value)
+                ->firstOrFail();
+
+            $context = app(ConversationContextBuilder::class)->build(
+                $user,
+                $conversation,
+                $configuration,
+                $current,
+            );
+
+            $bodies = array_map(static fn ($message): string => $message->content, $context['messages']);
+
+            $this->assertSame(['Ты тут?'], $bodies);
+        } finally {
+            $this->deleteTemporaryUser($user);
+        }
+    }
 }

@@ -31,10 +31,6 @@ final class FakeAiChatGateway implements AiChatGateway
             'request' => $request,
         ];
 
-        if ($this->exception !== null) {
-            throw $this->exception;
-        }
-
         if ($this->script !== []) {
             $next = array_shift($this->script);
 
@@ -43,6 +39,10 @@ final class FakeAiChatGateway implements AiChatGateway
             }
 
             return $next;
+        }
+
+        if ($this->exception !== null) {
+            throw $this->exception;
         }
 
         return new AiChatResponse(

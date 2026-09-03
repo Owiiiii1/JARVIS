@@ -270,7 +270,7 @@ final class TelegramUpdateHandler
             ),
         );
 
-        if (! $turn->created) {
+        if (! $turn->created && $turn->skipped) {
             return;
         }
 

@@ -87,7 +87,7 @@ Do not treat `.env` `APP_KEY`, `DB_PASSWORD`, or stored API/bot tokens as docume
 | HTTP | 80 → 301 HTTPS | IMPLEMENTED |
 | TLS | Let's Encrypt, valid 2026-09-03 → 2026-12-02 | IMPLEMENTED |
 | PHP-FPM | `php8.5-fpm.service`, sock `php8.5-fpm.sock` | IMPLEMENTED |
-| Queue workers | none (no systemd unit, no Supervisor) | UNUSED |
+| Queue workers | database worker for `telegram`; guarded by `flock`, restarted from deploy-user crontab | IMPLEMENTED (Telegram) |
 | Laravel scheduler | `jarvis:reminders:dispatch` everyMinute; crontab `schedule:run` for `/var/www/jarvis` | IMPLEMENTED |
 | Jarvis systemd units | none | — |
 | Related host services | `nginx`, `mysql`, `php8.5-fpm` (and unrelated `php8.3-fpm`) | IMPLEMENTED |
@@ -518,7 +518,7 @@ New providers without changing Jarvis Core.
 | Voice / ElevenLabs | DOCUMENTED ONLY |
 | Google Calendar / Gmail | DOCUMENTED ONLY / MISSING FROM DOCS |
 | Integrations registry | DOCUMENTED ONLY / MISSING FROM DOCS |
-| Queue workers / scheduler | PARTIAL (scheduler IMPLEMENTED for reminders; queue workers unused) |
+| Queue workers / scheduler | PARTIAL (Telegram queue worker + reminder scheduler implemented) |
 | Redis | UNUSED |
 | CRM customers/orders/staff/services | UNUSED / LEGACY |
 
@@ -643,5 +643,7 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 ### Milestone 10 — Reminder Engine + first Conversation Tool — COMPLETED (2026-09-03)
 
 `reminders` table; channel-neutral `ReminderService` / `ReminderDeliveryService`; Tool Layer (`create_reminder`); Gemini function calling; multi-tool loop (max 5); current local time + timezone injection; no Telegram identity → reminder not created; production scheduler + cron; Telegram delivery `⏰ Напоминание: {text}` without an AI turn; one-time only (recurrence later). Settings → Users shows `reminders_count`. Manual owner smoke awaiting.
+
+Production hotfix: Telegram webhook only validates and queues an update, then returns immediately. A dedicated database queue worker performs Gemini calls. Gemini 3 tool turns preserve `thoughtSignature`. Failed/pending historical user turns are excluded from later AI context, preventing a stale reminder request from authorizing tools for messages such as «Ты тут?». `create_reminder` is idempotent per source message.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).

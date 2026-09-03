@@ -77,7 +77,9 @@ Cron (deploy user, idempotent; one line, not duplicated):
 
 `php artisan schedule:list` shows the command.
 
-Queue workers still unused. Reminder dispatch is synchronous inside the scheduled command.
+Reminder dispatch is synchronous inside the scheduled command.
+
+Telegram inbound processing now uses the database queue. The webhook validates the secret, enqueues `ProcessTelegramUpdate`, and returns immediately. A dedicated `telegram` queue worker is guarded by `flock` and restarted from deploy-user crontab.
 
 ## Delivery
 
@@ -138,6 +140,23 @@ Web Cabinet create (with Telegram pairing) is architecturally the same tool loop
 - Recurrence / cancel / list tools not implemented.
 - A crash after Telegram send and before `delivered` could leave `processing` (at-most-once; no automatic reclaim).
 - Manual owner smoke not yet run.
+
+## Production incident and hotfix
+
+The first owner smoke exposed two coupled defects:
+
+- Gemini 3 function-call responses require the original `thoughtSignature`; omitting it caused the post-tool model call to fail or run until PHP terminated the webhook.
+- Unfinished historical user messages were included and merged into later turns. Consequently, follow-up messages such as «Ты тут?» inherited the earlier reminder request and created additional reminders.
+
+Fixes:
+
+- preserve native Gemini response parts and `thoughtSignature` through `functionResponse`;
+- process Telegram updates on a dedicated database queue, outside the webhook request;
+- exclude previous `pending` / `failed` inbound turns from a new model context;
+- make `create_reminder` idempotent for `source_message_id`;
+- retry stale pending turns safely and use a confirmation fallback if the post-tool model call fails.
+
+Production recovery marked stale owner turns as failed without deleting messages. No scheduled owner reminders remained. The latest «Ты тут?» was retried successfully and Jarvis sent a normal assistant response.
 
 ## Next milestone
 

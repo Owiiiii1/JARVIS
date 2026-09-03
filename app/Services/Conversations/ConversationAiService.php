@@ -16,7 +16,9 @@ use App\Services\Ai\DTO\AiChatMessage;
 use App\Services\Ai\DTO\AiChatRequest;
 use App\Services\Ai\DTO\AiChatResponse;
 use App\Services\Ai\DTO\ToolDefinition;
+use App\Services\Ai\DTO\ToolResult;
 use App\Services\Ai\Exceptions\AiConfigurationException;
+use App\Services\Tools\CreateReminderTool;
 use App\Services\Tools\ToolExecutionContext;
 use App\Services\Tools\ToolRegistry;
 use Illuminate\Support\Facades\Log;
@@ -29,6 +31,8 @@ final class ConversationAiService
     public const AI_FAILURE = 'Не удалось получить ответ от AI. Попробуйте ещё раз позже.';
 
     public const MAX_TOOL_ROUNDS = 5;
+
+    public const PENDING_STALE_SECONDS = 25;
 
     public function __construct(
         private readonly AiConfigurationResolver $resolver,
@@ -50,7 +54,15 @@ final class ConversationAiService
 
         $status = $this->processingStatus($inbound);
 
-        if (in_array($status, ['completed', 'failed', 'pending'], true)) {
+        if ($status === 'completed') {
+            return new ConversationAiTurnResult(skipped: true);
+        }
+
+        if ($status === 'failed') {
+            return new ConversationAiTurnResult(skipped: true);
+        }
+
+        if ($status === 'pending' && $this->pendingIsFresh($inbound)) {
             return new ConversationAiTurnResult(skipped: true);
         }
 
@@ -114,13 +126,38 @@ final class ConversationAiService
                 $toolDefinitions,
             );
 
-            $response = $this->completeWithTools(
-                $configuration,
-                $context['system_prompt'],
-                $context['messages'],
-                $toolDefinitions,
-                $toolContext,
-            );
+            $toolResults = [];
+
+            try {
+                $response = $this->completeWithTools(
+                    $configuration,
+                    $context['system_prompt'],
+                    $context['messages'],
+                    $toolDefinitions,
+                    $toolContext,
+                    $toolResults,
+                );
+            } catch (Throwable $exception) {
+                $fallback = $this->fallbackTextFromToolResults($toolResults);
+
+                if ($fallback === null) {
+                    throw $exception;
+                }
+
+                Log::warning('AI follow-up after tool failed; using fallback reply', [
+                    'configuration' => $configuration->roleKey()->value,
+                    'provider' => $configuration->provider,
+                    'model' => $configuration->model,
+                    'error_class' => $exception::class,
+                ]);
+
+                $response = new AiChatResponse(
+                    text: $fallback,
+                    provider: (string) $configuration->provider,
+                    model: (string) $configuration->model,
+                    finishReason: 'fallback',
+                );
+            }
 
             $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
             $roleKey = $configuration->roleKey()->value;
@@ -199,6 +236,7 @@ final class ConversationAiService
     /**
      * @param  list<AiChatMessage>  $messages
      * @param  list<ToolDefinition>  $tools
+     * @param  list<ToolResult>  $toolResults
      */
     private function completeWithTools(
         AiRoleSetting $configuration,
@@ -206,6 +244,7 @@ final class ConversationAiService
         array $messages,
         array $tools,
         ToolExecutionContext $toolContext,
+        array &$toolResults = [],
     ): AiChatResponse {
         $rounds = 0;
 
@@ -237,15 +276,50 @@ final class ConversationAiService
                 throw new AiConfigurationException('AI tool loop exceeded the safety limit.');
             }
 
-            $messages[] = AiChatMessage::assistantToolCalls($response->toolCalls, $response->text);
+            $nativeParts = is_array($response->metadata['native_parts'] ?? null)
+                ? $response->metadata['native_parts']
+                : [];
+
+            $messages[] = AiChatMessage::assistantToolCalls(
+                $response->toolCalls,
+                $response->text,
+                $nativeParts,
+            );
 
             foreach ($response->toolCalls as $call) {
                 $result = $this->tools->execute($call, $toolContext);
+                $toolResults[] = $result;
                 $messages[] = AiChatMessage::toolResult($result);
             }
 
             $rounds++;
         }
+    }
+
+    /**
+     * @param  list<ToolResult>  $results
+     */
+    private function fallbackTextFromToolResults(array $results): ?string
+    {
+        foreach (array_reverse($results) as $result) {
+            if ($result->name !== CreateReminderTool::NAME) {
+                continue;
+            }
+
+            if ($result->success) {
+                $text = trim((string) ($result->payload['text'] ?? ''));
+
+                return $text === ''
+                    ? 'Хорошо, напоминание создано.'
+                    : 'Хорошо, напомню: '.$text.'.';
+            }
+
+            if (($result->payload['error'] ?? null) === 'telegram_not_connected') {
+                return 'Для получения напоминаний сначала подключите Telegram.';
+            }
+        }
+
+        return null;
     }
 
     private function assertReady(AiRoleSetting $configuration): void
@@ -270,6 +344,17 @@ final class ConversationAiService
             ->where('role', MessageRole::Assistant)
             ->orderBy('id')
             ->first();
+    }
+
+    private function pendingIsFresh(Message $inbound): bool
+    {
+        $updatedAt = $inbound->updated_at;
+
+        if ($updatedAt === null) {
+            return false;
+        }
+
+        return $updatedAt->gt(now()->subSeconds(self::PENDING_STALE_SECONDS));
     }
 
     private function processingStatus(Message $inbound): ?string

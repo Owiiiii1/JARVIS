@@ -357,6 +357,108 @@ class RemindersTest extends TestCase
         }
     }
 
+    public function test_stale_pending_turn_is_retried_and_same_source_does_not_duplicate_reminder(): void
+    {
+        $user = null;
+        $fake = new FakeAiChatGateway;
+
+        try {
+            $this->snapshotAiRoleSettings();
+            $this->enableRoleForTests(AiRoleKey::UserConversation);
+            $this->app->instance(AiChatGateway::class, $fake);
+
+            $user = $this->createTemporaryUser();
+            $this->createTemporaryTelegramIdentity($user, '940111');
+            $conversation = app(ConversationService::class)->getOrCreateDefault($user);
+            $runAtLocal = CarbonImmutable::now($user->timezone)->addHour()->format('Y-m-d\\TH:i:sP');
+
+            $inbound = Message::query()->create([
+                'conversation_id' => $conversation->id,
+                'user_id' => $user->id,
+                'role' => MessageRole::User,
+                'channel' => 'telegram',
+                'body' => 'Напомни через час проверить Jarvis',
+                'message_type' => 'text',
+                'occurred_at' => now()->subMinutes(3),
+            ]);
+
+            $fake->queueToolThenText(CreateReminderTool::NAME, [
+                'text' => 'проверить Jarvis',
+                'run_at_local' => $runAtLocal,
+            ], 'Хорошо, напомню проверить Jarvis.');
+
+            app(ConversationAiService::class)->completeUserTurn($inbound->fresh());
+            $this->assertSame(1, Reminder::query()->where('user_id', $user->id)->count());
+
+            Message::query()->where('parent_message_id', $inbound->id)->where('role', MessageRole::Assistant)->delete();
+            $inbound->forceFill([
+                'metadata' => ['ai' => ['status' => 'pending']],
+            ])->save();
+            Message::query()->whereKey($inbound->id)->update([
+                'updated_at' => now()->subMinutes(2),
+            ]);
+
+            $fake->queueToolThenText(CreateReminderTool::NAME, [
+                'text' => 'проверить Jarvis',
+                'run_at_local' => $runAtLocal,
+            ], 'Уже создано.');
+
+            app(ConversationAiService::class)->completeUserTurn($inbound->fresh());
+
+            $this->assertSame(1, Reminder::query()->where('user_id', $user->id)->count());
+            $this->assertSame(1, Message::query()->where('parent_message_id', $inbound->id)->where('role', MessageRole::Assistant)->count());
+        } finally {
+            $this->restoreAiRoleSettings();
+            $this->deleteTelegramIdentity('940111');
+            $this->deleteTemporaryUser($user);
+        }
+    }
+
+    public function test_fallback_reply_when_follow_up_ai_fails_after_tool(): void
+    {
+        $user = null;
+        $fake = new FakeAiChatGateway;
+
+        try {
+            $this->snapshotAiRoleSettings();
+            $this->enableRoleForTests(AiRoleKey::UserConversation);
+            $this->app->instance(AiChatGateway::class, $fake);
+
+            $user = $this->createTemporaryUser();
+            $this->createTemporaryTelegramIdentity($user, '940112');
+            $conversation = app(ConversationService::class)->getOrCreateDefault($user);
+            $runAtLocal = CarbonImmutable::now($user->timezone)->addHour()->format('Y-m-d\\TH:i:sP');
+
+            $fake->script[] = new AiChatResponse(
+                text: '',
+                provider: 'fake',
+                model: 'fake-model',
+                finishReason: 'tool_calls',
+                toolCalls: [new ToolCall('call_1', CreateReminderTool::NAME, [
+                    'text' => 'проверить Jarvis',
+                    'run_at_local' => $runAtLocal,
+                ])],
+            );
+            $fake->script[] = function () {
+                throw new \RuntimeException('follow-up failed');
+            };
+
+            $this->actingAs($user)->postJson('/cabinet/chats/'.$conversation->id.'/messages', [
+                'body' => 'Напомни через час проверить Jarvis',
+                'client_message_id' => (string) Str::uuid(),
+            ])->assertOk();
+
+            $assistant = Message::query()->where('user_id', $user->id)->where('role', MessageRole::Assistant)->first();
+            $this->assertNotNull($assistant);
+            $this->assertStringContainsString('напомню', mb_strtolower($assistant->body));
+            $this->assertSame(1, Reminder::query()->where('user_id', $user->id)->count());
+        } finally {
+            $this->restoreAiRoleSettings();
+            $this->deleteTelegramIdentity('940112');
+            $this->deleteTemporaryUser($user);
+        }
+    }
+
     public function test_scheduler_delivers_due_reminder_once_and_handles_telegram_failure(): void
     {
         $user = null;

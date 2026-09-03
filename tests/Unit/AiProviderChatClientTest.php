@@ -91,6 +91,7 @@ class AiProviderChatClientTest extends TestCase
                                         'run_at_local' => '2026-09-04T11:00:00+02:00',
                                     ],
                                 ],
+                                'thoughtSignature' => 'signature-test-token',
                             ]],
                         ],
                         'finishReason' => 'STOP',
@@ -134,6 +135,7 @@ class AiProviderChatClientTest extends TestCase
         $this->assertCount(1, $first->toolCalls);
         $this->assertSame('create_reminder', $first->toolCalls[0]->name);
         $this->assertSame('сходить в магазин', $first->toolCalls[0]->arguments['text']);
+        $this->assertSame('signature-test-token', $first->toolCalls[0]->providerExtras['thought_signature'] ?? null);
 
         $result = ToolResult::success($first->toolCalls[0]->id, 'create_reminder', [
             'success' => true,
@@ -148,7 +150,7 @@ class AiProviderChatClientTest extends TestCase
             systemPrompt: 'You are Jarvis.',
             messages: [
                 new AiChatMessage('user', 'Напомни завтра в 11'),
-                AiChatMessage::assistantToolCalls($first->toolCalls),
+                AiChatMessage::assistantToolCalls($first->toolCalls, '', $first->metadata['native_parts'] ?? []),
                 AiChatMessage::toolResult($result),
             ],
             tools: $tools,
@@ -171,6 +173,8 @@ class AiProviderChatClientTest extends TestCase
 
             return str_contains($payload, 'functionResponse')
                 && str_contains($payload, 'reminder_id')
+                && str_contains($payload, 'thoughtSignature')
+                && str_contains($payload, 'signature-test-token')
                 && ! str_contains($payload, 'gemini-key');
         });
     }

@@ -7,6 +7,7 @@ final readonly class AiChatMessage
     /**
      * @param  list<ToolCall>  $toolCalls
      * @param  array<string, mixed>|null  $toolResponse
+     * @param  list<array<string, mixed>>  $nativeParts
      */
     public function __construct(
         public string $role,
@@ -15,6 +16,7 @@ final readonly class AiChatMessage
         public ?string $toolCallId = null,
         public ?string $toolName = null,
         public ?array $toolResponse = null,
+        public array $nativeParts = [],
     ) {}
 
     /**
@@ -35,13 +37,15 @@ final readonly class AiChatMessage
 
     /**
      * @param  list<ToolCall>  $toolCalls
+     * @param  list<array<string, mixed>>  $nativeParts
      */
-    public static function assistantToolCalls(array $toolCalls, string $text = ''): self
+    public static function assistantToolCalls(array $toolCalls, string $text = '', array $nativeParts = []): self
     {
         return new self(
             role: 'assistant',
             content: $text,
             toolCalls: $toolCalls,
+            nativeParts: $nativeParts,
         );
     }
 

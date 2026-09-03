@@ -51,11 +51,23 @@ final class ConversationTurnService
                 ->orderBy('id')
                 ->first();
 
+            if ($existingAssistant !== null) {
+                return new ConversationTurnResult(
+                    inbound: $inbound->message,
+                    created: false,
+                    assistantMessage: $existingAssistant,
+                    skipped: true,
+                );
+            }
+
+            $ai = $this->conversationAi->completeUserTurn($inbound->message);
+
             return new ConversationTurnResult(
-                inbound: $inbound->message,
+                inbound: $inbound->message->fresh(),
                 created: false,
-                assistantMessage: $existingAssistant,
-                skipped: true,
+                assistantMessage: $ai->assistantMessage,
+                errorText: $ai->errorText,
+                skipped: $ai->skipped,
             );
         }
 

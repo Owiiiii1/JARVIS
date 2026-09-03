@@ -112,6 +112,7 @@ final class ConversationContextBuilder
 
         if (in_array(CreateReminderTool::NAME, $names, true)) {
             $lines[] = 'create_reminder creates a one-time Telegram reminder. Call it when the user asks to be reminded and the time is exact (clock time or a relative duration such as "in 2 minutes").';
+            $lines[] = 'Only call create_reminder when the current user message is itself a reminder request. Follow-ups such as "ты тут?" are not reminder requests.';
             $lines[] = 'If the day is known but the clock time is missing, ask "Во сколько напомнить?" and do not call the tool. Do not invent 09:00 or another default time.';
             $lines[] = 'Dayparts such as "tomorrow morning" without a clock time are not exact — ask.';
             $lines[] = 'Recurring reminders are not supported yet. If the user asks for a repeating reminder, say so and do not create a one-time reminder as a substitute.';
@@ -142,6 +143,10 @@ final class ConversationContextBuilder
         $selected = [];
 
         foreach ($rows as $message) {
+            if ($this->isUnfinishedHistoricalInbound($message, $currentInbound)) {
+                continue;
+            }
+
             if (! $this->isSemanticDialogue($message)) {
                 continue;
             }
@@ -209,6 +214,21 @@ final class ConversationContextBuilder
         }
 
         return in_array($message->role, [MessageRole::User, MessageRole::Assistant], true);
+    }
+
+    private function isUnfinishedHistoricalInbound(Message $message, ?Message $currentInbound): bool
+    {
+        if ($message->role !== MessageRole::User) {
+            return false;
+        }
+
+        if ($currentInbound !== null && (int) $message->id === (int) $currentInbound->id) {
+            return false;
+        }
+
+        $status = $message->metadata['ai']['status'] ?? null;
+
+        return in_array($status, ['pending', 'failed'], true);
     }
 
     private function recentLimit(AiRoleSetting $configuration): int
