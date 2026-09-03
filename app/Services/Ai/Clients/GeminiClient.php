@@ -4,10 +4,14 @@ namespace App\Services\Ai\Clients;
 
 use App\Services\Ai\AiProviderMessageNormalizer;
 use App\Services\Ai\Contracts\AiProviderClient;
+use App\Services\Ai\DTO\AiChatMessage;
 use App\Services\Ai\DTO\AiChatRequest;
 use App\Services\Ai\DTO\AiChatResponse;
+use App\Services\Ai\DTO\ToolCall;
+use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\Exceptions\AiProviderException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class GeminiClient implements AiProviderClient
 {
@@ -22,6 +26,11 @@ class GeminiClient implements AiProviderClient
     }
 
     public function supportsChat(): bool
+    {
+        return true;
+    }
+
+    public function supportsTools(): bool
     {
         return true;
     }
@@ -66,21 +75,8 @@ class GeminiClient implements AiProviderClient
 
     public function chat(string $apiKey, AiChatRequest $request): AiChatResponse
     {
-        $messages = AiProviderMessageNormalizer::ensureStartsWithUser(
-            AiProviderMessageNormalizer::mergeConsecutive(
-                AiProviderMessageNormalizer::dialogue($request)
-            )
-        );
-
-        $contents = array_map(static function (array $message): array {
-            return [
-                'role' => $message['role'] === 'assistant' ? 'model' : 'user',
-                'parts' => [['text' => $message['content']]],
-            ];
-        }, $messages);
-
         $payload = [
-            'contents' => $contents,
+            'contents' => $this->contents($request),
         ];
 
         if (filled($request->systemPrompt)) {
@@ -103,6 +99,15 @@ class GeminiClient implements AiProviderClient
             $payload['generationConfig'] = $generationConfig;
         }
 
+        if ($request->hasTools()) {
+            $payload['tools'] = [[
+                'functionDeclarations' => array_map(
+                    fn (ToolDefinition $tool): array => $this->functionDeclaration($tool),
+                    $request->tools
+                ),
+            ]];
+        }
+
         $model = ltrim($request->model, '/');
         $model = str_starts_with($model, 'models/') ? substr($model, 7) : $model;
 
@@ -122,17 +127,44 @@ class GeminiClient implements AiProviderClient
         }
 
         $body = $response->json() ?? [];
+        $parts = $body['candidates'][0]['content']['parts'] ?? [];
         $chunks = [];
+        $toolCalls = [];
 
-        foreach ($body['candidates'][0]['content']['parts'] ?? [] as $part) {
-            if (is_array($part) && isset($part['text'])) {
+        foreach ($parts as $index => $part) {
+            if (! is_array($part)) {
+                continue;
+            }
+
+            if (isset($part['text'])) {
                 $chunks[] = trim((string) $part['text']);
+            }
+
+            $functionCall = $part['functionCall'] ?? $part['function_call'] ?? null;
+
+            if (is_array($functionCall) && filled($functionCall['name'] ?? null)) {
+                $args = $functionCall['args'] ?? $functionCall['arguments'] ?? [];
+
+                if (is_string($args)) {
+                    $decoded = json_decode($args, true);
+                    $args = is_array($decoded) ? $decoded : [];
+                }
+
+                if (! is_array($args)) {
+                    $args = [];
+                }
+
+                $toolCalls[] = new ToolCall(
+                    id: (string) ($functionCall['id'] ?? 'gemini_'.$index.'_'.Str::lower(Str::random(8))),
+                    name: (string) $functionCall['name'],
+                    arguments: $args,
+                );
             }
         }
 
         $text = trim(implode("\n", array_filter($chunks)));
 
-        if ($text === '') {
+        if ($text === '' && $toolCalls === []) {
             throw new AiProviderException('Gemini returned an empty assistant response.');
         }
 
@@ -151,6 +183,129 @@ class GeminiClient implements AiProviderClient
             metadata: [
                 'model_version' => $body['modelVersion'] ?? null,
             ],
+            toolCalls: $toolCalls,
         );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function contents(AiChatRequest $request): array
+    {
+        if ($this->hasToolMessages($request)) {
+            $contents = [];
+
+            foreach ($request->messages as $message) {
+                $content = $this->contentFromMessage($message);
+
+                if ($content !== null) {
+                    $contents[] = $content;
+                }
+            }
+
+            if ($contents === []) {
+                return [[
+                    'role' => 'user',
+                    'parts' => [['text' => 'Please proceed.']],
+                ]];
+            }
+
+            if (($contents[0]['role'] ?? '') !== 'user') {
+                array_unshift($contents, [
+                    'role' => 'user',
+                    'parts' => [['text' => '[conversation start]']],
+                ]);
+            }
+
+            return $contents;
+        }
+
+        $messages = AiProviderMessageNormalizer::ensureStartsWithUser(
+            AiProviderMessageNormalizer::mergeConsecutive(
+                AiProviderMessageNormalizer::dialogue($request)
+            )
+        );
+
+        return array_map(static function (array $message): array {
+            return [
+                'role' => $message['role'] === 'assistant' ? 'model' : 'user',
+                'parts' => [['text' => $message['content']]],
+            ];
+        }, $messages);
+    }
+
+    /**
+     * @return array{role: string, parts: list<array<string, mixed>>}|null
+     */
+    private function contentFromMessage(AiChatMessage $message): ?array
+    {
+        if ($message->toolResponse !== null || $message->role === 'tool') {
+            $name = $message->toolName ?: 'unknown_tool';
+            $payload = $message->toolResponse ?? [];
+
+            return [
+                'role' => 'user',
+                'parts' => [[
+                    'functionResponse' => [
+                        'name' => $name,
+                        'response' => $payload === [] ? (object) [] : $payload,
+                    ],
+                ]],
+            ];
+        }
+
+        if ($message->toolCalls !== []) {
+            $parts = [];
+
+            if (trim($message->content) !== '') {
+                $parts[] = ['text' => $message->content];
+            }
+
+            foreach ($message->toolCalls as $call) {
+                $parts[] = [
+                    'functionCall' => [
+                        'name' => $call->name,
+                        'args' => $call->arguments === [] ? (object) [] : $call->arguments,
+                    ],
+                ];
+            }
+
+            return [
+                'role' => 'model',
+                'parts' => $parts,
+            ];
+        }
+
+        if (trim($message->content) === '') {
+            return null;
+        }
+
+        return [
+            'role' => $message->role === 'assistant' ? 'model' : 'user',
+            'parts' => [['text' => $message->content]],
+        ];
+    }
+
+    private function hasToolMessages(AiChatRequest $request): bool
+    {
+        foreach ($request->messages as $message) {
+            if ($message->isToolMessage()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array{name: string, description: string, parameters: array<string, mixed>}
+     */
+    private function functionDeclaration(ToolDefinition $tool): array
+    {
+        return [
+            'name' => $tool->name,
+            'description' => $tool->description,
+            'parameters' => $tool->parameters,
+        ];
     }
 }

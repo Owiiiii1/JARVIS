@@ -250,7 +250,7 @@ Phase 3: связь с conversation, состояние listening/speaking, prov
 
 ### reminders
 
-См. [REMINDERS.md](REMINDERS.md). `user_id`, source conversation/message, text, `run_at` UTC, timezone, status, recurrence nullable.
+IMPLEMENTED. См. [REMINDERS.md](REMINDERS.md). `user_id`, source conversation/message, text, `run_at` UTC, timezone, `original_local_time`, status (`scheduled|processing|delivered|cancelled|failed`), recurrence_rule nullable (логика later), metadata json (`attempts`, `next_retry_at`). Indexes: user_id, status, run_at, (status, run_at).
 
 ### projects и relations (Owner Space)
 

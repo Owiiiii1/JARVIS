@@ -13,6 +13,8 @@ interface AiProviderClient
 
     public function supportsChat(): bool;
 
+    public function supportsTools(): bool;
+
     /**
      * @return array<int, array{id: string, name: string}>
      */

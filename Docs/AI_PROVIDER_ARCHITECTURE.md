@@ -72,13 +72,19 @@ Owner Conversation AI: multi-step tool loop в одном turn. [INTEGRATIONS.md
 
 User Conversation AI: reminders (и later узкий набор). Не Gmail/Calendar/groups.
 
-Порт chat/complete возвращает text **и** tool requests. `one message ≠ max one tool call`.
+Порт chat/complete возвращает text **и** tool requests. `one message ≠ max one tool call`. Max 5 tool rounds в Core.
+
+`AiChatRequest` передаёт provider-neutral `ToolDefinition`. `AiChatResponse` возвращает text, zero or more `ToolCall`, finish reason, usage.
+
+**Gemini (production):** function calling обязателен — `tools.functionDeclarations`, `functionCall`, `functionResponse` обратно модели, затем natural-language answer. Conversation Engine не парсит Gemini JSON в ReminderService.
+
+**OpenAI / Anthropic:** chat без tools. `supportsTools=false`. Tool-enabled request им не отправляется молча.
 
 ---
 
 ## Контракт провайдера
 
-- messages + system + params;
+- messages + system + params + optional tool definitions;
 - text и tool calls;
 - usage/latency;
 - ошибки.

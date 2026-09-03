@@ -75,6 +75,9 @@ class ConversationContextBuilderTest extends TestCase
 
             $this->assertStringContainsString((string) $configuration->system_prompt, $context['system_prompt']);
             $this->assertStringContainsString('Speak like a concise engineer.', $context['system_prompt']);
+            $this->assertStringContainsString('Current user local time:', $context['system_prompt']);
+            $this->assertStringContainsString('User timezone:', $context['system_prompt']);
+            $this->assertStringContainsString('Europe/Rome', $context['system_prompt']);
 
             $bodies = array_map(static fn ($message): string => $message->content, $context['messages']);
             $this->assertContains('current inbound', $bodies);

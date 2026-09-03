@@ -320,36 +320,25 @@ Personal DM persist → recent context of the **current** conversation → Conve
 
 ---
 
-## Milestone 10 — Reminder foundation
+## Milestone 10 — Reminder foundation — **DONE 2026-09-03**
 
 **Цель.** Reminders как Core subsystem. Доступны owner и users. Delivery только Telegram. Раньше Google.
 
-**Реализуем** по [REMINDERS.md](REMINDERS.md).
+**Сделано** по [REMINDERS.md](REMINDERS.md).
 
-- Reminder Tool + Reminder Engine + scheduler/worker.
-- Relative dates в `users.timezone`; store `run_at` UTC.
-- Cross-user reminder запрещён обычному user.
-- Нет Telegram identity → сообщить, что для доставки нужно подключить Telegram.
-- Не Calendar event.
-
-**Migrations:** `reminders`; `users.timezone` если ещё нет.
-
-**Backend:** tool + worker; Telegram Adapter delivery.
-
-**Frontend:** timezone в Cabinet/profile (M8 слот допустим).
-
-**Tests:** owner и user создают свой reminder; user A не ставит user B; без pairing — отказ/пояснение; Calendar tool не вызывается.
-
-**Deploy:** queue/cron worker.
+- `reminders` table + `ReminderService` + `create_reminder` tool + Gemini function calling + multi-tool loop (max 5).
+- Relative dates через AI + `users.timezone`; store `run_at` UTC. IANA побеждает offset. DST через DateTimeZone.
+- Нет Telegram identity → reminder **не создаётся**; сообщение подключить Telegram.
+- Scheduler `jarvis:reminders:dispatch` everyMinute; production cron `schedule:run`.
+- Delivery: `⏰ Напоминание: {text}` через существующий Telegram bot. Не AI turn.
+- Recurrence schema есть, логика не реализована.
 
 **DoD**
 
 - «Напомни завтра в 11…» создаёт reminder текущего `user_id` и доходит в Telegram.
 - Google не участвует.
 
-**Зависимости:** M5, M9 (оба space умеют DM). M1 timezone.
-
-**Не входит:** web/email/push; recurrence polish; Google Calendar.
+**Не входит:** web/email/push delivery; recurrence; Google Calendar; cancel/list tools; reminder admin CRUD.
 
 ---
 

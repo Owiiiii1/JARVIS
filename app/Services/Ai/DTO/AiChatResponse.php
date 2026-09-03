@@ -6,7 +6,7 @@ final readonly class AiChatResponse
 {
     /**
      * @param  array<string, mixed>  $metadata
-     * @param  list<array<string, mixed>>  $toolCalls
+     * @param  list<ToolCall>  $toolCalls
      */
     public function __construct(
         public string $text,
@@ -19,4 +19,9 @@ final readonly class AiChatResponse
         public array $metadata = [],
         public array $toolCalls = [],
     ) {}
+
+    public function hasToolCalls(): bool
+    {
+        return $this->toolCalls !== [];
+    }
 }

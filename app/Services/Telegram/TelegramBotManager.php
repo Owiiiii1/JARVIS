@@ -163,6 +163,26 @@ class TelegramBotManager
         ];
     }
 
+    public function sendTextMessage(string $chatId, string $text): void
+    {
+        $token = (string) $this->setting()->bot_token;
+
+        if (! filled($token)) {
+            throw new RuntimeException('Telegram bot token is missing.');
+        }
+
+        $response = Http::timeout(15)->post($this->apiUrl($token, 'sendMessage'), [
+            'chat_id' => $chatId,
+            'text' => $text,
+        ]);
+
+        if (! $response->successful() || $response->json('ok') !== true) {
+            throw new RuntimeException(
+                'Telegram sendMessage failed with status '.$response->status()
+            );
+        }
+    }
+
     private function apiUrl(string $token, string $method): string
     {
         return 'https://api.telegram.org/bot'.$token.'/'.$method;

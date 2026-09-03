@@ -35,6 +35,21 @@ final class ProviderAiChatGateway implements AiChatGateway
             throw new AiConfigurationException('AI provider is not connected.');
         }
 
+        if ($request->hasTools() && ! $this->providers->supportsTools($provider)) {
+            throw new AiConfigurationException('AI provider does not support tools.');
+        }
+
         return $this->providers->chat($provider, (string) $setting->api_key, $request);
+    }
+
+    public function supportsTools(AiRoleSetting $configuration): bool
+    {
+        $provider = (string) $configuration->provider;
+
+        if ($provider === '') {
+            return false;
+        }
+
+        return $this->providers->supportsTools($provider);
     }
 }

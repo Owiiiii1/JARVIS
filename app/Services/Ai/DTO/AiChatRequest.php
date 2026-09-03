@@ -7,7 +7,7 @@ final readonly class AiChatRequest
     /**
      * @param  list<AiChatMessage>  $messages
      * @param  array<string, mixed>  $parameters
-     * @param  list<array<string, mixed>>  $tools
+     * @param  list<ToolDefinition>  $tools
      */
     public function __construct(
         public string $model,
@@ -16,6 +16,11 @@ final readonly class AiChatRequest
         public array $parameters = [],
         public array $tools = [],
     ) {}
+
+    public function hasTools(): bool
+    {
+        return $this->tools !== [];
+    }
 
     public function temperature(): ?float
     {

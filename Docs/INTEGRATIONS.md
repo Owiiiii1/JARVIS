@@ -8,7 +8,7 @@ Conversation Engine
     → provider adapter (Google / Telegram / ElevenLabs / …)
 ```
 
-Фактическое состояние: отдельного слоя нет. Telegram settings — PARTIAL. Google / ElevenLabs — отсутствуют. [CURRENT_STATE.md](CURRENT_STATE.md).
+Фактическое состояние: **Tool Layer foundation IMPLEMENTED** (`JarvisTool`, `ToolRegistry`, `ToolDefinition`, `ToolCall`, `ToolResult`). Первый tool — Core `create_reminder`, не Google. Telegram settings — PARTIAL. Google / ElevenLabs — отсутствуют. [CURRENT_STATE.md](CURRENT_STATE.md).
 
 ---
 

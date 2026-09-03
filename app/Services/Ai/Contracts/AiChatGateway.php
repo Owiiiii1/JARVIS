@@ -9,4 +9,6 @@ use App\Services\Ai\DTO\AiChatResponse;
 interface AiChatGateway
 {
     public function chat(AiRoleSetting $configuration, AiChatRequest $request): AiChatResponse;
+
+    public function supportsTools(AiRoleSetting $configuration): bool;
 }

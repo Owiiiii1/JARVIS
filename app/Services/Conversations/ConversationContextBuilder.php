@@ -10,6 +10,11 @@ use App\Models\Message;
 use App\Models\User;
 use App\Models\UserAiSetting;
 use App\Services\Ai\DTO\AiChatMessage;
+use App\Services\Ai\DTO\ToolDefinition;
+use App\Services\Tools\CreateReminderTool;
+use Carbon\CarbonImmutable;
+use DateTimeZone;
+use Exception;
 
 final class ConversationContextBuilder
 {
@@ -20,6 +25,7 @@ final class ConversationContextBuilder
     public const MAX_RECENT_LIMIT = 40;
 
     /**
+     * @param  list<ToolDefinition>  $tools
      * @return array{system_prompt: string, messages: list<AiChatMessage>}
      */
     public function build(
@@ -28,6 +34,7 @@ final class ConversationContextBuilder
         AiRoleSetting $configuration,
         ?Message $currentInbound = null,
         ?string $applicationEvent = null,
+        array $tools = [],
     ): array {
         $sections = [trim((string) $configuration->system_prompt)];
 
@@ -35,6 +42,13 @@ final class ConversationContextBuilder
 
         if ($generalPrompt !== null) {
             $sections[] = "User General Prompt:\n".$generalPrompt;
+        }
+
+        $sections[] = $this->currentTimeContext($user);
+        $toolContext = $this->toolContext($tools);
+
+        if ($toolContext !== null) {
+            $sections[] = $toolContext;
         }
 
         if (filled($applicationEvent)) {
@@ -63,6 +77,49 @@ final class ConversationContextBuilder
         $prompt = trim($prompt);
 
         return $prompt === '' ? null : $prompt;
+    }
+
+    private function currentTimeContext(User $user): string
+    {
+        $timezone = (string) ($user->timezone ?: 'UTC');
+
+        try {
+            new DateTimeZone($timezone);
+            $now = CarbonImmutable::now($timezone);
+        } catch (Exception) {
+            $timezone = 'UTC';
+            $now = CarbonImmutable::now('UTC');
+        }
+
+        return "Current user local time:\n".$now->format('Y-m-d\\TH:i:sP')."\n\nUser timezone:\n".$timezone;
+    }
+
+    /**
+     * @param  list<ToolDefinition>  $tools
+     */
+    private function toolContext(array $tools): ?string
+    {
+        if ($tools === []) {
+            return null;
+        }
+
+        $names = array_map(static fn (ToolDefinition $tool): string => $tool->name, $tools);
+        $lines = [
+            'Available tools: '.implode(', ', $names).'.',
+            'Use a tool only when the user request requires it. Never invent tools.',
+            'Never pass user_id or conversation_id as tool arguments. Identity comes from the current conversation.',
+        ];
+
+        if (in_array(CreateReminderTool::NAME, $names, true)) {
+            $lines[] = 'create_reminder creates a one-time Telegram reminder. Call it when the user asks to be reminded and the time is exact (clock time or a relative duration such as "in 2 minutes").';
+            $lines[] = 'If the day is known but the clock time is missing, ask "Во сколько напомнить?" and do not call the tool. Do not invent 09:00 or another default time.';
+            $lines[] = 'Dayparts such as "tomorrow morning" without a clock time are not exact — ask.';
+            $lines[] = 'Recurring reminders are not supported yet. If the user asks for a repeating reminder, say so and do not create a one-time reminder as a substitute.';
+            $lines[] = 'If create_reminder returns error telegram_not_connected, tell the user: Для получения напоминаний сначала подключите Telegram.';
+            $lines[] = 'After a successful create_reminder, confirm in natural language using the returned local time. Do not mention tool names.';
+        }
+
+        return implode("\n", $lines);
     }
 
     /**

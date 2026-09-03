@@ -12,8 +12,13 @@ use App\Models\Message;
 use App\Models\User;
 use App\Services\Ai\AiConfigurationResolver;
 use App\Services\Ai\Contracts\AiChatGateway;
+use App\Services\Ai\DTO\AiChatMessage;
 use App\Services\Ai\DTO\AiChatRequest;
+use App\Services\Ai\DTO\AiChatResponse;
+use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\Exceptions\AiConfigurationException;
+use App\Services\Tools\ToolExecutionContext;
+use App\Services\Tools\ToolRegistry;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -23,11 +28,14 @@ final class ConversationAiService
 
     public const AI_FAILURE = 'Не удалось получить ответ от AI. Попробуйте ещё раз позже.';
 
+    public const MAX_TOOL_ROUNDS = 5;
+
     public function __construct(
         private readonly AiConfigurationResolver $resolver,
         private readonly ConversationContextBuilder $contextBuilder,
         private readonly MessagePersistenceService $messages,
         private readonly AiChatGateway $gateway,
+        private readonly ToolRegistry $tools,
     ) {}
 
     public function completeUserTurn(Message $inbound): ConversationAiTurnResult
@@ -92,20 +100,27 @@ final class ConversationAiService
         try {
             $this->assertReady($configuration);
 
+            $toolContext = new ToolExecutionContext($user, $conversation, $inbound);
+            $toolDefinitions = $this->gateway->supportsTools($configuration)
+                ? $this->tools->definitionsFor($toolContext)
+                : [];
+
             $context = $this->contextBuilder->build(
                 $user,
                 $conversation,
                 $configuration,
                 $inbound,
                 $applicationEvent,
+                $toolDefinitions,
             );
 
-            $response = $this->gateway->chat($configuration, new AiChatRequest(
-                model: (string) $configuration->model,
-                systemPrompt: $context['system_prompt'],
-                messages: $context['messages'],
-                parameters: is_array($configuration->parameters) ? $configuration->parameters : [],
-            ));
+            $response = $this->completeWithTools(
+                $configuration,
+                $context['system_prompt'],
+                $context['messages'],
+                $toolDefinitions,
+                $toolContext,
+            );
 
             $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
             $roleKey = $configuration->roleKey()->value;
@@ -178,6 +193,58 @@ final class ConversationAiService
             }
 
             return new ConversationAiTurnResult(errorText: $errorText);
+        }
+    }
+
+    /**
+     * @param  list<AiChatMessage>  $messages
+     * @param  list<ToolDefinition>  $tools
+     */
+    private function completeWithTools(
+        AiRoleSetting $configuration,
+        string $systemPrompt,
+        array $messages,
+        array $tools,
+        ToolExecutionContext $toolContext,
+    ): AiChatResponse {
+        $rounds = 0;
+
+        while (true) {
+            $response = $this->gateway->chat($configuration, new AiChatRequest(
+                model: (string) $configuration->model,
+                systemPrompt: $systemPrompt,
+                messages: $messages,
+                parameters: is_array($configuration->parameters) ? $configuration->parameters : [],
+                tools: $tools,
+            ));
+
+            if (! $response->hasToolCalls()) {
+                if (trim($response->text) === '') {
+                    throw new AiConfigurationException('AI returned an empty assistant response.');
+                }
+
+                return $response;
+            }
+
+            if ($rounds >= self::MAX_TOOL_ROUNDS) {
+                Log::warning('AI tool loop limit reached', [
+                    'configuration' => $configuration->roleKey()->value,
+                    'provider' => $configuration->provider,
+                    'model' => $configuration->model,
+                    'error_class' => 'tool_loop_limit',
+                ]);
+
+                throw new AiConfigurationException('AI tool loop exceeded the safety limit.');
+            }
+
+            $messages[] = AiChatMessage::assistantToolCalls($response->toolCalls, $response->text);
+
+            foreach ($response->toolCalls as $call) {
+                $result = $this->tools->execute($call, $toolContext);
+                $messages[] = AiChatMessage::toolResult($result);
+            }
+
+            $rounds++;
         }
     }
 

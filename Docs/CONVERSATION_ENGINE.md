@@ -145,7 +145,15 @@ LLM здесь не участвует, если администратор пр
 
 ## Tools / actions
 
-Tool loop в одном turn: несколько последовательных calls (free/busy → create; Gmail read → Calendar create). Не `one message = max one tool call`.
+Tool loop в одном turn: несколько последовательных calls. Не `one message = max one tool call`. Safety limit: **max 5 tool rounds**.
+
+Реализовано в Core (`ConversationAiService`): AI → tool call(s) → `ToolRegistry` → tool result(s) → AI → возможно ещё tools → final answer. Telegram и Cabinet не знают, какой tool сработал.
+
+Первый tool: `create_reminder` (Reminder Engine). [REMINDERS.md](REMINDERS.md).
+
+Gemini — production provider с function calling (`functionDeclarations` / `functionCall` / `functionResponse`). OpenAI и Anthropic chat работают; tool-enabled request им **не** отправляется молча (`supportsTools=false`).
+
+Current user local datetime и IANA timezone инжектятся в system context на каждом turn.
 
 Confirmation: read-only обычно без confirm. Явная команда user авторизует write. Самопредложенный моделью write — confirm. Destructive (delete event) — повышенный confirm. [INTEGRATIONS.md](INTEGRATIONS.md).
 

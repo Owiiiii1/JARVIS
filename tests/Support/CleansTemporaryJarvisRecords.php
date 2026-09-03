@@ -7,6 +7,7 @@ use App\Enums\UserStatus;
 use App\Models\ChannelIdentity;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\Reminder;
 use App\Models\User;
 use App\Models\UserAiSetting;
 use App\Services\Users\AccessCodeGenerator;
@@ -55,6 +56,7 @@ trait CleansTemporaryJarvisRecords
             return;
         }
 
+        Reminder::query()->where('user_id', $user->id)->delete();
         Message::query()->where('user_id', $user->id)->delete();
         UserAiSetting::query()->where('user_id', $user->id)->delete();
         ChannelIdentity::query()->where('user_id', $user->id)->update(['active_conversation_id' => null]);

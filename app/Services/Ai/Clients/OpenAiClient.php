@@ -27,6 +27,11 @@ class OpenAiClient implements AiProviderClient
         return true;
     }
 
+    public function supportsTools(): bool
+    {
+        return false;
+    }
+
     public function listModels(string $apiKey): array
     {
         $response = Http::timeout(15)
@@ -59,6 +64,10 @@ class OpenAiClient implements AiProviderClient
 
     public function chat(string $apiKey, AiChatRequest $request): AiChatResponse
     {
+        if ($request->hasTools()) {
+            throw new AiProviderException('OpenAI client does not support tools yet.');
+        }
+
         $response = $this->postResponses($apiKey, $request);
 
         if ($this->shouldFallbackToCompletions($response)) {

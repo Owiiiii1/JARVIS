@@ -466,6 +466,36 @@
 
 ---
 
+## ADR-046 — Reminder без Telegram identity не создаётся
+
+**Контекст.** Delivery сейчас только Telegram. Можно было бы сохранить scheduled reminder до pairing.
+
+**Решение.** Если у User нет linked Telegram identity, reminder **не создаётся**. Сообщение: «Для получения напоминаний сначала подключите Telegram.» Не копить undeliverable rows.
+
+**Следствие.** Tool result `telegram_not_connected`. Web Cabinet тоже требует Telegram pairing для create.
+
+---
+
+## ADR-047 — Current local time инжектится каждый turn
+
+**Контекст.** Модель должна понимать «завтра», «через два часа» без hardcoded даты.
+
+**Решение.** На каждом conversation turn в system context: current user local datetime (ISO с offset) и `users.timezone`. Не hardcode.
+
+**Следствие.** Tool получает structured `run_at_local`; Core применяет IANA timezone (DST). Offset, противоречащий IANA, игнорируется в пользу IANA.
+
+---
+
+## ADR-048 — One-time reminders; recurrence later
+
+**Контекст.** Schema имеет `recurrence_rule`. Пользователь может сказать «каждый день в 9».
+
+**Решение.** Recurrence не реализуется в этом milestone. AI сообщает, что повторяющиеся напоминания не поддерживаются. Не создавать one-time reminder как подмену recurring.
+
+**Следствие.** `create_reminder` — единственный reminder tool сейчас. list/cancel later.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Алфавит generated access_code (кроме зарезервированного 2000).
@@ -475,8 +505,7 @@
 - Auth схема mobile/desktop.
 - Realtime транспорт voice/text streaming; STT/TTS/interruption — практические тесты.
 - Пороги confidence и summarization.
-- Точный enum статусов reminder и группы; набор service updates (`my_chat_member`).
+- Набор service updates (`my_chat_member`).
 - Retention raw messages по закону/желанию пользователя (отдельно от derived lifecycle).
 - UX явного переноса group knowledge → personal fact.
-- Сохранять ли reminder без Telegram identity или только отказывать в доставке.
 - Persisted capability overrides (сейчас достаточно default из role).

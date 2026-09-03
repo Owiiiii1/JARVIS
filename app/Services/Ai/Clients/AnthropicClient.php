@@ -26,6 +26,11 @@ class AnthropicClient implements AiProviderClient
         return true;
     }
 
+    public function supportsTools(): bool
+    {
+        return false;
+    }
+
     public function listModels(string $apiKey): array
     {
         $response = Http::timeout(15)
@@ -61,6 +66,10 @@ class AnthropicClient implements AiProviderClient
 
     public function chat(string $apiKey, AiChatRequest $request): AiChatResponse
     {
+        if ($request->hasTools()) {
+            throw new AiProviderException('Anthropic client does not support tools yet.');
+        }
+
         $messages = AiProviderMessageNormalizer::ensureStartsWithUser(
             AiProviderMessageNormalizer::mergeConsecutive(
                 AiProviderMessageNormalizer::dialogue($request)

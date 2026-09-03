@@ -88,7 +88,7 @@ Do not treat `.env` `APP_KEY`, `DB_PASSWORD`, or stored API/bot tokens as docume
 | TLS | Let's Encrypt, valid 2026-09-03 → 2026-12-02 | IMPLEMENTED |
 | PHP-FPM | `php8.5-fpm.service`, sock `php8.5-fpm.sock` | IMPLEMENTED |
 | Queue workers | none (no systemd unit, no Supervisor) | UNUSED |
-| Laravel scheduler | `schedule:list` empty; **no** jarvis crontab | UNUSED |
+| Laravel scheduler | `jarvis:reminders:dispatch` everyMinute; crontab `schedule:run` for `/var/www/jarvis` | IMPLEMENTED |
 | Jarvis systemd units | none | — |
 | Related host services | `nginx`, `mysql`, `php8.5-fpm` (and unrelated `php8.3-fpm`) | IMPLEMENTED |
 
@@ -120,7 +120,7 @@ Engine: MySQL 8.0.46. **16 tables**. Migrations run: **10**.
 | `channel_identities` | IMPLEMENTED (M2) |
 | `user_ai_settings` | IMPLEMENTED (M4) |
 | `ai_role_settings` | IMPLEMENTED (M4) |
-| `user_profiles` (separate) | DOCUMENTED ONLY |
+| `reminders` | IMPLEMENTED (M10) |
 | `admin_audit_logs` | DOCUMENTED ONLY |
 
 ### Jarvis-relevant tables that exist
@@ -508,7 +508,7 @@ New providers without changing Jarvis Core.
 | Calendar | PLACEHOLDER |
 | Logs | PLACEHOLDER |
 | Settings General / App | PLACEHOLDER |
-| Conversation Engine | PARTIAL (personal DM + recent window; no tools/memory) |
+| Conversation Engine | PARTIAL (personal DM + recent window + tool loop; first tool `create_reminder`) |
 | Memory Engine | DOCUMENTED ONLY |
 | Telegram Groups module | DOCUMENTED ONLY |
 | Role-based Conversation/Analysis AI | PARTIAL (configs + conversation runtime; analysis jobs later) |
@@ -518,7 +518,7 @@ New providers without changing Jarvis Core.
 | Voice / ElevenLabs | DOCUMENTED ONLY |
 | Google Calendar / Gmail | DOCUMENTED ONLY / MISSING FROM DOCS |
 | Integrations registry | DOCUMENTED ONLY / MISSING FROM DOCS |
-| Queue workers / scheduler | UNUSED |
+| Queue workers / scheduler | PARTIAL (scheduler IMPLEMENTED for reminders; queue workers unused) |
 | Redis | UNUSED |
 | CRM customers/orders/staff/services | UNUSED / LEGACY |
 
@@ -637,5 +637,11 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 ### Web Cabinet Chat — COMPLETED (2026-09-03)
 
 User Cabinet messenger UI. `/cabinet` ensures `Основной` and redirects to `/cabinet/chats/{id}`. Web and Telegram share conversations/messages and `ConversationTurnService`. Ownership 404. Web idempotency: `channel=web` + client UUID.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 10 — Reminder Engine + first Conversation Tool — COMPLETED (2026-09-03)
+
+`reminders` table; channel-neutral `ReminderService` / `ReminderDeliveryService`; Tool Layer (`create_reminder`); Gemini function calling; multi-tool loop (max 5); current local time + timezone injection; no Telegram identity → reminder not created; production scheduler + cron; Telegram delivery `⏰ Напоминание: {text}` without an AI turn; one-time only (recurrence later). Settings → Users shows `reminders_count`. Manual owner smoke awaiting.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
