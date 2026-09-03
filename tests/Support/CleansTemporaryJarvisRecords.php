@@ -11,6 +11,10 @@ use App\Models\Message;
 use App\Models\Project;
 use App\Models\Reminder;
 use App\Models\TelegramGroup;
+use App\Models\TelegramGroupAnalysisRun;
+use App\Models\TelegramGroupKnowledge;
+use App\Models\TelegramGroupKnowledgeRevision;
+use App\Models\TelegramGroupKnowledgeSource;
 use App\Models\TelegramGroupParticipant;
 use App\Models\Topic;
 use App\Models\User;
@@ -79,6 +83,11 @@ trait CleansTemporaryJarvisRecords
         Reminder::query()->where('user_id', $user->id)->delete();
         $conversationIds = Conversation::query()->where('user_id', $user->id)->pluck('id');
         $groupIds = TelegramGroup::query()->whereIn('conversation_id', $conversationIds)->pluck('id');
+        $knowledgeIds = TelegramGroupKnowledge::query()->whereIn('telegram_group_id', $groupIds)->pluck('id');
+        TelegramGroupKnowledgeRevision::query()->whereIn('knowledge_id', $knowledgeIds)->delete();
+        TelegramGroupKnowledgeSource::query()->whereIn('knowledge_id', $knowledgeIds)->delete();
+        TelegramGroupKnowledge::query()->whereIn('id', $knowledgeIds)->delete();
+        TelegramGroupAnalysisRun::query()->whereIn('telegram_group_id', $groupIds)->delete();
         TelegramGroupParticipant::query()->whereIn('telegram_group_id', $groupIds)->delete();
         Message::query()->whereIn('telegram_group_id', $groupIds)->delete();
         TelegramGroup::query()->whereIn('id', $groupIds)->delete();
@@ -125,6 +134,14 @@ trait CleansTemporaryJarvisRecords
 
         $conversationId = (int) $group->conversation_id;
         $group->projects()->detach();
+        TelegramGroupKnowledgeRevision::query()
+            ->whereIn('knowledge_id', TelegramGroupKnowledge::query()->where('telegram_group_id', $group->id)->select('id'))
+            ->delete();
+        TelegramGroupKnowledgeSource::query()
+            ->whereIn('knowledge_id', TelegramGroupKnowledge::query()->where('telegram_group_id', $group->id)->select('id'))
+            ->delete();
+        TelegramGroupKnowledge::query()->where('telegram_group_id', $group->id)->delete();
+        TelegramGroupAnalysisRun::query()->where('telegram_group_id', $group->id)->delete();
         TelegramGroupParticipant::query()->where('telegram_group_id', $group->id)->delete();
         Message::query()->where('conversation_id', $conversationId)->delete();
         $group->delete();

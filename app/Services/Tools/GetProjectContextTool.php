@@ -27,7 +27,7 @@ final class GetProjectContextTool implements JarvisTool
     {
         return new ToolDefinition(
             name: self::NAME,
-            description: 'Loads compact derived context for one of the current owner’s projects (description, attached topics, memories, and conversation summaries). Use when the user asks about a named project such as JARVIS, YFS, or RTS. Does not return raw chat transcripts. Never invent project facts if the project has no attached context.',
+            description: 'Loads compact derived context for one of the current owner’s projects (description, attached topics, memories, conversation summaries, and bounded group-derived knowledge). Use when the user asks about a named project such as JARVIS, YFS, or RTS. Does not return raw chat transcripts. Never invent project facts if the project has no attached context.',
             parameters: [
                 'type' => 'OBJECT',
                 'properties' => [

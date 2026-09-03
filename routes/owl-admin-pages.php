@@ -49,10 +49,13 @@ Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'ow
     })->name('dashboard');
 
     Route::get('/telegram-groups', [TelegramGroupController::class, 'index'])->name('telegram-groups.index');
+    Route::get('/telegram-groups/archive', [TelegramGroupController::class, 'archive'])->name('telegram-groups.archive');
     Route::get('/telegram-groups/{telegramGroup}', [TelegramGroupController::class, 'show'])->name('telegram-groups.show');
     Route::patch('/telegram-groups/{telegramGroup}', [TelegramGroupController::class, 'update'])->name('telegram-groups.update');
     Route::get('/telegram-groups/{telegramGroup}/messages', [TelegramGroupController::class, 'messages'])->name('telegram-groups.messages.index');
     Route::post('/telegram-groups/{telegramGroup}/messages', [TelegramGroupController::class, 'storeMessage'])->name('telegram-groups.messages.store');
+    Route::post('/telegram-groups/{telegramGroup}/analysis', [TelegramGroupController::class, 'storeAnalysis'])->name('telegram-groups.analysis.store');
+    Route::post('/telegram-groups/{telegramGroup}/analysis-runs/{run}/retry', [TelegramGroupController::class, 'retryAnalysis'])->name('telegram-groups.analysis.retry');
 
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');

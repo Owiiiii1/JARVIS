@@ -4,15 +4,18 @@ namespace App\Services\Groups;
 
 use App\Enums\TelegramGroupStatus;
 use App\Models\TelegramGroup;
+use App\Services\Telegram\TelegramBotManager;
 use SergiX44\Nutgram\Telegram\Properties\ChatMemberStatus;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
 use SergiX44\Nutgram\Telegram\Types\Chat\ChatMemberUpdated;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 final class TelegramGroupMembershipService
 {
     public function __construct(
         private readonly TelegramGroupDiscoveryService $discovery,
+        private readonly TelegramBotManager $telegram,
     ) {}
 
     public function handleMyChatMember(ChatMemberUpdated $update): void
@@ -45,6 +48,57 @@ final class TelegramGroupMembershipService
             'update_type' => 'my_chat_member',
             'status' => $next->value,
         ]);
+    }
+
+    /**
+     * @return 'connected'|'restricted'|'left'|'unknown'
+     */
+    public function syncFromTelegram(TelegramGroup $group): string
+    {
+        $status = $this->telegram->botMembershipStatus((string) $group->telegram_chat_id);
+
+        if ($status === 'unknown') {
+            return $status;
+        }
+
+        $next = match ($status) {
+            'left' => TelegramGroupStatus::Left,
+            'restricted' => TelegramGroupStatus::Restricted,
+            default => TelegramGroupStatus::Connected,
+        };
+
+        $group->forceFill([
+            'status' => $next,
+            'last_seen_at' => now(),
+        ])->save();
+
+        Log::info('telegram group membership', [
+            'telegram_group_id' => $group->id,
+            'update_type' => 'membership_sync',
+            'status' => $next->value,
+        ]);
+
+        return $status;
+    }
+
+    public function archiveGroupsWhereBotHasLeft(): int
+    {
+        $archived = 0;
+
+        TelegramGroup::query()->active()->orderBy('id')->each(function (TelegramGroup $group) use (&$archived): void {
+            try {
+                if ($this->syncFromTelegram($group) === 'left') {
+                    $archived++;
+                }
+            } catch (Throwable $exception) {
+                Log::warning('telegram group membership sync failed', [
+                    'telegram_group_id' => $group->id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        });
+
+        return $archived;
     }
 
     private function mapStatus(string $telegramStatus): TelegramGroupStatus

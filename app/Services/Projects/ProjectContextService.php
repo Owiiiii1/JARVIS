@@ -5,11 +5,14 @@ namespace App\Services\Projects;
 use App\Enums\ConversationSummaryStatus;
 use App\Enums\MemoryStatus;
 use App\Enums\ProjectStatus;
+use App\Enums\TelegramGroupKnowledgeStatus;
+use App\Enums\TelegramGroupKnowledgeType;
 use App\Models\Conversation;
 use App\Models\ConversationSummary;
 use App\Models\Memory;
 use App\Models\Project;
 use App\Models\TelegramGroup;
+use App\Models\TelegramGroupKnowledge;
 use App\Models\Topic;
 use App\Models\User;
 use App\Services\Memory\MemoryKeyNormalizer;
@@ -43,6 +46,7 @@ final class ProjectContextService
             'memories' => $this->memories($user, $project, $tokens),
             'conversation_summaries' => $this->summaries($user, $project, $tokens),
             'groups' => $this->groups($project),
+            'group_knowledge' => $this->groupKnowledge($project, $tokens),
         ];
     }
 
@@ -211,6 +215,51 @@ final class ProjectContextService
                 'chat_type' => $group->chat_type,
             ])
             ->all();
+    }
+
+    /**
+     * @param  list<string>  $tokens
+     * @return list<array{group_id: int, group_title: string|null, type: string, content: string, confidence: float|null, status: string}>
+     */
+    private function groupKnowledge(Project $project, array $tokens): array
+    {
+        $max = (int) config('projects.max_group_knowledge');
+        $maxSummaries = (int) config('projects.max_group_summaries');
+        $groupIds = $project->telegramGroups()->pluck('telegram_groups.id');
+
+        if ($groupIds->isEmpty()) {
+            return [];
+        }
+
+        $rows = TelegramGroupKnowledge::query()
+            ->whereIn('telegram_group_id', $groupIds)
+            ->where('status', TelegramGroupKnowledgeStatus::Active)
+            ->with('group:id,title')
+            ->orderByDesc('generated_at')
+            ->orderByDesc('id')
+            ->limit(max($max * 3, $max))
+            ->get();
+
+        $summaries = $rows
+            ->where('type', TelegramGroupKnowledgeType::Summary)
+            ->take($maxSummaries);
+        $others = $rows
+            ->reject(static fn (TelegramGroupKnowledge $row): bool => $row->type === TelegramGroupKnowledgeType::Summary);
+
+        $ranked = $this->rank(
+            $others,
+            $tokens,
+            static fn (TelegramGroupKnowledge $row): string => $row->content.' '.$row->type->value.' '.($row->group?->title ?? ''),
+        )->take(max(0, $max - $summaries->count()));
+
+        return $summaries->concat($ranked)->map(static fn (TelegramGroupKnowledge $row): array => [
+            'group_id' => (int) $row->telegram_group_id,
+            'group_title' => $row->group?->title,
+            'type' => $row->type->value,
+            'content' => $row->content,
+            'confidence' => $row->confidence,
+            'status' => $row->status->value,
+        ])->values()->all();
     }
 
     /**

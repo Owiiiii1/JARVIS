@@ -438,30 +438,26 @@ Personal DM persist → recent context of the **current** conversation → Conve
 
 ## Milestone 14 — Group Analysis
 
+**Статус.** COMPLETED (2026-09-04).
+
 **Цель.** Owner Analysis AI по group raw: Summary / Decision / Task / Event-Fact. Hierarchical jobs. Group timezone.
 
-**Реализуем** owner-only; group knowledge ≠ personal memory. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
+**Реализовано** owner-only (`group_analysis`); group knowledge ≠ personal memory. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
 
 - Date range per `telegram_groups.timezone` (fallback owner timezone).
 - Никогда не слать весь archive одним prompt: chunk → per group → reduce.
+- Tables: `telegram_group_analysis_runs`, `telegram_group_knowledge`, `telegram_group_knowledge_sources`, `telegram_group_knowledge_revisions`.
+- Manual Admin/CLI run; no auto analysis on inbound group messages.
+- `get_project_context` may include bounded ACTIVE derived group knowledge; never raw group dump.
+- Personal `ConversationContextBuilder` / `PersonalMemoryRetriever` do not ingest group knowledge.
 
-**Migrations:** group knowledge rows; `telegram_groups.timezone` если ещё нет.
+**Frontend:** Admin Telegram Group page — Analyze today / yesterday / last 7 days / custom range; tabs Summary, Decisions, Tasks, Events/Facts, Analysis Runs; source message highlight.
 
-**Backend:** analysis jobs; retrieval filters; owner-only.
+**Tests:** `tests/Feature/GroupAnalysisTest.php` (fake Owner Analysis AI; no live Gemini).
 
-**Frontend:** admin group analysis actions `TBD`.
+**Deploy:** existing memory/default worker also consumes `analysis`.
 
-**Tests:** user cannot query group knowledge; full dump not sent; timezone used for «сегодня».
-
-**Deploy:** workers.
-
-**DoD**
-
-- Owner может получить выжимку; raw сохранён; derived types с provenance.
-
-**Зависимости:** M11, M12.
-
-**Не входит:** auto-reply; owner DM tool search (M15).
+**Не входит:** auto-reply; owner DM dedicated Group Search tool (M15).
 
 ---
 

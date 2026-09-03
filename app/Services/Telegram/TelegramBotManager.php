@@ -191,6 +191,55 @@ class TelegramBotManager
         ];
     }
 
+    /**
+     * @return 'connected'|'restricted'|'left'|'unknown'
+     */
+    public function botMembershipStatus(string $chatId): string
+    {
+        $token = (string) $this->setting()->bot_token;
+
+        if (! filled($token)) {
+            throw new RuntimeException('Telegram bot token is missing.');
+        }
+
+        $me = Http::timeout(15)->get($this->apiUrl($token, 'getMe'));
+
+        if (! $me->successful() || $me->json('ok') !== true) {
+            throw new RuntimeException('Telegram getMe failed.');
+        }
+
+        $botId = $me->json('result.id');
+
+        if ($botId === null) {
+            throw new RuntimeException('Telegram getMe returned no bot id.');
+        }
+
+        $response = Http::timeout(15)->post($this->apiUrl($token, 'getChatMember'), [
+            'chat_id' => $chatId,
+            'user_id' => $botId,
+        ]);
+
+        if (! $response->successful() || $response->json('ok') !== true) {
+            $class = TelegramSendException::classify(
+                (string) ($response->json('description') ?? ''),
+                (int) ($response->json('error_code') ?? $response->status()),
+            );
+
+            return in_array($class, ['kicked', 'not_found', 'forbidden'], true)
+                ? 'left'
+                : 'unknown';
+        }
+
+        $status = (string) ($response->json('result.status') ?? '');
+
+        return match ($status) {
+            'left', 'kicked' => 'left',
+            'restricted' => 'restricted',
+            'member', 'administrator', 'creator' => 'connected',
+            default => 'unknown',
+        };
+    }
+
     private function apiUrl(string $token, string $method): string
     {
         return 'https://api.telegram.org/bot'.$token.'/'.$method;

@@ -13,7 +13,7 @@ Jarvis не зависит от одного HTTP API и одной модели
 | Config | Кто использует | Назначение |
 | --- | --- | --- |
 | **Owner Conversation AI** | только Owner Space | общение owner, tool calls (Calendar/Gmail/group search/reminders) |
-| **Owner Analysis AI** | jobs (any user_id scope) | personal memory extract, conversation summaries; groups/projects later |
+| **Owner Analysis AI** | jobs (any user_id scope + group analysis) | personal memory extract, conversation summaries; M14 Telegram group knowledge (`telegram_group_knowledge`) |
 | **Default User Conversation AI** | все User Spaces | общение обычных users; **не** наследует Owner Conversation AI |
 
 Каждая:
@@ -28,7 +28,7 @@ Owner может держать дорогую модель; users — отде�
 
 Optional **later**: per-user model override поверх Default User Conversation AI. Не обязателен для MVP.
 
-Analysis AI **не** обслуживает обычный user DM. Background Memory Engine uses Owner Analysis AI as the analysis engine; derived rows stay on the source `user_id`. User A output never becomes User B context.
+Analysis AI **не** обслуживает обычный user DM. Background Memory Engine uses Owner Analysis AI as the analysis engine; derived rows stay on the source `user_id`. User A output never becomes User B context. M14 Group Analysis also uses **only** Owner Analysis AI and writes `telegram_group_knowledge` (never personal `memories`).
 
 Слоты later (classification, embeddings, …) выделяются из Owner Analysis без смены engines.
 
@@ -46,7 +46,8 @@ resolveConversationAI(user):
 ```
 resolveAnalysisAI():
   → Owner Analysis AI
-  (background memory extract/summaries for any user; result scope is always source user_id)
+  (background memory extract/summaries for any user — result scope is always source user_id;
+   M14 group analysis — result scope is telegram_group_id, never personal memory)
 ```
 
 Conversation Engine не знает vendor. Не `if user_id === 1`.
@@ -71,7 +72,7 @@ User General Prompt редактирует **сам user** в Cabinet (owner —
 
 ## Tools
 
-Owner Conversation AI: multi-step tool loop в одном turn. [INTEGRATIONS.md](INTEGRATIONS.md). Tools: `create_reminder`, `search_conversation_history`, `get_project_context` (owner-only).
+Owner Conversation AI: multi-step tool loop в одном turn. [INTEGRATIONS.md](INTEGRATIONS.md). Tools: `create_reminder`, `search_conversation_history`, `get_project_context` (owner-only; may include bounded group-derived knowledge for attached groups). Dedicated `search_groups` is M15.
 
 User Conversation AI: reminder + history search. Не Gmail/Calendar/groups/projects.
 

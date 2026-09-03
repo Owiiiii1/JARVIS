@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\TelegramGroupStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -65,6 +66,31 @@ class TelegramGroup extends Model
     {
         return $this->belongsToMany(Project::class, 'project_groups')
             ->withPivot(['attached_at', 'metadata']);
+    }
+
+    public function knowledge(): HasMany
+    {
+        return $this->hasMany(TelegramGroupKnowledge::class);
+    }
+
+    public function analysisRuns(): HasMany
+    {
+        return $this->hasMany(TelegramGroupAnalysisRun::class);
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('status', '!=', TelegramGroupStatus::Left);
+    }
+
+    public function scopeArchived(Builder $query): Builder
+    {
+        return $query->where('status', TelegramGroupStatus::Left);
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->status === TelegramGroupStatus::Left;
     }
 
     public function mode(): string

@@ -154,6 +154,7 @@ class ProjectController extends Controller
                 ])
                 ->all(),
             'availableGroups' => TelegramGroup::query()
+                ->active()
                 ->whereNotIn('id', $attachedGroupIds)
                 ->orderBy('title')
                 ->limit(50)

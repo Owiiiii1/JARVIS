@@ -122,7 +122,7 @@
 
 **Решение.** Group history и group knowledge отделены от personal conversation history и personal memory. Memory Engine хранит scope и provenance. История группы не становится personal fact автоматически.
 
-**Следствие.** Analysis пишет в group knowledge. Conversation package видит это только если запрос про группу (или явный перенос, `TBD`).
+**Следствие.** Analysis пишет в `telegram_group_knowledge` (M14), never into personal `memories`. Conversation package does not auto-mix group knowledge. M14 may surface bounded derived facts via `get_project_context` when a group is attached to a project. Dedicated Group Search in owner DM is M15.
 
 ---
 
@@ -604,7 +604,17 @@
 
 **Решение.** `telegram_group_participants` has no FK to `users`. Participant rows exist only for a real Telegram `from` user. `sender_chat` / anonymous admin stores sender metadata on the message only.
 
-**Следствие.** Group analysis later attributes text to participants, not personal memory of a Jarvis User.
+**Следствие.** Group analysis attributes text to participants / display names, not personal memory of a Jarvis User. M14 writes `telegram_group_knowledge` only.
+
+---
+
+## ADR-060 — Group knowledge is a separate table, not personal memories
+
+**Контекст.** Personal Memory Engine already uses `memories` with `scope=personal` + `user_id`. Reusing that table for Telegram groups would mix owner facts with group chat extract, including when the owner authored a group message.
+
+**Решение.** M14 stores derived group facts in `telegram_group_knowledge` keyed by `telegram_group_id`. Provenance is `telegram_group_knowledge_sources`. Runs are `telegram_group_analysis_runs`. Analysis is manual/async Owner Analysis AI (queue `analysis`). Hierarchical chunk/reduce; structured JSON validation; dedupe via `normalized_key`; supersede via status + revisions. Group tasks are not Reminders. `analysis_enabled` / `daily_summary_enabled` default false. No dedicated `search_groups` tool in M14.
+
+**Следствие.** PersonalMemoryRetriever and ConversationContextBuilder ignore group knowledge. Project context may include bounded ACTIVE derived rows only. Owner DM Group Search is M15.
 
 ---
 

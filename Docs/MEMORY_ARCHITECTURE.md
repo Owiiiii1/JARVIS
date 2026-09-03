@@ -85,7 +85,8 @@ New Chat обнуляет raw/working **этого** чата. Structured memory
 - **telegram_groups** / **telegram_group_participants** — discovery групп и участники.
 - **topics** — устойчивые темы с owner (`user` | `group` | `global`).
 - **message_topic_relations** — many-to-many, с весом/confidence классификации.
-- **memories** — факты с **owner/scope** (`personal` + `user_id` | `group_knowledge` | `global/system`) и provenance.
+- **memories** — факты с **owner/scope** (`personal` + `user_id`; conceptual `group_knowledge` / `global/system` later). **M14 group facts are NOT this table** — they live in `telegram_group_knowledge`.
+- **telegram_group_knowledge** / **telegram_group_knowledge_sources** / **telegram_group_knowledge_revisions** / **telegram_group_analysis_runs** — M14 Group Analysis. Owner = `telegram_group_id`. Never written by personal memory jobs.
 - **memory_topics** — привязка фактов к темам.
 - **entities** — люди, проекты, места, вещи (`TBD` глубина в Phase 2 vs later).
 - **entity_relations** — связи («проект X принадлежит клиенту Y»), без обязательного graph DB.
@@ -118,7 +119,7 @@ Topic classification и memory extraction — **разные** шаги. Их м
 
 Каждая derived-запись несёт как минимум:
 
-- **scope** — `personal` | `group_knowledge` | `global_system`
+- **scope** — personal memories: `personal` + `user_id`. Group derived knowledge is a **separate table** (`telegram_group_knowledge`), not `memories.scope=group_knowledge`.
 - **owner** — для `personal` обязателен `user_id`; для group — group id; global — без user
 - **source_kind** — `direct_conversation` | `telegram_group` | `summary` | `manual_admin` | иное
 - **source_group_id** — если источник группа
@@ -205,7 +206,7 @@ incoming personal message
   → incremental conversation summary at threshold
 ```
 
-Групповой inbound не идёт в этот reply-цикл: persist → optional Analysis AI → group knowledge. См. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
+Групповой inbound не идёт в этот reply-цикл: persist only. Group Analysis is **manual async** Owner Analysis AI (`AnalyzeTelegramGroupRangeJob` on queue `analysis`) writing `telegram_group_knowledge`. It never writes `memories` / `user_profiles` / personal topics. См. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
 
 Шаги analysis/extraction после ответа могут быть асинхронными. См. [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md).
 

@@ -1,5 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { Plus, X } from 'lucide-react';
 import { useState } from 'react';
 
@@ -21,7 +21,6 @@ export default function ProjectsIndex() {
             topics: 'Topics',
             memories: 'Memories',
             updated: 'Updated',
-            open: 'Open',
             archive: 'Archive',
             restore: 'Restore',
             cancel: 'Cancel',
@@ -39,7 +38,6 @@ export default function ProjectsIndex() {
             topics: 'Topics',
             memories: 'Memories',
             updated: 'Updated',
-            open: 'Open',
             archive: 'Archive',
             restore: 'Restore',
             cancel: 'Cancel',
@@ -57,7 +55,6 @@ export default function ProjectsIndex() {
             topics: 'Topics',
             memories: 'Memories',
             updated: 'Updated',
-            open: 'Open',
             archive: 'Archive',
             restore: 'Restore',
             cancel: 'Cancel',
@@ -107,7 +104,18 @@ export default function ProjectsIndex() {
                                 </tr>
                             ) : (
                                 projects.map((project) => (
-                                    <tr key={project.id}>
+                                    <tr
+                                        key={project.id}
+                                        className="cursor-pointer transition hover:bg-amber-50/60"
+                                        tabIndex={0}
+                                        onClick={() => router.visit(route('projects.show', project.id))}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter' || event.key === ' ') {
+                                                event.preventDefault();
+                                                router.visit(route('projects.show', project.id));
+                                            }
+                                        }}
+                                    >
                                         <td className="px-4 py-3 font-medium text-slate-900">{project.name}</td>
                                         <td className="px-4 py-3 capitalize">{project.status}</td>
                                         <td className="px-4 py-3">{project.conversations_count}</td>
@@ -116,34 +124,30 @@ export default function ProjectsIndex() {
                                         <td className="px-4 py-3 text-slate-500">
                                             {project.updated_at ? new Date(project.updated_at).toLocaleString() : '—'}
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex flex-wrap gap-2">
+                                        <td
+                                            className="px-4 py-3"
+                                            onClick={(event) => event.stopPropagation()}
+                                            onKeyDown={(event) => event.stopPropagation()}
+                                        >
+                                            {project.status === 'archived' ? (
                                                 <Link
-                                                    href={route('projects.show', project.id)}
+                                                    href={route('projects.restore', project.id)}
+                                                    method="post"
+                                                    as="button"
                                                     className="inline-flex h-8 items-center rounded-lg border border-slate-300 px-3 text-xs font-medium hover:bg-slate-50"
                                                 >
-                                                    {t.open}
+                                                    {t.restore}
                                                 </Link>
-                                                {project.status === 'archived' ? (
-                                                    <Link
-                                                        href={route('projects.restore', project.id)}
-                                                        method="post"
-                                                        as="button"
-                                                        className="inline-flex h-8 items-center rounded-lg border border-slate-300 px-3 text-xs font-medium hover:bg-slate-50"
-                                                    >
-                                                        {t.restore}
-                                                    </Link>
-                                                ) : (
-                                                    <Link
-                                                        href={route('projects.archive', project.id)}
-                                                        method="post"
-                                                        as="button"
-                                                        className="inline-flex h-8 items-center rounded-lg border border-slate-300 px-3 text-xs font-medium hover:bg-slate-50"
-                                                    >
-                                                        {t.archive}
-                                                    </Link>
-                                                )}
-                                            </div>
+                                            ) : (
+                                                <Link
+                                                    href={route('projects.archive', project.id)}
+                                                    method="post"
+                                                    as="button"
+                                                    className="inline-flex h-8 items-center rounded-lg border border-slate-300 px-3 text-xs font-medium hover:bg-slate-50"
+                                                >
+                                                    {t.archive}
+                                                </Link>
+                                            )}
                                         </td>
                                     </tr>
                                 ))

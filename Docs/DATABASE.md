@@ -43,7 +43,7 @@ Platform configs live in **`ai_role_settings`** (not `is_active`):
 | role_key | Purpose |
 | --- | --- |
 | `owner_conversation` | Owner Space personal DM |
-| `owner_analysis` | Future jobs; not used in DM |
+| `owner_analysis` | Background jobs: personal memory extraction (M12) and Telegram group analysis (M14); not used in DM |
 | `user_conversation` | All User Spaces |
 
 Fields: provider, model, system_prompt, parameters json, is_enabled. Credentials remain in `ai_provider_settings`.
@@ -70,7 +70,7 @@ Unique `(channel, external_id)`. Создаётся только после ве
 Логический тред. Не обязан 1:1 совпадать с Telegram chat навсегда.
 
 - `user_id` — **обязателен** для personal (`kind=personal`); владелец чата
-- `kind`: `personal` | later `group`
+- `kind`: `personal` | `group`
 - `title`
 - `status` (active / archived / …)
 - `last_activity_at`
@@ -183,7 +183,7 @@ Production MySQL (`2026_09_03_220000_create_memory_engine_tables`):
 - `user_profiles` — compact `summary` per `user_id`, `updated_from_memory_at`.
 - `memory_analysis_runs` — job idempotency per conversation/type/message range.
 
-`memory_topics`, group knowledge, entities — not in M12 runtime. Group schema later M14.
+`memory_topics` and entities — not in M12 runtime. **Group knowledge is not stored in `memories`.** M14 uses dedicated tables (below).
 
 Indexes: `user_id`, `conversation_id`, memory `(user_id, status, confidence)`, topic `normalized_name`, summary status/version.
 
@@ -256,7 +256,42 @@ IMPLEMENTED M11. Unique `(telegram_group_id, telegram_user_id)`. Display name / 
 
 ### messages (group columns)
 
-M11 added nullable `telegram_group_id`, `sender_external_id`, `sender_username`, `sender_name`, `reply_to_channel_message_id`, `thread_id`, `edited_at`. Idempotency remains `(channel, conversation_id, channel_message_id)`. `parent_message_id` stays AI reply linkage only.
+M11 added nullable `telegram_group_id`, `sender_external_id`, `sender_username`, `sender_name`, `reply_to_channel_message_id`, `thread_id`, `edited_at`. Idempotency remains `(channel, conversation_id, channel_message_id)`. `parent_message_id` stays AI reply linkage only. Analysis uses the current body after edit; previous edited text is not analysed in M14.
+
+### telegram_group_analysis_runs
+
+IMPLEMENTED M14. One job/range of Owner Analysis AI over a group.
+
+- `telegram_group_id` FK
+- `analysis_type` (`range_bundle` — one run yields summary + decisions + tasks + events)
+- `from_at` / `to_at` UTC
+- `status` `queued|processing|completed|failed`
+- `attempts`, `provider`, `model`, `started_at`, `completed_at`, `last_error`
+- `idempotency_key` (group + type + unix from/to); queued/processing runs are reused
+- `metadata` json (`no_data`, chunk_count, generated counts)
+
+### telegram_group_knowledge
+
+IMPLEMENTED M14. Derived group facts. **Not** personal `memories`. Owner is `telegram_group_id`.
+
+- `type` `summary|decision|task|event_fact`
+- `content`, `title` nullable, `structured_data` json (task assignee/due, decision payload, optional `thread_id`)
+- `confidence`, `status` `active|superseded|obsolete|disputed`
+- `normalized_key` for MVP dedupe
+- `valid_from` / `valid_until`
+- `source_from_message_id` / `source_to_message_id`
+- `supersedes_id` nullable self-FK
+- `generated_by_provider` / `generated_by_model` / `generated_at`
+- `analysis_run_id` nullable
+- `metadata` json
+
+### telegram_group_knowledge_sources
+
+IMPLEMENTED M14. Unique `(knowledge_id, message_id)`. Required provenance.
+
+### telegram_group_knowledge_revisions
+
+IMPLEMENTED M14. Trail on supersede/reinforce content change.
 
 ### admin_audit_logs (концептуально)
 
@@ -297,6 +332,10 @@ users 1—N projects (owner space)
 channel_identities.active_conversation_id → conversations (тот же user_id)
 telegram_groups 1—1 conversations (kind=group)
 telegram_groups 1—N telegram_group_participants
+telegram_groups 1—N telegram_group_knowledge
+telegram_group_knowledge 1—N telegram_group_knowledge_sources → messages
+telegram_group_knowledge 1—N telegram_group_knowledge_revisions
+telegram_groups 1—N telegram_group_analysis_runs
 conversations 1—N messages
 topics.owner → user | group | global
 users 1—N memories (scope=personal + user_id)
@@ -306,7 +345,7 @@ memories 1—N revisions
 memories N—N messages (sources)
 conversations 1—N summaries
 projects N—N conversations / topics / memories / telegram_groups
-project_groups implemented M11; group knowledge — later
+project_groups implemented M11; group knowledge via `get_project_context` (M14 derived rows, no extra pivot)
 ```
 
 ---

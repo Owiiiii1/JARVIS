@@ -1,5 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 
 function formatStamp(iso, timezone) {
     if (!iso) {
@@ -18,36 +18,76 @@ function formatStamp(iso, timezone) {
 }
 
 export default function TelegramGroupsIndex() {
-    const { groups = [], locale = 'en' } = usePage().props;
+    const {
+        groups = [],
+        locale = 'en',
+        archived = false,
+        archivedCount = 0,
+        activeCount = 0,
+    } = usePage().props;
     const t = locale === 'ru'
         ? {
             title: 'Telegram Groups',
+            archiveTitle: 'Архив групп',
             empty: 'Пока нет групп. Добавьте бота в Telegram-группу — она появится после первого сообщения.',
-            open: 'Open',
+            emptyArchive: 'Нет архивных групп. Когда бот покинет чат, группа перейдёт сюда вместе с историей.',
             messages: 'Messages',
             firstSeen: 'First seen',
             lastMessage: 'Last message',
             timezone: 'Timezone',
             fallback: 'owner fallback',
             mode: 'Mode',
+            active: 'Активные',
+            archive: 'Архив',
         }
         : {
             title: 'Telegram Groups',
+            archiveTitle: 'Group archive',
             empty: 'No groups yet. Add the bot to a Telegram group — it will appear after the first update.',
-            open: 'Open',
+            emptyArchive: 'No archived groups. When the bot leaves a chat, that group moves here with its history.',
             messages: 'Messages',
             firstSeen: 'First seen',
             lastMessage: 'Last message',
             timezone: 'Timezone',
             fallback: 'owner fallback',
             mode: 'Mode',
+            active: 'Active',
+            archive: 'Archive',
         };
 
+    const pageTitle = archived ? t.archiveTitle : t.title;
+
     return (
-        <AdminLayout title={t.title}>
-            <Head title={t.title} />
+        <AdminLayout title={pageTitle}>
+            <Head title={pageTitle} />
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+                <button
+                    type="button"
+                    onClick={() => router.visit(route('telegram-groups.index'))}
+                    className={`inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium ${
+                        archived
+                            ? 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                            : 'bg-[#0B1220] text-white'
+                    }`}
+                >
+                    {t.active}
+                    <span className="ml-2 text-xs opacity-80">{activeCount}</span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => router.visit(route('telegram-groups.archive'))}
+                    className={`inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium ${
+                        archived
+                            ? 'bg-[#0B1220] text-white'
+                            : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                >
+                    {t.archive}
+                    <span className="ml-2 text-xs opacity-80">{archivedCount}</span>
+                </button>
+            </div>
             {groups.length === 0 ? (
-                <p className="text-sm text-slate-600">{t.empty}</p>
+                <p className="text-sm text-slate-600">{archived ? t.emptyArchive : t.empty}</p>
             ) : (
                 <div className="overflow-x-auto">
                     <table className="min-w-full text-left text-sm">
@@ -61,12 +101,22 @@ export default function TelegramGroupsIndex() {
                                 <th className="px-3 py-2 font-medium">{t.lastMessage}</th>
                                 <th className="px-3 py-2 font-medium">{t.timezone}</th>
                                 <th className="px-3 py-2 font-medium">{t.mode}</th>
-                                <th className="px-3 py-2 font-medium" />
                             </tr>
                         </thead>
                         <tbody>
                             {groups.map((group) => (
-                                <tr key={group.id} className="border-b border-slate-100">
+                                <tr
+                                    key={group.id}
+                                    className="cursor-pointer border-b border-slate-100 transition hover:bg-amber-50/60"
+                                    tabIndex={0}
+                                    onClick={() => router.visit(route('telegram-groups.show', group.id))}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter' || event.key === ' ') {
+                                            event.preventDefault();
+                                            router.visit(route('telegram-groups.show', group.id));
+                                        }
+                                    }}
+                                >
                                     <td className="px-3 py-3 font-medium text-slate-900">{group.title}</td>
                                     <td className="px-3 py-3 text-slate-600">{group.chat_type}</td>
                                     <td className="px-3 py-3">
@@ -88,14 +138,6 @@ export default function TelegramGroupsIndex() {
                                         ) : null}
                                     </td>
                                     <td className="px-3 py-3 text-slate-600">Persist only</td>
-                                    <td className="px-3 py-3 text-right">
-                                        <Link
-                                            href={route('telegram-groups.show', group.id)}
-                                            className="text-sm font-medium text-amber-800 hover:text-amber-950"
-                                        >
-                                            {t.open}
-                                        </Link>
-                                    </td>
                                 </tr>
                             ))}
                         </tbody>

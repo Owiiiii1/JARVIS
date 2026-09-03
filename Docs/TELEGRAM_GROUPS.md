@@ -1,6 +1,6 @@
 # Telegram Groups
 
-**Status (M11):** IMPLEMENTED for discovery, raw persist, participants, owner Admin messenger, outbound, timezone, `project_groups` attach. **Not implemented:** group analysis, mention/auto-reply, media blob download.
+**Status (M14):** IMPLEMENTED for discovery, raw persist, participants, owner Admin messenger, outbound, timezone, `project_groups` attach, and **manual async Group Analysis** into a separate Group Knowledge layer. **Not implemented:** mention/auto-reply, dedicated Group Search tool in personal DM (M15), media blob download, automatic per-message analysis.
 
 Отдельный модуль Jarvis. Бот может состоять во многих Telegram-группах. Группы **не** создаются вручную в админке: факт подключения появляется из входящего Telegram update. ADR-011.
 
@@ -8,7 +8,7 @@ Telegram остаётся **channel adapter**. Модуль Groups живёт в
 
 Личные DM любого Jarvis User и групповые чаты — **разные области**. ADR-012, ADR-056, ADR-057.
 
-**Admin Groups и group knowledge — только Owner Space** (`telegram_groups`, later `group_analysis`). Обычный user не видит группы и не получает group knowledge в personal prompt.
+**Admin Groups и group knowledge — только Owner Space** (`telegram_groups`, `group_analysis`). Обычный user не видит группы и не получает group knowledge в personal prompt.
 
 Каждая группа: `timezone` (IANA). Owner задаёт в Group Settings. Если пусто — **owner timezone**.
 
@@ -19,16 +19,6 @@ Group conversation: `conversations.user_id` остаётся NOT NULL, поэт�
 ### Privacy mode (manual Telegram prerequisite)
 
 Bots with Group Privacy ON receive only a subset of group messages (commands, mentions, replies to the bot). Full passive history requires the owner to disable privacy in BotFather (`/setprivacy` → Disable) and, if needed, grant the bot group admin/read rights. Cursor does not change BotFather settings. Until that is done, Jarvis can only persist updates Telegram actually sends. ADR-058.
-
-Подробности памяти: [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md). Роли моделей: [AI_PROVIDER_ARCHITECTURE.md](AI_PROVIDER_ARCHITECTURE.md).
-
-Telegram остаётся **channel adapter**. Модуль Groups живёт в Core (регистрация, persistence, политики, анализ) и в Admin Panel (просмотр и исходящие сообщения). Вызовы Bot API — только через Telegram Channel Adapter. ADR-015.
-
-Личные DM любого Jarvis User и групповые чаты — **разные области**. ADR-012.
-
-**Admin Groups и group knowledge — только Owner Space** (`telegram_groups`, `group_analysis`). Обычный user не видит группы и не получает group knowledge в personal prompt.
-
-Каждая группа: `timezone` (IANA). Owner задаёт в Group Settings. Для today/yesterday/morning/daily summaries / date-range. Если пусто — **owner timezone**.
 
 Подробности памяти: [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md). Роли моделей: [AI_PROVIDER_ARCHITECTURE.md](AI_PROVIDER_ARCHITECTURE.md).
 
@@ -217,14 +207,14 @@ Conversation Engine для **личных** DM по-прежнему отвеч�
 - только сохранять (дефолт);
 - отвечать при mention / reply на бота;
 - разрешить активные ответы;
-- periodic summaries;
+- periodic summaries (config exists, scheduler **off** by default);
 - извлекать tasks / decisions / important events.
 
-Первый этап документирует слот политики; реализация — later. Analysis jobs читают policy, adapter её не интерпретирует как AI.
+`analysis_enabled` and `daily_summary_enabled` default **false**. M14 runtime is **manual Admin (or CLI) run**, not analysis on every inbound group message. Analysis jobs read group raw; the Telegram adapter does not interpret policy as AI.
 
 ---
 
-## Analysis
+## Analysis (M14 runtime)
 
 Зачем хранить группы: последующие вопросы владельца, например:
 
@@ -233,48 +223,45 @@ Conversation Engine для **личных** DM по-прежнему отвеч�
 - что про проект Jarvis;
 - что обещал Иван;
 - новые дедлайны;
-- выжимка за неделю;
-- найти обсуждение проблемы.
+- выжимка за неделю.
 
-Делает **Owner Analysis AI**, не User Conversation AI. Вся raw history групп хранится в нашей DB — это нормально. **Никогда** не слать весь archive одним prompt.
+Делает **Owner Analysis AI**, не Owner Conversation AI и не Default User Conversation AI. Вся raw history групп хранится в нашей DB — это нормально. **Никогда** не слать весь archive одним prompt.
 
-Derived types (group knowledge, не personal memory):
+Derived types живут в `telegram_group_knowledge`, **не** в personal `memories`:
 
 | Type | Смысл |
 | --- | --- |
-| Summary | что обсуждали |
-| Decision | что решили |
-| Task | кто что должен |
-| Event / Fact | что произошло / изменилось |
+| Summary | что обсуждали (concise: topics, developments, unresolved questions) |
+| Decision | явное agreement / решение, не «может» / вопрос |
+| Task | кто что должен (`assignee_text` only; **not** a Reminder) |
+| Event / Fact | заметное изменение состояния |
 
-У каждой: group provenance, source messages, timestamps, confidence, analysis model metadata.
+У каждой записи: `telegram_group_id`, provenance (`telegram_group_knowledge_sources`), confidence, status (`active` / `superseded` / `obsolete` / `disputed`), provider/model metadata. Без source messages derived fact не сохраняется.
 
-### Hierarchical analysis (большие объёмы)
+User-facing ranges («сегодня», «вчера», custom dates) считаются в `telegram_groups.timezone` (fallback owner timezone) через `GroupTimeRangeService`. DB timestamps остаются UTC. DST учитывается Carbon/IANA.
 
-Запрос «анализ за сегодня по всем группам»:
+### Hierarchical analysis
 
-1. date range **per group timezone** (fallback owner timezone);
-2. retrieve messages;
-3. chunk;
-4. analyse chunks;
-5. aggregate per group;
-6. reduce across groups.
+1. date range per group timezone;
+2. retrieve bounded messages in range;
+3. chunk (`config/group_analysis.php`: max messages/chars/chunks);
+4. analyse each chunk (one structured JSON: summary + decisions + tasks + events);
+5. if chunks > 1: reduce (dedupe/merge, union provenance, no invented facts);
+6. persist final knowledge with dedupe/supersede.
 
-Jobs/queue. Не зависеть от одного context window.
+Empty range: **no LLM call**; run `completed` with `metadata.no_data=true`.
+
+Job: `AnalyzeTelegramGroupRangeJob` on queue `analysis`. Worker: `--queue=analysis,memory,default`. HTTP Admin returns immediately (`Analysis queued`). Idempotency: queued/processing run for the same group+range+mode is reused. Completed runs are not silently reprocessed; overlapping later runs reinforce or supersede knowledge instead of duplicating active facts.
+
+CLI (do not run unless asked): `php artisan jarvis:groups:analyze --group= --from= --to= --dry-run`.
 
 ### Owner personal chat → group knowledge
 
-Не auto-mix в Owner personal memory. По запросу:
+`ConversationContextBuilder` **не** подмешивает group knowledge в обычный DM, даже owner.
 
-```
-Owner Conversation AI
-  → Group Search / Analysis Tool
-  → stored raw/derived
-  → result
-  → ответ
-```
+M14 indirect path: if a Telegram Group is attached to a Project, `get_project_context` may return **bounded ACTIVE derived** group knowledge (latest summaries + decisions/tasks/events). **Never raw group history.**
 
-Примеры: «анализ за сегодня по всем группам», «что решили в группе 1?», «важное по JARVIS?». Не класть все группы в каждый prompt.
+Dedicated Group Search tool (`search_groups`) is **M15**, not M14.
 
 ---
 
@@ -330,7 +317,7 @@ Group knowledge можно **показать** Conversation model, если з�
 | Phase | Groups |
 | --- | --- |
 | 1 | Discovery, persist, админ-список и chat UI, outbound через adapter, passive, Owner Analysis AI в конфиге (может ещё не гоняться); group timezone |
-| 2 | Analysis jobs, group knowledge + provenance, selective retrieval для вопросов про группу |
+| 2 | IMPLEMENTED M14: analysis jobs, group knowledge + provenance, project-context bounded derived retrieval. Owner DM Group Search tool = M15 |
 | 3–4 | Те же данные; клиенты не обязаны дублировать group admin UI (`TBD`, админка остаётся основным просмотром групп) |
 
 ---

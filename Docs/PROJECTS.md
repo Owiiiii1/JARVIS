@@ -4,9 +4,9 @@
 
 Project связывает уже существующие сущности **relations**, не копируя raw внутрь.
 
-Пример: проект `JARVIS` может связать conversations, topics, memories. Позже — Telegram groups, group knowledge, GitHub / files / integration resources.
+Пример: проект `JARVIS` может связать conversations, topics, memories, Telegram groups. Позже — GitHub / files / integration resources.
 
-M13 runtime: conversations, topics, memories. M11 добавил `project_groups` (relation only; raw group history не копируется и не попадает в `get_project_context`).
+M13 runtime: conversations, topics, memories. M11 добавил `project_groups` (relation only). M14: `get_project_context` may return **bounded ACTIVE group-derived knowledge** (summaries / decisions / tasks / event-facts) for attached groups. Raw group history is never copied and never dumped into the tool result. Group knowledge is not written into personal `memories`.
 
 ---
 
@@ -17,7 +17,7 @@ Project ↔ conversations   (project_conversations)
 Project ↔ topics          (project_topics)
 Project ↔ memories        (project_memories)
 Project ↔ telegram_groups  implemented (M11, relation only)
-Project ↔ group knowledge  planned after Group Analysis
+Project ↔ group knowledge  M14 via `get_project_context` (bounded derived rows; not a separate pivot; not personal memory)
 ```
 
 Один conversation / topic / memory может быть связан с несколькими projects.
@@ -43,7 +43,7 @@ Project ↔ group knowledge  planned after Group Analysis
 
 Owner Conversation AI **не** получает все projects в обычный prompt.
 
-Project context — tool `get_project_context` (capability `projects`). Summary-first: description, attached topics, attached memories, current conversation summaries. Raw других чатов — существующий `search_conversation_history`.
+Project context — tool `get_project_context` (capability `projects`). Summary-first: description, attached topics, attached memories, current conversation summaries, compact attached group titles, and bounded ACTIVE group knowledge (`config/projects.php`: `max_group_summaries`, `max_group_knowledge`). Raw других чатов — существующий `search_conversation_history`. Dedicated group search in DM is M15.
 
 Archived projects не резолвятся как active.
 

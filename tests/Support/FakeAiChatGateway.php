@@ -79,6 +79,14 @@ final class FakeAiChatGateway implements AiChatGateway
         ));
     }
 
+    public function analysisCalls(): array
+    {
+        return array_values(array_filter(
+            $this->calls,
+            static fn (array $call): bool => $call['role_key'] === AiRoleKey::OwnerAnalysis->value,
+        ));
+    }
+
     /**
      * @param  array<string, mixed>  $arguments
      */

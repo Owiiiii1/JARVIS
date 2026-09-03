@@ -1,6 +1,6 @@
-# Cursor work report — Telegram Groups (Milestone 11)
+# Cursor work report — Group Analysis (Milestone 14)
 
-Date: 2026-09-03  
+Date: 2026-09-04  
 Repo: `Owiiiii1/JARVIS`  
 Host: `/var/www/jarvis`
 
@@ -9,133 +9,147 @@ Host: `/var/www/jarvis`
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| Before HEAD | `4b99f54` (`feat: add owner project containers`) |
-| Commit message | `feat: add Telegram groups monitoring` |
-| Working tree before start | clean |
+| Before HEAD | `06bcbd7` (`feat: add Telegram groups monitoring`) |
+| Commit message | `feat: add Telegram group analysis` |
+| Working tree before start | dirty (M11 follow-ups: group archive, clickable rows, membership sync) — included in this commit |
 
 ## Backup
 
-Before migration: `storage/backups/pre_telegram_groups_20260903_232800.sql` (gitignored). Tables: `users`, `conversations`, `messages`, `channel_identities`, `reminders`, `memories`, `topics`, `projects`, `ai_role_settings`, `conversation_summaries`. Existing personal DM history was not deleted.
+Before migration: `storage/backups/pre_group_analysis_20260903_233238.sql` (gitignored). Tables dumped: `telegram_groups`, `telegram_group_participants`, `conversations`, `messages`, `projects` / `project_groups`, `memories`, `topics`, `ai_role_settings`, `reminders`. Production raw group history was not deleted.
 
-## Migrations
+## Migrations / schema
 
-`2026_09_03_240000_create_telegram_group_tables` ran with `--force`. `php artisan migrate:status` shows it Ran (batch 11).
+`2026_09_04_010000_create_telegram_group_analysis_tables` ran with `--force` (batch 12). `php artisan migrate --force` afterwards: nothing to migrate. `migrate:status` shows Ran.
 
-## Group schema
+New tables:
 
-`telegram_groups`: unique Telegram chat id, unique `conversation_id`, title/username, `chat_type`, status (`connected` / `restricted` / `left`), nullable IANA `timezone`, `first_seen_at` / `last_seen_at` / `last_message_at`, `message_count` (increment only on newly created rows), `settings` default `{"mode":"persist_only"}`, metadata.
+- `telegram_group_analysis_runs`
+- `telegram_group_knowledge`
+- `telegram_group_knowledge_sources` (unique `knowledge_id` + `message_id`)
+- `telegram_group_knowledge_revisions`
 
-`telegram_group_participants`: unique `(telegram_group_id, telegram_user_id)`. No FK to `users`.
+Personal `memories` is not used for group-derived data.
 
-`messages` extra columns: `telegram_group_id`, `sender_external_id`, `sender_username`, `sender_name`, `reply_to_channel_message_id`, `thread_id`, `edited_at`.
+## Knowledge types
 
-`project_groups`: unique `(project_id, telegram_group_id)`, `attached_at`. Relation only; raw group history is not copied into Projects.
+`telegram_group_knowledge.type`:
 
-## Conversation representation
+- `summary`
+- `decision`
+- `task`
+- `event_fact`
 
-`conversations.user_id` stays NOT NULL. Group conversations use the Jarvis owner as administrative owner, `kind=group`, and a 1:1 `telegram_groups.conversation_id` row as the real boundary (ADR-056). Cabinet, Telegram DM selector, Conversation AI, personal memory retrieval, history search, and memory jobs filter `kind=personal`.
+Status: `active` | `superseded` | `obsolete` | `disputed`.
 
-## Participant model
+Owner key is `telegram_group_id`. Even owner-authored group text does not become personal memory.
 
-Telegram senders are `telegram_group_participants`, not Jarvis Users. A participant is created only when Telegram sends a real `from` user. `sender_chat` / anonymous admin stores available name/metadata on the message and does not invent a participant (ADR-059).
+## Provenance
 
-## Group update routing
+`telegram_group_knowledge_sources` links each derived row to group `messages`. Decision / Task / Event-Fact require source ids in the analysed group and range. Summary has a message range and/or source links. Foreign or out-of-range source ids fail the job; raw messages are unchanged.
 
-Same queued Telegram webhook path (`ProcessTelegramUpdate` on queue `telegram`). Nutgram now also handles `edited_message` and `my_chat_member`.
+Admin UI source buttons show sender + snippet and highlight the message in the group chat.
 
-- `private` → existing DM pairing / Conversation AI (unchanged)
-- `group` / `supergroup` (forum = supergroup + `thread_id`) → Groups subsystem: discover, persist, return
-- `channel` → ignored
+## Analysis run model
 
-The previous group pairing hint send was removed. Jarvis does not auto-reply in groups.
+`telegram_group_analysis_runs`: queued → processing → completed | failed.
 
-## Idempotency
+- `analysis_type` `range_bundle` (one run yields summary + decisions + tasks + events in a single structured response)
+- UTC `from_at` / `to_at`
+- `idempotency_key` (group + type + unix range); queued/processing runs are reused
+- provider/model, attempts, timestamps, `last_error`, metadata (`no_data`, chunk counts, generated counts)
 
-Inbound and outbound uniqueness remains `(channel, conversation_id, channel_message_id)`. Two groups may share the same Telegram `message_id`. Duplicate webhooks do not create a second row and do not increment `message_count`. Discovery uses a unique chat id, a transaction, and unique-constraint recovery.
+HTTP Admin returns immediately with flash `Analysis queued`. Laravel `failed_jobs` is not the only status source.
 
-## Supported message types
+CLI (not executed): `php artisan jarvis:groups:analyze --group= --from= --to= --dry-run`.
 
-Text is stored as body. Photo, document, video, voice, audio, sticker, location, contact, poll, and other types store a row plus bounded metadata (Telegram file ids, caption, mime, name, size when present). Media blobs are not downloaded.
+## Timezone / range
 
-## Edited / reply / thread
+`GroupTimeRangeService` interprets today / yesterday / last 7 days / custom `Y-m-d` in `telegram_groups.timezone` (fallback owner timezone). DB timestamps stay UTC. DST is handled via IANA/Carbon. Custom range cap: `config/group_analysis.php` `max_range_days` (31).
 
-`edited_message` updates the existing raw row (`body` / metadata / `edited_at`). Telegram reply id is `reply_to_channel_message_id` (not `parent_message_id`, which stays AI reply linkage). Forum `message_thread_id` is `thread_id`. One Telegram group remains one group conversation.
+## Chunk / reduce
 
-`my_chat_member`: bot left/kicked → `left`; restricted → `restricted`; member/admin/creator → `connected`. History is not deleted.
+`config/group_analysis.php`: max messages/chars per chunk, max chunks per run, max decisions/tasks/events.
+
+Pipeline: retrieve bounded messages → format compact transcript (internal id, local time, display name, text/placeholder, reply/thread) → chunk → Owner Analysis AI per chunk → reduce when chunks > 1 → persist.
+
+Small range: single chunk. Empty range: no LLM call; run completed with `metadata.no_data=true`. Hard max chunks truncates rather than one giant prompt.
+
+## Structured DTO validation
+
+Provider-neutral `GroupAnalysisResult` (`summary`, `decisions[]`, `tasks[]`, `events[]`). `GroupAnalysisPromptBuilder` + `GroupAnalysisResultParser` (not regex). Confidence 0..1; empty content skipped; malformed dates nullable; model-generated user_id ignored; foreign source ids reject the whole output. Failed parse → run `failed`, no knowledge rows.
+
+## Dedupe / supersede
+
+MVP key: `telegram_group_id` + type + `normalized_key` (normalized content). Overlapping analysis reinforces active rows (union provenance, confidence max) instead of duplicating. Later contradicting facts mark the old row `superseded`, write a revision, and insert a new active row (`supersedes_id`). Summary versions per range. Group tasks do not create Reminders.
+
+## Queue changes
+
+Queue name `analysis`. Existing user systemd worker now: `--queue=analysis,memory,default --timeout=180`. Telegram inbound worker stays separate (`--queue=telegram` via crontab flock). No second worker process. `AnalyzeTelegramGroupRangeJob` claims queued/failed → processing atomically; completed is not reprocessed without explicit retry. Retry resets a failed run to queued.
+
+`analysis_enabled` and `daily_summary_enabled` default false. No per-message auto analysis. No nightly scheduler.
 
 ## Admin UI
 
-Owner nav **Telegram Groups** (separate from Settings Telegram token). List: title, type, status, message count, first seen, last message, timezone (effective/fallback), persist-only mode, Open. No manual Create. Group page: messenger bubbles, sender, timestamps in effective timezone, bot outbound vs members, type/media placeholders, edited/reply/thread markers, cursor pagination, timezone field, compose. Telegram numeric chat id is visible to Owner in the UI only.
+Telegram Group page: Analysis section (Analyze today / yesterday / last 7 days / custom range) and tabs Summary, Decisions, Tasks, Events/Facts, Analysis Runs. Owner-only (`group_analysis` + existing owner middleware). Retry on failed runs. Capability `group_analysis` already on Owner.
 
-## Outbound service
+Also in this commit (M11 follow-up): groups with `status=left` go to Archive; main list excludes them; clickable group/project rows; membership sync command restores `left` → `connected` on inbound.
 
-`GroupMessagingService` → existing `TelegramBotManager::sendTextMessage` (now returns `message_id`) → persist outbound `role=assistant`, `metadata.group_outbound=true`. Failed Telegram calls are not stored as sent; kicked/forbidden/not found → `left`, insufficient rights → `restricted`. Echo of the same Telegram message id merges. Reminder delivery still uses the same adapter.
+## Project integration
 
-## Timezone
+`get_project_context` returns bounded ACTIVE group knowledge for attached groups (`config/projects.php`: `max_group_summaries=3`, `max_group_knowledge=12`): latest summaries + decisions/tasks/events. Compact group titles remain. No raw group dump. This is a tool result, not personal memory and not default conversation context.
 
-Nullable group timezone, validated as `DateTimeZone`. Effective timezone = group value or owner timezone. UI shows fallback.
-
-## Privacy mode / manual Telegram prerequisites
-
-Not changed by this milestone (no BotFather, no token/webhook rewrite).
-
-For the bot to receive ordinary group messages (not only commands/mentions/replies to the bot), the Owner must:
-
-1. Add the bot to a Telegram group.
-2. Grant admin or the needed read permissions if Telegram requires them.
-3. If full history is required: BotFather → `/setprivacy` → Disable.
-
-Until Telegram actually delivers updates, Admin history cannot be complete. This work does not claim full-monitoring is live.
-
-## project_groups status
-
-Implemented. Owner attach/detach on the Project page. `get_project_context` may list attached group title/status. It does not return raw group messages.
+`ConversationContextBuilder` and `PersonalMemoryRetriever` do not include group knowledge. Dedicated Group Search tool is M15 and was not added.
 
 ## Tests
 
-Production-safe: no destructive DB traits; fake HTTP Telegram; Fake AI gateway; temporary `jarvis-test-*@invalid.local` users; test group chat ids in a reserved synthetic range, cleaned by those ids. Covered: schema; first-update discovery once; race-safe discover; duplicate message id; text + participant refresh; no Conversation AI / memory jobs / personal memory on group inbound; private DM still works; two groups same Telegram message id; non-text + reply + thread; edited update; `my_chat_member` left keeps history; owner vs user authorization; outbound success once / fail not persisted / echo merge; timezone validation/fallback; project attach without raw context; anonymous sender_chat. Existing reminder, memory, project, pairing, and conversation tests remain green.
+`tests/Feature/GroupAnalysisTest.php` plus existing group/project/memory/DM/reminder suites. Fake Owner Analysis AI; no live Gemini/OpenAI calls. Temporary groups use reserved test chat ids `-91…` and are deleted in `finally`.
 
-`php artisan test`: 125 tests, 124 passed, 1 skipped.
+Coverage includes schema, owner start / user denied, timezone + DST, empty range skip AI, single-chunk persist of all four types, chunk/reduce, foreign/malformed reject, no personal-memory bleed, context builder exclusion, overlapping dedupe, supersede, retry without duplicate, run idempotency, project context derived-only, no auto analysis on inbound, task ≠ reminder.
+
+`php artisan test`: 140 tests, 139 passed, 1 skipped (pre-existing owner Telegram identity skip).
 
 ## Build
 
-`npm run build` succeeded.
+`npm run build` succeeded (Vite). `public/build` is gitignored; assets built on this host.
 
-## Production counts (after tests)
+## Production counts (after tests; no secrets)
 
-| Item | Count |
+| Table | Count |
 | --- | --- |
-| `telegram_groups` | 0 (none discovered yet; test rows cleaned) |
-| group conversations | 0 |
-| group messages | 0 |
-| participants | 0 |
-| `project_groups` | 0 |
-| personal conversations | unchanged (3) |
+| telegram_groups | 4 |
+| telegram_group_participants | 6 |
+| group conversations | 4 |
+| group messages | 16 |
+| telegram_group_knowledge | 0 |
+| telegram_group_knowledge_sources | 0 |
+| telegram_group_knowledge_revisions | 0 |
+| telegram_group_analysis_runs | 0 |
+| personal memories | 2 |
+| projects | 2 |
+| project_groups | 0 |
+
+Raw group history preserved. Test knowledge rows were cleaned. No real group analysis was run.
 
 ## Worker status
 
-- Telegram worker: crontab `flock` `queue:work database --queue=telegram` — running
-- Memory/default worker: user `queue:work database --queue=memory,default` process — running (`jarvis-queue.service` unit inactive, same as before)
-- Reminder scheduler: `schedule:run` cron + `jarvis:reminders:dispatch` every minute — listed
-- `queue:failed`: empty
-
-No new queue worker was added.
-
-## Webhook diagnostics
-
-Webhook remains set. Pending update count 0. Telegram reported a last error flag from getWebhookInfo (no token/secret/URL/body copied here). Token and webhook secret were not rotated.
+- User systemd `jarvis-queue.service`: **active**, `queue:work database --queue=analysis,memory,default --timeout=180`
+- Telegram worker: crontab `flock` `--queue=telegram` — present
+- Reminder scheduler: `php artisan schedule:run` every minute; `schedule:list` shows `jarvis:reminders:dispatch` every minute
+- `php artisan queue:failed`: none
 
 ## Manual smoke status
 
-Awaiting Owner. Cursor did not create a Telegram group or add the bot. After privacy/rights are set, the Owner should: write from several members (including a reply), confirm Jarvis stays silent, confirm Admin list/chat, send one Admin outbound, confirm a single history row, then send an owner DM and confirm personal AI still replies.
+Cursor did **not** run live Admin smoke or `jarvis:groups:analyze` on the real test group. Owner should: seed 8–15 messages, Admin → Telegram Groups → Analyze today, confirm queued then completed Summary/Decision/Task/Event with sources, confirm no new personal memory, then (if the group is attached to the JARVIS project) ask in owner DM «Что нового по проекту JARVIS?» so `get_project_context` can read bounded derived knowledge.
 
 ## Known issues
 
-- Full group history depends on Telegram privacy mode and bot rights; M11 only persists updates Telegram sends.
-- Channels are not supported.
-- Group analysis, mention answering, media download, and revision history of edited text are later (M14+).
-- Remaining `my_chat_member` edge cases beyond bot left/kicked/restricted/member/admin are not fully normalized.
+- Auto daily/nightly group analysis is intentionally off.
+- `get_project_context` only sees group knowledge after an Admin/CLI analysis run and a project↔group attach.
+- Owner DM has no dedicated group-search tool yet (M15).
+- Media is stored as compact placeholders; no vision/audio understanding.
+- Edited-message analysis uses current body only; previous edit revisions are not analysed.
+- Group task assignee is display text only; no mapping to Jarvis users.
 
 ## Next milestone
 
-Milestone 14 — Group Analysis (summaries, decisions, tasks, facts; Analysis AI jobs; still no personal-memory bleed).
+Milestone 15 — Group Knowledge Search: explicit owner DM tool for group-derived knowledge / on-demand analysis, still without auto-mixing groups into a normal personal greeting.

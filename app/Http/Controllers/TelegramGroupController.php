@@ -3,13 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\TelegramGroup;
+use App\Models\TelegramGroupAnalysisRun;
+use App\Services\Groups\Exceptions\GroupAnalysisException;
 use App\Services\Groups\Exceptions\TelegramGroupException;
+use App\Services\Groups\GroupAnalysisRunService;
+use App\Services\Groups\GroupKnowledgePresenter;
 use App\Services\Groups\GroupMessagingService;
 use App\Services\Groups\TelegramGroupDiscoveryService;
 use App\Services\Groups\TelegramGroupHistoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -20,29 +25,24 @@ class TelegramGroupController extends Controller
         private readonly TelegramGroupHistoryService $history,
         private readonly GroupMessagingService $messaging,
         private readonly TelegramGroupDiscoveryService $discovery,
+        private readonly GroupAnalysisRunService $analysisRuns,
+        private readonly GroupKnowledgePresenter $knowledge,
     ) {}
 
     public function index(Request $request): Response
     {
-        $this->authorize('viewAny', TelegramGroup::class);
+        return $this->list($request, archived: false);
+    }
 
-        $owner = $this->discovery->owner();
-
-        $groups = TelegramGroup::query()
-            ->orderByRaw('last_message_at IS NULL')
-            ->orderByDesc('last_message_at')
-            ->orderByDesc('id')
-            ->get()
-            ->map(fn (TelegramGroup $group): array => $this->listPayload($group, $owner->timezone));
-
-        return Inertia::render('TelegramGroups/Index', [
-            'groups' => $groups,
-        ]);
+    public function archive(Request $request): Response
+    {
+        return $this->list($request, archived: true);
     }
 
     public function show(Request $request, TelegramGroup $telegramGroup): Response
     {
         $this->authorize('view', $telegramGroup);
+        $this->authorize('viewKnowledge', $telegramGroup);
 
         $owner = $this->discovery->owner();
         $page = $this->history->page($telegramGroup);
@@ -52,6 +52,8 @@ class TelegramGroupController extends Controller
             'messages' => $page['messages'],
             'hasMore' => $page['has_more'],
             'oldestId' => $page['oldest_id'],
+            'knowledge' => $this->knowledge->knowledge($telegramGroup),
+            'analysisRuns' => $this->knowledge->runs($telegramGroup),
         ]);
     }
 
@@ -114,6 +116,52 @@ class TelegramGroupController extends Controller
         ]);
     }
 
+    public function storeAnalysis(Request $request, TelegramGroup $telegramGroup): RedirectResponse
+    {
+        $this->authorize('analyze', $telegramGroup);
+
+        $validated = $request->validate([
+            'preset' => ['required', Rule::in(['today', 'yesterday', 'last_7_days', 'custom'])],
+            'from' => ['nullable', 'date_format:Y-m-d', 'required_if:preset,custom'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'required_if:preset,custom'],
+        ]);
+
+        try {
+            $range = $this->analysisRuns->rangeForPreset(
+                $telegramGroup,
+                $validated['preset'],
+                $validated['from'] ?? null,
+                $validated['to'] ?? null,
+            );
+            $this->analysisRuns->queue($request->user(), $telegramGroup, $range['from'], $range['to']);
+        } catch (GroupAnalysisException $exception) {
+            throw ValidationException::withMessages([
+                'preset' => $exception->getMessage(),
+            ]);
+        }
+
+        return back()->with('analysis', 'queued');
+    }
+
+    public function retryAnalysis(Request $request, TelegramGroup $telegramGroup, TelegramGroupAnalysisRun $run): RedirectResponse
+    {
+        $this->authorize('analyze', $telegramGroup);
+
+        if ((int) $run->telegram_group_id !== (int) $telegramGroup->id) {
+            abort(404);
+        }
+
+        try {
+            $this->analysisRuns->retry($request->user(), $run);
+        } catch (GroupAnalysisException $exception) {
+            throw ValidationException::withMessages([
+                'run' => $exception->getMessage(),
+            ]);
+        }
+
+        return back()->with('analysis', 'queued');
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -132,7 +180,32 @@ class TelegramGroupController extends Controller
             'timezone_is_fallback' => ! filled($group->timezone),
             'mode' => $group->mode(),
             'telegram_chat_id' => $group->telegram_chat_id,
+            'archived' => $group->isArchived(),
         ];
+    }
+
+    private function list(Request $request, bool $archived): Response
+    {
+        $this->authorize('viewAny', TelegramGroup::class);
+
+        $owner = $this->discovery->owner();
+        $query = $archived
+            ? TelegramGroup::query()->archived()
+            : TelegramGroup::query()->active();
+
+        $groups = $query
+            ->orderByRaw('last_message_at IS NULL')
+            ->orderByDesc('last_message_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (TelegramGroup $group): array => $this->listPayload($group, $owner->timezone));
+
+        return Inertia::render('TelegramGroups/Index', [
+            'groups' => $groups,
+            'archived' => $archived,
+            'archivedCount' => TelegramGroup::query()->archived()->count(),
+            'activeCount' => TelegramGroup::query()->active()->count(),
+        ]);
     }
 
     /**

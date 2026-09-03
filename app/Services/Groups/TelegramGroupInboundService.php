@@ -4,6 +4,7 @@ namespace App\Services\Groups;
 
 use App\Enums\MessageChannel;
 use App\Enums\MessageRole;
+use App\Enums\TelegramGroupStatus;
 use App\Models\Message;
 use App\Models\TelegramGroup;
 use App\Models\TelegramGroupParticipant;
@@ -38,6 +39,13 @@ final class TelegramGroupInboundService
             'is_forum' => (bool) ($chat->is_forum ?? false),
         ]);
         $group->loadMissing('conversation');
+
+        if ($group->status === TelegramGroupStatus::Left) {
+            $group->forceFill([
+                'status' => TelegramGroupStatus::Connected,
+                'last_seen_at' => now(),
+            ])->save();
+        }
 
         $mapped = $this->mapper->map($message);
         $outcome = $edited

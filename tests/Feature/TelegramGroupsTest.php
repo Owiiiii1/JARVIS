@@ -21,6 +21,7 @@ use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Conversations\ConversationTurnService;
 use App\Services\Groups\GroupMessagingService;
 use App\Services\Groups\TelegramGroupDiscoveryService;
+use App\Services\Groups\TelegramGroupMembershipService;
 use App\Services\Memory\PersonalMemoryRetriever;
 use App\Services\Projects\ProjectContextService;
 use App\Services\Projects\ProjectService;
@@ -293,6 +294,75 @@ class TelegramGroupsTest extends TestCase
             $group->refresh();
             $this->assertSame(TelegramGroupStatus::Left, $group->status);
             $this->assertSame($count, Message::query()->where('conversation_id', $group->conversation_id)->count());
+
+            $owner = User::query()->where('role', UserRole::Owner)->first();
+            $this->assertNotNull($owner);
+
+            $indexIds = $this->inertiaGroupIds(
+                $this->actingAs($owner)->get(route('telegram-groups.index'))->assertOk(),
+            );
+            $archiveIds = $this->inertiaGroupIds(
+                $this->actingAs($owner)->get(route('telegram-groups.archive'))->assertOk(),
+            );
+            $this->assertFalse(in_array($group->id, $indexIds, true));
+            $this->assertTrue(in_array($group->id, $archiveIds, true));
+        } finally {
+            $this->deleteTestTelegramGroup($chatId);
+        }
+    }
+
+    public function test_inbound_after_left_restores_group_to_active_list(): void
+    {
+        $chatId = '-910001013';
+        $owner = User::query()->where('role', UserRole::Owner)->first();
+        $this->assertNotNull($owner);
+
+        try {
+            $this->postGroupText($chatId, '911101', 'before leave', 911101, 111);
+            $group = TelegramGroup::query()->where('telegram_chat_id', $chatId)->first();
+            $this->assertNotNull($group);
+
+            TelegramGroup::query()->whereKey($group->id)->update([
+                'status' => TelegramGroupStatus::Left->value,
+            ]);
+
+            $this->postGroupText($chatId, '911101', 'bot is back', 911102, 112);
+            $group->refresh();
+            $this->assertSame(TelegramGroupStatus::Connected, $group->status);
+
+            $indexIds = $this->inertiaGroupIds(
+                $this->actingAs($owner)->get(route('telegram-groups.index'))->assertOk(),
+            );
+            $this->assertTrue(in_array($group->id, $indexIds, true));
+        } finally {
+            $this->deleteTestTelegramGroup($chatId);
+        }
+    }
+
+    public function test_membership_sync_archives_when_telegram_says_bot_left(): void
+    {
+        $chatId = '-910001014';
+
+        try {
+            $this->postGroupText($chatId, '911201', 'sync seed', 911201, 121);
+            $group = TelegramGroup::query()->where('telegram_chat_id', $chatId)->first();
+            $this->assertNotNull($group);
+
+            Http::fake([
+                'api.telegram.org/*' => Http::sequence()
+                    ->push(['ok' => true, 'result' => ['id' => 1]], 200)
+                    ->push([
+                        'ok' => false,
+                        'error_code' => 403,
+                        'description' => 'Forbidden: bot was kicked from the group chat',
+                    ], 403),
+            ]);
+
+            $status = app(TelegramGroupMembershipService::class)->syncFromTelegram($group);
+
+            $this->assertSame('left', $status);
+            $this->assertSame(TelegramGroupStatus::Left, $group->fresh()->status);
+            $this->assertTrue($group->fresh()->isArchived());
         } finally {
             $this->deleteTestTelegramGroup($chatId);
         }
@@ -311,10 +381,12 @@ class TelegramGroupsTest extends TestCase
             $this->assertNotNull($group);
 
             $this->actingAs($owner)->get(route('telegram-groups.index'))->assertOk();
+            $this->actingAs($owner)->get(route('telegram-groups.archive'))->assertOk();
             $this->actingAs($owner)->get(route('telegram-groups.show', $group))->assertOk();
 
             $user = $this->createTemporaryUser();
             $this->actingAs($user)->get(route('telegram-groups.index'))->assertForbidden();
+            $this->actingAs($user)->get(route('telegram-groups.archive'))->assertForbidden();
             $this->actingAs($user)->get(route('telegram-groups.show', $group))->assertForbidden();
             $this->actingAs($user)->postJson(route('telegram-groups.messages.store', $group), ['body' => 'nope'])->assertForbidden();
         } finally {
@@ -530,6 +602,17 @@ class TelegramGroupsTest extends TestCase
         ], [
             'X-Telegram-Bot-Api-Secret-Token' => $this->webhookSecret(),
         ])->assertOk();
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function inertiaGroupIds(\Illuminate\Testing\TestResponse $response): array
+    {
+        $page = $response->original->getData()['page'] ?? [];
+        $groups = $page['props']['groups'] ?? [];
+
+        return collect($groups)->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
     }
 
     private function webhookSecret(): string

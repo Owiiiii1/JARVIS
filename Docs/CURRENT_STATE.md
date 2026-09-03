@@ -509,9 +509,9 @@ New providers without changing Jarvis Core.
 | Logs | PLACEHOLDER |
 | Settings General / App | PLACEHOLDER |
 | Conversation Engine | PARTIAL (personal DM + recent window + tools: reminder, history search, owner project context) |
-| Memory Engine | IMPLEMENTED (personal v1; no vector DB; no group knowledge) |
-| Projects | IMPLEMENTED (owner-only relation containers; `project_groups` attach in M11) |
-| Telegram Groups module | IMPLEMENTED (discovery, raw persist, admin messenger, outbound; no analysis) |
+| Memory Engine | IMPLEMENTED (personal v1; group knowledge is a separate table, not `memories`; no vector DB) |
+| Projects | IMPLEMENTED (owner-only; `get_project_context` may include bounded derived group knowledge) |
+| Telegram Groups module | IMPLEMENTED (discovery, raw persist, admin messenger, outbound, manual Group Analysis) |
 | Role-based Conversation/Analysis AI | IMPLEMENTED (conversation runtime + Analysis AI background memory jobs) |
 | User Cabinet | IMPLEMENTED |
 | Impersonation / ownership policies | DOCUMENTED ONLY |
@@ -519,7 +519,7 @@ New providers without changing Jarvis Core.
 | Voice / ElevenLabs | DOCUMENTED ONLY |
 | Google Calendar / Gmail | DOCUMENTED ONLY / MISSING FROM DOCS |
 | Integrations registry | DOCUMENTED ONLY / MISSING FROM DOCS |
-| Queue workers / scheduler | IMPLEMENTED (Telegram queue worker + memory/default systemd worker + reminder scheduler) |
+| Queue workers / scheduler | IMPLEMENTED (Telegram queue worker + analysis/memory/default systemd worker + reminder scheduler) |
 | Redis | UNUSED |
 | CRM customers/orders/staff/services | UNUSED / LEGACY |
 
@@ -657,12 +657,18 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
 ### Milestone 13 — Projects — COMPLETED (2026-09-03)
 
-Owner-only `projects` with pivots to conversations, topics, memories, and (from M11) telegram groups. Archive/restore. Admin CRUD + attach/detach. `get_project_context` is tool-driven and not injected into the default prompt. Group attach is relation-only: context returns compact group titles/status, never raw group history. No automatic classification or seeded JARVIS/YFS/RTS rows.
+Owner-only `projects` with pivots to conversations, topics, memories, and (from M11) telegram groups. Archive/restore. Admin CRUD + attach/detach. `get_project_context` is tool-driven and not injected into the default prompt. Group attach is relation-only. From M14, context may include bounded ACTIVE group-derived knowledge; never raw group history. No automatic classification or seeded JARVIS/YFS/RTS rows.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
 ### Milestone 11 — Telegram Groups — COMPLETED (2026-09-03)
 
 Owner-only Telegram groups. First group/supergroup update auto-registers `telegram_groups` + `kind=group` conversation (administrative `user_id` = owner). Raw messages persist on the existing `messages` table. Participants are Telegram identities, not Jarvis Users. Default mode persist-only: no Conversation AI, no personal memory jobs, no auto-reply. Admin list + messenger + timezone + outbound via existing `TelegramBotManager`. `project_groups` attach/detach without copying raw. Channels ignored. Privacy mode is a manual BotFather prerequisite; Cursor does not change it.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 14 — Group Analysis — COMPLETED (2026-09-04)
+
+Async Owner Analysis AI over Telegram group raw history. Derived Summary / Decision / Task / Event-Fact live in `telegram_group_knowledge` with provenance and revisions. Never writes personal `memories`, `user_profiles`, or personal topics. Manual Admin/CLI runs (queue `analysis`); no auto analysis on inbound group messages. Date ranges use group timezone (fallback owner). Large ranges chunk/reduce. Empty ranges skip the LLM. `get_project_context` may return bounded ACTIVE derived group knowledge; `ConversationContextBuilder` does not. Dedicated Group Search tool is M15.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).

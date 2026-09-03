@@ -103,7 +103,7 @@ Sync retrieve: current recent + summaries + compact memory. Тяжёлый raw-o
 
 Ядро должно позволять подключить queue, не требуя её в Phase 1 (достаточно sync no-op или inline post-process).
 
-Групповой analysis — async **Owner Analysis AI**. Owner personal chat ходит в group knowledge только через explicit Group Search tool.
+Групповой analysis — async **Owner Analysis AI** (M14). Results live in `telegram_group_knowledge`, not personal `memories`. Owner personal chat does **not** auto-mix group knowledge. M14 may expose bounded derived facts only through `get_project_context` when a group is attached to a project. Dedicated Group Search tool is M15.
 
 ---
 
@@ -153,7 +153,7 @@ Tools:
 
 - `create_reminder` — Reminder Engine. [REMINDERS.md](REMINDERS.md).
 - `search_conversation_history` — targeted raw-on-demand по **текущему** user.
-- `get_project_context` — owner-only (`projects` capability). Derived project context, не raw dump. Не подмешивается в обычный prompt.
+- `get_project_context` — owner-only (`projects` capability). Derived project context including bounded ACTIVE group knowledge for attached groups, не raw dump. Не подмешивается в обычный prompt.
 
 Gemini — production provider с function calling (`functionDeclarations` / `functionCall` / `functionResponse`). OpenAI и Anthropic chat работают; tool-enabled request им **не** отправляется молча (`supportsTools=false`).
 

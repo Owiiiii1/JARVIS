@@ -43,6 +43,10 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
 
+            'flash' => [
+                'analysis' => $request->session()->get('analysis'),
+            ],
+
             'owlAdmin' => fn () => [
                 ...config('owl-admin.branding', [
                     'brand_name' => config('owl-admin.brand_name', config('owl-admin.name', 'Service Admin')),

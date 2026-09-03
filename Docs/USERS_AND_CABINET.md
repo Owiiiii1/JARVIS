@@ -281,7 +281,7 @@ Google Calendar / Gmail / ElevenLabs — **только owner**, через Inte
 ## Memory scopes
 
 - personal memory каждого User (включая owner) — M12 runtime;
-- Telegram group knowledge (owner/analysis) — **not implemented** (M14);
+- Telegram group knowledge (owner/analysis) — M14 runtime (`telegram_group_knowledge`, capability `group_analysis`); not personal memory;
 - system/global при необходимости.
 
 Cabinet не имеет отдельного Memory UI в M12: memory работает в фоне. Owner diagnostics: Settings → Users → Memory (read-only). Cross-user retrieval запрещён.

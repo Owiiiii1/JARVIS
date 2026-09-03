@@ -28,6 +28,16 @@ class TelegramGroupPolicy
         return $this->manage($user);
     }
 
+    public function analyze(User $user, TelegramGroup $group): bool
+    {
+        return $user->isActive() && $user->canUseCapability(UserCapability::GROUP_ANALYSIS);
+    }
+
+    public function viewKnowledge(User $user, TelegramGroup $group): bool
+    {
+        return $this->analyze($user, $group);
+    }
+
     private function manage(User $user): bool
     {
         return $user->isActive() && $user->canUseCapability(UserCapability::TELEGRAM_GROUPS);
