@@ -6,7 +6,7 @@
 Native event → Adapter.normalize → Core (Conversation Engine | Groups module) → Adapter.render
 ```
 
-Telegram adapter один: и личные чаты, и группы. После normalize Core смотрит `chat_kind`.
+Telegram adapter один: и личные чаты, и группы. После normalize Core смотрит `chat_kind`. Telegram DM и Web Cabinet используют **один** каталог `conversations` / `messages` (Milestone 3).
 
 Контракт ядра общий. Набор каналов расширяется без изменения AI Layer.
 

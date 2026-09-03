@@ -40,6 +40,11 @@ class ChannelIdentity extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function activeConversation(): BelongsTo
+    {
+        return $this->belongsTo(Conversation::class, 'active_conversation_id');
+    }
+
     public static function findTelegramByExternalUserId(string $externalUserId): ?self
     {
         return self::query()

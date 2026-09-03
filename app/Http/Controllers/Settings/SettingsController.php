@@ -17,6 +17,7 @@ class SettingsController extends Controller
     {
         $users = User::query()
             ->with('telegramIdentity')
+            ->withCount(['conversations', 'messages'])
             ->orderBy('name')
             ->get(['id', 'name', 'email', 'role', 'access_code', 'status', 'timezone', 'created_at'])
             ->map(static fn (User $user): array => [
@@ -28,6 +29,8 @@ class SettingsController extends Controller
                 'status' => $user->status->value,
                 'timezone' => $user->timezone,
                 'created_at' => optional($user->created_at)->toIso8601String(),
+                'chats_count' => (int) $user->conversations_count,
+                'messages_count' => (int) $user->messages_count,
                 'telegram' => [
                     'connected' => $user->telegramIdentity !== null,
                     'username' => $user->telegramIdentity?->username,

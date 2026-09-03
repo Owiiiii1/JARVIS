@@ -600,3 +600,9 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 Telegram webhook wired to Nutgram; `channel_identities` table; pairing by access code (`/start`, text code, no AI); owner unlink + access code regenerate in Settings → Users; group pairing blocked; production-safe tests.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 3 — COMPLETED (2026-09-03)
+
+Conversations/messages persist; `active_conversation_id` FK; default `Основной`; Telegram Chat Selector (list/select/new/current); Cabinet shows the same catalog; Settings → Users chat/message counts. AI not invoked. Chat Selector originally planned as Milestone 6.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).

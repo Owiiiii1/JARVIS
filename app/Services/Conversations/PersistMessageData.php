@@ -1,0 +1,26 @@
+<?php
+
+namespace App\Services\Conversations;
+
+use App\Enums\MessageChannel;
+use App\Enums\MessageRole;
+use App\Enums\MessageType;
+use App\Models\Conversation;
+use DateTimeInterface;
+
+final readonly class PersistMessageData
+{
+    /**
+     * @param  array<string, mixed>|null  $metadata
+     */
+    public function __construct(
+        public Conversation $conversation,
+        public MessageRole $role,
+        public MessageChannel $channel,
+        public MessageType $messageType,
+        public ?string $body = null,
+        public ?string $channelMessageId = null,
+        public ?DateTimeInterface $occurredAt = null,
+        public ?array $metadata = null,
+    ) {}
+}

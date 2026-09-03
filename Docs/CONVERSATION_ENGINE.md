@@ -28,7 +28,9 @@ Channel adapter (или Voice layer) передаёт в Core структуру
 
 Системные ответы: `/start` без identity, неверный код. AI не вызывается. Неверный ввод не пишется как normal conversation.
 
-После pairing: conversation **`Основной`**, active, greeting от Conversation AI **этого** space.
+После pairing: conversation **`Основной`**, active. AI greeting — Milestone 4. До AI paired text persist + системный placeholder (`role=system`), не assistant dialogue.
+
+Telegram menu (`/start`, «Чаты», «Новый чат», callback выбора) **не** пишется в semantic conversation raw.
 
 ---
 

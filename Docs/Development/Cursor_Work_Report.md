@@ -1,4 +1,4 @@
-# Cursor work report — Milestone 2
+# Cursor work report — Milestone 3
 
 Date: 2026-09-03  
 Repo: `Owiiiii1/JARVIS`  
@@ -9,145 +9,147 @@ Host: `/var/www/jarvis`
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| Before HEAD | `45873bdd91faca1475dffeffc6ec3f01bbca39d9` (`feat: add Jarvis owner and user identity foundation`) |
-| Commit message | `feat: add Telegram user pairing` |
+| Before HEAD | `22ec963238e9facbb8e1c2f87945742ba2202633` (`feat: add Telegram user pairing`) |
+| Commit message | `feat: add conversations and Telegram chat selector` |
 | Working tree before start | clean |
 
-## Migration
+## Backups (pre-migration)
 
-`2026_09_03_190000_create_channel_identities_table`
+| Item | Value |
+| --- | --- |
+| Path | `/var/www/jarvis/storage/backups/m3_users_channel_identities_20260903_183310.sql` |
+| Scope | `users` + `channel_identities` schema+data |
+| Committed to Git | **no** |
 
-- Table `channel_identities` with FK `user_id`, Telegram fields, `linked_at`, `last_seen_at`, nullable `active_conversation_id`, `metadata` json
-- Unique `(channel, external_user_id)`
-- Indexes on `user_id`, `channel`
+Owner pairing was already present (`channel_identities` count = 1). Backup taken; pairing not unlinked.
+
+## Migrations
+
+1. `2026_09_03_193000_create_conversations_table`
+2. `2026_09_03_193100_create_messages_table`
+3. `2026_09_03_193200_add_active_conversation_fk_to_channel_identities`
 
 Command: `php artisan migrate --force`
 
-## channel_identities schema
+## Schema
 
-| Column | Notes |
-| --- | --- |
-| `user_id` | FK → users, cascade delete |
-| `channel` | `telegram` for MVP |
-| `external_user_id` | Telegram user id (string) |
-| `external_chat_id` | private chat id |
-| `username`, `first_name`, `last_name` | nullable, refreshed on updates |
-| `linked_at`, `last_seen_at` | timestamps |
-| `active_conversation_id` | nullable, reserved for Milestone 3 |
-| `metadata` | json nullable |
+### conversations
 
-## Nutgram integration
+`id`, `user_id` FK, `kind` (`personal`), `title`, `status`, `last_activity_at`, timestamps. Indexes on kind, status, last_activity_at (user_id via FK).
 
-- Webhook: `POST /telegram/webhook` validates secret, then `TelegramWebhookProcessor` hydrates Update and calls `$bot->processUpdate()`
-- `TelegramBotFactory` + `TelegramHandlerRegistrar` register `onMessage` handler
-- `TelegramUpdateHandler` — private DM pairing flow only
-- `TelegramPairingService` — business logic (no AI, no User auto-create)
-- Nutgram 4.50.0 via existing dependency; no second Telegram framework
-- Default Nutgram logger = NullLogger (no access codes in debug logs)
+### messages
 
-## Handlers / pairing behaviour
+`id`, `conversation_id` FK, `user_id` FK, `role` (`user`/`assistant`/`system`), `channel` (`telegram`/`web`), `body`, `message_type` (`text`/`system`/`unsupported`), `channel_message_id`, `metadata`, `occurred_at`, timestamps.
 
-| Case | Response |
-| --- | --- |
-| Unknown `/start` (private) | Request access code (RU) |
-| Unknown text | Exact access_code lookup |
-| Invalid code | Code not found message |
-| Disabled user code | Access disabled message |
-| Success | Authorization success + connected messages |
-| Already paired `/start` | Already authorized + AI coming soon |
-| Paired non-text | Unsupported message type |
-| Paired text | AI coming soon (no LLM) |
-| Group/supergroup | Auth only in private chat hint |
-| User already has Telegram | Cannot bind second Telegram account |
-| Telegram already linked | Re-entering another code → already authorized |
+Idempotency unique: `(channel, conversation_id, channel_message_id)` — equivalent to requested channel+external id, because Telegram `message_id` is unique per chat, not globally.
 
-## Users UI
+### channel_identities.active_conversation_id
 
-Settings → Users:
+Now a real FK → `conversations.id`, `ON DELETE SET NULL`. Same-user ownership enforced in `ConversationService`.
 
-- New column **Telegram**: Connected / Not connected (+ `@username` when present)
-- Edit modal: **Disconnect Telegram** (owner-only route, deletes identity only)
-- Edit modal: **Regenerate access code** for non-owner users (not `2000`; does not unlink Telegram)
+## ConversationService
 
-Routes:
+- `createPersonal`, `listForUser` (limit 20 in Telegram, 50 in Cabinet)
+- `getOrCreateDefault` → title `Основной`, created once
+- `ensureActiveConversation` / `setActiveConversation` with ownership check
+- Title normalize: trim, collapse whitespace, 1–120 chars; duplicate titles allowed
 
-- `POST /settings/users/{user}/telegram/unlink`
-- `POST /settings/users/{user}/access-code/regenerate`
+## Message persistence
+
+`MessagePersistenceService`: `persistInbound` / `persistOutbound` / `persistSystem`.
+
+Paired ordinary text:
+
+1. inbound `role=user`, `channel=telegram`, `message_type=text`
+2. placeholder reply persisted as `role=system`, `message_type=system` (not assistant / not future AI dialogue)
+3. `conversations.last_activity_at` updated
+
+Retry of the same Telegram message id returns the existing inbound and does **not** create another system row.
+
+## Telegram state
+
+Lightweight persistent state in `channel_identities.metadata.awaiting` (`new_chat_title`), via `TelegramIdentityState`. Not in-memory, not PHP session.
+
+Cancel: button/text `Отмена` or `/cancel`.
+
+## Chat selector UX
+
+Persistent reply keyboard: `Чаты` / `Новый чат` / `Текущий чат`.
+
+- `/start` (paired): ensure `Основной`, `Jarvis подключён. Текущий чат: «…».` + keyboard
+- `Чаты`: inline list of owned personal chats
+- select callback `c:{id}` → ownership check → `Выбран чат «…».`
+- `Новый чат` → ask title → create + activate → `Создан и выбран чат «…».`
+- `Текущий чат` → current title
+
+Menu/commands/callbacks are **not** stored as semantic user messages.
+
+## Cabinet / admin
+
+- `/cabinet` lists the same conversation catalog (title + last activity). No message input yet.
+- Settings → Users: `chats_count` / `messages_count` via `withCount` (no N+1).
 
 ## Tests (production-safe)
 
-No destructive DB traits. Temporary users `jarvis-test-*@invalid.local`; Telegram test external ids `9000xx` / `9100xx`; cleanup in `finally`.
+No destructive traits. Temporary `jarvis-test-*@invalid.local`; cleanup reverse-order in `finally`. Owner identity not mutated.
 
 | File | Coverage |
 | --- | --- |
-| `tests/Unit/TelegramPairingServiceTest.php` | invalid/disabled/pair/idempotent/one-user-one-telegram/owner service-level (skipped if owner already paired) |
-| `tests/Feature/TelegramPairingTest.php` | schema, webhook 403, start no identity, bad code, group no pair, good code creates identity |
+| `tests/Unit/ConversationServiceTest.php` | create, default once, ownership, list isolation, set active |
+| `tests/Unit/MessagePersistenceServiceTest.php` | inbound + idempotent channel message id |
+| `tests/Feature/ConversationsCoreTest.php` | schema, `/start` default once, menu not persisted, new chat state, select vs foreign chat, persist+idempotent webhook, cabinet visibility |
 
 ```
-php artisan test — 41 passed (100 assertions)
+php artisan test — 53 passed, 1 skipped (owner pairing already exists in prod)
 ```
 
-## Production data before / after
+After suite: users=1, identities=1, conversations=0, messages=0, no leftover test users.
 
-| Check | Before migration | After deploy |
+## Production counts
+
+| Check | Before migrate | After tests |
 | --- | --- | --- |
-| `users` count | 1 | 1 |
-| `channel_identities` | n/a (table absent) | 0 |
-| `ai_provider_settings` | 3 | 3 (unchanged) |
-| `telegram_bot_settings` | connected, webhook set | unchanged (token not modified) |
+| users | 1 | 1 |
+| channel_identities | 1 (owner paired) | 1 (unchanged) |
+| conversations | n/a | 0 (owner has no chats until first `/start`) |
+| messages | n/a | 0 |
+| AI settings | 3 | 3 |
+| Telegram bot | connected, webhook set | unchanged; token not modified |
 
 ## Build
 
-`npm run build` — success
-
-## Webhook diagnostics
-
-Via `TelegramBotManager::getWebhookInfo()` (no token logged):
-
-| Field | Value |
-| --- | --- |
-| URL | `https://jarvis.owlsolutions.net/telegram/webhook` |
-| Expected URL | matches |
-| Pending updates | 0 |
-| Last error | none |
+`npm run build` — success (see command output in this session).
 
 ## Manual smoke status
 
-**Awaiting user.** Owner Telegram pairing with code `2000` must be performed manually in `@owl_jarvis_bot`:
+**Awaiting user.** Owner pairing must stay. Please in `@owl_jarvis_bot`:
 
-1. `/start` → code request
-2. Send `2000` → success messages
-3. Repeat `/start` → already authorized (no code prompt)
+1. `/start` → current chat `Основной` + keyboard
+2. `Чаты` → see `Основной`
+3. `Новый чат` → name e.g. `Тест`
+4. `Создан и выбран чат «Тест».`
+5. send `Привет` → saved in `Тест`
+6. select `Основной` → `Выбран чат «Основной».`
 
-Automated tests intentionally avoid binding production owner Telegram identity. `channel_identities` count = 0 before manual smoke.
+Do **not** delete owner history after smoke.
 
-## AI unchanged
+## Known issues / deviations
 
-No changes to `app/Services/Ai/*`, AI settings UI, or provider runtime. Pairing path does not invoke AI services.
+- Conversation `kind` is `personal` (milestone spec). Docs previously said `direct`; DATABASE.md updated.
+- Unique inbound key is `(channel, conversation_id, channel_message_id)`, not global `(channel, channel_message_id)`.
+- Outbound Bot API errors are swallowed in the handler so webhook ACK stays successful (tests cannot use real Telegram chats).
+- Chat Selector delivered with M3; IMPLEMENTATION_PLAN Milestone 6 marked completed.
 
-## Documentation
+## Remaining for Milestone 4
 
-- `Docs/IMPLEMENTATION_PLAN.md` — Milestone 2 COMPLETED
-- `Docs/CURRENT_STATE.md` — Milestone 2 section
-- `Docs/USERS_AND_CABINET.md` — one User ↔ one Telegram identity (MVP)
-- `Docs/DECISIONS.md` — ADR-046
+- Three AI configs (Owner Conversation / Owner Analysis / Default User Conversation)
+- `AiProviderClient` chat/complete
+- After pairing / first DM: Conversation AI greeting in `Основной`
+- Replace system placeholder with real assistant replies
+- No LLM in Nutgram handlers
 
-## Known issues
+## Not changed
 
-- Nutgram uses Guzzle directly; Laravel `Http::fake()` does not intercept outbound Bot API calls in feature tests. Behaviour verified via DB state and unit/service tests.
-- Outbound Telegram API errors during webhook handling are reported internally; webhook still returns `{ok:true}` to avoid unnecessary Telegram retries for handled updates.
-
-## Remaining for Milestone 3
-
-- `conversations` + `messages` tables
-- Conversation Service; wire `active_conversation_id` FK
-- Persist inbound/outbound messages (still no full LLM requirement in M3)
-- Channel-neutral DTO for cabinet later
-
-## Changed files (summary)
-
-**New:** migration, `ChannelIdentity` model, Telegram pairing/handlers/factory/processor classes, pairing tests
-
-**Updated:** `TelegramWebhookController`, `TelegramBotManager`, `User` relations, `UserController`, `SettingsController`, `UsersPanel.jsx`, routes, docs
-
-**Not changed:** bot token, webhook secret storage, AI runtime, CRM cleanup from M0/M1
+- Bot token / webhook secret
+- Owner pairing row
+- AI runtime

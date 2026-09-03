@@ -14,6 +14,7 @@ final class TelegramHandlerRegistrar
     public function register(Nutgram $bot): void
     {
         $bot->onMessage(fn (Nutgram $bot) => $this->updateHandler->handleMessage($bot));
+        $bot->onCallbackQuery(fn (Nutgram $bot) => $this->updateHandler->handleCallbackQuery($bot));
 
         $bot->onException(function (Nutgram $bot, Throwable $e): void {
             report($e);

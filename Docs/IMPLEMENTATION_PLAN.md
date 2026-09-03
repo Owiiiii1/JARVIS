@@ -124,6 +124,8 @@
 
 ## Milestone 3 — Conversations / Messages Core
 
+**Статус.** COMPLETED (2026-09-03). Telegram Chat Selector (originally Milestone 6) delivered here.
+
 **Цель.** Канало-нейтральный persist.
 
 **Реализуем**
@@ -221,6 +223,8 @@
 ---
 
 ## Milestone 6 — Telegram Chat Selector
+
+**Статус.** COMPLETED (2026-09-03, delivered with Milestone 3).
 
 **Цель.** Telegram и Cabinet делят каталог chats. Active conversation на identity.
 

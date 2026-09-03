@@ -166,6 +166,9 @@ class TelegramPairingTest extends TestCase
             return;
         }
 
+        ChannelIdentity::query()->where('user_id', $user->id)->update(['active_conversation_id' => null]);
+        \App\Models\Message::query()->where('user_id', $user->id)->delete();
+        \App\Models\Conversation::query()->where('user_id', $user->id)->delete();
         ChannelIdentity::query()->where('user_id', $user->id)->delete();
         User::query()->whereKey($user->id)->delete();
     }

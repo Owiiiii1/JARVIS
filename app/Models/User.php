@@ -58,4 +58,14 @@ class User extends Authenticatable
     {
         return $this->hasOne(ChannelIdentity::class)->where('channel', ChannelIdentity::CHANNEL_TELEGRAM);
     }
+
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class);
+    }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(Message::class);
+    }
 }

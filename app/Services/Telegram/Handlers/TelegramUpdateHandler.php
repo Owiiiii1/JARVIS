@@ -2,19 +2,38 @@
 
 namespace App\Services\Telegram\Handlers;
 
+use App\Enums\MessageChannel;
+use App\Enums\MessageRole;
+use App\Enums\MessageType;
 use App\Models\ChannelIdentity;
+use App\Models\Conversation;
+use App\Services\Conversations\ConversationService;
+use App\Services\Conversations\MessagePersistenceService;
+use App\Services\Conversations\PersistMessageData;
 use App\Services\Telegram\Pairing\TelegramInboundContext;
 use App\Services\Telegram\Pairing\TelegramPairingMessages;
+use App\Services\Telegram\Pairing\TelegramPairingOutcome;
 use App\Services\Telegram\Pairing\TelegramPairingService;
+use App\Services\Telegram\TelegramChatKeyboard;
+use App\Services\Telegram\TelegramConversationMessages;
+use App\Services\Telegram\TelegramIdentityState;
+use DateTimeImmutable;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
-use SergiX44\Nutgram\Telegram\Properties\MessageType;
+use SergiX44\Nutgram\Telegram\Properties\MessageType as TelegramMessageType;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\Message\Message;
+use Throwable;
 
 final class TelegramUpdateHandler
 {
     public function __construct(
         private readonly TelegramPairingService $pairingService,
+        private readonly ConversationService $conversationService,
+        private readonly MessagePersistenceService $messagePersistence,
+        private readonly TelegramIdentityState $identityState,
+        private readonly TelegramChatKeyboard $keyboard,
     ) {}
 
     public function handleMessage(Nutgram $bot): void
@@ -27,10 +46,7 @@ final class TelegramUpdateHandler
 
         if (! $this->isPrivateChat($message)) {
             if ($this->isGroupLikeChat($message)) {
-                $bot->sendMessage(
-                    text: TelegramPairingMessages::GROUP_PAIRING_HINT,
-                    chat_id: $message->chat->id,
-                );
+                $this->send($bot, TelegramPairingMessages::GROUP_PAIRING_HINT, chatId: $message->chat->id);
             }
 
             return;
@@ -60,40 +76,253 @@ final class TelegramUpdateHandler
         }
 
         if ($this->isStartCommand($message)) {
-            $bot->sendMessage(text: TelegramPairingMessages::REQUEST_CODE);
+            $this->send($bot, TelegramPairingMessages::REQUEST_CODE);
 
             return;
         }
 
-        if ($message->getType() === MessageType::TEXT && filled($message->text)) {
+        if ($message->getType() === TelegramMessageType::TEXT && filled($message->text)) {
             $result = $this->pairingService->attemptPairing($context, trim($message->text));
 
             foreach ($result->messages as $response) {
-                $bot->sendMessage(text: $response);
+                $this->send($bot, $response);
+            }
+
+            if ($result->outcome === TelegramPairingOutcome::Paired && $result->identity !== null) {
+                $conversation = $this->conversationService->ensureActiveConversation($result->identity);
+                $this->reply(
+                    $bot,
+                    TelegramConversationMessages::connectedWithChat($conversation->title),
+                    $result->identity,
+                );
             }
 
             return;
         }
 
-        $bot->sendMessage(text: TelegramPairingMessages::SEND_CODE_AS_TEXT);
+        $this->send($bot, TelegramPairingMessages::SEND_CODE_AS_TEXT);
+    }
+
+    public function handleCallbackQuery(Nutgram $bot): void
+    {
+        $query = $bot->callbackQuery();
+
+        if ($query === null || $query->from === null) {
+            return;
+        }
+
+        $identity = $this->pairingService->findTelegramIdentity((string) $query->from->id);
+
+        if ($identity === null) {
+            $this->answerCallback($bot);
+
+            return;
+        }
+
+        $conversationId = $this->keyboard->parseSelectCallback($query->data);
+
+        if ($conversationId === null) {
+            $this->answerCallback($bot);
+
+            return;
+        }
+
+        $this->identityState->clear($identity);
+        $conversation = $this->conversationService->findOwned($identity->user, $conversationId);
+
+        if ($conversation === null || ! $this->conversationService->setActiveConversation($identity, $conversation)) {
+            $this->answerCallback($bot, TelegramConversationMessages::CHAT_NOT_FOUND);
+            $this->reply($bot, TelegramConversationMessages::CHAT_NOT_FOUND, $identity);
+
+            return;
+        }
+
+        $this->answerCallback($bot);
+        $this->reply($bot, TelegramConversationMessages::chatSelected($conversation->title), $identity);
     }
 
     private function handlePairedMessage(Nutgram $bot, Message $message, ChannelIdentity $identity): void
     {
+        $identity->loadMissing('user');
+        $conversation = $this->conversationService->ensureActiveConversation($identity);
+
         if ($this->isStartCommand($message)) {
-            $bot->sendMessage(text: TelegramPairingMessages::ALREADY_AUTHORIZED);
-            $bot->sendMessage(text: TelegramPairingMessages::AI_COMING_SOON);
+            $this->identityState->clear($identity);
+            $this->reply($bot, TelegramConversationMessages::connectedWithChat($conversation->title), $identity);
 
             return;
         }
 
-        if ($message->getType() === MessageType::TEXT && filled($message->text)) {
-            $bot->sendMessage(text: TelegramPairingMessages::AI_COMING_SOON);
+        if ($message->getType() !== TelegramMessageType::TEXT || ! filled($message->text)) {
+            $this->reply($bot, TelegramPairingMessages::UNSUPPORTED_MESSAGE_TYPE, $identity);
 
             return;
         }
 
-        $bot->sendMessage(text: TelegramPairingMessages::UNSUPPORTED_MESSAGE_TYPE);
+        $text = trim($message->text);
+
+        if ($this->identityState->isAwaitingNewChatTitle($identity)) {
+            $this->handleNewChatTitle($bot, $identity, $text);
+
+            return;
+        }
+
+        if ($this->isMenuAction($text, TelegramChatKeyboard::BUTTON_CHATS, '/chats')) {
+            $this->showChatList($bot, $identity);
+
+            return;
+        }
+
+        if ($this->isMenuAction($text, TelegramChatKeyboard::BUTTON_NEW_CHAT, '/newchat')) {
+            $this->identityState->setAwaitingNewChatTitle($identity);
+            $this->reply(
+                $bot,
+                TelegramConversationMessages::ENTER_NEW_CHAT_TITLE,
+                $identity,
+                awaitingTitle: true,
+            );
+
+            return;
+        }
+
+        if ($this->isMenuAction($text, TelegramChatKeyboard::BUTTON_CURRENT_CHAT, '/current')) {
+            $this->reply($bot, TelegramConversationMessages::currentChat($conversation->title), $identity);
+
+            return;
+        }
+
+        $this->persistPairedText($bot, $message, $identity, $conversation, $text);
+    }
+
+    private function handleNewChatTitle(Nutgram $bot, ChannelIdentity $identity, string $text): void
+    {
+        if ($this->isCancel($text)) {
+            $this->identityState->clear($identity);
+            $conversation = $this->conversationService->ensureActiveConversation($identity);
+            $this->reply(
+                $bot,
+                TelegramConversationMessages::CANCELLED.' '.TelegramConversationMessages::currentChat($conversation->title),
+                $identity,
+            );
+
+            return;
+        }
+
+        if (! $this->conversationService->isValidTitle($text)) {
+            $this->reply(
+                $bot,
+                TelegramConversationMessages::INVALID_TITLE,
+                $identity,
+                awaitingTitle: true,
+            );
+
+            return;
+        }
+
+        $conversation = $this->conversationService->createPersonal($identity->user, $text);
+        $this->conversationService->setActiveConversation($identity, $conversation);
+        $this->identityState->clear($identity);
+        $this->reply($bot, TelegramConversationMessages::chatCreated($conversation->title), $identity);
+    }
+
+    private function showChatList(Nutgram $bot, ChannelIdentity $identity): void
+    {
+        $conversations = $this->conversationService->listForUser($identity->user);
+
+        if ($conversations->isEmpty()) {
+            $this->reply($bot, TelegramConversationMessages::NO_CHATS, $identity);
+
+            return;
+        }
+
+        $text = TelegramConversationMessages::SELECT_CHAT;
+
+        if ($conversations->count() === ConversationService::LIST_LIMIT) {
+            $text .= "\n".TelegramConversationMessages::LIST_TRUNCATED;
+        }
+
+        $this->send($bot, $text, replyMarkup: $this->keyboard->chatList($conversations));
+    }
+
+    private function persistPairedText(
+        Nutgram $bot,
+        Message $message,
+        ChannelIdentity $identity,
+        Conversation $conversation,
+        string $text,
+    ): void {
+        $inbound = $this->messagePersistence->persistInbound(new PersistMessageData(
+            conversation: $conversation,
+            role: MessageRole::User,
+            channel: MessageChannel::Telegram,
+            messageType: MessageType::Text,
+            body: $text,
+            channelMessageId: (string) $message->message_id,
+            occurredAt: (new DateTimeImmutable)->setTimestamp((int) $message->date),
+        ));
+
+        if (! $inbound->created) {
+            return;
+        }
+
+        $reply = TelegramConversationMessages::messageSaved($conversation->title);
+
+        $this->messagePersistence->persistSystem(new PersistMessageData(
+            conversation: $conversation,
+            role: MessageRole::System,
+            channel: MessageChannel::Telegram,
+            messageType: MessageType::System,
+            body: $reply,
+            occurredAt: now(),
+        ));
+
+        $this->reply($bot, $reply, $identity);
+    }
+
+    private function reply(Nutgram $bot, string $text, ChannelIdentity $identity, bool $awaitingTitle = false): void
+    {
+        $this->send($bot, $text, replyMarkup: $this->keyboard->menu($awaitingTitle));
+    }
+
+    private function send(
+        Nutgram $bot,
+        string $text,
+        InlineKeyboardMarkup|ReplyKeyboardMarkup|null $replyMarkup = null,
+        int|string|null $chatId = null,
+    ): void {
+        try {
+            $bot->sendMessage(
+                text: $text,
+                chat_id: $chatId,
+                reply_markup: $replyMarkup,
+            );
+        } catch (Throwable) {
+            // Outbound Telegram failures must not fail webhook processing.
+        }
+    }
+
+    private function answerCallback(Nutgram $bot, ?string $text = null): void
+    {
+        try {
+            $bot->answerCallbackQuery(text: $text);
+        } catch (Throwable) {
+            // Ignore missing/invalid callback queries.
+        }
+    }
+
+    private function isMenuAction(string $text, string $button, string $command): bool
+    {
+        if ($text === $button) {
+            return true;
+        }
+
+        return preg_match('/^'.preg_quote($command, '/').'(?:@\w+)?(?:\s|$)/u', $text) === 1;
+    }
+
+    private function isCancel(string $text): bool
+    {
+        return $text === TelegramChatKeyboard::BUTTON_CANCEL
+            || preg_match('/^\/cancel(?:@\w+)?(?:\s|$)/u', $text) === 1;
     }
 
     private function isPrivateChat(Message $message): bool
@@ -108,7 +337,7 @@ final class TelegramUpdateHandler
 
     private function isStartCommand(Message $message): bool
     {
-        if ($message->getType() !== MessageType::TEXT || ! filled($message->text)) {
+        if ($message->getType() !== TelegramMessageType::TEXT || ! filled($message->text)) {
             return false;
         }
 

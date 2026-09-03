@@ -71,17 +71,15 @@ Unique `(channel, external_id)`. Создаётся только после ве
 
 Логический тред. Не обязан 1:1 совпадать с Telegram chat навсегда.
 
-- `user_id` — **обязателен** для personal (`kind=direct`); владелец чата
-- `kind`: `direct` | `group`
-- `channel` (telegram / cabinet / mobile / desktop / …)
-- `type` при необходимости
+- `user_id` — **обязателен** для personal (`kind=personal`); владелец чата
+- `kind`: `personal` | later `group`
 - `title`
 - `status` (active / archived / …)
 - `last_activity_at`
 - для `group`: связь с `telegram_groups` (не путать sender сообщений с `user_id` бота/owner)
 - указатель на active topic (`TBD`, скорее Phase 2)
 
-Много `direct` на user. Telegram и Cabinet — один каталог. Telegram пишет в `active_conversation_id`. New Chat — новая строка, не новый memory store.
+Много `personal` на user. Telegram и Cabinet — один каталог (`conversations` + `messages`). Telegram пишет в `active_conversation_id`. New Chat — новая строка, не новый memory store.
 
 ### conversation_summaries
 
@@ -272,7 +270,7 @@ users 1—1 user_profiles
 users 1—1 user_ai_settings
 users 1—N channel_identities   unique (channel, external_id)
 users.access_code unique; один row role=owner
-users 1—N conversations (kind=direct; много чатов)
+users 1—N conversations (kind=personal; много чатов)
 users 1—N reminders
 users 1—N projects (owner space)
 channel_identities.active_conversation_id → conversations (тот же user_id)

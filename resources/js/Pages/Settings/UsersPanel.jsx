@@ -39,6 +39,8 @@ export default function UsersPanel() {
             colStatus: 'Status',
             colTimezone: 'Timezone',
             colTelegram: 'Telegram',
+            colChats: 'Chats',
+            colMessages: 'Messages',
             colCreated: 'Created',
             colActions: 'Actions',
             empty: 'No users yet.',
@@ -79,6 +81,8 @@ export default function UsersPanel() {
             colStatus: 'Status',
             colTimezone: 'Timezone',
             colTelegram: 'Telegram',
+            colChats: 'Chats',
+            colMessages: 'Messages',
             colCreated: 'Created',
             colActions: 'Actions',
             empty: 'No users yet.',
@@ -119,6 +123,8 @@ export default function UsersPanel() {
             colStatus: 'Status',
             colTimezone: 'Timezone',
             colTelegram: 'Telegram',
+            colChats: 'Chats',
+            colMessages: 'Messages',
             colCreated: 'Created',
             colActions: 'Actions',
             empty: 'No users yet.',
@@ -226,6 +232,8 @@ export default function UsersPanel() {
                                 <th className="px-4 py-3 text-left font-semibold">{t.colStatus}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colTimezone}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colTelegram}</th>
+                                <th className="px-4 py-3 text-left font-semibold">{t.colChats}</th>
+                                <th className="px-4 py-3 text-left font-semibold">{t.colMessages}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colCreated}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colActions}</th>
                             </tr>
@@ -233,7 +241,7 @@ export default function UsersPanel() {
                         <tbody className="divide-y divide-slate-100 text-slate-700">
                             {users.length === 0 ? (
                                 <tr>
-                                    <td colSpan={9} className="px-4 py-6 text-center text-sm text-slate-400">
+                                    <td colSpan={11} className="px-4 py-6 text-center text-sm text-slate-400">
                                         {t.empty}
                                     </td>
                                 </tr>
@@ -247,6 +255,8 @@ export default function UsersPanel() {
                                         <td className="px-4 py-3 capitalize">{u.status}</td>
                                         <td className="px-4 py-3">{u.timezone}</td>
                                         <td className="px-4 py-3">{formatTelegram(u)}</td>
+                                        <td className="px-4 py-3">{u.chats_count ?? 0}</td>
+                                        <td className="px-4 py-3">{u.messages_count ?? 0}</td>
                                         <td className="px-4 py-3 text-slate-500">{formatCreated(u.created_at)}</td>
                                         <td className="px-4 py-3">
                                             <button
