@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Enums\TopicStatus;
+use App\Enums\ProjectStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,11 +14,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
     'normalized_name',
     'description',
     'status',
-    'first_seen_at',
-    'last_seen_at',
     'metadata',
 ])]
-class Topic extends Model
+class Project extends Model
 {
     /**
      * @return array<string, string>
@@ -26,9 +24,7 @@ class Topic extends Model
     protected function casts(): array
     {
         return [
-            'status' => TopicStatus::class,
-            'first_seen_at' => 'immutable_datetime',
-            'last_seen_at' => 'immutable_datetime',
+            'status' => ProjectStatus::class,
             'metadata' => 'array',
         ];
     }
@@ -38,16 +34,21 @@ class Topic extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function messages(): BelongsToMany
+    public function conversations(): BelongsToMany
     {
-        return $this->belongsToMany(Message::class, 'message_topic_relations')
-            ->withPivot(['confidence', 'source'])
-            ->withTimestamps();
+        return $this->belongsToMany(Conversation::class, 'project_conversations')
+            ->withPivot(['attached_at', 'metadata']);
     }
 
-    public function projects(): BelongsToMany
+    public function topics(): BelongsToMany
     {
-        return $this->belongsToMany(Project::class, 'project_topics')
+        return $this->belongsToMany(Topic::class, 'project_topics')
+            ->withPivot(['attached_at', 'metadata']);
+    }
+
+    public function memories(): BelongsToMany
+    {
+        return $this->belongsToMany(Memory::class, 'project_memories')
             ->withPivot(['attached_at', 'metadata']);
     }
 }

@@ -404,11 +404,13 @@ Personal DM persist → recent context of the **current** conversation → Conve
 
 ## Milestone 13 — Projects
 
+**Статус.** COMPLETED (2026-09-03).
+
 **Цель.** Owner Space контейнеры. Project ≠ Topic. Relations, не копии.
 
 **Реализуем** по [PROJECTS.md](PROJECTS.md).
 
-- `projects` + `project_conversations` / `project_topics` / `project_groups` / `project_memories`.
+- `projects` + `project_conversations` / `project_topics` / `project_memories`. `project_groups` отложен до Groups subsystem.
 - Capability `projects` = owner. User 403.
 - Owner Conversation AI: project lookup по запросу, не все projects в каждый prompt.
 

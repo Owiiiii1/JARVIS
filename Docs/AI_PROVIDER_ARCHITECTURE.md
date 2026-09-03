@@ -71,9 +71,9 @@ User General Prompt редактирует **сам user** в Cabinet (owner —
 
 ## Tools
 
-Owner Conversation AI: multi-step tool loop в одном turn. [INTEGRATIONS.md](INTEGRATIONS.md). Tools: `create_reminder`, `search_conversation_history`.
+Owner Conversation AI: multi-step tool loop в одном turn. [INTEGRATIONS.md](INTEGRATIONS.md). Tools: `create_reminder`, `search_conversation_history`, `get_project_context` (owner-only).
 
-User Conversation AI: same reminder + history search. Не Gmail/Calendar/groups.
+User Conversation AI: reminder + history search. Не Gmail/Calendar/groups/projects.
 
 Порт chat/complete возвращает text **и** tool requests. `one message ≠ max one tool call`. Max 5 tool rounds в Core.
 

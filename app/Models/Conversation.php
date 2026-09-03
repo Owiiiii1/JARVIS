@@ -7,6 +7,7 @@ use App\Enums\ConversationStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['user_id', 'kind', 'title', 'status', 'last_activity_at'])]
@@ -39,5 +40,11 @@ class Conversation extends Model
     public function summaries(): HasMany
     {
         return $this->hasMany(ConversationSummary::class);
+    }
+
+    public function projects(): BelongsToMany
+    {
+        return $this->belongsToMany(Project::class, 'project_conversations')
+            ->withPivot(['attached_at', 'metadata']);
     }
 }

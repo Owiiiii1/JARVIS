@@ -11,6 +11,8 @@ export default function Dashboard() {
             body: 'Open the calendar for your schedule, or settings for AI and Telegram.',
             calendar: 'Calendar',
             calendarHint: 'Your personal schedule',
+            projects: 'Projects',
+            projectsHint: 'Owner work containers',
             logs: 'Logs',
             logsHint: 'Recent activity and diagnostics',
             settings: 'Settings',
@@ -22,6 +24,8 @@ export default function Dashboard() {
             body: 'Календарь — ваше расписание. Настройки — ИИ и Telegram.',
             calendar: 'Календарь',
             calendarHint: 'Личное расписание',
+            projects: 'Projects',
+            projectsHint: 'Рабочие контейнеры',
             logs: 'Логи',
             logsHint: 'Активность и диагностика',
             settings: 'Настройки',
@@ -33,6 +37,8 @@ export default function Dashboard() {
             body: 'Календар — ваш розклад. Налаштування — ШІ та Telegram.',
             calendar: 'Календар',
             calendarHint: 'Особистий розклад',
+            projects: 'Projects',
+            projectsHint: 'Робочі контейнери',
             logs: 'Логи',
             logsHint: 'Активність і діагностика',
             settings: 'Налаштування',
@@ -42,6 +48,7 @@ export default function Dashboard() {
     const t = text[locale] ?? text.en;
 
     const cards = [
+        { href: route('projects.index'), title: t.projects, hint: t.projectsHint },
         { href: route('calendar.index'), title: t.calendar, hint: t.calendarHint },
         { href: route('statistics.logs'), title: t.logs, hint: t.logsHint },
         { href: route('settings.index'), title: t.settings, hint: t.settingsHint },
@@ -55,7 +62,7 @@ export default function Dashboard() {
                     <p className="text-lg font-semibold text-slate-900">{t.hello}</p>
                     <p className="mt-1 text-sm text-slate-600">{t.body}</p>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     {cards.map((card) => (
                         <Link
                             key={card.href}

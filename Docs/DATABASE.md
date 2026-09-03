@@ -271,7 +271,7 @@ IMPLEMENTED. См. [REMINDERS.md](REMINDERS.md). `user_id`, source conversation/
 
 ### projects и relations (Owner Space)
 
-`projects`; `project_conversations`; `project_topics`; `project_groups`; `project_memories` (и group knowledge). Не копии raw. [PROJECTS.md](PROJECTS.md).
+IMPLEMENTED M13. `projects` (`user_id`, unique `(user_id, normalized_name)`, status `active|archived`). Pivots: `project_conversations`, `project_topics`, `project_memories` (unique pair, `attached_at`). Cascade pivot on project/entity delete; archive keeps rows. `project_groups` **not created** until Telegram Groups exists. [PROJECTS.md](PROJECTS.md).
 
 ### integration_accounts / tool_execution_logs
 
@@ -300,7 +300,8 @@ memories N—N topics (тот же scope)
 memories 1—N revisions
 memories N—N messages (sources)
 conversations 1—N summaries
-projects N—N conversations / topics / telegram_groups / memories / group knowledge
+projects N—N conversations / topics / memories
+project_groups / group knowledge — later
 ```
 
 ---

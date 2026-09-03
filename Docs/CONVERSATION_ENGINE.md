@@ -152,7 +152,8 @@ Tool loop в одном turn: несколько последовательны�
 Tools:
 
 - `create_reminder` — Reminder Engine. [REMINDERS.md](REMINDERS.md).
-- `search_conversation_history` — targeted raw-on-demand по **текущему** user. Аргументы модели: `query`, optional `conversation_hint`, optional `limit`. Core задаёт `user_id`. Bounded snippets. Capability `memory` (owner и обычный user).
+- `search_conversation_history` — targeted raw-on-demand по **текущему** user.
+- `get_project_context` — owner-only (`projects` capability). Derived project context, не raw dump. Не подмешивается в обычный prompt.
 
 Gemini — production provider с function calling (`functionDeclarations` / `functionCall` / `functionResponse`). OpenAI и Anthropic chat работают; tool-enabled request им **не** отправляется молча (`supportsTools=false`).
 

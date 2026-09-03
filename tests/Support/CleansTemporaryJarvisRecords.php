@@ -56,6 +56,11 @@ trait CleansTemporaryJarvisRecords
             return;
         }
 
+        if ($user->role === UserRole::Owner) {
+            $user->forceFill(['role' => UserRole::User])->save();
+        }
+
+        \App\Models\Project::query()->where('user_id', $user->id)->delete();
         $memoryIds = \App\Models\Memory::query()->where('user_id', $user->id)->pluck('id');
         \App\Models\MemorySource::query()->whereIn('memory_id', $memoryIds)->delete();
         \App\Models\MemoryRevision::query()->whereIn('memory_id', $memoryIds)->delete();

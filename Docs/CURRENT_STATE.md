@@ -508,8 +508,9 @@ New providers without changing Jarvis Core.
 | Calendar | PLACEHOLDER |
 | Logs | PLACEHOLDER |
 | Settings General / App | PLACEHOLDER |
-| Conversation Engine | PARTIAL (personal DM + recent window + tool loop; first tool `create_reminder`) |
+| Conversation Engine | PARTIAL (personal DM + recent window + tools: reminder, history search, owner project context) |
 | Memory Engine | IMPLEMENTED (personal v1; no vector DB; no group knowledge) |
+| Projects | IMPLEMENTED (owner-only relation containers; no groups attach) |
 | Telegram Groups module | DOCUMENTED ONLY |
 | Role-based Conversation/Analysis AI | IMPLEMENTED (conversation runtime + Analysis AI background memory jobs) |
 | User Cabinet | IMPLEMENTED |
@@ -651,5 +652,11 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 ### Milestone 12 — Structured Memory / Memory Engine v1 — COMPLETED (2026-09-03)
 
 Personal derived memory on production MySQL. Raw `messages` remain immutable source of truth. Owner Analysis AI extracts topics/memories and writes incremental conversation summaries in the background (`memory` queue). `PersonalMemoryRetriever` is `user_id`-scoped, relational, bounded. Cross-chat is summary-first; raw other chats only via `search_conversation_history`. Settings → Users → Memory is owner-only read-only diagnostics. Group knowledge and Projects are not in this milestone. Vector DB is not installed.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 13 — Projects — COMPLETED (2026-09-03)
+
+Owner-only `projects` with pivots to conversations, topics, and memories. Archive/restore. Admin CRUD + attach/detach. `get_project_context` is tool-driven and not injected into the default prompt. `project_groups` not created. No automatic classification or seeded JARVIS/YFS/RTS rows.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).

@@ -546,6 +546,26 @@
 
 ---
 
+## ADR-054 — Project context is tool-driven
+
+**Контекст.** Все owner projects в каждый prompt раздуют окно и смешают несвязанную работу.
+
+**Решение.** Projects не входят в `ConversationContextBuilder` по умолчанию. Owner Conversation AI вызывает `get_project_context` по релевантному запросу. Capability `projects` только у owner.
+
+**Следствие.** «Привет» не получает JARVIS/YFS/RTS.
+
+---
+
+## ADR-055 — No project_groups until Groups subsystem exists
+
+**Контекст.** Telegram Groups ещё не реализованы. FK на несуществующие groups создал бы фиктивную subsystem.
+
+**Решение.** M13 не создаёт `project_groups` и не сидирует groups. Relation planned после M11/M14.
+
+**Следствие.** Project page может упомянуть Groups later, без пустого runtime.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Алфавит generated access_code (кроме зарезервированного 2000).

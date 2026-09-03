@@ -4,6 +4,7 @@ use App\Http\Controllers\CabinetChatController;
 use App\Http\Controllers\CabinetController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\Settings\AiSettingsController;
 use App\Http\Controllers\Settings\SettingsController;
 use App\Http\Controllers\Settings\TelegramSettingsController;
@@ -45,6 +46,19 @@ Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'ow
     Route::get('/dashboard', function () {
         return Inertia::render('Dashboard');
     })->name('dashboard');
+
+    Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
+    Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
+    Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
+    Route::patch('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
+    Route::post('/projects/{project}/archive', [ProjectController::class, 'archive'])->name('projects.archive');
+    Route::post('/projects/{project}/restore', [ProjectController::class, 'restore'])->name('projects.restore');
+    Route::post('/projects/{project}/conversations', [ProjectController::class, 'attachConversation'])->name('projects.conversations.store');
+    Route::delete('/projects/{project}/conversations/{conversation}', [ProjectController::class, 'detachConversation'])->name('projects.conversations.destroy');
+    Route::post('/projects/{project}/topics', [ProjectController::class, 'attachTopic'])->name('projects.topics.store');
+    Route::delete('/projects/{project}/topics/{topic}', [ProjectController::class, 'detachTopic'])->name('projects.topics.destroy');
+    Route::post('/projects/{project}/memories', [ProjectController::class, 'attachMemory'])->name('projects.memories.store');
+    Route::delete('/projects/{project}/memories/{memory}', [ProjectController::class, 'detachMemory'])->name('projects.memories.destroy');
 
     Route::get('/calendar', [CalendarController::class, 'index'])->name('calendar.index');
 

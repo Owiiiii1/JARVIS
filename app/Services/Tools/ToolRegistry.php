@@ -59,6 +59,10 @@ final class ToolRegistry
             'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             'error_class' => $result->success ? null : (string) ($result->payload['error'] ?? 'tool_failed'),
             'reminder_id' => $result->payload['reminder_id'] ?? null,
+            'project_id' => $result->payload['project']['id'] ?? null,
+            'topics_count' => isset($result->payload['topics']) && is_array($result->payload['topics']) ? count($result->payload['topics']) : null,
+            'memories_count' => isset($result->payload['memories']) && is_array($result->payload['memories']) ? count($result->payload['memories']) : null,
+            'summaries_count' => isset($result->payload['conversation_summaries']) && is_array($result->payload['conversation_summaries']) ? count($result->payload['conversation_summaries']) : null,
         ]);
 
         return $result;

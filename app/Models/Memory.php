@@ -8,6 +8,7 @@ use App\Enums\MemoryStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
@@ -57,5 +58,11 @@ class Memory extends Model
     public function revisions(): HasMany
     {
         return $this->hasMany(MemoryRevision::class);
+    }
+
+    public function projects(): BelongsToMany
+    {
+        return $this->belongsToMany(Project::class, 'project_memories')
+            ->withPivot(['attached_at', 'metadata']);
     }
 }

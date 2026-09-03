@@ -2,11 +2,15 @@
 
 namespace App\Providers;
 
+use App\Models\Project;
+use App\Policies\ProjectPolicy;
 use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\ProviderAiChatGateway;
 use App\Services\Tools\CreateReminderTool;
+use App\Services\Tools\GetProjectContextTool;
 use App\Services\Tools\SearchConversationHistoryTool;
 use App\Services\Tools\ToolRegistry;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,6 +26,7 @@ class AppServiceProvider extends ServiceProvider
             return new ToolRegistry([
                 $app->make(CreateReminderTool::class),
                 $app->make(SearchConversationHistoryTool::class),
+                $app->make(GetProjectContextTool::class),
             ]);
         });
     }
@@ -31,6 +36,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Gate::policy(Project::class, ProjectPolicy::class);
     }
 }

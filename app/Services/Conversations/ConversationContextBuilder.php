@@ -14,6 +14,7 @@ use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Memory\DTO\MemoryContextPackage;
 use App\Services\Memory\PersonalMemoryRetriever;
 use App\Services\Tools\CreateReminderTool;
+use App\Services\Tools\GetProjectContextTool;
 use App\Services\Tools\SearchConversationHistoryTool;
 use Carbon\CarbonImmutable;
 use DateTimeZone;
@@ -141,6 +142,12 @@ final class ConversationContextBuilder
             $lines[] = 'search_conversation_history looks up snippets from this user’s own past chats. Use it when the user asks about a previous conversation, decision, or detail that is not already in context.';
             $lines[] = 'Do not assume raw messages from other chats are already available. Other chats may appear only as short summaries.';
             $lines[] = 'Never pass user_id. Never search another user’s history.';
+        }
+
+        if (in_array(GetProjectContextTool::NAME, $names, true)) {
+            $lines[] = 'get_project_context loads compact derived context for one of the current user’s projects. Call it when the user asks about a named project.';
+            $lines[] = 'Do not assume all projects are already in context. Do not invent project knowledge if the tool returns no attached topics, memories, or summaries.';
+            $lines[] = 'Project context is summary-first. Use search_conversation_history only if a specific raw detail is needed after project context.';
         }
 
         return implode("\n", $lines);

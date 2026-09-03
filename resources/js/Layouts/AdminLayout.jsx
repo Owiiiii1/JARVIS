@@ -4,6 +4,7 @@ import {
     CalendarDays,
     ChartColumn,
     FileText,
+    FolderKanban,
     Globe,
     Home,
     LogOut,
@@ -28,6 +29,7 @@ import {
 
 const primaryNavItems = [
     { route: 'dashboard', icon: Home },
+    { route: 'projects.index', icon: FolderKanban, activePattern: 'projects.*' },
     { route: 'calendar.index', icon: CalendarDays },
 ];
 
@@ -39,6 +41,7 @@ const languageLabels = {
 
 function navLabel(routeName, t) {
     if (routeName === 'dashboard') return t.home;
+    if (routeName === 'projects.index') return t.projects;
     if (routeName === 'calendar.index') return t.calendar;
     return routeName;
 }
@@ -83,6 +86,7 @@ export default function AdminLayout({ title, children }) {
     const uiText = {
         en: {
             home: 'Home',
+            projects: 'Projects',
             calendar: 'Calendar',
             settings: 'Settings',
             logout: 'Logout',
@@ -94,6 +98,7 @@ export default function AdminLayout({ title, children }) {
         },
         ru: {
             home: 'Главная',
+            projects: 'Projects',
             calendar: 'Календарь',
             settings: 'Настройки',
             logout: 'Выход',
@@ -105,6 +110,7 @@ export default function AdminLayout({ title, children }) {
         },
         uk: {
             home: 'Головна',
+            projects: 'Projects',
             calendar: 'Календар',
             settings: 'Налаштування',
             logout: 'Вийти',
