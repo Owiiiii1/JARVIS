@@ -572,3 +572,19 @@ Approved target (2026-09-03, after this file’s first version):
 - Telegram Groups owner-only; memory isolated per user.
 
 Canonical write-up of later target architecture (spaces, Chat Selector, reminders, projects, group intelligence): other `Docs/` files and ADR-032–045. This file remains a **code snapshot**, not the target.
+
+---
+
+## Implementation progress
+
+### Milestone 0 — COMPLETED (2026-09-03)
+
+Host CRM leftover removed. No Identity/Telegram/AI-runtime work.
+
+- Deleted host models/controllers/Inertia pages: customers, services, staff, orders.
+- New migration `2026_09_03_162500_drop_legacy_crm_tables` dropped empty `order_staff`, `orders`, `customers`, `services`, `staff` after a 0-row check.
+- Kept `users`, `ai_provider_settings`, `telegram_bot_settings`, framework tables, Calendar/Logs placeholders, Settings, Admin login, kit.
+- Added `tests/Feature/BaselineTest.php`. PHPUnit no longer forces sqlite (`pdo_sqlite` is not installed on this PHP).
+- `npm run build` succeeded. Telegram webhook route and stored bot settings unchanged.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).

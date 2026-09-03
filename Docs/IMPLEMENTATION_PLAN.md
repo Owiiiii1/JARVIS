@@ -10,6 +10,8 @@
 
 ## Milestone 0 — Cleanup / Baseline
 
+**Статус.** COMPLETED (2026-09-03).
+
 **Цель.** Чистый host без CRM-демо, рабочие тесты, Admin Kit и Telegram settings не сломаны.
 
 **Реализуем**

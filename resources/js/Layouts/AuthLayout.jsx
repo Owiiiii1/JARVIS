@@ -8,15 +8,15 @@ export default function AuthLayout({ children }) {
     const copy = {
         en: {
             headline: 'Quiet control for the whole operation.',
-            sub: 'Customers, orders, staff and AI — one workspace that stays out of the way until you need it.',
+            sub: 'Settings, Telegram, and AI — one workspace that stays out of the way until you need it.',
         },
         ru: {
             headline: 'Спокойное управление всей операцией.',
-            sub: 'Клиенты, заказы, персонал и ИИ — одно рабочее пространство, которое не мешает, пока оно не нужно.',
+            sub: 'Настройки, Telegram и ИИ — одно рабочее пространство, которое не мешает, пока оно не нужно.',
         },
         uk: {
             headline: 'Спокійне керування всією операцією.',
-            sub: 'Клієнти, замовлення, персонал і ШІ — один робочий простір, який не заважає, поки він не потрібен.',
+            sub: 'Налаштування, Telegram і ШІ — один робочий простір, який не заважає, поки він не потрібен.',
         },
     };
     const t = copy[locale] ?? copy.en;
