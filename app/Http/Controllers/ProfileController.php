@@ -17,6 +17,7 @@ class ProfileController extends Controller
     {
         return Inertia::render('Profile/Edit', [
             'status' => session('status'),
+            'generalPrompt' => $request->user()->aiSettings?->general_prompt,
         ]);
     }
 

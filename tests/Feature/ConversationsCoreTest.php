@@ -21,7 +21,7 @@ class ConversationsCoreTest extends TestCase
         $this->assertTrue(Schema::hasTable('conversations'));
         $this->assertTrue(Schema::hasTable('messages'));
         $this->assertTrue(Schema::hasColumns('conversations', ['user_id', 'kind', 'title', 'status', 'last_activity_at']));
-        $this->assertTrue(Schema::hasColumns('messages', ['conversation_id', 'user_id', 'role', 'channel', 'body', 'message_type', 'channel_message_id', 'occurred_at']));
+        $this->assertTrue(Schema::hasColumns('messages', ['conversation_id', 'user_id', 'role', 'channel', 'body', 'message_type', 'channel_message_id', 'parent_message_id', 'occurred_at']));
     }
 
     public function test_paired_start_creates_default_conversation_once(): void

@@ -1,13 +1,16 @@
 <?php
 
 use App\Http\Controllers\CabinetController;
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\CalendarController;
-use App\Http\Controllers\TelegramWebhookController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Settings\AiSettingsController;
 use App\Http\Controllers\Settings\SettingsController;
 use App\Http\Controllers\Settings\TelegramSettingsController;
 use App\Http\Controllers\Settings\UserController as SettingsUserController;
+use App\Http\Controllers\TelegramWebhookController;
+use App\Http\Controllers\UserAiSettingsController;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use OwlSolutions\CustomAdminKit\Support\AdminRouteMiddleware;
@@ -20,13 +23,15 @@ use OwlSolutions\CustomAdminKit\Support\AdminRouteMiddleware;
 
 Route::post('/telegram/webhook', TelegramWebhookController::class)
     ->withoutMiddleware([
-        \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
-        \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
+        PreventRequestForgery::class,
+        ValidateCsrfToken::class,
     ])
     ->name('telegram.webhook');
 
 Route::middleware(['web', 'auth', 'user.active'])->group(function () {
     Route::get('/cabinet', [CabinetController::class, 'index'])->name('cabinet.index');
+    Route::get('/cabinet/ai-settings', [UserAiSettingsController::class, 'edit'])->name('cabinet.ai-settings.edit');
+    Route::patch('/cabinet/ai-settings', [UserAiSettingsController::class, 'update'])->name('cabinet.ai-settings.update');
 });
 
 Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'owner']))->group(function () {
@@ -62,6 +67,7 @@ Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'ow
     Route::post('/ai-settings/{provider}/check', [AiSettingsController::class, 'check'])->name('ai-settings.check');
     Route::post('/ai-settings/{provider}/activate', [AiSettingsController::class, 'activate'])->name('ai-settings.activate');
     Route::post('/ai-settings/deactivate', [AiSettingsController::class, 'deactivate'])->name('ai-settings.deactivate');
+    Route::patch('/ai-settings/roles/{roleKey}', [AiSettingsController::class, 'updateRole'])->name('ai-settings.roles.update');
 
     Route::get('/statistics/logs', function () {
         return Inertia::render('Statistics/Logs');

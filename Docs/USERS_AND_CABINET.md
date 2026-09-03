@@ -9,7 +9,7 @@ User A, User B и Owner personal context **никогда** не смешива�
 
 Связано: [CHANNELS.md](CHANNELS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [REMINDERS.md](REMINDERS.md), [PROJECTS.md](PROJECTS.md), [INTEGRATIONS.md](INTEGRATIONS.md), ADR-016–045.
 
-Фактический код сегодня: любой залогиненный человек видит Admin Panel. Это **баг относительно целевой модели**, не целевое поведение. [CURRENT_STATE.md](CURRENT_STATE.md).
+Фактический код (M4): user на admin route получает 403; `/cabinet` и `/cabinet/ai-settings` доступны активному user. Owner General Prompt — Admin Profile. User General Prompt — Cabinet AI Settings. System AI configs — только owner Settings → AI.
 
 ---
 

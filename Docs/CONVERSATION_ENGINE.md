@@ -28,9 +28,9 @@ Channel adapter (или Voice layer) передаёт в Core структуру
 
 Системные ответы: `/start` без identity, неверный код. AI не вызывается. Неверный ввод не пишется как normal conversation.
 
-После pairing: conversation **`Основной`**, active. AI greeting — Milestone 4. До AI paired text persist + системный placeholder (`role=system`), не assistant dialogue.
+После pairing: conversation **`Основной`**, active. AI greeting (M4) — application event в system prompt, ответ `role=assistant` в `Основной`. Paired `/start` повторно AI не вызывает.
 
-Telegram menu (`/start`, «Чаты», «Новый чат», callback выбора) **не** пишется в semantic conversation raw.
+Telegram menu (`/start`, «Чаты», «Новый чат», callback выбора) **не** пишется в semantic conversation raw. Technical `role=system` placeholders (в том числе старые M3 «Сообщение сохранено…») не входят в AI context.
 
 ---
 
@@ -58,12 +58,7 @@ normalize
 4. **Conversation** — active / указанный id **этого** space. Чужой id отвергается.
 5. Intent/topic — scope этого space (Phase 2).
 6. Topics только этого space.
-7. Context Builder (**summary-first, raw-on-demand**):
-   - recent/raw **текущего** conversation + его summary;
-   - relevant **summaries** других conversations **этого** user;
-   - relevant structured personal memory / profile;
-   - current message.
-   Raw другого чата **не** кладётся автоматически. Если модель/ретривер видит запрос вроде «что решили в старом чате про Python» — targeted conversation search → нужный raw fragment. ADR-036.
+7. Context Builder MVP (M4): platform prompt выбранного conversation config + User General Prompt + recent semantic messages **текущего** conversation (лимит 5–40, default 30) + current inbound. Другие чаты / groups / projects / long-term memory **не** добавляются. Technical `role=system` не входят в dialogue. Summary-first retrieval — later.
 8. Hierarchy: platform prompt **Owner Conversation AI или Default User Conversation AI** → channel rules → User General Prompt → (7) → message.
 9. **Conversation AI этого space.** Owner Analysis AI на DM не вызывается. User никогда не получает Owner Conversation config.
 10. **Сохраняется ответ** как raw message роли assistant в ту же conversation.

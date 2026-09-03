@@ -2,9 +2,12 @@
 
 namespace App\Services\Ai\Clients;
 
+use App\Services\Ai\AiProviderMessageNormalizer;
 use App\Services\Ai\Contracts\AiProviderClient;
+use App\Services\Ai\DTO\AiChatRequest;
+use App\Services\Ai\DTO\AiChatResponse;
+use App\Services\Ai\Exceptions\AiProviderException;
 use Illuminate\Support\Facades\Http;
-use RuntimeException;
 
 class AnthropicClient implements AiProviderClient
 {
@@ -18,6 +21,11 @@ class AnthropicClient implements AiProviderClient
         return 'Claude';
     }
 
+    public function supportsChat(): bool
+    {
+        return true;
+    }
+
     public function listModels(string $apiKey): array
     {
         $response = Http::timeout(15)
@@ -29,7 +37,7 @@ class AnthropicClient implements AiProviderClient
             ->get('https://api.anthropic.com/v1/models');
 
         if (! $response->successful()) {
-            throw new RuntimeException(
+            throw new AiProviderException(
                 $response->json('error.message')
                     ?: 'Anthropic request failed with status '.$response->status()
             );
@@ -45,9 +53,79 @@ class AnthropicClient implements AiProviderClient
             ->all();
 
         if ($models === []) {
-            throw new RuntimeException('Anthropic returned no models for this API key.');
+            throw new AiProviderException('Anthropic returned no models for this API key.');
         }
 
         return $models;
+    }
+
+    public function chat(string $apiKey, AiChatRequest $request): AiChatResponse
+    {
+        $messages = AiProviderMessageNormalizer::ensureStartsWithUser(
+            AiProviderMessageNormalizer::mergeConsecutive(
+                AiProviderMessageNormalizer::dialogue($request)
+            )
+        );
+
+        $payload = [
+            'model' => $request->model,
+            'max_tokens' => $request->maxTokens() ?? 2048,
+            'messages' => $messages,
+        ];
+
+        if (filled($request->systemPrompt)) {
+            $payload['system'] = $request->systemPrompt;
+        }
+
+        if ($request->temperature() !== null) {
+            $payload['temperature'] = $request->temperature();
+        }
+
+        $response = Http::timeout(60)
+            ->withHeaders([
+                'x-api-key' => $apiKey,
+                'anthropic-version' => '2023-06-01',
+            ])
+            ->acceptJson()
+            ->post('https://api.anthropic.com/v1/messages', $payload);
+
+        if (! $response->successful()) {
+            throw new AiProviderException(
+                $response->json('error.message')
+                    ?: 'Anthropic chat request failed with status '.$response->status()
+            );
+        }
+
+        $body = $response->json() ?? [];
+        $chunks = [];
+
+        foreach ($body['content'] ?? [] as $part) {
+            if (is_array($part) && ($part['type'] ?? null) === 'text') {
+                $chunks[] = trim((string) ($part['text'] ?? ''));
+            }
+        }
+
+        $text = trim(implode("\n", array_filter($chunks)));
+
+        if ($text === '') {
+            throw new AiProviderException('Anthropic returned an empty assistant response.');
+        }
+
+        $usage = is_array($body['usage'] ?? null) ? $body['usage'] : [];
+
+        return new AiChatResponse(
+            text: $text,
+            provider: $this->provider(),
+            model: (string) ($body['model'] ?? $request->model),
+            finishReason: is_string($body['stop_reason'] ?? null) ? $body['stop_reason'] : null,
+            inputTokens: isset($usage['input_tokens']) ? (int) $usage['input_tokens'] : null,
+            outputTokens: isset($usage['output_tokens']) ? (int) $usage['output_tokens'] : null,
+            totalTokens: isset($usage['input_tokens'], $usage['output_tokens'])
+                ? (int) $usage['input_tokens'] + (int) $usage['output_tokens']
+                : null,
+            metadata: [
+                'id' => $body['id'] ?? null,
+            ],
+        );
     }
 }

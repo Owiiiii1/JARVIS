@@ -159,66 +159,41 @@
 
 ## Milestone 4 — AI Configurations Runtime
 
+**Статус.** COMPLETED (2026-09-03). Personal Telegram DM AI (originally Milestone 5) shipped in this milestone.
+
 **Цель.** Chat/complete. Три независимых config. Greeting после pairing в `Основной`.
 
-**Реализуем**
+**Реализовано**
 
-- `AiProviderClient`: chat/complete + tool requests.
-- Configs: **Owner Conversation AI**, **Owner Analysis AI**, **Default User Conversation AI**. Не наследование owner→user.
-- User General Prompt (позже Cabinet edit).
-- `resolveConversationAI(user)` по space.
-- Pairing → create `Основной` → greeting **соответствующим** conversation config.
+- `AiProviderClient`: `chat(AiChatRequest): AiChatResponse` (tools reserved, not executed).
+- Configs: **Owner Conversation AI**, **Owner Analysis AI**, **Default User Conversation AI** in `ai_role_settings`. Не наследование owner→user.
+- User General Prompt (`user_ai_settings`); Cabinet + Owner Profile edit.
+- `AiConfigurationResolver` по `user.role`.
+- Pairing → `Основной` → greeting соответствующим conversation config (application event, без fake user hello).
+- Paired Telegram text: persist inbound → current-chat context → Conversation AI → persist assistant → send.
 - Analysis config есть; jobs later. User DM никогда не зовёт Owner Conversation / Analysis.
+- Runtime source of truth = `ai_role_settings`. `ai_provider_settings.is_active` не используется conversation runtime.
 
-**Migrations:** три config records; `user_ai_settings.general_prompt`; `users.timezone` можно здесь или M1.
+**Migrations:** `ai_role_settings`, `user_ai_settings`, `messages.parent_message_id`.
 
-**Backend / Frontend:** три блока в Owner Settings. Сломать one `is_active`.
+**Frontend:** Settings → AI: Provider Credentials + три блока. Cabinet AI Settings.
 
-**Tests:** owner greeting uses owner config; user (когда появится) uses default user config; analysis not on DM.
+**Tests:** resolver, context isolation, inbound/assistant persist, failure, duplicate, greeting, prompt isolation, admin AI forbidden. Http::fake / FakeAiChatGateway. No live LLM.
 
-**Deploy:** migrate; owner задаёт Conversation provider/model/prompt.
+**Deploy:** migrate; owner задаёт Conversation provider/model/prompt. At M4 deploy no provider keys were stored.
 
-**DoD**
+**DoD** — met. Analysis jobs, tools, groups, memory — later.
 
-- Pairing заканчивается AI-приветствием, не только «Вы авторизованы».
-- Три AI config разделены; user не наследует owner.
-- Нет LLM в Nutgram handler.
-
-**Зависимости:** M2, M3.
-
-**Не входит:** Analysis jobs, tools, groups.
 
 ---
 
 ## Milestone 5 — Owner Telegram AI
 
+**Статус.** COMPLETED (2026-09-03, delivered with Milestone 4).
+
 **Цель.** Первый полноценный Jarvis MVP: owner в Telegram с историей.
 
-**Реализуем**
-
-- Авторизованный owner DM: persist → recent context → Conversation AI → send.
-- Restart-safe: history из БД.
-- Recent **текущего** chat + заготовка summary-first (полные summaries — M12).
-- Telegram пишет в active (`Основной` до Chat Selector).
-
-**Migrations:** нет, если M3 полон.
-
-**Backend:** wire authorized path (уже в M4 greeting) на каждое DM.
-
-**Frontend:** нет.
-
-**Tests:** two-turn history; restart simulation reads DB; unlinked still no AI.
-
-**Deploy:** smoke owner bot `2000` если ещё не paired.
-
-**DoD**
-
-- Owner ведёт диалог в Telegram; рестарт PHP не обнуляет контекст.
-- User без pairing по-прежнему только code flow.
-
-**Зависимости:** M4.
-
-**Не входит:** Cabinet, groups, Google. Chat Selector меню — следующая веха.
+Personal DM persist → recent context of the **current** conversation → Conversation AI → send is implemented in M4 for both owner and paired users. Restart-safe history remains in `messages`. Analysis/tools/groups still later.
 
 ---
 

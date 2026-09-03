@@ -50,6 +50,7 @@ class SettingsController extends Controller
         return Inertia::render('Settings/Index', [
             'users' => $users,
             'providers' => $aiSettings->providersPayload(),
+            'aiRoles' => $aiSettings->rolesPayload(),
             'telegram' => $this->telegramPayload(),
             'tab' => $tab,
         ]);

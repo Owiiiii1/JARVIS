@@ -2,17 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Models\ChannelIdentity;
+use App\Models\Conversation;
+use App\Models\Message;
 use App\Models\TelegramBotSetting;
 use App\Models\User;
+use App\Models\UserAiSetting;
 use App\Services\Users\AccessCodeGenerator;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class TelegramPairingTest extends TestCase
 {
     public function test_channel_identities_table_exists(): void
     {
-        $this->assertTrue(\Illuminate\Support\Facades\Schema::hasTable('channel_identities'));
+        $this->assertTrue(Schema::hasTable('channel_identities'));
     }
 
     public function test_invalid_webhook_secret_returns_forbidden(): void
@@ -149,9 +155,9 @@ class TelegramPairingTest extends TestCase
             'name' => 'Jarvis Telegram Webhook Test',
             'email' => 'jarvis-test-'.bin2hex(random_bytes(6)).'@invalid.local',
             'password' => bcrypt('temporary-test-password'),
-            'role' => \App\Enums\UserRole::User,
+            'role' => UserRole::User,
             'access_code' => $generator->generate(),
-            'status' => \App\Enums\UserStatus::Active,
+            'status' => UserStatus::Active,
             'timezone' => 'Europe/Rome',
         ]);
     }
@@ -167,8 +173,9 @@ class TelegramPairingTest extends TestCase
         }
 
         ChannelIdentity::query()->where('user_id', $user->id)->update(['active_conversation_id' => null]);
-        \App\Models\Message::query()->where('user_id', $user->id)->delete();
-        \App\Models\Conversation::query()->where('user_id', $user->id)->delete();
+        Message::query()->where('user_id', $user->id)->delete();
+        UserAiSetting::query()->where('user_id', $user->id)->delete();
+        Conversation::query()->where('user_id', $user->id)->delete();
         ChannelIdentity::query()->where('user_id', $user->id)->delete();
         User::query()->whereKey($user->id)->delete();
     }

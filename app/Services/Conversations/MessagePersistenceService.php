@@ -51,6 +51,7 @@ final class MessagePersistenceService
                     'body' => $data->body,
                     'message_type' => $data->messageType,
                     'channel_message_id' => $data->channelMessageId,
+                    'parent_message_id' => $data->parentMessageId,
                     'metadata' => $data->metadata,
                     'occurred_at' => $data->occurredAt ?? now(),
                 ]);

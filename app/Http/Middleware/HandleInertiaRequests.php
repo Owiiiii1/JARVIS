@@ -2,7 +2,12 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\AiRoleKey;
+use App\Models\AiProviderSetting;
+use App\Models\AiRoleSetting;
+use App\Models\TelegramBotSetting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -37,7 +42,7 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
-            
+
             'owlAdmin' => fn () => [
                 ...config('owl-admin.branding', [
                     'brand_name' => config('owl-admin.brand_name', config('owl-admin.name', 'Service Admin')),
@@ -53,34 +58,44 @@ class HandleInertiaRequests extends Middleware
                     ];
 
                     try {
-                        if (! class_exists(\App\Models\AiProviderSetting::class)) {
+                        if (! class_exists(AiProviderSetting::class)) {
                             return $fallback;
                         }
 
-                        if (! \Illuminate\Support\Facades\Schema::hasTable('ai_provider_settings')) {
+                        if (! Schema::hasTable('ai_role_settings')) {
                             return $fallback;
                         }
 
-                        $active = \App\Models\AiProviderSetting::query()
-                            ->where('is_active', true)
+                        $role = AiRoleSetting::query()
+                            ->where('role_key', AiRoleKey::OwnerConversation->value)
+                            ->where('is_enabled', true)
+                            ->first();
+
+                        if ($role === null || ! filled($role->provider) || ! filled($role->model)) {
+                            return $fallback;
+                        }
+
+                        $credential = AiProviderSetting::query()
+                            ->where('provider', $role->provider)
                             ->where('is_connected', true)
                             ->first();
 
-                        if ($active === null) {
+                        if ($credential === null) {
                             return $fallback;
                         }
 
-                        $providerLabel = $active->label ?: ucfirst((string) $active->provider);
+                        $providerLabel = $credential->label ?: ucfirst((string) $role->provider);
 
                         return [
                             'connected' => true,
-                            'provider' => $active->provider,
+                            'provider' => $role->provider,
                             'provider_label' => $providerLabel,
-                            'model' => $active->active_model,
+                            'model' => $role->model,
                             'status_label' => sprintf(
-                                'AI: connected — %s / %s',
+                                'AI: %s — %s / %s',
+                                'Owner Conversation',
                                 $providerLabel,
-                                $active->active_model ?? 'unknown'
+                                $role->model
                             ),
                         ];
                     } catch (\Throwable) {
@@ -98,15 +113,15 @@ class HandleInertiaRequests extends Middleware
                     ];
 
                     try {
-                        if (! class_exists(\App\Models\TelegramBotSetting::class)) {
+                        if (! class_exists(TelegramBotSetting::class)) {
                             return $fallback;
                         }
 
-                        if (! \Illuminate\Support\Facades\Schema::hasTable('telegram_bot_settings')) {
+                        if (! Schema::hasTable('telegram_bot_settings')) {
                             return $fallback;
                         }
 
-                        $setting = \App\Models\TelegramBotSetting::query()->first();
+                        $setting = TelegramBotSetting::query()->first();
                         if ($setting === null || ! filled($setting->bot_token)) {
                             return $fallback;
                         }

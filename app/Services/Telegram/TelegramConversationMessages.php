@@ -26,6 +26,8 @@ final class TelegramConversationMessages
 
     public const MESSAGE_SAVED = 'Сообщение сохранено в чате «%s». AI будет подключён на следующем этапе.';
 
+    public const AI_FAILURE = 'Не удалось получить ответ от AI. Попробуйте ещё раз позже.';
+
     public const LIST_TRUNCATED = 'Показаны последние 20 чатов.';
 
     public static function connectedWithChat(string $title): string

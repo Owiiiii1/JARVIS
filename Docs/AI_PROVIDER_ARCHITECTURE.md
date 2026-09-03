@@ -4,7 +4,7 @@ Jarvis не зависит от одного HTTP API и одной модели
 
 **Нет** одной Conversation AI на owner и users. Это разные configuration domains. ADR-013 уточняется ADR-034.
 
-Фактический код: один `is_active` — противоречит целевому. [CURRENT_STATE.md](CURRENT_STATE.md). Замена — Milestone 4.
+Фактический код (M4): runtime source of truth = `ai_role_settings`. `ai_provider_settings` хранит credentials / listModels. Поле `is_active` не определяет conversation model.
 
 ---
 
@@ -89,4 +89,11 @@ Speech: [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Voice используе
 
 ## Admin UI
 
-Owner Settings: три блока (Owner Conversation / Owner Analysis / Default User Conversation). Не «одна активная модель Jarvis».
+Owner Settings → AI:
+
+1. **Provider Credentials** — API keys, check connection, discovered models. Не runtime.
+2. Три блока конфигурации (Owner Conversation / Owner Analysis / Default User Conversation): enabled, provider, model, system prompt, parameters.
+
+Нельзя enable configuration, если provider не connected, model пустой, или chat не реализован.
+
+Runtime **не** читает `is_active`.

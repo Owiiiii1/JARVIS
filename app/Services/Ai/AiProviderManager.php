@@ -6,6 +6,9 @@ use App\Services\Ai\Clients\AnthropicClient;
 use App\Services\Ai\Clients\GeminiClient;
 use App\Services\Ai\Clients\OpenAiClient;
 use App\Services\Ai\Contracts\AiProviderClient;
+use App\Services\Ai\DTO\AiChatRequest;
+use App\Services\Ai\DTO\AiChatResponse;
+use App\Services\Ai\Exceptions\AiConfigurationException;
 use InvalidArgumentException;
 
 class AiProviderManager
@@ -16,14 +19,14 @@ class AiProviderManager
     public function __construct()
     {
         $this->clients = [
-            'openai' => new OpenAiClient(),
-            'anthropic' => new AnthropicClient(),
-            'gemini' => new GeminiClient(),
+            'openai' => new OpenAiClient,
+            'anthropic' => new AnthropicClient,
+            'gemini' => new GeminiClient,
         ];
     }
 
     /**
-     * @return array<int, array{provider: string, label: string}>
+     * @return array<int, array{provider: string, label: string, supports_chat: bool}>
      */
     public function providers(): array
     {
@@ -31,9 +34,15 @@ class AiProviderManager
             fn (AiProviderClient $client): array => [
                 'provider' => $client->provider(),
                 'label' => $client->label(),
+                'supports_chat' => $client->supportsChat(),
             ],
             $this->clients
         ));
+    }
+
+    public function supportsChat(string $provider): bool
+    {
+        return $this->client($provider)->supportsChat();
     }
 
     /**
@@ -62,7 +71,18 @@ class AiProviderManager
         return $normalized;
     }
 
-    private function client(string $provider): AiProviderClient
+    public function chat(string $provider, string $apiKey, AiChatRequest $request): AiChatResponse
+    {
+        $client = $this->client($provider);
+
+        if (! $client->supportsChat()) {
+            throw new AiConfigurationException('Chat is not implemented for provider '.$provider.'.');
+        }
+
+        return $client->chat($apiKey, $request);
+    }
+
+    public function client(string $provider): AiProviderClient
     {
         if (! isset($this->clients[$provider])) {
             throw new InvalidArgumentException('Unsupported AI provider: '.$provider);

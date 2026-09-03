@@ -7,6 +7,7 @@ use App\Enums\MessageRole;
 use App\Enums\MessageType;
 use App\Models\ChannelIdentity;
 use App\Models\Conversation;
+use App\Services\Conversations\ConversationAiService;
 use App\Services\Conversations\ConversationService;
 use App\Services\Conversations\MessagePersistenceService;
 use App\Services\Conversations\PersistMessageData;
@@ -34,6 +35,7 @@ final class TelegramUpdateHandler
         private readonly MessagePersistenceService $messagePersistence,
         private readonly TelegramIdentityState $identityState,
         private readonly TelegramChatKeyboard $keyboard,
+        private readonly ConversationAiService $conversationAi,
     ) {}
 
     public function handleMessage(Nutgram $bot): void
@@ -89,12 +91,20 @@ final class TelegramUpdateHandler
             }
 
             if ($result->outcome === TelegramPairingOutcome::Paired && $result->identity !== null) {
+                $result->identity->loadMissing('user');
                 $conversation = $this->conversationService->ensureActiveConversation($result->identity);
                 $this->reply(
                     $bot,
                     TelegramConversationMessages::connectedWithChat($conversation->title),
                     $result->identity,
                 );
+
+                $greeting = $this->conversationAi->greetAfterPairing($result->identity->user, $conversation);
+                $greetingText = $greeting->replyText();
+
+                if (filled($greetingText) && ! $greeting->skipped) {
+                    $this->reply($bot, $greetingText, $result->identity);
+                }
             }
 
             return;
@@ -265,16 +275,8 @@ final class TelegramUpdateHandler
             return;
         }
 
-        $reply = TelegramConversationMessages::messageSaved($conversation->title);
-
-        $this->messagePersistence->persistSystem(new PersistMessageData(
-            conversation: $conversation,
-            role: MessageRole::System,
-            channel: MessageChannel::Telegram,
-            messageType: MessageType::System,
-            body: $reply,
-            occurredAt: now(),
-        ));
+        $turn = $this->conversationAi->completeUserTurn($inbound->message);
+        $reply = $turn->replyText() ?? TelegramConversationMessages::AI_FAILURE;
 
         $this->reply($bot, $reply, $identity);
     }

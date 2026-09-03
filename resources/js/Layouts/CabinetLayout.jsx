@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { LogOut, UserCircle2 } from 'lucide-react';
+import { LogOut, Sparkles, UserCircle2 } from 'lucide-react';
 
 export default function CabinetLayout({ title, children }) {
     const { auth, owlAdmin = {} } = usePage().props;
@@ -20,6 +20,21 @@ export default function CabinetLayout({ title, children }) {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <nav className="hidden items-center gap-2 text-sm sm:flex">
+                            <Link
+                                href={route('cabinet.index')}
+                                className="rounded-lg px-3 py-2 font-medium text-slate-700 hover:bg-slate-100"
+                            >
+                                Cabinet
+                            </Link>
+                            <Link
+                                href={route('cabinet.ai-settings.edit')}
+                                className="inline-flex items-center gap-1 rounded-lg px-3 py-2 font-medium text-slate-700 hover:bg-slate-100"
+                            >
+                                <Sparkles className="h-4 w-4" />
+                                AI Settings
+                            </Link>
+                        </nav>
                         <div className="hidden items-center gap-2 text-sm text-slate-600 sm:flex">
                             <UserCircle2 className="h-4 w-4" />
                             <span>{user?.name ?? 'User'}</span>

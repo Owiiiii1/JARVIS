@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Enums\AiRoleKey;
 use App\Http\Controllers\Controller;
 use App\Models\AiProviderSetting;
 use App\Services\Ai\AiProviderManager;
+use App\Services\Ai\AiRoleSettingsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -14,7 +16,8 @@ use Throwable;
 class AiSettingsController extends Controller
 {
     public function __construct(
-        private readonly AiProviderManager $providerManager
+        private readonly AiProviderManager $providerManager,
+        private readonly AiRoleSettingsService $roleSettings,
     ) {}
 
     public function index(): RedirectResponse
@@ -45,6 +48,7 @@ class AiSettingsController extends Controller
                     'api_key_masked' => $this->maskKey($setting->api_key),
                     'is_connected' => (bool) $setting->is_connected,
                     'is_active' => (bool) $setting->is_active,
+                    'supports_chat' => $this->providerManager->supportsChat($setting->provider),
                     'active_model' => $setting->active_model,
                     'available_models' => $models,
                     'last_checked_at' => optional($setting->last_checked_at)?->toIso8601String(),
@@ -112,6 +116,38 @@ class AiSettingsController extends Controller
 
             return back()->withErrors(['ai' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function rolesPayload(): array
+    {
+        return $this->roleSettings->payload();
+    }
+
+    public function updateRole(Request $request, string $roleKey): RedirectResponse
+    {
+        $role = AiRoleKey::tryFrom($roleKey);
+
+        if ($role === null) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'provider' => ['nullable', 'string', Rule::in(['openai', 'anthropic', 'gemini'])],
+            'model' => ['nullable', 'string', 'max:255'],
+            'system_prompt' => ['required', 'string', 'max:20000'],
+            'is_enabled' => ['required', 'boolean'],
+            'parameters' => ['nullable', 'array'],
+            'parameters.temperature' => ['nullable', 'numeric', 'min:0', 'max:2'],
+            'parameters.max_tokens' => ['nullable', 'integer', 'min:1', 'max:8192'],
+            'parameters.recent_message_limit' => ['nullable', 'integer', 'min:5', 'max:40'],
+        ]);
+
+        $this->roleSettings->update($role, $validated);
+
+        return back()->with('success', $role->label().' saved.');
     }
 
     public function activate(Request $request, string $provider): RedirectResponse

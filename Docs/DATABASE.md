@@ -36,19 +36,17 @@ Account entity. Ядро работает с `user_id`, не с Telegram id. Р�
 
 ### user_ai_settings
 
-Per-user AI слой. Не финальная migration schema.
+Implemented (M4): unique `user_id`, `general_prompt` nullable, `overrides` json nullable (unused). Owner edits from Profile; user from Cabinet → AI Settings. Self-only.
 
-- `user_id`;
-- `general_prompt` (User General Prompt);
-- `general_prompt` — правит сам user в Cabinet;
-- optional future model override (поверх **Default User Conversation AI**, не Owner Conversation);
-- timestamps.
+Platform configs live in **`ai_role_settings`** (not `is_active`):
 
-Platform configs (отдельные записи, не одна `is_active`):
+| role_key | Purpose |
+| --- | --- |
+| `owner_conversation` | Owner Space personal DM |
+| `owner_analysis` | Future jobs; not used in DM |
+| `user_conversation` | All User Spaces |
 
-- Owner Conversation AI;
-- Owner Analysis AI;
-- Default User Conversation AI.
+Fields: provider, model, system_prompt, parameters json, is_enabled. Credentials remain in `ai_provider_settings`.
 
 ### channel_identities
 
@@ -98,6 +96,7 @@ Raw history. Закладывается в Phase 1 и **не ломается** 
 - `modality` / `message_type` (text / voice / photo / document / video / …)
 - `body` (текст после STT тоже сюда)
 - `channel_message_id` / Telegram message ID (идемпотентность)
+- `parent_message_id` (M4) — assistant/system reply linked to inbound user message
 - sender: Telegram user ID, display name, username (критично для групп)
 - reply-to / thread / forum topic id
 - attachments metadata

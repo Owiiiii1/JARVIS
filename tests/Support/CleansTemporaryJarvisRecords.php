@@ -8,6 +8,7 @@ use App\Models\ChannelIdentity;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
+use App\Models\UserAiSetting;
 use App\Services\Users\AccessCodeGenerator;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -55,6 +56,7 @@ trait CleansTemporaryJarvisRecords
         }
 
         Message::query()->where('user_id', $user->id)->delete();
+        UserAiSetting::query()->where('user_id', $user->id)->delete();
         ChannelIdentity::query()->where('user_id', $user->id)->update(['active_conversation_id' => null]);
         Conversation::query()->where('user_id', $user->id)->delete();
         ChannelIdentity::query()->where('user_id', $user->id)->delete();

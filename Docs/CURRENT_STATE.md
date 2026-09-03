@@ -110,15 +110,16 @@ Engine: MySQL 8.0.46. **16 tables**. Migrations run: **10**.
 
 | Expected (docs) | Status |
 | --- | --- |
-| `conversations` | DOCUMENTED ONLY |
-| `messages` | DOCUMENTED ONLY |
+| `conversations` | IMPLEMENTED (M3) |
+| `messages` | IMPLEMENTED (M3; `parent_message_id` added M4) |
 | `topics` | DOCUMENTED ONLY |
 | `memories` / `memory_*` | DOCUMENTED ONLY |
 | `summaries` | DOCUMENTED ONLY |
 | `telegram_groups` | DOCUMENTED ONLY |
 | `telegram_group_participants` | DOCUMENTED ONLY |
-| `channel_identities` | DOCUMENTED ONLY |
-| `user_ai_settings` | DOCUMENTED ONLY |
+| `channel_identities` | IMPLEMENTED (M2) |
+| `user_ai_settings` | IMPLEMENTED (M4) |
+| `ai_role_settings` | IMPLEMENTED (M4) |
 | `user_profiles` (separate) | DOCUMENTED ONLY |
 | `admin_audit_logs` | DOCUMENTED ONLY |
 
@@ -136,12 +137,28 @@ Engine: MySQL 8.0.46. **16 tables**. Migrations run: **10**.
 
 #### `ai_provider_settings`
 
-- **Status:** PARTIAL (settings store, not role-based AI runtime)
-- **Purpose:** one row per vendor; store encrypted key, connection check, **one** global active provider/model
+- **Status:** PARTIAL (credential pool + listModels; not conversation runtime)
+- **Purpose:** one row per vendor; encrypted API key, connection check, discovered `available_models`. `is_active` / `active_model` remain for backward compatibility and are **not** the runtime source of truth.
 - **Fields:** `id`, `provider` (unique), `label`, `api_key` (encrypted), `is_connected`, `is_active`, `active_model`, `available_models` (json), `last_checked_at`, `last_error`, timestamps
-- **Relations:** none
+- **Relations:** none (referenced by `ai_role_settings.provider` as a string key)
 - **Migration:** `2026_07_04_170000_create_ai_provider_settings_table.php`
-- **Rows now:** 3 (`openai`, `anthropic`, `gemini`). All `is_connected=0`, `is_active=0`, no `active_model`
+- **Rows now:** 3 (`openai`, `anthropic`, `gemini`). All `is_connected=0`, `is_active=0`, no `active_model`, no stored API keys
+
+#### `ai_role_settings`
+
+- **Status:** IMPLEMENTED (M4 runtime source of truth)
+- **Purpose:** independent Owner Conversation / Owner Analysis / Default User Conversation configs
+- **Fields:** `id`, `role_key` (unique), `provider`, `model`, `system_prompt`, `parameters` (json), `is_enabled`, timestamps
+- **No API keys**
+- **Migration:** `2026_09_03_200000_create_ai_role_settings_table.php`
+- **Rows now:** 3, all `is_enabled=0`, no provider/model until owner configures them
+
+#### `user_ai_settings`
+
+- **Status:** IMPLEMENTED (M4 General Prompt only)
+- **Fields:** `id`, `user_id` (unique FK), `general_prompt`, `overrides` (json, unused), timestamps
+- **Migration:** `2026_09_03_200100_create_user_ai_settings_table.php`
+- **Rows now:** 0
 
 #### `telegram_bot_settings`
 
@@ -237,7 +254,7 @@ Nav (actual): Home, Calendar, Statistics → Logs, Settings. Footer: Powered by 
 
 Settings Users copy: “Accounts allowed to sign in to the **admin panel**.” Creating a user grants the same admin access. No User Card, chats, topics, AI-per-user, impersonation.
 
-AI panel copy: “Connect **one** provider and activate **one** model at a time.” Matches code; conflicts with documented role-based AI.
+AI panel: Provider Credentials (keys / listModels) plus three independent AI configuration blocks. Runtime does **not** use `ai_provider_settings.is_active`.
 
 ---
 
@@ -247,17 +264,20 @@ Path: `app/Services/Ai`
 
 | Piece | Status | Fact |
 | --- | --- | --- |
-| Contract | PARTIAL | `AiProviderClient`: `provider()`, `label()`, `listModels($apiKey)` only |
-| Manager | PARTIAL | `AiProviderManager` maps `openai` / `anthropic` / `gemini` |
-| Clients | PARTIAL | `OpenAiClient`, `AnthropicClient`, `GeminiClient` — HTTP list-models only |
-| Credentials | PARTIAL | Encrypted `ai_provider_settings.api_key`. No env key names |
-| Model selection | PARTIAL | Admin activates one `active_model` on one row (`is_active`). Shared Inertia badge |
-| Role-based config | DOCUMENTED ONLY | No `conversation` / `analysis` roles in code or DB |
-| System / user prompt | DOCUMENTED ONLY | No prompt storage |
-| LLM chat/complete | DOCUMENTED ONLY | No `chat.completions` / messages API usage |
-| Tests | UNUSED | No AI tests |
+| Contract | IMPLEMENTED | `AiProviderClient`: `listModels` + `supportsChat` + `chat(AiChatRequest): AiChatResponse` |
+| Manager | IMPLEMENTED | `AiProviderManager` maps `openai` / `anthropic` / `gemini` |
+| Clients | IMPLEMENTED | OpenAI Responses API (`/v1/responses`, fallback `/v1/chat/completions`); Anthropic `/v1/messages`; Gemini `generateContent` |
+| Credentials | PARTIAL | Encrypted `ai_provider_settings.api_key`. No keys stored at M4 deploy |
+| Role-based config | IMPLEMENTED | `ai_role_settings` — `owner_conversation`, `owner_analysis`, `user_conversation` |
+| Resolver | IMPLEMENTED | `AiConfigurationResolver`: owner → owner_conversation; user → user_conversation; analysis separate |
+| System / user prompt | IMPLEMENTED | Platform prompt per role in DB; User General Prompt in `user_ai_settings` |
+| LLM chat | IMPLEMENTED | Conversation engine via `AiChatGateway`; Telegram DM uses conversation configs only |
+| Admin UI | IMPLEMENTED | Settings → AI: credentials + three role blocks |
+| Tests | IMPLEMENTED | Fake gateway + Http::fake; no live billable calls |
 
-`HandleInertiaRequests` exposes a status badge from the single active+connected provider. Currently none active.
+Runtime source of truth: **`ai_role_settings`**. `is_active` is unused by conversation runtime. Owner Analysis is configurable and is **not** called from personal DM.
+
+`HandleInertiaRequests` badge reads enabled Owner Conversation config + connected provider credentials.
 
 ---
 
@@ -314,11 +334,11 @@ No `app/Services` conversation classes. No controllers for chats.
 | Users list (admin settings tab) | PARTIAL | name, email, created_at; CRUD |
 | User Card | DOCUMENTED ONLY | |
 | User profile (cabinet) | DOCUMENTED ONLY | Admin `/profile` is self-edit for the logged-in admin |
-| User General Prompt | DOCUMENTED ONLY | |
-| User AI override | DOCUMENTED ONLY | |
-| User conversations / topics | DOCUMENTED ONLY | |
-| Cabinet | DOCUMENTED ONLY | |
-| Cabinet login | DOCUMENTED ONLY | |
+| User General Prompt | IMPLEMENTED | Owner: Profile; User: `/cabinet/ai-settings`. Self-only |
+| User AI override | DOCUMENTED ONLY | No per-user model override |
+| User conversations / topics | PARTIAL | Personal conversations exist; topics later |
+| Cabinet | PARTIAL | `/cabinet` catalog + AI Settings |
+| Cabinet login | IMPLEMENTED | Role-based redirect after login |
 | Chat list / new chat / history | DOCUMENTED ONLY | |
 | Impersonation | DOCUMENTED ONLY | |
 
@@ -418,7 +438,7 @@ Docs (ADR-011–015, `TELEGRAM_GROUPS.md`) are internally consistent. **Zero** i
 
 ### Conversation / Analysis AI vs docs
 
-Docs: roles + inheritance. **Code:** one `is_active` provider. Settings UI text matches code, not docs.
+Docs: roles + inheritance. **Code (M4):** `ai_role_settings` is the runtime source of truth. `ai_provider_settings.is_active` is unused by conversation runtime.
 
 ---
 
@@ -481,17 +501,18 @@ New providers without changing Jarvis Core.
 | Laravel + nginx + SSL + MySQL | IMPLEMENTED |
 | Admin kit shell + login | IMPLEMENTED |
 | Settings Users CRUD | PARTIAL |
-| AI provider key + listModels + activate | PARTIAL |
+| AI provider credentials + listModels | PARTIAL |
+| AI role configurations runtime | IMPLEMENTED |
 | Telegram token + webhook admin | PARTIAL |
-| Telegram webhook ingest | PLACEHOLDER |
+| Telegram webhook ingest | IMPLEMENTED (pairing + conversations + AI DM) |
 | Calendar | PLACEHOLDER |
 | Logs | PLACEHOLDER |
 | Settings General / App | PLACEHOLDER |
-| Conversation Engine | DOCUMENTED ONLY |
+| Conversation Engine | PARTIAL (personal DM + recent window; no tools/memory) |
 | Memory Engine | DOCUMENTED ONLY |
 | Telegram Groups module | DOCUMENTED ONLY |
-| Role-based Conversation/Analysis AI | DOCUMENTED ONLY |
-| User Cabinet | DOCUMENTED ONLY |
+| Role-based Conversation/Analysis AI | PARTIAL (configs + conversation runtime; analysis jobs later) |
+| User Cabinet | PARTIAL |
 | Impersonation / ownership policies | DOCUMENTED ONLY |
 | Public/mobile API | DOCUMENTED ONLY |
 | Voice / ElevenLabs | DOCUMENTED ONLY |
@@ -509,9 +530,9 @@ New providers without changing Jarvis Core.
 - Admin login at `/`, session auth, logout, self profile/password change.
 - Admin CRUD of other **admin** users (Settings → Users).
 - Dashboard, branded layout, locale switch (session `en|ru|uk`).
-- AI settings: save encrypted keys, check connection (list models), activate/deactivate **one** global provider (none active now).
+- AI settings: provider credentials (keys / listModels) and three independent role configurations. Runtime uses `ai_role_settings`, not `is_active`. No provider keys stored at M4 deploy; role configs exist but are disabled until the owner sets them.
 - Telegram settings: encrypted token, getMe, set/remove webhook. DB reports bot `@owl_jarvis_bot` connected and webhook set.
-- Webhook endpoint validates secret and ACKs.
+- Webhook: pairing, conversations/Chat Selector, and Conversation AI for paired normal text (after role configs are enabled).
 - Health endpoints `/up`, `/owl-admin/health`.
 - Frontend production build.
 - Example PHPUnit tests pass (2).
@@ -520,9 +541,9 @@ New providers without changing Jarvis Core.
 
 ## What exists but is incomplete
 
-- Telegram: configured transport, no conversation handling.
-- AI: vendor plumbing, no chat, no roles, no prompts.
-- Users: table + admin CRUD, no isolation, cabinet, or User Card.
+- Telegram: pairing + chat selector work; AI replies after owner enables a conversation config and connects provider credentials.
+- AI: chat contract implemented; no keys connected at M4 deploy; Analysis jobs and tools not built.
+- Users: identity + cabinet catalog + General Prompt; no User Card / impersonation.
 - Calendar / Logs / General / App settings: routes and UI shells.
 - Queue/cache/session tables without workers or Redis.
 - Password reset table without routes.
@@ -604,5 +625,11 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 ### Milestone 3 — COMPLETED (2026-09-03)
 
 Conversations/messages persist; `active_conversation_id` FK; default `Основной`; Telegram Chat Selector (list/select/new/current); Cabinet shows the same catalog; Settings → Users chat/message counts. AI not invoked. Chat Selector originally planned as Milestone 6.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 4 — COMPLETED (2026-09-03)
+
+Three independent AI configurations (`ai_role_settings`); User General Prompt; provider `chat()` for OpenAI/Anthropic/Gemini; ConversationContextBuilder (current chat only); Telegram DM + pairing greeting call Conversation AI; Analysis config exists but is not used in DM. Runtime source of truth is `ai_role_settings`, not `is_active`. No live provider keys were stored at deploy; AI replies after the owner connects a provider and enables role configs.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).

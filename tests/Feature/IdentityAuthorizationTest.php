@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Models\UserAiSetting;
 use App\Services\Users\AccessCodeGenerator;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -35,8 +36,10 @@ class IdentityAuthorizationTest extends TestCase
 
             $this->actingAs($temporaryUser)->get('/dashboard')->assertForbidden();
             $this->actingAs($temporaryUser)->get('/settings')->assertForbidden();
+            $this->actingAs($temporaryUser)->get('/settings?tab=ai')->assertForbidden();
             $this->actingAs($temporaryUser)->get('/calendar')->assertForbidden();
             $this->actingAs($temporaryUser)->get('/statistics/logs')->assertForbidden();
+            $this->actingAs($temporaryUser)->get('/cabinet/ai-settings')->assertOk();
         } finally {
             $this->deleteTemporaryUser($temporaryUser);
         }
@@ -114,6 +117,7 @@ class IdentityAuthorizationTest extends TestCase
             return;
         }
 
+        UserAiSetting::query()->where('user_id', $user->id)->delete();
         User::query()->whereKey($user->id)->delete();
     }
 }

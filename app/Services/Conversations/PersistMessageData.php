@@ -20,6 +20,7 @@ final readonly class PersistMessageData
         public MessageType $messageType,
         public ?string $body = null,
         public ?string $channelMessageId = null,
+        public ?int $parentMessageId = null,
         public ?DateTimeInterface $occurredAt = null,
         public ?array $metadata = null,
     ) {}

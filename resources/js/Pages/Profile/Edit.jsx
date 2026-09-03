@@ -4,7 +4,7 @@ import { Lock, Save, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 export default function EditProfile() {
-    const { auth, locale = 'en' } = usePage().props;
+    const { auth, locale = 'en', generalPrompt = '' } = usePage().props;
     const user = auth?.user;
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -19,6 +19,9 @@ export default function EditProfile() {
         password_confirmation: '',
     });
     const deleteForm = useForm({ password: '' });
+    const promptForm = useForm({
+        general_prompt: generalPrompt ?? '',
+    });
 
     const text = {
         en: {
@@ -37,6 +40,9 @@ export default function EditProfile() {
             deleteAccount: 'Delete account',
             cancel: 'Cancel',
             confirmDelete: 'Confirm deletion',
+            generalPrompt: 'General Prompt',
+            generalPromptHelp: 'Personal instructions for your Owner Conversation AI. This is not the platform system prompt.',
+            savePrompt: 'Save General Prompt',
         },
         ru: {
             title: 'Профиль',
@@ -54,6 +60,9 @@ export default function EditProfile() {
             deleteAccount: 'Удалить аккаунт',
             cancel: 'Отмена',
             confirmDelete: 'Подтвердить удаление',
+            generalPrompt: 'General Prompt',
+            generalPromptHelp: 'Личные инструкции для Owner Conversation AI. Это не platform system prompt.',
+            savePrompt: 'Сохранить General Prompt',
         },
         uk: {
             title: 'Профіль',
@@ -71,6 +80,9 @@ export default function EditProfile() {
             deleteAccount: 'Видалити акаунт',
             cancel: 'Скасувати',
             confirmDelete: 'Підтвердити видалення',
+            generalPrompt: 'General Prompt',
+            generalPromptHelp: 'Особисті інструкції для Owner Conversation AI. Це не platform system prompt.',
+            savePrompt: 'Зберегти General Prompt',
         },
     };
     const t = text[locale] ?? text.en;
@@ -100,6 +112,33 @@ export default function EditProfile() {
                         >
                             <Save className="h-4 w-4" />
                             {t.saveProfile}
+                        </button>
+                    </form>
+                </div>
+
+                <div className="app-widget p-5">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{t.generalPrompt}</h3>
+                    <p className="mt-2 text-sm text-slate-500">{t.generalPromptHelp}</p>
+                    <form
+                        className="mt-4 space-y-4"
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            promptForm.patch(route('cabinet.ai-settings.update'), { preserveScroll: true });
+                        }}
+                    >
+                        <textarea
+                            rows={8}
+                            value={promptForm.data.general_prompt}
+                            onChange={(e) => promptForm.setData('general_prompt', e.target.value)}
+                            className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                        />
+                        <button
+                            type="submit"
+                            disabled={promptForm.processing}
+                            className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                        >
+                            <Save className="h-4 w-4" />
+                            {t.savePrompt}
                         </button>
                     </form>
                 </div>
