@@ -5,9 +5,14 @@ namespace Tests\Support;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\ChannelIdentity;
+use App\Enums\ConversationKind;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\Project;
 use App\Models\Reminder;
+use App\Models\TelegramGroup;
+use App\Models\TelegramGroupParticipant;
+use App\Models\Topic;
 use App\Models\User;
 use App\Models\UserAiSetting;
 use App\Services\Users\AccessCodeGenerator;
@@ -72,6 +77,11 @@ trait CleansTemporaryJarvisRecords
         \App\Models\MemoryAnalysisRun::query()->where('user_id', $user->id)->delete();
         \App\Models\UserProfile::query()->where('user_id', $user->id)->delete();
         Reminder::query()->where('user_id', $user->id)->delete();
+        $conversationIds = Conversation::query()->where('user_id', $user->id)->pluck('id');
+        $groupIds = TelegramGroup::query()->whereIn('conversation_id', $conversationIds)->pluck('id');
+        TelegramGroupParticipant::query()->whereIn('telegram_group_id', $groupIds)->delete();
+        Message::query()->whereIn('telegram_group_id', $groupIds)->delete();
+        TelegramGroup::query()->whereIn('id', $groupIds)->delete();
         Message::query()->where('user_id', $user->id)->delete();
         UserAiSetting::query()->where('user_id', $user->id)->delete();
         ChannelIdentity::query()->where('user_id', $user->id)->update(['active_conversation_id' => null]);
@@ -94,5 +104,33 @@ trait CleansTemporaryJarvisRecords
 
         $identity->forceFill(['active_conversation_id' => null])->save();
         $identity->delete();
+    }
+
+    private function isTestTelegramChatId(string $telegramChatId): bool
+    {
+        return (bool) preg_match('/^-91\d{6,12}$/', $telegramChatId);
+    }
+
+    private function deleteTestTelegramGroup(string $telegramChatId): void
+    {
+        if (! $this->isTestTelegramChatId($telegramChatId)) {
+            return;
+        }
+
+        $group = TelegramGroup::query()->where('telegram_chat_id', $telegramChatId)->first();
+
+        if ($group === null) {
+            return;
+        }
+
+        $conversationId = (int) $group->conversation_id;
+        $group->projects()->detach();
+        TelegramGroupParticipant::query()->where('telegram_group_id', $group->id)->delete();
+        Message::query()->where('conversation_id', $conversationId)->delete();
+        $group->delete();
+        Conversation::query()
+            ->whereKey($conversationId)
+            ->where('kind', ConversationKind::Group)
+            ->delete();
     }
 }

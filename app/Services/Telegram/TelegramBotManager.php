@@ -3,6 +3,7 @@
 namespace App\Services\Telegram;
 
 use App\Models\TelegramBotSetting;
+use App\Services\Telegram\Exceptions\TelegramSendException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -163,7 +164,10 @@ class TelegramBotManager
         ];
     }
 
-    public function sendTextMessage(string $chatId, string $text): void
+    /**
+     * @return array{message_id: string}
+     */
+    public function sendTextMessage(string $chatId, string $text): array
     {
         $token = (string) $this->setting()->bot_token;
 
@@ -177,10 +181,14 @@ class TelegramBotManager
         ]);
 
         if (! $response->successful() || $response->json('ok') !== true) {
-            throw new RuntimeException(
-                'Telegram sendMessage failed with status '.$response->status()
-            );
+            throw TelegramSendException::fromResponse($response);
         }
+
+        $messageId = $response->json('result.message_id');
+
+        return [
+            'message_id' => $messageId === null || $messageId === '' ? '' : (string) $messageId,
+        ];
     }
 
     private function apiUrl(string $token, string $method): string

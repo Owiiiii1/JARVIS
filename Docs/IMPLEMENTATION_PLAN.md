@@ -344,6 +344,8 @@ Personal DM persist → recent context of the **current** conversation → Conve
 
 ## Milestone 11 — Telegram Groups
 
+**Статус.** COMPLETED (2026-09-03).
+
 **Цель.** Owner-only groups: discovery, persist, admin chat, outbound, passive.
 
 **Реализуем** как [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).

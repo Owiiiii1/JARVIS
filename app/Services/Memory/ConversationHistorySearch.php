@@ -2,6 +2,7 @@
 
 namespace App\Services\Memory;
 
+use App\Enums\ConversationKind;
 use App\Enums\ConversationSummaryStatus;
 use App\Enums\MessageRole;
 use App\Enums\MessageType;
@@ -97,6 +98,7 @@ final class ConversationHistorySearch
     {
         $conversations = Conversation::query()
             ->where('user_id', $user->id)
+            ->where('kind', ConversationKind::Personal)
             ->orderByDesc('last_activity_at')
             ->limit(50);
 

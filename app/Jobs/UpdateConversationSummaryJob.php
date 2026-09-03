@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\ConversationKind;
 use App\Enums\MemoryAnalysisRunStatus;
 use App\Enums\MemoryAnalysisRunType;
 use App\Models\Conversation;
@@ -34,7 +35,7 @@ class UpdateConversationSummaryJob implements ShouldQueue
         $user = User::query()->find($this->userId);
         $conversation = Conversation::query()->find($this->conversationId);
 
-        if ($user === null || $conversation === null || (int) $conversation->user_id !== $this->userId) {
+        if ($user === null || $conversation === null || (int) $conversation->user_id !== $this->userId || $conversation->kind !== ConversationKind::Personal) {
             return;
         }
 

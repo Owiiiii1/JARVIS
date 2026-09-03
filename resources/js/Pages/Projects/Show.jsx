@@ -9,6 +9,7 @@ export default function ProjectShow() {
         availableConversations = [],
         availableTopics = [],
         availableMemories = [],
+        availableGroups = [],
         descriptionMax = 5000,
     } = usePage().props;
     const [editing, setEditing] = useState(false);
@@ -19,6 +20,7 @@ export default function ProjectShow() {
     const conversationForm = useForm({ conversation_id: '' });
     const topicForm = useForm({ topic_id: '' });
     const memoryForm = useForm({ memory_id: '' });
+    const groupForm = useForm({ telegram_group_id: '' });
 
     const text = {
         en: {
@@ -31,10 +33,11 @@ export default function ProjectShow() {
             conversations: 'Conversations',
             topics: 'Topics',
             memories: 'Memories',
-            groups: 'Groups later, after Telegram Groups.',
+            groups: 'Telegram groups',
             addConversation: 'Add conversation',
             addTopic: 'Add topic',
             addMemory: 'Add memory',
+            addGroup: 'Attach group',
             detach: 'Detach',
             empty: 'None attached.',
             name: 'Name',
@@ -50,10 +53,11 @@ export default function ProjectShow() {
             conversations: 'Conversations',
             topics: 'Topics',
             memories: 'Memories',
-            groups: 'Groups later, after Telegram Groups.',
+            groups: 'Telegram groups',
             addConversation: 'Add conversation',
             addTopic: 'Add topic',
             addMemory: 'Add memory',
+            addGroup: 'Attach group',
             detach: 'Detach',
             empty: 'None attached.',
             name: 'Name',
@@ -69,10 +73,11 @@ export default function ProjectShow() {
             conversations: 'Conversations',
             topics: 'Topics',
             memories: 'Memories',
-            groups: 'Groups later, after Telegram Groups.',
+            groups: 'Telegram groups',
             addConversation: 'Add conversation',
             addTopic: 'Add topic',
             addMemory: 'Add memory',
+            addGroup: 'Attach group',
             detach: 'Detach',
             empty: 'None attached.',
             name: 'Name',
@@ -238,7 +243,29 @@ export default function ProjectShow() {
                     addLabel={t.addMemory}
                 />
 
-                <p className="text-xs text-slate-500">{t.groups}</p>
+                <RelationSection
+                    title={t.groups}
+                    empty={t.empty}
+                    items={project.groups ?? []}
+                    renderItem={(item) => (
+                        <>
+                            <span className="font-medium">{item.title}</span>
+                            <p className="text-xs text-slate-500">
+                                {item.chat_type} · {item.status}
+                            </p>
+                        </>
+                    )}
+                    detach={(item) => route('projects.groups.destroy', [project.id, item.id])}
+                    detachLabel={t.detach}
+                    form={groupForm}
+                    field="telegram_group_id"
+                    options={availableGroups.map((item) => ({
+                        value: item.id,
+                        label: `${item.title} (${item.chat_type})`,
+                    }))}
+                    action={route('projects.groups.store', project.id)}
+                    addLabel={t.addGroup}
+                />
             </div>
         </AdminLayout>
     );

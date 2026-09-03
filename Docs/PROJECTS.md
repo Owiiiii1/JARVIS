@@ -6,7 +6,7 @@ Project связывает уже существующие сущности **re
 
 Пример: проект `JARVIS` может связать conversations, topics, memories. Позже — Telegram groups, group knowledge, GitHub / files / integration resources.
 
-M13 runtime: conversations, topics, memories. `project_groups` **не** создан, пока нет Telegram Groups subsystem (M11/M14).
+M13 runtime: conversations, topics, memories. M11 добавил `project_groups` (relation only; raw group history не копируется и не попадает в `get_project_context`).
 
 ---
 
@@ -16,7 +16,7 @@ M13 runtime: conversations, topics, memories. `project_groups` **не** созд
 Project ↔ conversations   (project_conversations)
 Project ↔ topics          (project_topics)
 Project ↔ memories        (project_memories)
-Project ↔ telegram_groups  planned after Groups subsystem
+Project ↔ telegram_groups  implemented (M11, relation only)
 Project ↔ group knowledge  planned after Group Analysis
 ```
 

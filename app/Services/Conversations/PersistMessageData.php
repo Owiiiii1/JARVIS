@@ -23,5 +23,12 @@ final readonly class PersistMessageData
         public ?int $parentMessageId = null,
         public ?DateTimeInterface $occurredAt = null,
         public ?array $metadata = null,
+        public ?int $telegramGroupId = null,
+        public ?string $senderExternalId = null,
+        public ?string $senderUsername = null,
+        public ?string $senderName = null,
+        public ?string $replyToChannelMessageId = null,
+        public ?string $threadId = null,
+        public ?DateTimeInterface $editedAt = null,
     ) {}
 }

@@ -9,6 +9,8 @@ use App\Services\Conversations\ChannelContext;
 use App\Services\Conversations\ConversationAiService;
 use App\Services\Conversations\ConversationService;
 use App\Services\Conversations\ConversationTurnService;
+use App\Services\Groups\TelegramGroupInboundService;
+use App\Services\Groups\TelegramGroupMembershipService;
 use App\Services\Telegram\Pairing\TelegramInboundContext;
 use App\Services\Telegram\Pairing\TelegramPairingMessages;
 use App\Services\Telegram\Pairing\TelegramPairingOutcome;
@@ -34,6 +36,8 @@ final class TelegramUpdateHandler
         private readonly TelegramChatKeyboard $keyboard,
         private readonly ConversationAiService $conversationAi,
         private readonly ConversationTurnService $conversationTurns,
+        private readonly TelegramGroupInboundService $groupInbound,
+        private readonly TelegramGroupMembershipService $groupMembership,
     ) {}
 
     public function handleMessage(Nutgram $bot): void
@@ -46,7 +50,7 @@ final class TelegramUpdateHandler
 
         if (! $this->isPrivateChat($message)) {
             if ($this->isGroupLikeChat($message)) {
-                $this->send($bot, TelegramPairingMessages::GROUP_PAIRING_HINT, chatId: $message->chat->id);
+                $this->groupInbound->handleMessage($message, edited: false);
             }
 
             return;
@@ -147,6 +151,28 @@ final class TelegramUpdateHandler
 
         $this->answerCallback($bot);
         $this->reply($bot, TelegramConversationMessages::chatSelected($conversation->title), $identity);
+    }
+
+    public function handleEditedMessage(Nutgram $bot): void
+    {
+        $message = $bot->message();
+
+        if ($message === null || $this->isPrivateChat($message) || ! $this->isGroupLikeChat($message)) {
+            return;
+        }
+
+        $this->groupInbound->handleMessage($message, edited: true);
+    }
+
+    public function handleMyChatMember(Nutgram $bot): void
+    {
+        $update = $bot->chatMember();
+
+        if ($update === null) {
+            return;
+        }
+
+        $this->groupMembership->handleMyChatMember($update);
     }
 
     private function handlePairedMessage(Nutgram $bot, Message $message, ChannelIdentity $identity): void

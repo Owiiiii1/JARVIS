@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\ConversationKind;
 use App\Enums\MemoryAnalysisRunStatus;
 use App\Enums\MemoryAnalysisRunType;
 use App\Models\Conversation;
@@ -59,6 +60,7 @@ class AnalyzeConversationTurnJob implements ShouldQueue
             || (int) $conversation->user_id !== $this->userId
             || (int) $from->user_id !== $this->userId
             || (int) $to->user_id !== $this->userId
+            || $conversation->kind !== ConversationKind::Personal
         ) {
             return;
         }

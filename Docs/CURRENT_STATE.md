@@ -115,8 +115,8 @@ Engine: MySQL 8.0.46. **16 tables**. Migrations run: **10**.
 | `topics` | DOCUMENTED ONLY |
 | `memories` / `memory_*` | DOCUMENTED ONLY |
 | `summaries` | DOCUMENTED ONLY |
-| `telegram_groups` | DOCUMENTED ONLY |
-| `telegram_group_participants` | DOCUMENTED ONLY |
+| `telegram_groups` | IMPLEMENTED (M11) |
+| `telegram_group_participants` | IMPLEMENTED (M11) |
 | `channel_identities` | IMPLEMENTED (M2) |
 | `user_ai_settings` | IMPLEMENTED (M4) |
 | `ai_role_settings` | IMPLEMENTED (M4) |
@@ -248,7 +248,7 @@ Nav (actual): Home, Calendar, Statistics → Logs, Settings. Footer: Powered by 
 | AI settings alias | `/ai-settings` | redirect to settings tab | — | IMPLEMENTED redirect |
 | Users (dedicated) | — | — | — | DOCUMENTED ONLY |
 | User Card | — | — | — | DOCUMENTED ONLY |
-| Telegram Groups | — | — | — | DOCUMENTED ONLY |
+| Telegram Groups | `/telegram-groups` | `TelegramGroupController` | `TelegramGroups/Index.jsx`, `Show.jsx` | IMPLEMENTED (M11, owner-only, persist-only) |
 | Chats / Topics | — | — | — | DOCUMENTED ONLY |
 | Integrations settings | — | — | — | DOCUMENTED ONLY / MISSING FROM DOCS |
 
@@ -510,8 +510,8 @@ New providers without changing Jarvis Core.
 | Settings General / App | PLACEHOLDER |
 | Conversation Engine | PARTIAL (personal DM + recent window + tools: reminder, history search, owner project context) |
 | Memory Engine | IMPLEMENTED (personal v1; no vector DB; no group knowledge) |
-| Projects | IMPLEMENTED (owner-only relation containers; no groups attach) |
-| Telegram Groups module | DOCUMENTED ONLY |
+| Projects | IMPLEMENTED (owner-only relation containers; `project_groups` attach in M11) |
+| Telegram Groups module | IMPLEMENTED (discovery, raw persist, admin messenger, outbound; no analysis) |
 | Role-based Conversation/Analysis AI | IMPLEMENTED (conversation runtime + Analysis AI background memory jobs) |
 | User Cabinet | IMPLEMENTED |
 | Impersonation / ownership policies | DOCUMENTED ONLY |
@@ -657,6 +657,12 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
 ### Milestone 13 — Projects — COMPLETED (2026-09-03)
 
-Owner-only `projects` with pivots to conversations, topics, and memories. Archive/restore. Admin CRUD + attach/detach. `get_project_context` is tool-driven and not injected into the default prompt. `project_groups` not created. No automatic classification or seeded JARVIS/YFS/RTS rows.
+Owner-only `projects` with pivots to conversations, topics, memories, and (from M11) telegram groups. Archive/restore. Admin CRUD + attach/detach. `get_project_context` is tool-driven and not injected into the default prompt. Group attach is relation-only: context returns compact group titles/status, never raw group history. No automatic classification or seeded JARVIS/YFS/RTS rows.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 11 — Telegram Groups — COMPLETED (2026-09-03)
+
+Owner-only Telegram groups. First group/supergroup update auto-registers `telegram_groups` + `kind=group` conversation (administrative `user_id` = owner). Raw messages persist on the existing `messages` table. Participants are Telegram identities, not Jarvis Users. Default mode persist-only: no Conversation AI, no personal memory jobs, no auto-reply. Admin list + messenger + timezone + outbound via existing `TelegramBotManager`. `project_groups` attach/detach without copying raw. Channels ignored. Privacy mode is a manual BotFather prerequisite; Cursor does not change it.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).

@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Models\Project;
 use App\Policies\ProjectPolicy;
+use App\Models\TelegramGroup;
+use App\Policies\TelegramGroupPolicy;
 use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\ProviderAiChatGateway;
 use App\Services\Tools\CreateReminderTool;
@@ -37,5 +39,6 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::policy(Project::class, ProjectPolicy::class);
+        Gate::policy(TelegramGroup::class, TelegramGroupPolicy::class);
     }
 }

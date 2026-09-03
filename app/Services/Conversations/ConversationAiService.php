@@ -3,6 +3,7 @@
 namespace App\Services\Conversations;
 
 use App\Enums\AiRoleKey;
+use App\Enums\ConversationKind;
 use App\Enums\MessageChannel;
 use App\Enums\MessageRole;
 use App\Enums\MessageType;
@@ -47,6 +48,10 @@ final class ConversationAiService
     public function completeUserTurn(Message $inbound): ConversationAiTurnResult
     {
         $inbound->loadMissing(['user', 'conversation']);
+
+        if ($inbound->conversation?->kind !== ConversationKind::Personal) {
+            return new ConversationAiTurnResult(skipped: true);
+        }
 
         $existing = $this->existingAssistantReply($inbound);
 

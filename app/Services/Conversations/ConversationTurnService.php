@@ -2,6 +2,7 @@
 
 namespace App\Services\Conversations;
 
+use App\Enums\ConversationKind;
 use App\Enums\MessageRole;
 use App\Enums\MessageType;
 use App\Models\Conversation;
@@ -25,6 +26,10 @@ final class ConversationTurnService
     ): ConversationTurnResult {
         if ((int) $conversation->user_id !== (int) $user->id) {
             throw new AuthorizationException('Conversation is not owned by this user.');
+        }
+
+        if ($conversation->kind !== ConversationKind::Personal) {
+            throw new InvalidArgumentException('Group conversations cannot enter personal Conversation AI.');
         }
 
         $body = trim($text);

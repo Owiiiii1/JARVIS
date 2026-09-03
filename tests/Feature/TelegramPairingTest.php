@@ -2,12 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ConversationKind;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\ChannelIdentity;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\TelegramBotSetting;
+use App\Models\TelegramGroup;
+use App\Models\TelegramGroupParticipant;
 use App\Models\User;
 use App\Models\UserAiSetting;
 use App\Services\Users\AccessCodeGenerator;
@@ -86,23 +89,28 @@ class TelegramPairingTest extends TestCase
     {
         $secret = $this->webhookSecret();
         $externalUserId = '910003';
+        $chatId = '-910000003';
 
-        $payload = [
-            'update_id' => 910003,
-            'message' => [
-                'message_id' => 3,
-                'date' => time(),
-                'chat' => ['id' => -100123, 'type' => 'supergroup', 'title' => 'Group'],
-                'from' => ['id' => (int) $externalUserId, 'is_bot' => false, 'first_name' => 'Test'],
-                'text' => '/start',
-            ],
-        ];
+        try {
+            $payload = [
+                'update_id' => 910003,
+                'message' => [
+                    'message_id' => 3,
+                    'date' => time(),
+                    'chat' => ['id' => (int) $chatId, 'type' => 'supergroup', 'title' => 'Jarvis Test Group Pairing'],
+                    'from' => ['id' => (int) $externalUserId, 'is_bot' => false, 'first_name' => 'Test'],
+                    'text' => '/start',
+                ],
+            ];
 
-        $this->postJson('/telegram/webhook', $payload, [
-            'X-Telegram-Bot-Api-Secret-Token' => $secret,
-        ])->assertOk();
+            $this->postJson('/telegram/webhook', $payload, [
+                'X-Telegram-Bot-Api-Secret-Token' => $secret,
+            ])->assertOk();
 
-        $this->assertNull(ChannelIdentity::findTelegramByExternalUserId($externalUserId));
+            $this->assertNull(ChannelIdentity::findTelegramByExternalUserId($externalUserId));
+        } finally {
+            $this->deleteTestTelegramGroup($chatId);
+        }
     }
 
     public function test_webhook_good_code_creates_identity_for_temporary_user(): void
@@ -190,5 +198,24 @@ class TelegramPairingTest extends TestCase
             ->where('channel', ChannelIdentity::CHANNEL_TELEGRAM)
             ->where('external_user_id', $externalUserId)
             ->delete();
+    }
+
+    private function deleteTestTelegramGroup(string $telegramChatId): void
+    {
+        if (! preg_match('/^-91\d{6,12}$/', $telegramChatId)) {
+            return;
+        }
+
+        $group = TelegramGroup::query()->where('telegram_chat_id', $telegramChatId)->first();
+
+        if ($group === null) {
+            return;
+        }
+
+        $conversationId = (int) $group->conversation_id;
+        TelegramGroupParticipant::query()->where('telegram_group_id', $group->id)->delete();
+        Message::query()->where('conversation_id', $conversationId)->delete();
+        $group->delete();
+        Conversation::query()->whereKey($conversationId)->where('kind', ConversationKind::Group)->delete();
     }
 }

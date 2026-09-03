@@ -72,7 +72,7 @@ Telegram adapter один: и личные чаты, и группы. После
 
 - проверка webhook secret;
 - lookup `from.id` в `channel_identities`; pairing по `access_code` (owner `2000`);
-- `chat_id` группы → Core `telegram_groups` (не форма админки);
+- `chat_id` группы → Core `telegram_groups` (не форма админки). `chat.type` private → personal DM pipeline; group/supergroup → Groups subsystem (persist-only). Channels ignored. `edited_message` and `my_chat_member` go to Core.
 - нарезка длинного ответа под лимит Telegram;
 - фильтрация шума канала; служебные апдейты групп (`my_chat_member`, edited) передавать в Core, если они меняют status/raw — продуктовые правила `TBD`.
 

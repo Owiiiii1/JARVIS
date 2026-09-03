@@ -51,4 +51,10 @@ class Project extends Model
         return $this->belongsToMany(Memory::class, 'project_memories')
             ->withPivot(['attached_at', 'metadata']);
     }
+
+    public function telegramGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(TelegramGroup::class, 'project_groups')
+            ->withPivot(['attached_at', 'metadata']);
+    }
 }

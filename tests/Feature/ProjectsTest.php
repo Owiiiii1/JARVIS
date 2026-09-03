@@ -48,7 +48,7 @@ class ProjectsTest extends TestCase
         $this->assertTrue(Schema::hasTable('project_conversations'));
         $this->assertTrue(Schema::hasTable('project_topics'));
         $this->assertTrue(Schema::hasTable('project_memories'));
-        $this->assertFalse(Schema::hasTable('project_groups'));
+        $this->assertTrue(Schema::hasTable('project_groups'));
         $this->assertTrue(Schema::hasColumns('projects', ['user_id', 'name', 'normalized_name', 'description', 'status', 'metadata']));
     }
 

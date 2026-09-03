@@ -558,11 +558,53 @@
 
 ## ADR-055 — No project_groups until Groups subsystem exists
 
-**Контекст.** Telegram Groups ещё не реализованы. FK на несуществующие groups создал бы фиктивную subsystem.
+**Статус.** Superseded by ADR-056 / M11.
 
-**Решение.** M13 не создаёт `project_groups` и не сидирует groups. Relation planned после M11/M14.
+**Контекст.** Telegram Groups ещё не были реализованы в M13.
 
-**Следствие.** Project page может упомянуть Groups later, без пустого runtime.
+**Решение (M13).** Не создавать `project_groups`.
+
+**Следствие.** M11 создал `project_groups` после появления Groups subsystem.
+
+---
+
+## ADR-056 — Group conversation administrative owner vs personal boundary
+
+**Контекст.** `conversations.user_id` NOT NULL. Делать его nullable в M11 рискованно для personal DM.
+
+**Решение.** Group conversation использует owner `user_id` как administrative owner. Обязательная граница: `kind=group` + `telegram_groups.conversation_id`. Cabinet, Telegram chat selector, Conversation AI, PersonalMemoryRetriever, history search и memory jobs фильтруют `kind=personal`.
+
+**Следствие.** `user_id=owner` на group conversation не делает её personal chat.
+
+---
+
+## ADR-057 — Group inbound never enters personal Conversation AI
+
+**Контекст.** Group text can look like a personal prompt («Jarvis, привет»).
+
+**Решение.** `chat.type` group/supergroup → Groups subsystem only: persist, participants, counters. No `ConversationTurnService`, no Conversation AI, no `AnalyzeConversationTurnJob`, no personal topics/memories. Mentions do not change this in M11.
+
+**Следствие.** Routing is by Telegram chat type, not by linked ChannelIdentity.
+
+---
+
+## ADR-058 — Group Privacy mode is a manual Telegram prerequisite
+
+**Контекст.** With privacy ON, Telegram does not send most group messages to the bot.
+
+**Решение.** Jarvis persists every group update it receives. Full-history monitoring requires the owner to disable BotFather Group Privacy and grant needed group rights. Cursor never changes BotFather settings or claims full monitoring without Telegram delivering updates.
+
+**Следствие.** Empty Admin history can mean Telegram never sent the messages.
+
+---
+
+## ADR-059 — Group participant is not a Jarvis User
+
+**Контекст.** Numeric Telegram user id may match a linked owner identity.
+
+**Решение.** `telegram_group_participants` has no FK to `users`. Participant rows exist only for a real Telegram `from` user. `sender_chat` / anonymous admin stores sender metadata on the message only.
+
+**Следствие.** Group analysis later attributes text to participants, not personal memory of a Jarvis User.
 
 ---
 
@@ -573,7 +615,7 @@
 - Есть ли у owner отдельный cabinet UI или «мои чаты» в админке.
 - Auth схема mobile/desktop.
 - Realtime транспорт voice/text streaming; STT/TTS/interruption — практические тесты.
-- Набор service updates (`my_chat_member`).
+- Набор service updates (`my_chat_member`) beyond bot left/kicked/member/admin/restricted.
 - Retention raw messages по закону/желанию пользователя (отдельно от derived lifecycle).
 - UX явного переноса group knowledge → personal fact.
 - Persisted capability overrides (сейчас достаточно default из role).

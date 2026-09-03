@@ -8,6 +8,7 @@ import {
     Globe,
     Home,
     LogOut,
+    MessagesSquare,
     Settings,
     UserCircle2,
     Menu,
@@ -30,6 +31,7 @@ import {
 const primaryNavItems = [
     { route: 'dashboard', icon: Home },
     { route: 'projects.index', icon: FolderKanban, activePattern: 'projects.*' },
+    { route: 'telegram-groups.index', icon: MessagesSquare, activePattern: 'telegram-groups.*' },
     { route: 'calendar.index', icon: CalendarDays },
 ];
 
@@ -42,6 +44,7 @@ const languageLabels = {
 function navLabel(routeName, t) {
     if (routeName === 'dashboard') return t.home;
     if (routeName === 'projects.index') return t.projects;
+    if (routeName === 'telegram-groups.index') return t.telegramGroups;
     if (routeName === 'calendar.index') return t.calendar;
     return routeName;
 }
@@ -87,6 +90,7 @@ export default function AdminLayout({ title, children }) {
         en: {
             home: 'Home',
             projects: 'Projects',
+            telegramGroups: 'Telegram Groups',
             calendar: 'Calendar',
             settings: 'Settings',
             logout: 'Logout',
@@ -99,6 +103,7 @@ export default function AdminLayout({ title, children }) {
         ru: {
             home: 'Главная',
             projects: 'Projects',
+            telegramGroups: 'Telegram Groups',
             calendar: 'Календарь',
             settings: 'Настройки',
             logout: 'Выход',
@@ -111,6 +116,7 @@ export default function AdminLayout({ title, children }) {
         uk: {
             home: 'Головна',
             projects: 'Projects',
+            telegramGroups: 'Telegram Groups',
             calendar: 'Календар',
             settings: 'Налаштування',
             logout: 'Вийти',

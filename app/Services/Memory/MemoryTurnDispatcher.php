@@ -2,6 +2,7 @@
 
 namespace App\Services\Memory;
 
+use App\Enums\ConversationKind;
 use App\Jobs\AnalyzeConversationTurnJob;
 use App\Jobs\UpdateConversationSummaryJob;
 use App\Models\Conversation;
@@ -16,6 +17,9 @@ final class MemoryTurnDispatcher
 
     public function afterSuccessfulTurn(User $user, Conversation $conversation, Message $inbound, ?Message $assistant): void
     {
+        if ($conversation->kind !== ConversationKind::Personal) {
+            return;
+        }
         $toId = $assistant?->id ?? $inbound->id;
 
         AnalyzeConversationTurnJob::dispatch(

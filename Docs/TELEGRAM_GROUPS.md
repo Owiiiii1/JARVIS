@@ -1,6 +1,26 @@
 # Telegram Groups
 
+**Status (M11):** IMPLEMENTED for discovery, raw persist, participants, owner Admin messenger, outbound, timezone, `project_groups` attach. **Not implemented:** group analysis, mention/auto-reply, media blob download.
+
 Отдельный модуль Jarvis. Бот может состоять во многих Telegram-группах. Группы **не** создаются вручную в админке: факт подключения появляется из входящего Telegram update. ADR-011.
+
+Telegram остаётся **channel adapter**. Модуль Groups живёт в Core (регистрация, persistence, политики, анализ) и в Admin Panel (просмотр и исходящие сообщения). Вызовы Bot API — только через Telegram Channel Adapter. ADR-015.
+
+Личные DM любого Jarvis User и групповые чаты — **разные области**. ADR-012, ADR-056, ADR-057.
+
+**Admin Groups и group knowledge — только Owner Space** (`telegram_groups`, later `group_analysis`). Обычный user не видит группы и не получает group knowledge в personal prompt.
+
+Каждая группа: `timezone` (IANA). Owner задаёт в Group Settings. Если пусто — **owner timezone**.
+
+Group conversation: `conversations.user_id` остаётся NOT NULL, поэтому administrative owner = Jarvis owner. Граница — `kind=group` + `telegram_groups.conversation_id`. Personal retrieval/AI всегда фильтрует `kind=personal`. ADR-056.
+
+Участники группы — `telegram_group_participants` (Telegram user id), **не** Jarvis `users`. Даже если numeric id совпадает с linked owner identity. ADR-059.
+
+### Privacy mode (manual Telegram prerequisite)
+
+Bots with Group Privacy ON receive only a subset of group messages (commands, mentions, replies to the bot). Full passive history requires the owner to disable privacy in BotFather (`/setprivacy` → Disable) and, if needed, grant the bot group admin/read rights. Cursor does not change BotFather settings. Until that is done, Jarvis can only persist updates Telegram actually sends. ADR-058.
+
+Подробности памяти: [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md). Роли моделей: [AI_PROVIDER_ARCHITECTURE.md](AI_PROVIDER_ARCHITECTURE.md).
 
 Telegram остаётся **channel adapter**. Модуль Groups живёт в Core (регистрация, persistence, политики, анализ) и в Admin Panel (просмотр и исходящие сообщения). Вызовы Bot API — только через Telegram Channel Adapter. ADR-015.
 

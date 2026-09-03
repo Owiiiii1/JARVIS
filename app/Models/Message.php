@@ -13,14 +13,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'conversation_id',
     'user_id',
+    'telegram_group_id',
     'role',
     'channel',
     'body',
     'message_type',
     'channel_message_id',
+    'sender_external_id',
+    'sender_username',
+    'sender_name',
     'parent_message_id',
+    'reply_to_channel_message_id',
+    'thread_id',
     'metadata',
     'occurred_at',
+    'edited_at',
 ])]
 class Message extends Model
 {
@@ -35,6 +42,7 @@ class Message extends Model
             'message_type' => MessageType::class,
             'metadata' => 'array',
             'occurred_at' => 'datetime',
+            'edited_at' => 'datetime',
         ];
     }
 
@@ -56,5 +64,10 @@ class Message extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(self::class, 'parent_message_id');
+    }
+
+    public function telegramGroup(): BelongsTo
+    {
+        return $this->belongsTo(TelegramGroup::class);
     }
 }

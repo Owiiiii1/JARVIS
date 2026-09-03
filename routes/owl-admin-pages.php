@@ -10,6 +10,7 @@ use App\Http\Controllers\Settings\SettingsController;
 use App\Http\Controllers\Settings\TelegramSettingsController;
 use App\Http\Controllers\Settings\UserController as SettingsUserController;
 use App\Http\Controllers\Settings\UserMemoryController;
+use App\Http\Controllers\TelegramGroupController;
 use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\UserAiSettingsController;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -47,6 +48,12 @@ Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'ow
         return Inertia::render('Dashboard');
     })->name('dashboard');
 
+    Route::get('/telegram-groups', [TelegramGroupController::class, 'index'])->name('telegram-groups.index');
+    Route::get('/telegram-groups/{telegramGroup}', [TelegramGroupController::class, 'show'])->name('telegram-groups.show');
+    Route::patch('/telegram-groups/{telegramGroup}', [TelegramGroupController::class, 'update'])->name('telegram-groups.update');
+    Route::get('/telegram-groups/{telegramGroup}/messages', [TelegramGroupController::class, 'messages'])->name('telegram-groups.messages.index');
+    Route::post('/telegram-groups/{telegramGroup}/messages', [TelegramGroupController::class, 'storeMessage'])->name('telegram-groups.messages.store');
+
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
     Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
@@ -59,6 +66,8 @@ Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'ow
     Route::delete('/projects/{project}/topics/{topic}', [ProjectController::class, 'detachTopic'])->name('projects.topics.destroy');
     Route::post('/projects/{project}/memories', [ProjectController::class, 'attachMemory'])->name('projects.memories.store');
     Route::delete('/projects/{project}/memories/{memory}', [ProjectController::class, 'detachMemory'])->name('projects.memories.destroy');
+    Route::post('/projects/{project}/groups', [ProjectController::class, 'attachGroup'])->name('projects.groups.store');
+    Route::delete('/projects/{project}/groups/{telegramGroup}', [ProjectController::class, 'detachGroup'])->name('projects.groups.destroy');
 
     Route::get('/calendar', [CalendarController::class, 'index'])->name('calendar.index');
 

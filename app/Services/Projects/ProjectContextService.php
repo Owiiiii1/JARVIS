@@ -9,6 +9,7 @@ use App\Models\Conversation;
 use App\Models\ConversationSummary;
 use App\Models\Memory;
 use App\Models\Project;
+use App\Models\TelegramGroup;
 use App\Models\Topic;
 use App\Models\User;
 use App\Services\Memory\MemoryKeyNormalizer;
@@ -41,6 +42,7 @@ final class ProjectContextService
             'topics' => $this->topics($user, $project, $tokens),
             'memories' => $this->memories($user, $project, $tokens),
             'conversation_summaries' => $this->summaries($user, $project, $tokens),
+            'groups' => $this->groups($project),
         ];
     }
 
@@ -191,6 +193,24 @@ final class ProjectContextService
             ->take($max);
 
         return $ranked->all();
+    }
+
+    /**
+     * @return list<array{id: int, title: string|null, status: string, chat_type: string}>
+     */
+    private function groups(Project $project): array
+    {
+        return $project->telegramGroups()
+            ->orderBy('title')
+            ->limit(20)
+            ->get(['telegram_groups.id', 'telegram_groups.title', 'telegram_groups.status', 'telegram_groups.chat_type'])
+            ->map(static fn (TelegramGroup $group): array => [
+                'id' => (int) $group->id,
+                'title' => $group->title,
+                'status' => $group->status->value,
+                'chat_type' => $group->chat_type,
+            ])
+            ->all();
     }
 
     /**

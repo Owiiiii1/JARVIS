@@ -2,11 +2,13 @@
 
 namespace App\Services\Projects;
 
+use App\Enums\ConversationKind;
 use App\Enums\MemoryScope;
 use App\Enums\ProjectStatus;
 use App\Models\Conversation;
 use App\Models\Memory;
 use App\Models\Project;
+use App\Models\TelegramGroup;
 use App\Models\Topic;
 use App\Models\User;
 use App\Services\Projects\Exceptions\ProjectException;
@@ -25,7 +27,7 @@ final class ProjectService
 
         $query = Project::query()
             ->where('user_id', $user->id)
-            ->withCount(['conversations', 'topics', 'memories'])
+            ->withCount(['conversations', 'topics', 'memories', 'telegramGroups'])
             ->orderBy('name');
 
         if (! $includeArchived) {
@@ -99,7 +101,7 @@ final class ProjectService
     {
         $this->assertOwns($user, $project);
 
-        if ((int) $conversation->user_id !== (int) $project->user_id) {
+        if ((int) $conversation->user_id !== (int) $project->user_id || $conversation->kind !== ConversationKind::Personal) {
             throw new ProjectException('foreign_conversation');
         }
 
@@ -144,6 +146,19 @@ final class ProjectService
     {
         $this->assertOwns($user, $project);
         $project->memories()->detach($memory->id);
+    }
+
+    public function attachGroup(User $user, Project $project, TelegramGroup $group): void
+    {
+        $this->assertOwns($user, $project);
+
+        $this->attachPivot($project, 'telegramGroups', $group->id);
+    }
+
+    public function detachGroup(User $user, Project $project, TelegramGroup $group): void
+    {
+        $this->assertOwns($user, $project);
+        $project->telegramGroups()->detach($group->id);
     }
 
     public function assertCanManage(User $user): void

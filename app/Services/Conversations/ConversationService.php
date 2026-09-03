@@ -52,6 +52,7 @@ final class ConversationService
     {
         return Conversation::query()
             ->where('user_id', $user->id)
+            ->where('kind', ConversationKind::Personal)
             ->whereKey($conversationId)
             ->first();
     }
@@ -119,6 +120,10 @@ final class ConversationService
     public function setActiveConversation(ChannelIdentity $identity, Conversation $conversation): bool
     {
         if ((int) $identity->user_id !== (int) $conversation->user_id) {
+            return false;
+        }
+
+        if ($conversation->kind !== ConversationKind::Personal) {
             return false;
         }
 

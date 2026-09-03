@@ -2,6 +2,7 @@
 
 namespace App\Services\Memory;
 
+use App\Enums\ConversationKind;
 use App\Enums\ConversationSummaryStatus;
 use App\Enums\MemoryScope;
 use App\Enums\MemoryStatus;
@@ -97,6 +98,9 @@ final class PersonalMemoryRetriever
             ->where('user_id', $user->id)
             ->where('conversation_id', '!=', $conversation->id)
             ->where('status', ConversationSummaryStatus::Current)
+            ->whereHas('conversation', static function (Builder $builder): void {
+                $builder->where('kind', ConversationKind::Personal);
+            })
             ->with('conversation:id,title,last_activity_at');
 
         $matched = clone $base;
@@ -133,6 +137,9 @@ final class PersonalMemoryRetriever
 
     private function currentSummary(User $user, Conversation $conversation): ?ConversationSummary
     {
+        if ($conversation->kind !== ConversationKind::Personal) {
+            return null;
+        }
         return ConversationSummary::query()
             ->where('user_id', $user->id)
             ->where('conversation_id', $conversation->id)

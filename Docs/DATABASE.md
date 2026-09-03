@@ -233,25 +233,30 @@ Token (encrypted), webhook, username, статус. Уже концептуал�
 
 ### telegram_groups
 
-Автообнаруженные группы. Source of truth подключения — первый inbound update. ADR-011.
+IMPLEMENTED M11. Автообнаруженные группы. Source of truth подключения — первый inbound update. ADR-011.
 
 - `id`
-- `telegram_chat_id` (уникальный)
-- `title`
-- `username` / link metadata
-- `type` (group / supergroup / …)
-- `status` (connected / restricted / left — enum `TBD`)
-- `first_seen_at`
-- `last_message_at`
-- `timezone` IANA (owner задаёт; fallback → owner `users.timezone`)
-- `settings` (policy: persist-only по умолчанию)
+- `telegram_chat_id` unique
+- `conversation_id` unique FK → `conversations` (`kind=group`)
+- `title` / `username` nullable
+- `chat_type` (`group` / `supergroup`)
+- `status` (`connected` / `restricted` / `left`)
+- `timezone` IANA nullable (fallback → owner `users.timezone`)
+- `first_seen_at`, `last_seen_at`, `last_message_at`
+- `message_count` (increment only on newly created Message)
+- `settings` json default `{"mode":"persist_only"}`
+- `metadata` json
 - timestamps
 
 Не заполняется формой «введите Group ID».
 
 ### telegram_group_participants
 
-Опционально: Telegram user ↔ группа (display name, username, first/last seen). Не обязательно маппить на `users`. Схема не финальная.
+IMPLEMENTED M11. Unique `(telegram_group_id, telegram_user_id)`. Display name / username / first-last / is_bot / first-last seen. **No FK to users.** Sender_chat / anonymous admin does not create a participant row.
+
+### messages (group columns)
+
+M11 added nullable `telegram_group_id`, `sender_external_id`, `sender_username`, `sender_name`, `reply_to_channel_message_id`, `thread_id`, `edited_at`. Idempotency remains `(channel, conversation_id, channel_message_id)`. `parent_message_id` stays AI reply linkage only.
 
 ### admin_audit_logs (концептуально)
 
@@ -271,7 +276,7 @@ IMPLEMENTED. См. [REMINDERS.md](REMINDERS.md). `user_id`, source conversation/
 
 ### projects и relations (Owner Space)
 
-IMPLEMENTED M13. `projects` (`user_id`, unique `(user_id, normalized_name)`, status `active|archived`). Pivots: `project_conversations`, `project_topics`, `project_memories` (unique pair, `attached_at`). Cascade pivot on project/entity delete; archive keeps rows. `project_groups` **not created** until Telegram Groups exists. [PROJECTS.md](PROJECTS.md).
+IMPLEMENTED M13 + M11 `project_groups`. `projects` (`user_id`, unique `(user_id, normalized_name)`, status `active|archived`). Pivots: `project_conversations`, `project_topics`, `project_memories`, `project_groups` (unique pair, `attached_at`). Cascade pivot on project/entity delete; archive keeps rows. Group attach does not copy raw messages. [PROJECTS.md](PROJECTS.md).
 
 ### integration_accounts / tool_execution_logs
 
@@ -300,8 +305,8 @@ memories N—N topics (тот же scope)
 memories 1—N revisions
 memories N—N messages (sources)
 conversations 1—N summaries
-projects N—N conversations / topics / memories
-project_groups / group knowledge — later
+projects N—N conversations / topics / memories / telegram_groups
+project_groups implemented M11; group knowledge — later
 ```
 
 ---

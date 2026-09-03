@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ConversationKind;
 use App\Enums\MemoryStatus;
 use App\Models\Conversation;
 use App\Models\Memory;
 use App\Models\Project;
+use App\Models\TelegramGroup;
 use App\Models\Topic;
 use App\Services\Projects\Exceptions\ProjectException;
 use App\Services\Projects\ProjectService;
@@ -35,6 +37,7 @@ class ProjectController extends Controller
                 'conversations_count' => (int) $project->conversations_count,
                 'topics_count' => (int) $project->topics_count,
                 'memories_count' => (int) $project->memories_count,
+                'groups_count' => (int) $project->telegram_groups_count,
                 'updated_at' => optional($project->updated_at)?->toIso8601String(),
             ])->all(),
         ]);
@@ -67,11 +70,17 @@ class ProjectController extends Controller
         $this->authorizeOwned($request, $project, 'view');
 
         $user = $request->user();
-        $project->load(['conversations:id,user_id,title,last_activity_at', 'topics:id,user_id,name,status', 'memories:id,user_id,content,kind,confidence,status']);
+        $project->load([
+            'conversations:id,user_id,title,last_activity_at',
+            'topics:id,user_id,name,status',
+            'memories:id,user_id,content,kind,confidence,status',
+            'telegramGroups:id,title,chat_type,status',
+        ]);
 
         $attachedConversationIds = $project->conversations->pluck('id');
         $attachedTopicIds = $project->topics->pluck('id');
         $attachedMemoryIds = $project->memories->pluck('id');
+        $attachedGroupIds = $project->telegramGroups->pluck('id');
 
         return Inertia::render('Projects/Show', [
             'project' => [
@@ -97,9 +106,16 @@ class ProjectController extends Controller
                     'confidence' => $memory->confidence,
                     'status' => $memory->status->value,
                 ])->all(),
+                'groups' => $project->telegramGroups->map(static fn (TelegramGroup $group): array => [
+                    'id' => $group->id,
+                    'title' => $group->title ?: 'Untitled group',
+                    'chat_type' => $group->chat_type,
+                    'status' => $group->status->value,
+                ])->all(),
             ],
             'availableConversations' => Conversation::query()
                 ->where('user_id', $user->id)
+                ->where('kind', ConversationKind::Personal)
                 ->whereNotIn('id', $attachedConversationIds)
                 ->orderByRaw('last_activity_at IS NULL')
                 ->orderByDesc('last_activity_at')
@@ -135,6 +151,18 @@ class ProjectController extends Controller
                     'content' => $memory->content,
                     'kind' => $memory->kind->value,
                     'confidence' => $memory->confidence,
+                ])
+                ->all(),
+            'availableGroups' => TelegramGroup::query()
+                ->whereNotIn('id', $attachedGroupIds)
+                ->orderBy('title')
+                ->limit(50)
+                ->get(['id', 'title', 'chat_type', 'status'])
+                ->map(static fn (TelegramGroup $group): array => [
+                    'id' => $group->id,
+                    'title' => $group->title ?: 'Untitled group',
+                    'chat_type' => $group->chat_type,
+                    'status' => $group->status->value,
                 ])
                 ->all(),
             'descriptionMax' => (int) config('projects.description_max'),
@@ -245,6 +273,29 @@ class ProjectController extends Controller
     {
         $this->authorizeOwned($request, $project, 'attach');
         $this->projects->detachMemory($request->user(), $project, $memory);
+
+        return back();
+    }
+
+    public function attachGroup(Request $request, Project $project): RedirectResponse
+    {
+        $this->authorizeOwned($request, $project, 'attach');
+        $validated = $request->validate(['telegram_group_id' => ['required', 'integer']]);
+        $group = TelegramGroup::query()->findOrFail($validated['telegram_group_id']);
+
+        try {
+            $this->projects->attachGroup($request->user(), $project, $group);
+        } catch (ProjectException $exception) {
+            return back()->withErrors(['telegram_group_id' => $this->messageFor($exception)]);
+        }
+
+        return back();
+    }
+
+    public function detachGroup(Request $request, Project $project, TelegramGroup $telegramGroup): RedirectResponse
+    {
+        $this->authorizeOwned($request, $project, 'attach');
+        $this->projects->detachGroup($request->user(), $project, $telegramGroup);
 
         return back();
     }

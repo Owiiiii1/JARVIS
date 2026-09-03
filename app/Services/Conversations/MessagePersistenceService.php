@@ -14,6 +14,11 @@ final class MessagePersistenceService
         return $this->persist($data, MessageRole::User);
     }
 
+    public function persistRaw(PersistMessageData $data): PersistMessageResult
+    {
+        return $this->persist($data, $data->role);
+    }
+
     public function persistOutbound(PersistMessageData $data): PersistMessageResult
     {
         return $this->persist($data, $data->role);
@@ -46,14 +51,21 @@ final class MessagePersistenceService
                 $message = Message::query()->create([
                     'conversation_id' => $conversation->id,
                     'user_id' => $userId,
+                    'telegram_group_id' => $data->telegramGroupId,
                     'role' => $role,
                     'channel' => $data->channel,
                     'body' => $data->body,
                     'message_type' => $data->messageType,
                     'channel_message_id' => $data->channelMessageId,
+                    'sender_external_id' => $data->senderExternalId,
+                    'sender_username' => $data->senderUsername,
+                    'sender_name' => $data->senderName,
                     'parent_message_id' => $data->parentMessageId,
+                    'reply_to_channel_message_id' => $data->replyToChannelMessageId,
+                    'thread_id' => $data->threadId,
                     'metadata' => $data->metadata,
                     'occurred_at' => $data->occurredAt ?? now(),
+                    'edited_at' => $data->editedAt,
                 ]);
 
                 $conversation->forceFill([
@@ -81,7 +93,7 @@ final class MessagePersistenceService
         return new PersistMessageResult($message, true);
     }
 
-    private function findByChannelMessage(string $channel, int $conversationId, string $channelMessageId): ?Message
+    public function findByChannelMessage(string $channel, int $conversationId, string $channelMessageId): ?Message
     {
         return Message::query()
             ->where('channel', $channel)
