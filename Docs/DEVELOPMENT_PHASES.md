@@ -16,12 +16,13 @@
 
 ### Цель
 
-Пользователь постоянно общается с Jarvis в Telegram. История не теряется после перезапуска сервера и не зависит от «сессии» мессенджера.
+Owner (и затем users) общаются с Jarvis в Telegram **после pairing**. История не теряется. Исполнение: вехи 1–5 в [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
 ### Функциональность
 
 - Telegram Bot — первый communication channel, не ядро.
-- Пользователь пишет **личные** сообщения (DM).
+- Pairing: `/start` + `access_code` (owner `2000`). Нет auto-create User. Нет AI до pairing.
+- Авторизованный user/owner пишет **личные** DM.
 - Channel adapter нормализует входящее и передаёт в Jarvis Core.
 - Core сохраняет raw message.
 - **Conversation AI** получает ограниченный объём предыдущего личного общения (recent window).
@@ -33,7 +34,7 @@
 
 Архитектура уже должна позволять позже заменить «последние N» на интеллектуальный retrieval, **не меняя** таблицу messages и канал. Схема допускает **много** conversations на user. New Chat не создаёт новую долговременную память. ADR-017.
 
-Core не предполагает единственного пользователя. Первый Telegram identity может быть owner — это onboarding.
+Один `owner` + много `user`. Owner pairing кодом `2000`, не hardcoded `user_id`. Обычный user не видит Admin Panel.
 
 ### Основные компоненты
 
@@ -54,7 +55,8 @@ Core не предполагает единственного пользоват
 
 ### Definition of done
 
-- Сообщение из Telegram проходит: adapter → core → persist → LLM → persist → adapter.
+- `/start` отвечает; неверный код не вызывает AI; верный код линкует identity.
+- Сообщение **paired** Telegram проходит: adapter → core → persist → Conversation AI → persist → adapter.
 - После рестарта процесса контекст читается из БД.
 - Новый Telegram-апдейт не создаёт «чистый» чат без истории того же пользователя.
 - AI-логики нет в Telegram-specific коде.
@@ -77,9 +79,9 @@ Core не предполагает единственного пользоват
 
 ---
 
-## Users & Cabinet — инкремент после persist
+## Users & Cabinet — вехи 6–8
 
-Не ждать Phase 4. Не делать второй backend.
+Не ждать Phase 4. Не делать второй backend. Owner pairing и Telegram MVP — вехи 1–5, раньше полного Cabinet.
 
 ### Цель
 

@@ -2,13 +2,13 @@
 
 Четыре фазы. Каждая даёт работающий инкремент. Не делать Phase 4 внутри Phase 1.
 
-Связанные тексты: [DEVELOPMENT_PHASES.md](DEVELOPMENT_PHASES.md).
+Исполняемые вехи: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Фазы ниже — группировка, не замена вех.
 
 ---
 
 ## Phase 1 — Telegram + persistent conversations
 
-**Результат.** Пользователь постоянно общается с Jarvis в Telegram DM; история не теряется. Группы автоматически появляются в админке. Схема и Core уже multi-user: isolation, много chats, prompt/override слоты.
+**Результат.** Owner проходит pairing (`2000`) и ведёт Telegram DM с persist + Conversation AI. Roles owner/user. Groups и Cabinet — следующие вехи, не обязательный первый срез.
 
 ### Goals
 
@@ -17,7 +17,7 @@
 - Личный ответ через **Conversation AI** (`resolve(role, user_id)`).
 - Telegram Groups: discovery, persist, админ-чат, outbound через adapter, passive monitoring.
 - Админка: platform Conversation / Analysis AI; Telegram bot; Telegram Groups.
-- Контракты Users / Cabinet (UI кабинета — следующий инкремент).
+- Pairing + access_code; owner admin vs user cabinet routing.
 
 ### Основные компоненты
 

@@ -554,3 +554,21 @@ Do **not** delete in this audit.
 - Domain tests.
 
 The running product is an **admin shell with AI/Telegram credential screens**. It is not yet Jarvis Core.
+
+---
+
+## Requirements approved after audit
+
+The snapshot **above** stays historical. Nothing in this section is implemented unless a later audit says so.
+
+Approved target (2026-09-03, after this file’s first version):
+
+- Roles `owner` / `user`; owner is a normal `users` row, not a hardcoded id.
+- Owner access_code **`2000`** for Telegram pairing only — not a web password.
+- Unique human-readable `access_code` per user; no Telegram auto-registration.
+- Web: owner → Admin Panel; user → Cabinet; backend authorization.
+- Telegram webhook + Nutgram pairing, then Conversation AI greeting; wrong code never calls AI.
+- Conversation AI ≠ Analysis AI; Google/Gmail/ElevenLabs via Tool Layer, owner-only.
+- Telegram Groups owner-only; memory isolated per user.
+
+Canonical write-up: [USERS_AND_CABINET.md](USERS_AND_CABINET.md), [INTEGRATIONS.md](INTEGRATIONS.md), [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), ADR-022–031 in [DECISIONS.md](DECISIONS.md).

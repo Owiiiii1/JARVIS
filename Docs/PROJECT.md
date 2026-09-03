@@ -14,7 +14,8 @@ Jarvis должен:
 - понимать, к какой теме относится текущий разговор;
 - извлекать только релевантный контекст, а не всю историю;
 - пассивно слушать Telegram-группы, сохранять их историю и позже анализировать её **отдельно** от личной памяти;
-- поддерживать нескольких пользователей с изолированным AI-контекстом и личным Web Cabinet;
+- поддерживать **одного owner** и дополнительных `user` с изолированным AI-контекстом;
+- owner — Admin Panel и integrations; обычный user — только Cabinet + Telegram DM после pairing кодом;
 - стать постоянно доступным ассистентом через несколько клиентов.
 
 ## Что Jarvis не является
@@ -23,7 +24,8 @@ Jarvis должен:
 - Не Telegram-бот с AI-логикой внутри адаптера.
 - Не отдельный «голосовой ассистент» рядом с текстовым.
 - Не админка: Admin Panel — конфигурация и диагностика, не источник решений модели.
-- Не один «мозг на весь инстанс»: у каждого user свой context; владелец — тот же Core с другими permissions.
+- Не один «мозг на весь инстанс» и не «только один человек в системе»: owner и users делят Core, не права.
+- Не админка для каждого залогиненного: `role=user` не получает Admin Panel.
 
 ## Принцип одного ядра
 
@@ -35,17 +37,21 @@ Jarvis должен:
 - Desktop App (Phase 3);
 - другие каналы в будущем.
 
-Ядро владеет пользователями, разговорами, памятью, оркестрацией AI и сборкой контекста. Канал только доставляет нормализованное сообщение и возвращает ответ. Owner и дополнительные users — одна система. [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
+Ядро владеет пользователями, разговорами, памятью, оркестрацией AI и сборкой контекста. Канал только доставляет нормализованное сообщение и возвращает ответ.
+
+Owner — запись `users` с `role=owner` (не hardcoded id). Telegram pairing: уникальный `access_code` (owner **`2000`**). Код не web-пароль и не создаёт User из чата. [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
 
 Telegram-группы — отдельный модуль поверх того же адаптера: discovery, raw history, админ-чат, исходящие от имени бота. Это не personal DM и не автоматическая личная память. См. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
 
-AI-конфигурация **ролевая**: минимум `conversation` (общение с владельцем) и `analysis` (группы, extraction, summaries). Не одна глобальная модель на всё.
+AI-конфигурация **ролевая**: `conversation` (общение, tool calls) и `analysis` (группы, extraction, summaries). Не одна глобальная модель на всё.
+
+Integrations (Google Calendar/Gmail, ElevenLabs) — **owner-only** через Tool Layer. [INTEGRATIONS.md](INTEGRATIONS.md). Исполнение: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
 ## Этапы в одном предложении
 
 | Phase | Суть |
 | --- | --- |
-| 1 | Telegram DM + persistent history; контракты multi-user isolation; Telegram Groups; далее Users / Cabinet |
+| 1 | Roles + Telegram pairing + owner DM MVP; затем Cabinet и Users admin (вехи 1–8) |
 | 2 | Структурированная долговременная память и выборочный контекст |
 | 3 | Mobile, Desktop и realtime voice к тому же ядру |
 | 4 | Естественный непрерывный ассистент, а не схема «вопрос → ответ» |
@@ -69,7 +75,8 @@ AI-конфигурация **ролевая**: минимум `conversation` (�
 13. Conversation AI и Analysis AI — независимые роли (могут быть разные provider/model).
 14. Platform AI defaults + optional per-user override; User General Prompt поверх system rules, не вместо них.
 15. Сначала простая рабочая система, затем усложнение memory intelligence.
-16. Не over-engineer Phase 1 ради Phase 4, но не принимать решений, которые блокируют развитие (в т.ч. hardcoded single-owner в Core).
+16. Не over-engineer Phase 1 ради Phase 4, но не hardcode owner по `user_id` и не смешивать access_code с паролем.
+17. Исполняемый порядок — [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), не абстрактные фазы в одиночку.
 
 ## Текущее состояние репозитория
 
@@ -87,5 +94,8 @@ AI-конфигурация **ролевая**: минимум `conversation` (�
 - [AI_PROVIDER_ARCHITECTURE.md](AI_PROVIDER_ARCHITECTURE.md) — роли `conversation` и `analysis`
 - [DATABASE.md](DATABASE.md) — концептуальная модель, включая telegram_groups
 - [ROADMAP.md](ROADMAP.md) — фазы
-- [USERS_AND_CABINET.md](USERS_AND_CABINET.md) — users, кабинет, изоляция, impersonation
-- [DECISIONS.md](DECISIONS.md) — ADR-001–021
+- [USERS_AND_CABINET.md](USERS_AND_CABINET.md) — owner/user, access_code, pairing, cabinet
+- [INTEGRATIONS.md](INTEGRATIONS.md) — Tool Layer, Google, ElevenLabs
+- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) — вехи 0–19
+- [CURRENT_STATE.md](CURRENT_STATE.md) — фактический snapshot (не целевое)
+- [DECISIONS.md](DECISIONS.md) — ADR-001–031

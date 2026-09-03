@@ -4,7 +4,9 @@
 
 Telegram остаётся **channel adapter**. Модуль Groups живёт в Core (регистрация, persistence, политики, анализ) и в Admin Panel (просмотр и исходящие сообщения). Вызовы Bot API — только через Telegram Channel Adapter. ADR-015.
 
-Личные direct-разговоры **любого** user с Jarvis и групповые чаты — **разные контекстные области**. ADR-012. Управление группами — permission (обычно owner/admin), не cabinet дополнительного user. [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
+Личные DM любого Jarvis User и групповые чаты — **разные области**. ADR-012.
+
+**Admin Groups — только `role=owner`.** Обычный user не видит список групп, не читает group raw в cabinet, не получает group knowledge в personal retrieval, не отправляет сообщения в группы. Enforcement в backend.
 
 Подробности памяти: [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md). Роли моделей: [AI_PROVIDER_ARCHITECTURE.md](AI_PROVIDER_ARCHITECTURE.md).
 
@@ -294,3 +296,4 @@ Group knowledge можно **показать** Conversation model, если з�
 - Не вызывать Telegram API из UI.
 - Не кормить Analysis или Conversation всей лентой группы.
 - Не делать отдельный LLM-стек внутри Telegram adapter.
+- Не давать `role=user` доступ к group admin, group send или group knowledge в personal prompt.

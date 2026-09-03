@@ -27,7 +27,7 @@ Jarvis не зависит от одного HTTP API и одной модели
 
 | Роль | Назначение | Где используется |
 | --- | --- | --- |
-| `conversation` | общение с человеком | Telegram DM, Cabinet, Mobile, Desktop, voice; один путь для всех users |
+| `conversation` | общение + tool calls | Telegram DM, Cabinet, Mobile, Desktop, voice; owner tools (Calendar/Gmail) |
 | `analysis` | аналитика и фон | Telegram-группы, topic classification, summarization, extraction (decisions / tasks / facts), memory processing, оркестрация embeddings-related jobs |
 
 Роли независимы:
@@ -85,6 +85,8 @@ Jarvis не зависит от одного HTTP API и одной модели
 - parameters.
 
 Ядро читает эти записи в runtime. Inertia-страница только пишет settings. ADR-009.
+
+Текущий код (один `is_active` на весь продукт) **противоречит** этой модели и подлежит замене в Milestone 4. [CURRENT_STATE.md](CURRENT_STATE.md).
 
 ## Per-user assignment
 

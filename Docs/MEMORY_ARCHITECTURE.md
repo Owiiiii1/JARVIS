@@ -228,11 +228,11 @@ Telegram Group history **не** становится автоматически 
 
 | Область | Owner | Кто пишет | Кто читает в prompt |
 | --- | --- | --- | --- |
-| Personal conversation history | `user_id` + `conversation_id` | Conversation path | Только этот чат (recent/summary) |
-| Personal / user memory | `user_id` | extraction + явный перенос | Все чаты **этого** user, если релевантно |
-| Group conversation history | group | Groups persist | Админ-чат; Analysis retrieval |
-| Group knowledge | group | **Analysis AI** | В personal package только по правилу provenance / запросу |
-| Global / system knowledge | instance | admin / system | Явно, не как чужие personal facts |
+| Personal conversation history | `user_id` + `conversation_id` | Conversation path | Только этот чат |
+| Personal memory (owner и каждый user) | тот же `user_id` | extraction | Только его чаты |
+| Group conversation history | group | Groups persist | Owner admin; Analysis |
+| Group knowledge | group | Analysis AI | Owner analysis; не personal prompt обычного user |
+| Global / system knowledge | instance | admin / system | Явно |
 
 Пример: «в рабочей группе решили сменить API» → group knowledge. «Ребёнок учит Python» → personal memory этого ребёнка, не владельца и не сиблинга.
 

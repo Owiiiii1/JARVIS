@@ -10,15 +10,17 @@ Source of truth — relational database (сейчас MySQL в окружени�
 
 ### users
 
-Account entity: владелец инстанса, дополнительные собеседники, админы панели. Ядро работает с `user_id`, не с Telegram id. Owner — роль/permissions, не отдельная таблица «богов».
+Account entity. Ядро работает с `user_id`, не с Telegram id. Ровно один `role=owner` на инстанс (не hardcoded id). Остальные — `role=user`.
 
-- login / email;
-- status;
-- timestamps;
+- email / login;
+- password hash (web cabinet / admin) — **не** access_code;
+- `role`: `owner` | `user`;
+- `access_code` unique (owner зарезервирован **`2000`**);
+- `status`;
 - last activity (`TBD` денормализация);
-- role / type.
+- timestamps.
 
-Пароль — только hash. Plaintext не хранить и не отдавать в User Card.
+Пароль и access_code — разные поля. Access code виден owner на User Card; не секрет web-login. Plaintext password не хранить.
 
 ### user_profiles
 
@@ -48,11 +50,12 @@ ADR-018, ADR-019.
 Связь «внешний аккаунт канала ↔ user».
 
 - `user_id`
-- `channel` (telegram / mobile / desktop / …)
-- `external_id`
-- метаданные (username, `TBD`)
+- `channel` (`telegram` / …)
+- `external_id` (Telegram user id)
+- username, first/last name
+- `linked_at`, `last_seen_at`
 
-Один user — много identity. Разговор в Telegram и в приложении сходится здесь.
+Unique `(channel, external_id)`: один Telegram account — один Jarvis User. Один user — много каналов. Создаётся **только** после верного access_code. Не из `/start`. Не auto-register.
 
 ---
 
@@ -236,6 +239,10 @@ Privileged действия: просмотр user/chats, impersonation, сме�
 
 Phase 3: связь с conversation, состояние listening/speaking, provider refs. Аудиофайлы как blob — `TBD` (лучше объектное хранилище, не обязательно в Phase 3 MVP).
 
+### integration_accounts / tool_execution_logs
+
+Owner-only. Provider, status, encrypted tokens, scopes, connected_at, last_used_at. Логи без секретов. [INTEGRATIONS.md](INTEGRATIONS.md).
+
 ---
 
 ## Отношения (кратко)
@@ -243,7 +250,8 @@ Phase 3: связь с conversation, состояние listening/speaking, prov
 ```
 users 1—1 user_profiles
 users 1—1 user_ai_settings
-users 1—N channel_identities
+users 1—N channel_identities   unique (channel, external_id)
+users.access_code unique; один row role=owner
 users 1—N conversations (kind=direct; много чатов)
 telegram_groups 1—1 conversations (kind=group)
 telegram_groups 1—N telegram_group_participants

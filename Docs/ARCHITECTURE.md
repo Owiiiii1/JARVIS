@@ -8,11 +8,11 @@
               Channel / Client Layer
                       |
                  Jarvis Core
-        /      |       |        |        \
-     Users  Memory  Groups   AI Layer    Admin
-     +auth  Engine  module   conversation
-                             + analysis
-                             + user override
+     /     |      |       |        |         \
+  Users  Memory Groups  AI Layer  Tools     Admin
+  owner/  Engine         conv +   Google/   owner
+  user                   analysis Calendar  only
+                         + prompts Gmail
                       |
                    Database
 ```
@@ -25,10 +25,12 @@
 
 Отвечает за:
 
-- users, профили, роли/permissions (owner ≠ второй Core);
+- users: `role` owner|user, `access_code`, status (owner ≠ второй Core, ≠ hardcoded id);
+- channel identities (Telegram pairing кодом; без auto-create User);
 - привязку внешних identity;
 - conversations и messages (kind: `direct` | `group`; personal всегда с `user_id`);
-- Telegram Groups: авторегистрация, group conversations, политики (feature permission);
+- Telegram Groups: авторегистрация, group conversations; **owner-only** admin;
+- Tool / Integration Layer (owner-only: Google, ElevenLabs; Telegram channel отдельно);
 - memory и topics (с Phase 2; retrieval всегда scoped);
 - AI orchestration: `resolve(role, user_id)` — platform default + user override;
 - context building: prompt hierarchy (platform → channel → user prompt → memory → conversation);
@@ -107,13 +109,13 @@ Web Cabinet — клиент того же Core. [USERS_AND_CABINET.md](USERS_AN
 
 Нужно прежде всего:
 
-- **Users**: таблица, User Card, чаты / topics / AI settings пользователя, Open Cabinet (impersonation);
-- role-based AI: platform Conversation AI и Analysis AI; per-user override;
-- Telegram bot settings;
-- **Telegram Groups**: список автообнаруженных групп, страница-чат, отправка через adapter;
-- позднее — настройки других каналов;
-- debugging / monitoring;
-- позднее — диагностика памяти, topics и group knowledge.
+- **только owner** (сейчас в коде любой auth = admin — это будет сломано в Milestone 1);
+- **Users**: каталог Jarvis (не «admin accounts»), User Card, access_code, Telegram link, Chats / Topics / AI Settings, impersonation;
+- role-based AI: Conversation + Analysis, не один global active;
+- Telegram bot settings и/или Integrations overview того же source of truth;
+- **Settings → Integrations**: Google, ElevenLabs;
+- **Telegram Groups** owner-only;
+- diagnostics / logs.
 
 Просмотр чатов user — privileged read/debug, не «писать как пользователь».
 
@@ -127,9 +129,17 @@ Web Cabinet — клиент того же Core. [USERS_AND_CABINET.md](USERS_AN
 
 ## Потоки данных
 
-### Входящее личное сообщение
+### Telegram без pairing
 
-`Channel Adapter` → `Core.receive` → persist raw → Conversation Engine → **Conversation AI** → persist reply → Adapter.send`
+`Webhook` → Nutgram → нет identity → `/start` или разбор access_code → системный ответ. **Нет** User create. **Нет** Conversation AI.
+
+### Telegram pairing успех
+
+`identity persist` → Conversation Engine → **Conversation AI** greeting
+
+### Входящее личное сообщение (уже paired или Cabinet)
+
+`Channel Adapter` → `Core.receive` → persist raw → Conversation Engine → **Conversation AI** (+ tools если owner) → persist reply → Adapter.send`
 
 ### Входящее сообщение Telegram-группы
 
@@ -157,16 +167,13 @@ Web Cabinet — клиент того же Core. [USERS_AND_CABINET.md](USERS_AN
 - Обязательная Vector DB.
 - Точный протокол realtime (WebSocket / WebRTC / HTTP streaming).
 - Механизм auth (два context: admin vs cabinet; token flavour для mobile/desktop).
-- Набор tools/actions.
-- Multi-tenant «много независимых инстансов Jarvis». На одном инстансе — **много users** с изоляцией; owner — роль, не единственная запись.
+- Подтверждение write-tools Gmail/Calendar.
+- Алфавит access_code кроме зарезервированного `2000`.
+- Multi-tenant «много независимых инстансов». На одном инстансе: один `owner` + много `user`.
 
 ---
 
 ## Связь с фазами
 
-Phase 1: Core + Telegram + Groups persist/UI + AI roles + **контракты multi-user** (`user_id`, много conversations, hierarchy/override слоты). Users / Cabinet — инкремент после persist, не Phase 4.  
-Phase 2: Memory Engine per-user + group analysis (group knowledge ≠ personal memory).  
-Phase 3: API, mobile, desktop, voice — те же accounts.  
-Phase 4: conversational intelligence **над** тем же engine.
-
-Users / Cabinet: [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
+Исполнение по вехам 0–19: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).  
+Users: [USERS_AND_CABINET.md](USERS_AND_CABINET.md). Integrations: [INTEGRATIONS.md](INTEGRATIONS.md).

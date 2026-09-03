@@ -1,360 +1,245 @@
-# Users, Personal Cabinets, User-specific AI context
+# Users, roles, Cabinet, Telegram pairing
 
-Модуль пользователей и личных кабинетов. Один **Jarvis Core** для владельца инстанса и для дополнительных пользователей. Различия — roles, permissions, enabled features и settings. Не два backend и не hardcoded special case в AI Core.
+Два уровня на одном Core: **owner** и **user**. Owner — обычная строка `users` с ролью `owner`, не hardcoded `user_id`. Conversation Engine один. Различия — authorization и enabled features.
 
-Подробности памяти: [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md). Промпты и модели: [AI_PROVIDER_ARCHITECTURE.md](AI_PROVIDER_ARCHITECTURE.md). Схема: [DATABASE.md](DATABASE.md). Решения: ADR-016–021 в [DECISIONS.md](DECISIONS.md).
+Связано: [CHANNELS.md](CHANNELS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [DATABASE.md](DATABASE.md), [INTEGRATIONS.md](INTEGRATIONS.md), ADR-016–031 в [DECISIONS.md](DECISIONS.md).
 
----
-
-## Зачем отдельные пользователи
-
-Владелец использует Jarvis как полноценного персонального ассистента (каналы, группы, tools, админка — по permissions).
-
-Дополнительный пользователь может быть просто AI-собеседником. Пример: ребёнок изучает программирование, задаёт вопросы, ведёт несколько независимых чатов, имеет свою историю, свои topics и свой General Prompt.
-
-Каждый пользователь имеет **полностью отдельный AI-контекст**. ADR-016.
-
-Общий backend, общий Telegram Bot, общий provider **не** означают общий context.
+Фактический код сегодня: любой залогиненный человек видит Admin Panel. Это **баг относительно целевой модели**, не целевое поведение. См. [CURRENT_STATE.md](CURRENT_STATE.md).
 
 ---
 
-## Изоляция (критическое правило)
+## Roles
 
-Для каждого пользователя независимо существуют:
+Минимум два значения. Сложный RBAC-пакет не обязателен. Расширяемый enum / колонка `users.role`.
 
-- profile;
-- conversations;
-- messages (личных чатов);
-- topics;
-- memories;
-- summaries;
-- AI settings (в т.ч. User General Prompt);
-- cabinet access.
+| Role | Кто | Web после login | Telegram | Admin / integrations |
+| --- | --- | --- | --- | --- |
+| `owner` | один главный владелец инстанса | **Admin Panel** | тот же pairing, код `2000` | `*` |
+| `user` | все остальные в каталоге Users | **Personal Cabinet** | pairing своим `access_code` | нет |
 
-Данные пользователя A **не** попадают в context пользователя B автоматически.
+Ровно один owner на инстанс (unique constraint или эквивалент). Не ветвить AI Core `if ($userId === 1)`.
 
-Даже если оба используют:
+### Owner (`*`)
 
-- одного AI provider;
-- одну модель;
-- один backend;
-- один Telegram Bot или другой channel.
+Исключительный доступ ко всему инстансу:
 
-Все memory / topic / conversation / context retrieval операции **scoped by `user_id`** (или эквивалентный owner scope). Глобальный поиск памяти без явного scope запрещён.
+- Admin Panel, Users, User Cards, чужие Chats / Topics;
+- AI Settings (platform + чужие user settings);
+- Telegram Settings, Telegram Groups, group chats, outbound в группы;
+- Integrations (Google Calendar, Gmail, ElevenLabs, позже другие);
+- system settings, diagnostics, logs;
+- impersonation;
+- все будущие tools/actions.
 
-Telegram group knowledge — отдельный scope, не personal memory чужого или даже своего пользователя без правил provenance. См. ADR-012.
+Owner **также** обычный участник Conversation Core: своя history, topics, memories, Telegram DM, User General Prompt.
 
----
+### User
 
-## Типы пользователей — не разные ядра
+Пока **только**:
 
-| | Jarvis Owner | Additional user |
-| --- | --- | --- |
-| Conversation Engine | тот же | тот же |
-| Memory Engine | тот же, свой `user_id` | тот же, свой `user_id` |
-| AI Layer | тот же | тот же |
-| API / Cabinet | тот же контракт | тот же контракт |
-| Типичные extras | admin, Telegram Groups, tools, integrations | чаты + профиль; features по permission |
+- Web Cabinet: login, Profile, Chat (список, New Chat, свои треды);
+- Telegram DM после pairing кодом.
 
-Owner — пользователь той же системы с более широкими permissions. Core не ветвится `if owner { otherBrain }`.
+**Не** имеет (backend 403 / deny, не только скрытое меню):
 
----
+- Admin Panel, Settings, Users, Telegram Groups;
+- чужие chats / memory / topics;
+- integrations, Gmail, Google Calendar;
+- system AI settings, logs, admin APIs.
 
-## Authentication
-
-Два permission context на одном backend:
-
-| Context | Кто | Куда | Нельзя |
-| --- | --- | --- | --- |
-| Admin | пользователи с admin permission | Admin Panel | не путать с кабинетом |
-| Cabinet | любой активный user | Personal Cabinet (`/cabinet` — точный URL `TBD`) | admin panel, чужие users/chats/memories, group administration |
-
-Схема сессий (один guard / два guard, cookie / token) — `TBD`. Инвариант: обычный user не получает admin routes и не читает чужие ресурсы.
-
-Admin, зашедший в кабинет через impersonation, остаётся в admin audit trail, не «становится» этим user навсегда. ADR-020.
-
-Mobile / Desktop Phase 3 используют те же accounts и тот же ownership, что Cabinet.
+Все query scoped by `user_id`. ADR-021, ADR-030.
 
 ---
 
-## Authorization
+## Access code
 
-Все user-facing endpoints проверяют **ownership**, не только id из URL. ADR-021.
+Не web-пароль. Не email. Не database id. Код **первичной привязки внешнего канала** (сейчас Telegram).
 
-Недостаточно: «открой conversation 123, раз ты залогинен».
+| Правило | Деталь |
+| --- | --- |
+| Уникальность | DB unique + генерация с retry при коллизии |
+| Человекочитаемый | короткий набор символов; точный алфавит `TBD` (цифры допустимы) |
+| Owner | зарезервирован **`2000`**. Не переиспользовать. Не считать web password |
+| Обычный user | генерируется при создании записи |
+| Видимость | owner видит код на User Card; может regenerate |
+| После pairing | код для последующих Telegram-сообщений не спрашивается |
+| Web Cabinet | вход email/login + password. Access code **не** секрет кабинета |
 
-Нужно: conversation 123 принадлежит текущему `user_id` (или admin с явным privileged action).
-
-То же для messages, topics, memories, user_ai_settings, profile.
-
-Реализация — policies / authorization layer ядра (Laravel policies или эквивалент). Канал и UI не обходят этот слой.
-
----
-
-## Admin Panel — Users
-
-Раздел **Users**. Главная страница — таблица автоматически существующих аккаунтов (созданных админом или иным onboarding, `TBD`).
-
-Минимальные колонки:
-
-- ID;
-- имя;
-- email / login;
-- статус;
-- дата создания;
-- последняя активность;
-- количество чатов;
-- количество сообщений;
-- роль / type при необходимости.
-
-Строки кликабельны → **User Card**.
+Неверный / неизвестный код: не создавать User, не вызывать AI.
 
 ---
 
-## User Card
+## Web authentication split
 
-Центральная административная страница конкретного пользователя.
+Один `User` model, один guard допустим. После login:
 
-### Profile
+```
+if role === owner → Admin Panel (dashboard)
+if role === user  → Personal Cabinet
+```
+
+User на admin route: **403** или redirect в cabinet по согласованной policy. Решение фиксируется в реализации; инвариант — user не видит admin data. Owner на cabinet: свой кабинет или impersonation; не обязательно запрещать owner иметь personal chats UI (`TBD` поверхность: отдельный cabinet vs admin «мои чаты»).
+
+Impersonation: только owner, без пароля жертвы. ADR-020.
+
+---
+
+## Admin: Users — каталог Jarvis
+
+Не «admin accounts». Таблица всех людей инстанса.
+
+Колонки:
 
 - name;
 - email / login;
-- статус;
-- password reset / change;
-- прочие профильные поля.
+- role (`owner` / `user`);
+- access_code;
+- status;
+- Telegram linked yes/no;
+- chats count;
+- messages count;
+- last activity;
+- created_at.
 
-Пароль **никогда** не отображается и не хранится plaintext.
-
-Администратор может только:
-
-- установить новый пароль (hash);
-- инициировать reset;
-- либо другой безопасный механизм.
-
-### Быстрые действия
-
-| Действие | Куда | Заметка |
-| --- | --- | --- |
-| Open Cabinet | impersonated cabinet | ADR-020; не пароль пользователя |
-| Chat | админ-список чатов пользователя | read / debug |
-| Topics | каталог тем этого user | scope = этот user |
-| AI Settings | User General Prompt и model override | не путать с platform AI roles |
-
-Те же экраны могут дублироваться из Settings, если навигация админки так удобнее. Source of truth — записи user, не копия в другом модуле.
+Строка → User Card. Только owner.
 
 ---
 
-## Admin: User Chats
+## User Card (owner only)
 
-Из карточки: раздел **Chats**.
+- profile, role, status;
+- access_code + **Regenerate Code**;
+- Telegram linked + **Unlink Telegram** (+ later relink);
+- password set / reset (hash only; plaintext никогда);
+- Chats (read/debug);
+- Topics;
+- AI Settings (User General Prompt, override);
+- Open Cabinet / impersonate.
 
-Список conversations пользователя:
-
-- название;
-- дата создания;
-- последнее сообщение;
-- количество сообщений;
-- статус / архив.
-
-По клику — messenger view: пузыри, автор (user vs Jarvis), время, хронология, pagination / lazy load.
-
-Это **read / debug / admin** capability. Администратор **не** пишет в чат от имени пользователя по умолчанию. Отдельная функция «ответить как user» — только отдельным ADR, не подразумевается.
-
-Просмотр чатов — privileged. Архитектура должна позволять audit log (кто смотрел). См. Privacy ниже.
+Обычный user эту страницу не видит.
 
 ---
 
-## Admin: User Topics
+## Personal Cabinet (`role=user`)
 
-Собственный каталог topics пользователя. Тот же механизм structured memory, что у владельца, с обязательным owner scope.
+Минимум: **Chat**, **Profile**.
 
-Пример набора у одного user: Programming, Python, School, Minecraft, Personal projects. У другого — другой набор.
+Chat как ChatGPT:
 
-Retrieval topics всегда `user_id` / `owner = this user`. Не смешивать с group topics и global topics.
+- sidebar списка своих chats;
+- New Chat;
+- открыть чат;
+- history + input.
 
----
-
-## Admin: User AI Settings
-
-Из User Card (и при необходимости из Settings):
-
-- просмотр и правка **User General Prompt**;
-- назначенная Conversation (и позже Analysis) configuration: default vs override;
-- later — memory behaviour.
-
-Не подменять этим экраном platform Conversation / Analysis roles. Platform defaults живут в глобальных AI Settings. ADR-013, ADR-019.
+Каждый chat = `conversations` с этим `user_id`. Long-term memory общая **внутри** user. New Chat ≠ новая память. ADR-017.
 
 ---
 
-## Personal Cabinet
+## Telegram pairing
 
-После авторизации пользователь попадает в **свой** Web Cabinet.
+Факт с аудита: webhook ACK `{ok:true}`, handlers нет, бот не отвечает. Целевая логика ниже. Транспорт: **webhook** + Nutgram. Long polling не нужен.
 
-Минимум:
+Адаптер **не** вызывает LLM. Неверный код и `/start` без pairing — системные ответы, не Conversation AI.
 
-- Chat;
-- Profile.
+### Один Telegram identity
 
-Дальше можно расширять (topics для user, настройки prompt — `TBD`, не обязательно в первом кабинете).
+`(channel=telegram, external_user_id)` уникален. Нельзя привязать один Telegram account к двум Jarvis Users одновременно.
 
-Cabinet — тонкий клиент того же Core, что Telegram и будущие приложения. Не второй Conversation Engine.
+Owner может unlink / later relink и regenerate access code.
 
----
+### `/start` — identity нет
 
-## Cabinet — Chat
+Системный текст (смысл, формулировка `TBD`):
 
-Поведение как у ChatGPT:
+«Привет. Для доступа к Jarvis нужен код авторизации. Введите код, полученный от владельца.»
 
-- список своих чатов;
-- создать новый чат;
-- открыть существующий;
-- продолжать разговор;
-- несколько независимых conversations;
-- переименовать;
-- архив / удаление — продуктовое решение later (`TBD`).
+AI не вызывается. User не создаётся.
 
-Каждый новый чат = новая сущность `conversations` с `user_id`.
+### Текст без pairing
 
-### Conversation context vs User long-term memory
-
-| Слой | Граница | Новый чат |
-| --- | --- | --- |
-| Conversation context | raw + working context **этого** чата | пустой |
-| User long-term memory | topics / memories / profile **этого** user | сохраняется и может быть подтянута, если релевантна |
-
-Пример: в чате A пользователь сказал, что учит Python. В чате B Jarvis может опереться на это только если Memory Engine сохранил факт в **его** personal memory и retrieval признал его релевантным. Сырые сообщения чата A в чат B не копируются.
-
-**New Chat ≠ New User Memory.** ADR-017.
-
----
-
-## New Chat
-
-При создании:
-
-1. Новая `conversation` с `user_id` текущего пользователя.
-2. Raw history пустая.
-3. Сообщения других conversations этого user напрямую не подмешиваются.
-4. Context builder добавляет: platform prompt → channel rules → **этот** User General Prompt → релевантные **его** memories/topics → (пустое recent) → current message.
-5. Резолв модели: user override или platform default. ADR-019.
-
----
-
-## Cabinet — Profile
-
-Пользователь редактирует допустимые поля: name, password, базовые account settings.
-
-Смена email/login — по будущей auth policy (`TBD`).
-
-Пароль: смена со знанием текущего (или reset flow). Не показывать hash.
-
----
-
-## User AI Settings и prompt hierarchy
-
-У каждого пользователя есть персональные AI-настройки. Минимум: **User General Prompt** — отдельный слой, не копия и не замена platform system prompt. ADR-018.
-
-Пример для ребёнка: стиль, возрастная адаптация, обучение программированию, уровень объяснений, ограничения поведения.
-
-### Hierarchy context package
-
-Порядок сборки (сверху вниз, нельзя переставлять так, чтобы user слой отменял platform rules):
-
-1. **Platform / System Prompt** — глобальные правила продукта и Conversation role.
-2. **Channel / System Rules** — ограничения канала (Telegram лимиты как инструкции, safety канала, `TBD`).
-3. **User General Prompt** — поведение для этого user; действует во **всех** его чатах и личных каналах.
-4. **Relevant User Memory** — только этого `user_id`.
-5. **Relevant Topics** — только его (или явно запрошенный иной scope, не чужой user).
-6. **Conversation Summary / History** — только текущий conversation.
-7. **Current Message**.
-
-User General Prompt **не может** снимать критические platform/system rules (safety, изоляция, запрет выдавать чужие данные). Реализация: порядок слоёв + неизменяемый platform блок; user prompt — complementary. Точный enforcement (`TBD`: отдельный system vs developer message).
-
-Platform Conversation prompt один на продукт. User General Prompt — один на пользователя, на все его чаты. Не один prompt «на весь инстанс» как личность всех людей.
-
----
-
-## AI Model Assignment — inheritance
-
-Не у каждого user обязан быть свой provider.
+Любое подходящее текстовое сообщение = попытка access code.
 
 ```
-platform default (роль conversation, позже analysis)
-  → user override, если задан
-  → иначе default
+Telegram update
+  → identify Telegram user
+  → lookup channel_identities
+  → absent
+  → parse access_code
+  → find active User by access_code
 ```
 
-Пустой override = platform Conversation Model.
+Код не найден:
 
-Пример: platform = OpenAI / Model X; User B = Provider Y / Model Z.
+«Код не найден. Проверьте код или обратитесь к владельцу Jarvis.»
 
-Секреты провайдеров остаются platform credentials (или явно выданные user-level refs, `TBD`). User не получает чужие keys через кабинет.
+Не создавать User. Не звать AI. Не писать это в normal conversation history. Auth/security event — можно.
 
-Резолв в AI Layer: `resolve(role, user_id)`. Conversation Engine не выбирает vendor. ADR-019.
+### Код найден — pairing
 
----
+Создать `channel_identities`:
 
-## Impersonation — Open Cabinet
+- channel = `telegram`;
+- `external_user_id`;
+- username, first/last name если есть;
+- `user_id`;
+- `linked_at`;
+- `last_seen_at`.
 
-Админ открывает кабинет пользователя **без** знания пароля. ADR-020.
+Дальше Telegram ID — авторизованный канал этого User. Код больше не спрашивать.
 
-Концепция:
+Сразу после pairing:
 
-- отдельная impersonated session (или эквивалентный privileged token);
-- в UI явно видно: «вы как User N»;
-- кнопка выйти из режима — возврат в админку / свою сессию;
-- действие логируется (кто, кого, начало/конец);
-- admin не получает password hash в понятном виде и не «логинится формой» с паролем жертвы.
+```
+Telegram Adapter
+  → Conversation Engine
+  → Conversation AI
+```
 
-Точный механизм (Laravel impersonate package vs свой guard) — `TBD`. Небезопасная передача пароля запрещена.
+Первое приветствие генерирует **Conversation AI** (platform prompt + User General Prompt + profile + memory, на старте memory может быть пустой). Не заканчивать статическим «Вы авторизованы» как единственным ответом. Короткое системное «привязка успешна» перед AI — допустимо.
 
-В режиме impersonation админ видит кабинет как этот user. Запись сообщений от имени user — по умолчанию **нет** (см. Admin Chats). Если в impersonation разрешат писать как диагностика — отдельное решение и отдельный audit event.
+### Авторизованный DM
 
----
+```
+Webhook → Nutgram / Adapter → identity → User → Conversation
+  → persist inbound → Context Builder → Conversation AI
+  → persist outbound → Adapter send
+```
 
-## Privacy / Audit
+Тот же путь для owner и user. Права tools/groups проверяет Core, не адаптер.
 
-Просмотр чужих чатов и impersonation — privileged admin capability, не обычная функция кабинета.
+### Повторный `/start` при уже связанной identity
 
-Архитектура должна позволять логировать:
+Код не спрашивать. Предпочтительно Conversation AI (или короткое системное + AI).
 
-- просмотр User Card / чатов / topics;
-- impersonation start/stop;
-- изменение User AI Settings;
-- password reset / set;
-- другие чувствительные admin actions.
+### Owner Telegram
 
-Retention и обязательность логов на старте — `TBD`; место в модели — `admin_audit_logs` (имя не финальное).
-
----
-
-## Связь с каналами и будущими клиентами
-
-- Telegram DM identity → тот же `user_id`, те же memories, свои conversations (часто один тред с ботом).
-- Cabinet / Mobile / Desktop — те же accounts, список чатов этого user, ownership на каждом запросе.
-- Telegram Groups — feature permission (обычно owner/admin), не personal cabinet другого user.
+Тот же механизм. Первичный код **`2000`** → связь с `role=owner`. Отдельного owner-бота нет.
 
 ---
 
-## Фазы
+## Groups и integrations
 
-| Момент | Users / Cabinet |
-| --- | --- |
-| Phase 1 | Контракты: `user_id` на personal ресурсах; много conversations в схеме; prompt hierarchy и default→override как слоты; Core без `if onlyOwner` |
-| После persist (не ждать Phase 4) | Admin Users, User Card, Cabinet Chat/Profile, User General Prompt, impersonation concept |
-| Phase 2 | Topics/memories per user; retrieval строго scoped |
-| Phase 3 | Mobile/Desktop на тех же accounts и conversations |
+Telegram Groups в админке — **только owner**. Обычный user не видит группы, не получает group knowledge в personal prompt, не шлёт в группы.
 
-Первый подключённый Telegram-аккаунт может быть owner. Это onboarding, не архитектура «в системе бывает только один user».
+Google Calendar / Gmail / ElevenLabs — **только owner**, через Integration / Tool Layer. Не вшивать в Telegram adapter. [INTEGRATIONS.md](INTEGRATIONS.md).
+
+---
+
+## Memory scopes
+
+- personal memory каждого User (включая owner);
+- Telegram group knowledge (owner/analysis);
+- system/global при необходимости.
+
+Cross-user retrieval запрещён. Group knowledge не льётся в cabinet обычного user.
 
 ---
 
 ## Что не делать
 
-- Не делать второй AI Core для «простых» пользователей.
-- Не класть memories A в prompt B.
-- Не обнулять user memory при New Chat.
-- Не давать User Prompt перекрыть platform rules.
-- Не открывать cabinet по паролю пользователя, показанному админу.
-- Не считать id в URL достаточным доступом.
-- Не смешивать admin context и cabinet context.
+- Не называть access_code паролем кабинета.
+- Не создавать User из неизвестного Telegram.
+- Не пускать неверный код в AI.
+- Не давать `role=user` admin routes «потому что залогинен».
+- Не hardcode owner по `id=1`.
+- Не строить второй Conversation Engine для owner.

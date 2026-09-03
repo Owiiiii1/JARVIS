@@ -13,7 +13,8 @@ API нужен Web Cabinet, Mobile, Desktop и интеграциям. Telegram 
 - Ownership: id в URL недостаточен. Policy проверяет, что conversation/message/topic принадлежит user. ADR-021.
 - Клиент не присылает platform prompt и не выбирает произвольный vendor. User General Prompt и override задаются в админке / user settings, ядро резолвит само.
 - Group administration — не cabinet API. `TBD` узкий read для owner.
-- Два auth context: admin vs cabinet. Обычный user не получает admin endpoints.
+- Два web context: owner → admin; `role=user` → cabinet. User на admin API/routes — deny.
+- Access code не является API/web password.
 - Схема токенов (sanctum, JWT, cookies) — `TBD`.
 - Realtime и voice — отдельные группы.
 
@@ -23,7 +24,8 @@ API нужен Web Cabinet, Mobile, Desktop и интеграциям. Telegram 
 
 ### Authentication
 
-- вход / выход / refresh кабинета (не admin login);
+- вход / выход / refresh: owner и user разные landing;
+- Telegram pairing не через этот API (webhook);
 - привязка device session;
 - кто я (`user` + доступные features/channels).
 

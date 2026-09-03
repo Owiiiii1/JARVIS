@@ -38,7 +38,7 @@ Telegram adapter один: и личные чаты, и группы. После
 
 ## Web Cabinet
 
-Клиент того же Core после persist. Auth — cabinet context, не admin. Список чатов, New Chat, Profile. Ownership на каждом запросе. Не содержит LLM.
+Клиент того же Core. **Только `role=user`** (owner пользуется Admin + своим personal context). Login user → cabinet, не admin. Chat + Profile. Ownership на каждом запросе. Не содержит LLM. Access code не используется для входа в cabinet.
 
 ---
 
@@ -48,12 +48,13 @@ Telegram adapter один: и личные чаты, и группы. После
 
 ### Роль
 
-- receive message (webhook или long polling — `TBD` на реализации; ядро безразлично);
+- receive message через **webhook** + Nutgram (уже выбранный транспорт; long polling не нужен);
 - различить direct vs group/supergroup;
 - normalize (включая group metadata и sender);
 - передать в Jarvis Core (DM → Conversation Engine; группа → Groups module);
-- для DM: получить response и отправить;
-- для группы: по умолчанию не отвечать; исходящие из админки — тот же adapter → Bot API.
+- pairing: `/start` и access_code **до** Core AI;
+- для авторизованного DM: получить response Core и отправить;
+- для группы: persist; не отвечать; исходящие из админки (owner) — тот же adapter → Bot API.
 
 ### Что запрещено
 
@@ -61,12 +62,16 @@ Telegram adapter один: и личные чаты, и группы. После
 - вызов Bot API из React/Inertia;
 - хранение «telegram-only» истории, которую Core не видит;
 - отдельный prompt «для бота»;
-- автоответ во все группы.
+- автоответ во все группы;
+- создание User из неизвестного Telegram;
+- вызов Conversation AI до успешного pairing;
+- Google/Gmail SDK внутри адаптера.
 
 ### Что допустимо в адаптере
 
 - проверка webhook secret;
-- маппинг `from.id` → personal identity; `chat_id` группы → `telegram_groups` (создаёт Core, не форма админки);
+- lookup `from.id` в `channel_identities`; pairing по `access_code` (owner `2000`);
+- `chat_id` группы → Core `telegram_groups` (не форма админки);
 - нарезка длинного ответа под лимит Telegram;
 - фильтрация шума канала; служебные апдейты групп (`my_chat_member`, edited) передавать в Core, если они меняют status/raw — продуктовые правила `TBD`.
 

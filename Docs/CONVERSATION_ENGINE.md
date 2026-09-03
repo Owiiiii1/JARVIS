@@ -24,6 +24,14 @@ Channel adapter (или Voice layer) передаёт в Core структуру
 
 ---
 
+## Telegram до pairing (не Conversation Engine)
+
+Системные ответы: `/start` без identity, неверный код. AI не вызывается. Неверный ввод не пишется как normal conversation.
+
+После успешного pairing Core получает событие «первый контакт» → Conversation AI greeting (не статическое «Вы авторизованы» как финал).
+
+---
+
 ## Ветка: личное сообщение vs группа
 
 ```
@@ -42,7 +50,7 @@ normalize
 ## Шаги (личный DM / mobile / desktop / voice)
 
 1. **Сообщение приходит через channel adapter или Cabinet API.**
-2. **Определяется пользователь** — session / `channel_identities` → `users`. Ownership conversation проверяется здесь. Неизвестная Telegram identity: политика `TBD` (whitelist / привязка / отказ), не «один магический owner в Core».
+2. **Определяется пользователь** — session / `channel_identities` → `users`. Ownership проверяется здесь. Неизвестная Telegram identity **не** входит в этот AI path: pairing в адаптере ([USERS_AND_CABINET.md](USERS_AND_CABINET.md)). Нет auto-create User. Owner и user — один pipeline.
 3. **Сохраняется raw message** до вызова модели. Падение LLM не должно терять входящее. `user_id` + `conversation_id` обязательны для personal.
 4. **Определяется conversation** — существующий тред этого user или новый (New Chat). Чужой id отвергается. ADR-021.
 5. **Анализируется intent/topic** — в Phase 1 no-op/heuristic; в Phase 2 — classifier **в scope этого user**.

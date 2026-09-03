@@ -216,9 +216,111 @@
 
 ---
 
+## ADR-022 — Граница ролей owner и user
+
+**Контекст.** Сейчас любой `users` row — полный админ.
+
+**Решение.** Две роли: `owner` (`*`) и `user` (cabinet + свой Telegram DM). Один owner на инстанс. Не hardcode `user_id`. User не получает Admin Panel, Settings, Groups, integrations, чужие данные. Enforcement в backend.
+
+**Следствие.** Login owner → admin; login user → cabinet.
+
+---
+
+## ADR-023 — Owner access code `2000`
+
+**Контекст.** Нужен человекочитаемый Telegram pairing для владельца.
+
+**Решение.** Зарезервированный уникальный `access_code=2000` у owner. Это **не** web-пароль.
+
+**Следствие.** Генератор обычных кодов не выдаёт `2000`.
+
+---
+
+## ADR-024 — Уникальные access codes
+
+**Контекст.** Pairing не должен использовать email или id.
+
+**Решение.** У каждого User уникальный human-readable `access_code`. Unique constraint + retry в приложении. Owner видит код и может regenerate.
+
+**Следствие.** Коллизии на уровне БД невозможны.
+
+---
+
+## ADR-025 — Telegram pairing через access code
+
+**Контекст.** Webhook ACK-only; бот молчит. Нужна авторизация канала.
+
+**Решение.** Несвязанный Telegram: `/start` просит код; текст = попытка кода. Успех → identity. Неуспех → отказ. AI не вызывается до успеха.
+
+**Следствие.** Транспорт webhook + Nutgram.
+
+---
+
+## ADR-026 — channel_identity после pairing
+
+**Контекст.** Нужна устойчивая связь Telegram ↔ User.
+
+**Решение.** Строка `channel_identities`: telegram, external_user_id unique, names, user_id, linked_at. Дальше сообщения резолвят User без кода.
+
+**Следствие.** Один Telegram id — один User.
+
+---
+
+## ADR-027 — Telegram не создаёт User
+
+**Контекст.** Удобно завести аккаунт с первого `/start`.
+
+**Решение.** Запрещено. User создаёт только owner (каталог). Неизвестный код не регистрирует человека.
+
+**Следствие.** Нет открытой саморегистрации через бота.
+
+---
+
+## ADR-028 — Integrations только owner
+
+**Контекст.** Gmail/Calendar/ElevenLabs на инстансе.
+
+**Решение.** Tool/Integration Layer доступен `role=owner`. User не видит Integrations и не получает эти tools.
+
+**Следствие.** Groups admin тоже owner-only (согласовано с ADR-012).
+
+---
+
+## ADR-029 — Google через Tool Layer
+
+**Контекст.** Можно вызвать Calendar API из Telegram handler.
+
+**Решение.** Google Calendar и Gmail — adapters Tool Layer. Conversation AI делает tool calls. Не вшивать Google в Nutgram/Telegram adapter.
+
+**Следствие.** Тот же tool доступен из cabinet/API owner, не только из Telegram.
+
+---
+
+## ADR-030 — Строгий ownership
+
+**Контекст.** User и owner на одном API.
+
+**Решение.** Все personal resources scoped `user_id`. Owner читает чужое только через явные admin endpoints (User Card / impersonation), не через cabinet API жертвы без audit.
+
+**Следствие.** Усиливает ADR-021.
+
+---
+
+## ADR-031 — Owner — обычный User в Conversation Core
+
+**Контекст.** Иначе появится второй AI pipeline.
+
+**Решение.** Owner имеет personal history, topics, memories, Telegram DM, Conversation AI как любой User, плюс administrative role.
+
+**Следствие.** Pairing `2000` — тот же механизм, что чужой код.
+
+---
+
 ## Открытые решения (`TBD`)
 
-- Webhook vs long polling для Telegram.
+- Алфавит generated access_code (кроме зарезервированного 2000).
+- 403 vs redirect когда user открывает admin URL.
+- Есть ли у owner отдельный cabinet UI или «мои чаты» в админке.
 - Технология очередей.
 - Auth схема mobile/desktop.
 - Realtime транспорт voice/text streaming.
