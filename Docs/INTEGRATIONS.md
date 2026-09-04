@@ -34,13 +34,14 @@ Google / ElevenLabs / Integrations admin — **owner only** (`integrations_admin
 
 Не хранить классы провайдеров в DB.
 
-Зарегистрированные keys: `google`, `telegram`, `elevenlabs`.
+Зарегистрированные keys сегодня: `google`, `telegram`, `elevenlabs`. **GitHub** — planned (M21), тот же registry + `integration_accounts`. Не реализовывать сейчас.
 
 | Provider | Status | Source of truth |
 | --- | --- | --- |
 | Google | OAuth identity + Calendar + Gmail tools (M19) | `integration_accounts` encrypted credentials |
 | ElevenLabs | placeholder Not configured | `integration_accounts` later |
 | Telegram | status bridge | existing `telegram_bot_settings` — **no token copy** |
+| GitHub | DOCUMENTED ONLY | `integration_accounts` later |
 
 Telegram integration card never writes `integration_accounts.credentials_encrypted`. ADR-061.
 
@@ -254,6 +255,20 @@ Attachments: READ metadata only (filename, mime, size, attachment id). WRITE att
 Gmail tool results are not copied into personal memory automatically. Email → Calendar is a multi-tool Conversation AI loop, not an extraction job.
 
 Safe errors: `google_not_connected`, `gmail_scope_required`, `gmail_message_not_found`, `gmail_thread_not_found`, `gmail_forbidden`, `gmail_rate_limited`, `gmail_send_failed`, `gmail_invalid_recipient`, `gmail_unavailable`, `gmail_conflict`. Raw Google bodies are not returned.
+
+### GitHub (planned, M21)
+
+Owner-only. Integration Framework tools — не Telegram adapter и не локальный `git` в клиенте.
+
+**READ later:** repositories, branches, commits, files, code search, issues, pull requests, workflow status.
+
+**WRITE later:** create/update issues, comments, branches, controlled PR operations.
+
+Use cases (future): «что изменилось сегодня в JARVIS?», последний commit, поиск `ToolExecutionService`, открытые issues, diff, создать issue.
+
+Credentials: encrypted `integration_accounts`. Cursor/Desktop не ходят в GitHub API сами.
+
+Не реализовывать сейчас. ADR-095.
 
 ### ElevenLabs
 

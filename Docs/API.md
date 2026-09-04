@@ -1,6 +1,8 @@
 # API
 
-API нужен Web Cabinet, Mobile, Desktop и интеграциям. Telegram в Phase 1 может ходить в Core in-process. Cabinet использует тот же контракт, что Phase 3 клиенты (поверхность раньше публичного mobile API).
+API нужен User Cabinet, Owner Workspace, Desktop, Mobile. Telegram ходит в Core in-process. Cabinet/Workspace могут оставаться same-origin session; Desktop/Mobile требуют versioned Client API.
+
+Целевой контракт: [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md). Этот файл — инварианты. Окончательные URL **не фиксируются**. Клиенты не реализуют Memory/Tools/credentials локально.
 
 Окончательные URL и форматы payload **не фиксируются**. Ниже — логические группы и инварианты.
 

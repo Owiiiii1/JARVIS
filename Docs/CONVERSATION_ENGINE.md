@@ -10,10 +10,10 @@
 
 Channel adapter (или Voice layer) передаёт в Core структуру уровня:
 
-- `channel` (`telegram` / `mobile` / `desktop`, `TBD` точный enum);
-- `modality` (`text` / `voice`) — голос не отдельный ассистент и не отдельный канал-мозг;
+- `channel` (`telegram` / `web` / `mobile` / `desktop`, `TBD` точный enum);
+- `modality` (`text` / `voice`) — голос не отдельный ассистент, не отдельный канал-мозг и не новый `conversation_id`;
 - `external_identity` (telegram user id, app user id, …);
-- `conversation_id` или hint: Telegram → `channel_identities.active_conversation_id`; Cabinet → открытый chat;
+- `conversation_id` или hint: Telegram → `channel_identities.active_conversation_id`; Cabinet / Workspace / apps → открытый chat; тот же id на всех клиентах;
 - `payload` (текст; медиа — refs, `TBD`);
 - `occurred_at`;
 - `channel_message_id` для идемпотентности.
@@ -139,7 +139,7 @@ LLM здесь не участвует, если администратор пр
 
 ## Голос
 
-Тот же User Space, тот же selected conversation, тот же Conversation Engine, тот же AI config space, одна memory. Нет отдельных voice memories. Transport/STT/TTS/`TBD` практикой. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
+Тот же User Space, тот же selected `conversation_id`, тот же Conversation Engine, тот же AI config space, одна memory. Нет отдельных voice memories и нет auto-created voice chat. Transport/STT/TTS/`TBD` практикой. Runtime: [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Orb UI: [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
 
 ---
 
@@ -147,7 +147,7 @@ LLM здесь не участвует, если администратор пр
 
 Tool loop в одном turn: несколько последовательных calls. Не `one message = max one tool call`. Safety limit: **max 5 tool rounds**.
 
-Реализовано в Core (`ConversationAiService`): AI → tool call(s) → `ToolRegistry` → `ToolExecutionService` (capability + confirmation policy + `tool_execution_logs`) → tool result(s) → AI → возможно ещё tools → final answer. Telegram и Cabinet не знают, какой tool сработал.
+Реализовано в Core (`ConversationAiService`): AI → tool call(s) → `ToolRegistry` → `ToolExecutionService` (capability + confirmation policy + `tool_execution_logs`) → tool result(s) → AI → возможно ещё tools → final answer. Telegram, Cabinet, Workspace и native clients не знают, какой tool сработал.
 
 Tools:
 

@@ -109,38 +109,44 @@
 
 ---
 
-## Phase 3 — Mobile + Desktop + Voice
+## Phase 3 — Workspace + native clients + Voice
 
-**Результат.** Один Jarvis в Telegram, мобильном и desktop-клиенте, включая realtime voice.
+**Результат.** Owner общается с Jarvis в Personal Workspace (не в Admin). Тот же Core на Desktop (Tauri) и Mobile (Flutter), включая Voice Mode + Orb. GitHub — owner Integration Framework tools.
 
 ### Goals
 
-- Public API для клиентов
-- Тонкие приложения без своей AI-логики
-- Voice I/O через abstraction (ElevenLabs по умолчанию)
-- Те же accounts, conversations и **личная** memory каждого user
+- Combined Google smoke / hardening (validation; не обязательно coding milestone)
+- GitHub integration (tools, not adapter)
+- Owner Web Workspace (`Owiiiii1/JARVIS`, Inertia/React)
+- Versioned Client API
+- Voice Runtime ≠ Voice UI
+- Desktop repo `Owiiiii1/JARVIS-Desktop`
+- Mobile repo `Owiiiii1/JARVIS-Mobile`
+- Те же accounts, `conversation_id`, **личная** memory
 
 ### Основные компоненты
 
-- API (auth, conversations, messages, voice sessions)
-- Mobile client
-- Desktop client
-- STT / TTS / turn detection (минимально достаточный realtime)
+- [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md)
+- [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md)
+- [CLIENTS/DESKTOP_APP.md](CLIENTS/DESKTOP_APP.md)
+- [CLIENTS/MOBILE_APP.md](CLIENTS/MOBILE_APP.md)
+- [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md) + [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md)
 
 ### Prerequisites
 
-- Стабильный engine Phase 1
-- Желателен retrieval Phase 2; не блокировать API, если память ещё recent-window
-- Auth: те же cabinet accounts; realtime transport `TBD`
+- M19 Gmail + M18 Calendar implemented
+- Live Google smoke before relying on mail/calendar in Workspace
+- Auth / realtime transport `TBD`
 
 ### Definition of done
 
-Смена клиента не меняет «личность» и историю **этого** user. Голосовая реплика пишется в его messages.
+Смена клиента не меняет «личность» и историю **этого** user. Голосовая реплика пишется в выбранный `conversation_id`. Admin остаётся технической панелью.
 
 ### Не входит
 
 - Полный Phase 4 initiative/barge-in качества
 - Отдельный голосовой продукт
+- Tauri/Flutter внутри Laravel repo
 - Overbuilt mobile ecosystem
 
 ---
@@ -185,7 +191,9 @@
 1. Сначала простая рабочая система (Phase 1) с spaces, Chat Selector и multi-user контрактами.
 2. Reminders до Google. Users / Cabinet сразу после persist.
 3. Затем memory, Projects, group analysis/search (Phase 2).
-4. Затем integrations / native клиенты (Phase 3) на тех же accounts.
+4. Затем Google smoke, GitHub, Owner Workspace, Voice, native clients (Phase 3) на тех же accounts.
 5. Proactive Engine — future, не MVP. Затем естественность (Phase 4).
+
+Post-M19 executable order: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (M20–M28).
 
 Не over-engineer Phase 1. Не принимать решений, которые ломают этот порядок (например, AI внутри Telegram handler).

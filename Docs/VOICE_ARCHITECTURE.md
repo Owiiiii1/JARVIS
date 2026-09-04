@@ -2,7 +2,7 @@
 
 Целевые фазы: **Phase 3** (подключение голоса к тому же ядру), **Phase 4** (естественный realtime). В Phase 1–2 голос не реализуется, но текстовой pipeline не должен мешать появлению STT/TTS.
 
-Voice — experimental / future. Другой интерфейс к **тому же** Jarvis, не отдельный ассистент. После распознавания реплика идёт в [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md).
+Voice — experimental / future. Другой интерфейс к **тому же** Jarvis, не отдельный ассистент и не отдельный User Space. После распознавания реплика идёт в [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md). UI Orb отделён от runtime: [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
 
 ### Invariants (фиксированы)
 
@@ -37,7 +37,15 @@ Transport / STT / TTS / realtime / interruption — `TBD` практически
 
 ---
 
-## Слои
+## Voice Runtime vs Voice UI
+
+**Voice Runtime** (этот документ): audio transport, STT, TTS, turn detection, realtime provider, `voice_sessions`.
+
+**Voice UI** ([CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md)): Orb, transcript, controls. Consumes `VoiceVisualizationState` (`state`, input/output amplitude, frequency bands, connection state). Not bound to ElevenLabs or any vendor.
+
+Provider can change without rewriting the Orb. UI can change without rewriting Core.
+
+## Слои (Runtime)
 
 ```
 Audio I/O (mic / speaker)
@@ -53,6 +61,8 @@ LLM                     ← AI Layer
 Text-to-Speech          ← provider abstraction
         ↓
 Streaming playback
+        ↓
+VoiceVisualizationState → Voice UI (Orb)
 ```
 
 ### Speech-to-Text
@@ -110,8 +120,8 @@ ElevenLabs — дефолтная реализация TTS (и возможно 
 Концепт `voice_sessions`:
 
 - принадлежит user + conversation;
-- канал-origin: mobile/desktop;
-- состояние: listening / thinking / speaking / interrupted;
+- канал-origin: web workspace / desktop / mobile;
+- состояние: idle / connecting / listening / thinking / speaking / interrupted / error / muted;
 - ссылки на messages, порождённые за сессию.
 
 Точный realtime транспорт (WebRTC vs WebSocket audio) — `TBD`.
@@ -121,6 +131,8 @@ ElevenLabs — дефолтная реализация TTS (и возможно 
 ## Что не делать
 
 - Не хранить «голосовую память» отдельно от текстовой.
-- Не вызывать ElevenLabs из Telegram adapter.
+- Не вызывать ElevenLabs из Telegram adapter или из Orb shaders.
 - Не требовать Vector DB ради голоса.
 - Не блокировать Phase 1 выбором speech vendor.
+- Не создавать отдельную voice conversation, если пользователь не выбрал New Chat.
+- Не делать Voice Mode отдельным ассистентом.

@@ -868,12 +868,112 @@
 
 ---
 
+## ADR-086 — Admin Panel ≠ Personal Workspace
+
+**Контекст.** Owner легко начинает «болтать» в админке.
+
+**Решение.** Admin = техническое управление (users, AI, integrations, groups, diagnostics, logs, settings). Personal Workspace = общение с Jarvis. Owner не использует Admin как основной chat UI.
+
+**Следствие.** Planned `/workspace` or `/jarvis`. Текущий `/cabinet` остаётся User Space.
+
+---
+
+## ADR-087 — Conversation is the central UX entity
+
+**Контекст.** Projects, mail, calendar, memory конкурируют за экран.
+
+**Решение.** В Workspace центр — conversation (text + voice). Остальные панели вторичны.
+
+**Следствие.** Нет inbox-first или calendar-first owner home.
+
+---
+
+## ADR-088 — Web / Desktop / Mobile share one Jarvis Core
+
+**Контекст.** Нативные клиенты соблазняют локальным AI.
+
+**Решение.** Все клиенты — adapters. Memory, tools, credentials, provider selection — только Core.
+
+**Следствие.** [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md).
+
+---
+
+## ADR-089 — Voice is a mode, not a separate assistant
+
+**Контекст.** Voice легко оформить как второй продукт.
+
+**Решение.** Voice Mode на выбранном `conversation_id`. Нет отдельных voice memories и нет auto-created voice chat.
+
+**Следствие.** Runtime ≠ Orb UI. Provider можно сменить без нового ассистента.
+
+---
+
+## ADR-090 — Same conversation continues across clients
+
+**Контекст.** Telegram / Web / Desktop / Mobile иначе плодят треды.
+
+**Решение.** Один `conversation_id` на все каналы одного space. New Chat — только явный выбор.
+
+**Следствие.** History смешивается хронологически в одном catalog.
+
+---
+
+## ADR-091 — Desktop = Tauri 2 + React / TypeScript
+
+**Контекст.** Нужен native desktop без второго Core.
+
+**Решение.** Tauri 2, React, TS, Vite, Three.js/WebGL для Orb. Thin client.
+
+**Следствие.** [CLIENTS/DESKTOP_APP.md](CLIENTS/DESKTOP_APP.md).
+
+---
+
+## ADR-092 — Mobile = Flutter
+
+**Контекст.** iOS и Android должны делить один client codebase.
+
+**Решение.** Flutter latest stable. Нет прямых Google API с устройства.
+
+**Следствие.** [CLIENTS/MOBILE_APP.md](CLIENTS/MOBILE_APP.md).
+
+---
+
+## ADR-093 — Desktop and Mobile are separate repositories
+
+**Контекст.** Rust/Tauri и Flutter внутри Laravel repo засоряют CI, deploy и Cursor context.
+
+**Решение.** `Owiiiii1/JARVIS` (Core + Admin + Cabinet + Workspace). `Owiiiii1/JARVIS-Desktop`. `Owiiiii1/JARVIS-Mobile`. Один логический продукт, разные toolchains и release cycles.
+
+**Следствие.** Master protocol docs остаются в JARVIS. Production backend без Tauri/Flutter tree.
+
+---
+
+## ADR-094 — Orb visualization is provider-neutral
+
+**Контекст.** Смена ElevenLabs/OpenAI/Gemini не должна переписывать UI.
+
+**Решение.** Orb читает `VoiceVisualizationState` (state, amplitudes, bands, connection). Runtime мапит vendor audio в этот контракт.
+
+**Следствие.** [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
+
+---
+
+## ADR-095 — GitHub goes through the Integration Framework
+
+**Контекст.** «Посмотри commit» легко сделать в Telegram adapter или локальном git.
+
+**Решение.** GitHub — owner-only provider + tools. Credentials в `integration_accounts`. Не реализовывать до M21.
+
+**Следствие.** Read first; controlled write later. Не в Channel Layer.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Алфавит generated access_code (кроме зарезервированного 2000).
 - 403 vs redirect когда user открывает admin URL.
-- Есть ли у owner отдельный cabinet UI или «мои чаты» в админке.
-- Auth схема mobile/desktop.
+- Финальный path Owner Workspace (`/workspace` vs `/jarvis`).
+- Auth схема Desktop/Mobile (token flavour).
 - Realtime транспорт voice/text streaming; STT/TTS/interruption — практические тесты.
 - Набор service updates (`my_chat_member`) beyond bot left/kicked/member/admin/restricted.
 - Retention raw messages по закону/желанию пользователя (отдельно от derived lifecycle).

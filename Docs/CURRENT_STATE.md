@@ -7,6 +7,12 @@
 
 This document describes **what exists on the server now**. Target architecture in other `Docs/` files is **not** treated as implemented.
 
+### Implemented vs planned (post-M19)
+
+**IMPLEMENTED (code/runtime):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools (automated tests; live Google smoke deferred). Owner currently reaches personal chat via Telegram and can use Admin surfaces; there is **no** Owner Personal Workspace route.
+
+**PLANNED / DOCUMENTED ONLY (not implemented):** Owner Personal Workspace redesign; versioned Client API; realtime Voice Runtime; Orb Voice UI; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub integration; proactive assistant / inbox watch. Do not treat these as shipped.
+
 Status vocabulary:
 
 | Status | Meaning |
@@ -702,3 +708,9 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 Owner Gmail tools over live Gmail (no local mailbox mirror, no polling, no watch/historyId). Incremental OAuth adds `gmail.readonly` + `gmail.compose` + `gmail.modify` without dropping identity or Calendar scopes. Tokens still only via `GoogleCredentialService`. Send always requires persisted `tool_confirmations` (one-time). Draft ≠ send. Attachments metadata-only on read; outbound attachments out of scope. Combined live Google smoke still deferred. Production `integration_accounts` remains 0.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Planned after M19 — DOCUMENTED ONLY
+
+Docs-only architecture (no runtime/schema change in that commit): Admin ≠ Personal Workspace; conversation-centric Owner Web Workspace; Voice Runtime vs Orb UI; Desktop = Tauri 2 in `Owiiiii1/JARVIS-Desktop`; Mobile = Flutter in `Owiiiii1/JARVIS-Mobile`; versioned Client API; GitHub via Integration Framework; milestone order M20–M28. None of these are implemented.
+
+See [ROADMAP.md](ROADMAP.md), [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md).

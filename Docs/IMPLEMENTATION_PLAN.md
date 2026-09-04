@@ -577,98 +577,115 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
 ---
 
-## Milestone 20 — Mobile/Desktop API
+## Milestone 20 — Combined Google smoke / hardening
 
-**Цель.** Public API: auth, chats, messages, realtime transport choice.
+**Статус.** PLANNED. Validation phase — не обязательно coding milestone.
 
-**Реализуем** [API.md](API.md). Ownership. Same engine. Тот же каталог conversations.
+**Цель.** Owner включает Google Cloud (Calendar API + Gmail API + OAuth env) и проверяет M17–M19 live. Hardening only if smoke finds defects.
 
-**Migrations:** personal access tokens / sanctum if chosen.
+**Не реализовывать код «чтобы было».** Не подключать production inbox из Cursor.
 
-**Backend:** `routes/api.php`.
+Plan: [INTEGRATIONS.md](INTEGRATIONS.md), [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
-**Frontend:** нет native.
-
-**Tests:** token cannot see other user chats.
-
-**Deploy:** API rate limits `TBD`.
-
-**DoD**
-
-- Документированный auth + CRUD messages.
-
-**Зависимости:** M8, M9.
-
-**Не входит:** native apps, voice.
+**Зависимости:** M17–M19.
 
 ---
 
-## Milestone 21 — Mobile/Desktop Clients
+## Milestone 21 — GitHub Integration
 
-**Цель.** Тонкие клиенты: profile, chats, text.
+**Цель.** Owner-only GitHub through Integration Framework. Tools, not Telegram adapter.
 
-**Реализуем** apps hitting M20.
+**Реализуем later:** read repos/branches/commits/files/code search/issues/PRs/workflow status; write later (issues, comments, branches, controlled PR ops). Credentials via `integration_accounts`.
 
-**Tests:** E2E smoke `TBD`.
+**Не реализовывать сейчас.**
 
-**Deploy:** store/distribution `TBD`.
-
-**DoD**
-
-- Тот же user видит cabinet/Telegram history.
-
-**Зависимости:** M20.
-
-**Не входит:** voice barge-in.
+**Зависимости:** M16.
 
 ---
 
-## Milestone 22 — ElevenLabs / Voice
+## Milestone 22 — Owner Web Workspace
 
-**Цель.** STT/TTS/realtime. Тот же User Space, selected conversation, Conversation Engine, space AI config, одна memory.
+**Цель.** Полноценный owner-facing Personal Workspace. Conversation в центре. Admin Panel остаётся технической.
 
-**Реализуем** [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Transport/STT/TTS/`TBD` практикой.
+**Реализуем** [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md). Same Core as Telegram. Route `/workspace` or `/jarvis` (`TBD`). Existing Laravel + Inertia/React in `Owiiiii1/JARVIS`.
 
-**Deploy:** voice credentials encrypted.
+Versioned Client API ([CLIENT_API.md](CLIENTS/CLIENT_API.md), [API.md](API.md)) starts here if Desktop/Mobile need it; Inertia session is enough for first Workspace slice.
 
-**DoD**
+**Не реализовывать сейчас.**
 
-- Голосовая реплика = message того же user и той же conversation.
-- Нет отдельных voice memories.
-
-**Зависимости:** M16, M20/M21, M4.
-
-**Не входит:** Phase 4 human-like quality; autonomous proactive.
+**Зависимости:** M4, M8, M19; желателен M20 smoke.
 
 ---
 
-## Milestone 23 — Proactive Engine (future)
+## Milestone 23 — Voice Runtime Foundation
 
-**Цель.** Placeholder, не MVP. `event/trigger` → policy → relevance → Conversation/Notification → Telegram.
+**Цель.** STT/TTS/realtime abstraction. Тот же space, selected `conversation_id`, Conversation Engine, одна memory.
 
-**Реализуем** позже: group important decision, important email, calendar conflict, approaching event.
+**Реализуем** [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Provider `TBD` практикой. Не Orb.
 
-Reminders (M10) — первый простой scheduled trigger. Autonomous proactive **не** делать раньше integrations.
+**Не реализовывать сейчас.**
 
-**Зависимости:** M10; желательны M15, M18, M19.
+**Зависимости:** M16, M22, M4.
+
+---
+
+## Milestone 24 — Voice UI / Orb
+
+**Цель.** Animated 3D Orb + transcript + controls. Provider-neutral `VoiceVisualizationState`.
+
+**Реализуем** [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md). Three.js/WebGL/GLSL on Web/Desktop. Reduced motion later.
+
+**Не реализовывать сейчас.**
+
+**Зависимости:** M23.
+
+---
+
+## Milestone 25 — Desktop Client Foundation
+
+**Цель.** Tauri 2 + React/TS client in `Owiiiii1/JARVIS-Desktop`. Thin client, Client API, same conversations.
+
+**Реализуем** [CLIENTS/DESKTOP_APP.md](CLIENTS/DESKTOP_APP.md). Tray/hotkey/updater can follow.
+
+**Не реализовывать сейчас.** Production Laravel tree без Tauri/Rust.
+
+**Зависимости:** M22 Client API, желательны M23–M24.
+
+---
+
+## Milestone 26 — Mobile Client Foundation
+
+**Цель.** Flutter iOS/Android in `Owiiiii1/JARVIS-Mobile`. Same Core. No direct Google APIs.
+
+**Реализуем** [CLIENTS/MOBILE_APP.md](CLIENTS/MOBILE_APP.md).
+
+**Не реализовывать сейчас.**
+
+**Зависимости:** M22 Client API; желательны M23–M24.
+
+---
+
+## Milestone 27 — Proactive Assistant / monitoring
+
+**Цель.** Placeholder, не MVP. `event/trigger` → policy → relevance → Conversation/Notification.
+
+Reminders (M10) — первый scheduled trigger. Inbox watch / calendar conflict / group decision — later.
+
+**Зависимости:** M10; желательны M15, M18, M19, M21.
 
 **Не входит в MVP.** Не реализовывать сейчас.
 
 ---
 
-## Milestone 24 — Human-like Layer
+## Milestone 28+ — Human-like layer / polish
 
-**Цель.** Latency, turn-taking, references, incomplete phrases, initiative, topic transitions.
+**Цель.** Latency, turn-taking, references, incomplete phrases, initiative; notifications; wake word; files; further integrations.
 
 **Реализуем** [HUMAN_LIKE_ASSISTANT.md](HUMAN_LIKE_ASSISTANT.md) над существующим Core.
 
-**DoD**
+**Зависимости:** M12, M23–M26.
 
-- Не переписывать storage; не один prompt вместо retrieval.
-
-**Зависимости:** M12, M22.
-
-**Не входит:** смена vendor lock-in.
+**Не входит:** смена vendor lock-in; перепись storage.
 
 ---
 
@@ -685,9 +702,13 @@ Reminders (M10) — первый простой scheduled trigger. Autonomous pr
 | Phase 2 memory + Projects | 12–13 |
 | Group analysis + search | 14–15 |
 | Integrations / Google | 16–19 |
-| Phase 3 clients/voice | 20–22 |
-| Proactive (future) | 23 |
-| Phase 4 | 24 |
+| Google live smoke | 20 (validation) |
+| GitHub | 21 |
+| Owner Workspace + Client API | 22 |
+| Voice runtime / Orb | 23–24 |
+| Desktop / Mobile repos | 25–26 |
+| Proactive (future) | 27 |
+| Phase 4 / polish | 28+ |
 
 ---
 
@@ -703,3 +724,6 @@ Reminders (M10) — первый простой scheduled trigger. Autonomous pr
 - Chat A не получает автоматически raw Chat B.
 - Reminder ≠ Calendar Event.
 - CURRENT_STATE не обновлять как «уже сделано» до реального кода.
+- Admin Panel ≠ Personal Workspace. Не делать Admin основным чатом owner.
+- Tauri/Flutter не живут в Laravel repo.
+- Клиенты не исполняют tools и не хранят Google/GitHub credentials.

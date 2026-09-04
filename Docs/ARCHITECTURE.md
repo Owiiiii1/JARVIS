@@ -3,19 +3,20 @@
 Целевая модульная архитектура. Реализация наращивается по фазам; границы модулей фиксируются сразу.
 
 ```
-[Telegram DM] [Cabinet] [Mobile] [Desktop] [Telegram Groups]
-        \         |         |        /            |
-              Channel / Client Layer
-                      |
-                 Jarvis Core
-     /     |      |       |        |         \
-  Users  Memory Groups  AI Layer  Tools     Admin
-  spaces Engine         Owner     Google/   owner
-  +caps                 Conv/     Calendar  only
-                        Analysis  Gmail
-                        User Conv Reminders
-                      |
-                   Database
+[Telegram] [User Cabinet] [Owner Workspace] [Desktop] [Mobile] [Voice mode]
+        \         |              |             |        /         |
+                     Channel / Client Layer
+                              |
+                         Jarvis Core
+         /     |      |       |        |          \
+      Users  Memory Groups  AI Layer  Tools      Admin
+      spaces Engine         Owner     Google/    (technical)
+      +caps                 Conv/     Gmail      not chat
+                            Analysis  Calendar
+                            User Conv GitHub later
+                                      Reminders
+                              |
+                           Database
 ```
 
 ---
@@ -39,13 +40,13 @@
 - context: summary-first, raw-on-demand; Telegram `active_conversation_id`;
 - configuration (platform + per-user);
 - channel abstraction;
-- APIs и Web Cabinet для тех же accounts;
+- APIs, User Cabinet и planned Owner Workspace / Desktop / Mobile для тех же accounts;
 - authorization / ownership на user resources.
 
 Не отвечает за:
 
 - парсинг Telegram update;
-- UI админки;
+- UI админки и Orb shaders;
 - конкретный HTTP SDK OpenAI/Anthropic/Gemini;
 - захват микрофона на клиенте.
 
@@ -80,7 +81,7 @@ Classification и extraction **не обязаны** быть одним LLM-в�
 
 ## Channel Layer
 
-Адаптеры поверх одного ядра. Планируемые каналы: Telegram, Mobile App, Desktop App, потенциально другие.
+Адаптеры поверх одного ядра. Каналы: Telegram, User Cabinet, planned Owner Workspace, Desktop, Mobile. Voice — mode, не отдельный space. [CHANNELS.md](CHANNELS.md), [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md).
 
 Каждый адаптер:
 
@@ -94,7 +95,7 @@ Classification и extraction **не обязаны** быть одним LLM-в�
 
 Разговор пользователя в Telegram DM / Cabinet виден в mobile/desktop как его же `conversations` / `messages`. Чужой user не видит этот набор.
 
-Web Cabinet — клиент того же Core. [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
+Web Cabinet — User Space клиент. Owner Personal Workspace — отдельная planned поверхность, не Admin. [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
 
 Тот же Telegram adapter принимает **group updates**. Они не идут в personal reply path: регистрация группы, persist, optional analysis. См. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
 
@@ -106,13 +107,13 @@ Web Cabinet — клиент того же Core. [USERS_AND_CABINET.md](USERS_AN
 
 ## Admin Panel
 
-Технический интерфейс управления, не второй мозг.
+Технический интерфейс управления. **Не** основной чат owner и не второй мозг. ADR-086.
 
 На ранних этапах **не** нужен полноценный ручной редактор памяти.
 
 Нужно прежде всего:
 
-- **только owner** (сейчас в коде любой auth = admin — это будет сломано в Milestone 1);
+- **только owner**;
 - **Users**: каталог Jarvis (не «admin accounts»), User Card, access_code, Telegram link, Chats / Topics / AI Settings, impersonation;
 - три AI config: Owner Conversation / Owner Analysis / Default User Conversation;
 - Telegram bot settings и/или Integrations overview того же source of truth;
@@ -162,9 +163,9 @@ Web Cabinet — клиент того же Core. [USERS_AND_CABINET.md](USERS_AN
 
 `event/trigger` → policy → relevance → Conversation/Notification → Telegram. Reminders — первый scheduled trigger. Autonomous proactive **не** MVP.
 
-### Cabinet / клиенты
+### Cabinet / Workspace / клиенты
 
-`Cabinet или Mobile/Desktop` → auth (cabinet vs admin context) → ownership check → `Core` (тот же engine)
+`Cabinet | Workspace | Desktop | Mobile` → auth → ownership check → `Core` (тот же engine, тот же `conversation_id`)
 
 ---
 
@@ -173,7 +174,8 @@ Web Cabinet — клиент того же Core. [USERS_AND_CABINET.md](USERS_AN
 - Конкретная очередь/worker runtime (Redis, database queue, иное).
 - Обязательная Vector DB.
 - Точный протокол realtime (WebSocket / WebRTC / HTTP streaming).
-- Механизм auth (два context: admin vs cabinet; token flavour для mobile/desktop).
+- Механизм auth (admin vs cabinet vs workspace; token flavour для Desktop/Mobile).
+- Финальный Owner Workspace path (`/workspace` vs `/jarvis`).
 - Точный UX confirmation (политика концептуально в [INTEGRATIONS.md](INTEGRATIONS.md)).
 - Алфавит access_code кроме зарезервированного `2000`.
 - Multi-tenant «много независимых инстансов». На одном инстансе: один `owner` + много `user`.

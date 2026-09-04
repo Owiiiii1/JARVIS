@@ -1,6 +1,19 @@
 # Каналы
 
-Канал — адаптер. У него нет своей памяти, своего prompt и своего LLM. Один Jarvis Core. Личный канал работает с **personal** memory **резолвленного** `user_id`. Telegram-группы — отдельная область ([TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md)). Cabinet — клиент того же ядра ([USERS_AND_CABINET.md](USERS_AND_CABINET.md)).
+Канал — адаптер. У него нет своей памяти, своего prompt и своего LLM. Один Jarvis Core. Личный канал работает с **personal** memory **резолвленного** `user_id`. Telegram-группы — отдельная область ([TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md)).
+
+Клиенты / каналы:
+
+- Telegram
+- User Cabinet (web, `role=user`)
+- Owner Personal Workspace (web, planned — [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md))
+- Desktop (planned — [CLIENTS/DESKTOP_APP.md](CLIENTS/DESKTOP_APP.md))
+- Mobile (planned — [CLIENTS/MOBILE_APP.md](CLIENTS/MOBILE_APP.md))
+- Voice mode over Web / Desktop / Mobile (modality, not a User Space)
+
+Все используют один `user_id` mapping и один catalog `conversations`. Voice не создаёт второй мозг и не создаёт conversation автоматически.
+
+Admin Panel — **не** канал общения. [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
 
 ```
 Native event → Adapter.normalize → Core (Conversation Engine | Groups module) → Adapter.render
@@ -36,9 +49,22 @@ Telegram adapter один: и личные чаты, и группы. После
 
 ---
 
-## Web Cabinet
+## Web Cabinet (User Space)
 
 Клиент того же Core и **того же каталога conversations**, что Telegram. `role=user` → cabinet chat UI (`/cabinet/chats/{id}`). Chat + свой General Prompt. Ownership на каждом запросе. Web inbound: `channel=web`, `channel_message_id` = client UUID. Telegram и Web messages в одном conversation смешиваются хронологически и входят в AI context. Access code не для web-login.
+
+Owner Personal Workspace — отдельная planned поверхность (`/workspace` или `/jarvis`, route `TBD`). Не Admin Panel. Не текущий `/cabinet`.
+
+## Conversation continuity
+
+Owner (и каждый user в своём space) может:
+
+- начать чат в Telegram;
+- продолжить тот же `conversation_id` в Web;
+- продолжить голосом на Desktop;
+- открыть его на Mobile.
+
+Отдельную voice conversation Core не создаёт, пока пользователь явно не выбрал New Chat.
 
 ---
 
@@ -84,17 +110,20 @@ Telegram adapter один: и личные чаты, и группы. После
 
 ---
 
-## Mobile — Phase 3
+## Mobile — planned
 
-Планируемое мобильное приложение. Минимальный клиент, не отдельный продукт.
+Flutter, repo `Owiiiii1/JARVIS-Mobile`. [CLIENTS/MOBILE_APP.md](CLIENTS/MOBILE_APP.md).
+
+Минимальный клиент, не отдельный продукт. Не вызывает Google/Gmail/Calendar напрямую.
 
 ### Функционал
 
-- authentication (`TBD` схема);
+- authentication (`TBD` схема, Client API);
 - текстовый чат;
-- история;
-- голосовое общение (микрофон → API/voice session → тот же engine);
-- статус Jarvis (онлайн, печатает, слушает — `TBD` точный набор).
+- история того же catalog;
+- голосовое общение + Orb + transcript;
+- tool confirmations;
+- статус Jarvis (`TBD`).
 
 ### Чего нет
 
@@ -104,16 +133,13 @@ Telegram adapter один: и личные чаты, и группы. После
 
 ---
 
-## Desktop — Phase 3
+## Desktop — planned
 
-Та же роль, что Mobile:
+Tauri 2 + React/TS, repo `Owiiiii1/JARVIS-Desktop`. [CLIENTS/DESKTOP_APP.md](CLIENTS/DESKTOP_APP.md).
 
-- текстовый чат;
-- голосовое общение;
-- быстрый доступ к Jarvis;
-- возможный background / tray mode в будущем (`TBD`).
+Та же роль, что Mobile, плюс tray / hotkey / updater later.
 
-Desktop и Mobile используют API того же Jarvis Core. ADR-006.
+Desktop и Mobile используют versioned Client API того же Jarvis Core. ADR-006. Rust/Flutter **не** живут в Laravel repo.
 
 ---
 
@@ -125,7 +151,7 @@ Desktop и Mobile используют API того же Jarvis Core. ADR-006.
 
 ## Голос как канал или как modality?
 
-Голос — **modality** поверх conversation engine, не отдельный ассистент. Транспорт может быть mobile, desktop или (позже) телефон. После STT это обычное сообщение. ADR-008, принцип 11 в [PROJECT.md](PROJECT.md).
+Голос — **modality** поверх conversation engine, не отдельный ассистент и не отдельный канал-мозг. Транспорт: Web Workspace, Desktop, Mobile (позже телефон). После STT это обычное сообщение в выбранный `conversation_id`. Runtime ≠ Orb UI. ADR-008, [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md), [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
 
 ---
 
@@ -134,8 +160,10 @@ Desktop и Mobile используют API того же Jarvis Core. ADR-006.
 | Событие | Результат |
 | --- | --- |
 | Пишет в Telegram DM | messages **active** conversation его space |
-| Чаты / New Chat в Telegram | тот же каталог, что Cabinet; смена `active_conversation_id` |
-| Cabinet New Chat | пустой raw; summaries других чатов доступны ретриверу |
+| Чаты / New Chat в Telegram | тот же каталог, что Cabinet / Workspace / apps; смена `active_conversation_id` |
+| Web / Desktop / Mobile тот же id | тот же raw history |
+| Voice mode | те же messages; не новый chat |
+| Cabinet / Workspace New Chat | пустой raw; summaries других чатов доступны ретриверу |
 | Меняет Owner Conversation AI | только Owner Space |
 | Меняет Default User Conversation AI | все User Spaces (без per-user override) |
 | Меняет User General Prompt | все чаты **этого** space |

@@ -1,218 +1,123 @@
-# Cursor Work Report — Milestone 19 Gmail
+# Cursor Work Report — Client / Voice / GitHub architecture docs
 
 **Date:** 2026-09-04  
 **Host:** `/var/www/jarvis`  
 **GitHub:** `Owiiiii1/JARVIS`  
 **Branch:** `main`
 
-Live Google / combined Calendar+Gmail smoke deferred by Owner. Cursor did not connect a real Google account, read a production inbox, send mail, create a real draft, or change labels.
+Documentation-only. No runtime, route, schema, OAuth, voice provider, Tauri, Flutter, or Three.js changes.
 
 ---
 
 ## Before HEAD
 
-`520b48c` — `feat: add Google Calendar tools` (M18)
+`af693aa` — `feat: add Gmail tools` (M19)
 
 ---
 
-## Migrations
+## Documents created
 
-None. Reused `integration_accounts`, `tool_execution_logs`, `tool_confirmations`. No local Gmail mailbox tables. No idempotency table: send is guarded by confirmation one-time semantics.
-
----
-
-## Gmail scopes
-
-Least privilege (not `mail.google.com`):
-
-- `https://www.googleapis.com/auth/gmail.readonly` — search / read / list / labels
-- `https://www.googleapis.com/auth/gmail.compose` — drafts and send
-- `https://www.googleapis.com/auth/gmail.modify` — labels, read/unread, archive
-
-Card “Gmail enabled” requires all three. Runtime: read = readonly or modify; draft = compose; send = compose or send; labels = modify.
-
-Identity (`openid email profile`) and Calendar (`https://www.googleapis.com/auth/calendar`) stay as in M17/M18.
+- `Docs/CLIENTS/WEB_WORKSPACE.md`
+- `Docs/CLIENTS/DESKTOP_APP.md`
+- `Docs/CLIENTS/MOBILE_APP.md`
+- `Docs/CLIENTS/CLIENT_API.md`
+- `Docs/CLIENTS/VOICE_UI.md`
 
 ---
 
-## Incremental OAuth
+## Documents changed
 
-`GET /settings/integrations/google/connect?intent=gmail` adds Gmail scopes to the identity set. `include_granted_scopes=true`. Stored scopes = union of existing granted (identity + Calendar if present) + newly granted Gmail. Missing refresh token in the incremental response does not overwrite the existing refresh token.
-
-Google card shows Identity / Calendar / Gmail separately. Connected Google is not automatically Gmail-enabled. Enable Gmail appears until all Gmail scopes are present. No live API call on page load.
-
----
-
-## Adapter / service
-
-`GoogleGmailService` is the only Gmail HTTP client.
-
-- `searchMessages`, `listMessages`, `getMessage`, `getThread`, `listLabels`, `createDraft`, `sendMessage`, `modifyLabels`
-- Access token only via `GoogleCredentialService::getValidAccessToken()`
-- Laravel HTTP client, JSON, timeouts from `config/google_gmail.php`
-- GET/search/read/list may retry once; draft/send/modify do not retry
-- Errors normalized: `google_not_connected`, `gmail_scope_required`, `gmail_message_not_found`, `gmail_thread_not_found`, `gmail_forbidden`, `gmail_rate_limited`, `gmail_send_failed`, `gmail_invalid_recipient`, `gmail_unavailable`, `gmail_conflict`
-
-Tools contain no Gmail HTTP.
+- `Docs/PROJECT.md`
+- `Docs/ARCHITECTURE.md`
+- `Docs/CONVERSATION_ENGINE.md`
+- `Docs/VOICE_ARCHITECTURE.md`
+- `Docs/CHANNELS.md`
+- `Docs/API.md`
+- `Docs/INTEGRATIONS.md`
+- `Docs/IMPLEMENTATION_PLAN.md`
+- `Docs/ROADMAP.md`
+- `Docs/DEVELOPMENT_PHASES.md`
+- `Docs/CURRENT_STATE.md`
+- `Docs/DECISIONS.md` (ADR-086–095)
+- `Docs/USERS_AND_CABINET.md`
 
 ---
 
-## Tool list
+## Product decision
 
-Owner (`gmail` capability):
+Admin Panel ≠ Personal Workspace.
 
-| Tool | Operation |
+Admin: users, AI providers, integrations, Telegram groups, diagnostics, tool logs, system settings.
+
+Workspace: owner talks to Jarvis. Center = conversation (text + voice). Other panels are secondary.
+
+Owner must not use Admin as the primary chat UI. Current `/cabinet` stays User Space. Workspace route `/workspace` or `/jarvis` is TBD and not built.
+
+---
+
+## Repository topology
+
+One product, three repos:
+
+| Repo | Role |
 | --- | --- |
-| `search_gmail` | read |
-| `list_gmail_messages` | read (default INBOX; `unread=true` → `is:unread`) |
-| `get_gmail_message` | read |
-| `get_gmail_thread` | read |
-| `list_gmail_labels` | read |
-| `create_gmail_draft` | write (explicit command allowed; model-proposed → confirm) |
-| `send_gmail_message` | write, **always** confirmation_required |
-| `modify_gmail_labels` | write (read/unread/archive/custom labels) |
+| `Owiiiii1/JARVIS` | Core, Admin, Cabinet, planned Workspace, master API docs |
+| `Owiiiii1/JARVIS-Desktop` | Tauri 2 client, own releases |
+| `Owiiiii1/JARVIS-Mobile` | Flutter iOS/Android, store lifecycle |
 
-No separate reply tool. Reply uses draft/send + `reply_to_message_id` / `thread_id`.
-
-Calendar tools remain. Normal user unchanged (reminder + history search). Forged Gmail execute is denied.
+Reasons: toolchains, release cycles, deploy targets, CI, Cursor context, store/updater isolation. Production Laravel tree must not contain Tauri/Rust or Flutter.
 
 ---
 
-## MIME parsing
+## Client stacks
 
-`GmailMimeParser`: text/plain first; text/html → sanitized plain text; nested multipart recursion; base64url decode; attachment metadata only (filename, mime, size, attachment id). No raw base64 MIME in tool results. No attachment download.
+- Web Workspace: existing Laravel + Inertia/React in JARVIS
+- Desktop: Tauri 2 + React + TypeScript + Vite + Three.js/WebGL
+- Mobile: Flutter latest stable
+- Protocol: versioned Client API in JARVIS; clients are thin
 
-`GmailMimeBuilder`: To/Cc/Bcc, RFC 2047 subject, text/plain UTF-8, In-Reply-To / References, base64url raw. Header CRLF rejected. Outbound HTML composer out of scope.
-
----
-
-## Body limits
-
-`config/google_gmail.php`: max search/list/thread messages, body chars, total thread chars, snippet, recipients, subject, outbound body, labels, HTTP timeouts, GET retries.
-
-Message body and thread totals set `truncated=true` when capped. No mailbox dump.
+None implement Memory Engine, tools, or Google/GitHub credentials locally.
 
 ---
 
-## Search / list / thread
+## Voice UI concept
 
-Search uses Gmail query syntax. List defaults to INBOX. Unread filter supported. Results are compact (ids, subject, sender, recipients, date, snippet, labels, unread, thread id) — no full body on search/list.
+Voice Runtime ≠ Voice UI.
 
-Thread: chronological, bounded messages; service does not AI-summarize.
-
----
-
-## Drafts
-
-`create_gmail_draft` creates a draft only. Validation: emails, max recipients, subject/body length, empty recipients, header injection. Explicit user command may run; model-proposed requires confirmation. No send. Write HTTP is not retried; a repeated user request may create another draft.
+Orb: 3D animated Jarvis identity (not a human avatar). States: idle, connecting, listening, thinking, speaking, interrupted, error, muted. Dark cinematic glass/plasma sphere, many energy lines, audio-reactive, barge-in snap. Provider-neutral `VoiceVisualizationState`. References are direction only; final look is original Jarvis.
 
 ---
 
-## Send confirmation
+## GitHub roadmap
 
-`send_gmail_message` always requires a persisted `tool_confirmations` row, including explicit «отправь». Initial execute: no Gmail send HTTP. Confirm: exactly one `messages.send`. Repeat confirm / cancel / expire: no send. Other user cannot confirm.
-
-Pending summary/preview: recipients, subject, bounded body. No tokens or internal account ids. Web Confirm/Cancel plus existing conservative `да`/`yes` parser.
+M21, owner-only, Integration Framework. Read first (repos, commits, files, issues, PRs, workflows). Controlled write later. Use cases: what changed, last commit, find a class, open issues, diffs, create issue. Not implemented.
 
 ---
 
-## Reply threading
+## Revised milestone order
 
-Service fetches original headers and sets `threadId`, `In-Reply-To`, `References`, To, and `Re:` subject. Not a detached new thread.
+| # | Focus |
+| --- | --- |
+| M20 | Combined Google smoke / hardening (validation) |
+| M21 | GitHub Integration |
+| M22 | Owner Web Workspace (+ Client API foundation) |
+| M23 | Voice Runtime Foundation |
+| M24 | Voice UI / Orb |
+| M25 | Desktop Client Foundation |
+| M26 | Mobile Client Foundation |
+| M27 | Proactive assistant / monitoring |
+| M28+ | Human-like / polish / wake word / files |
 
----
-
-## Labels / read / archive
-
-`modify_gmail_labels` add/remove label ids. Mark read = remove `UNREAD`. Mark unread = add `UNREAD`. Archive = remove `INBOX`. No trash / permanent delete. Label ids validated for format/bounds.
-
----
-
-## Logging privacy
-
-`tool_execution_logs` metadata: `result_count`, `operation`, `truncated`, `confirmation_id`, safe error. Not stored: email body, subject, addresses, OAuth tokens, Gmail raw response.
-
-Gmail calls update integration account `last_used_at` / `last_success_at` / `last_error_*` through `ToolExecutionService`.
+M0–M19 unchanged and completed in code except live Google smoke.
 
 ---
 
-## Tests
+## No runtime / schema changes
 
-Automated only. `Http::fake`. No live Google.
-
-Covered: owner vs user definitions; disconnected; missing scope; incremental Gmail OAuth (Calendar + refresh preserved); search bounds; MIME variants + truncation; thread bounds; unread/inbox query; draft explicit vs proposed; send confirm/repeat/cancel/expire/cross-user; reply headers; label read/archive; validation without HTTP; no write retry; log privacy; token refresh via `GoogleCredentialService`; Gmail→Calendar multi-tool loop. M18 Calendar tests stay green.
+No migrations. No new routes. No production behavior change. `integration_accounts` still 0. Workers/schedule unchanged.
 
 ---
 
-## Build
+## Next milestone
 
-Integrations card + Cabinet confirmation preview: `npm run build`.
-
----
-
-## Production counts
-
-After verify (temporary test users cleaned):
-
-- users 1
-- conversations 7
-- integration_accounts 0
-- tool_execution_logs 0
-- tool_confirmations 0
-- reminders 11
-- no `emails` / `gmail_messages` / `gmail_threads` tables
-
-Combined live smoke not run. Production inbox untouched.
-
----
-
-## Worker status
-
-Unchanged. No Gmail schedule/cron. `queue:failed` / `schedule:list` verified.
-
----
-
-## Live smoke deferred
-
-Cursor did not:
-
-- set Google Cloud client credentials
-- enable Gmail API in a live project
-- connect a real account
-- read/send/draft/label real mail
-
----
-
-## Combined Google smoke plan (later, Owner)
-
-1. Configure Google Cloud OAuth.
-2. Enable Calendar API.
-3. Enable Gmail API.
-4. Add env Client ID/Secret.
-5. Connect Google.
-6. Enable Calendar.
-7. Enable Gmail.
-8. Test Calendar read/freebusy/create/update/delete.
-9. Test Gmail search/read/thread.
-10. Test draft.
-11. Test confirmed send.
-12. Test mark read/archive.
-13. Test Gmail→Calendar multi-tool.
-14. Test token refresh.
-15. Disconnect/reconnect.
-
-Do not execute now.
-
----
-
-## Known issues
-
-- Draft create is not idempotent across a repeated user request (HTTP write is not retried).
-- Outbound attachments and trash/delete are out of scope.
-- Proactive inbox monitoring / watch is later.
-
----
-
-## Next step
-
-Owner combined Google integration setup and live smoke (Calendar + Gmail) when ready. Milestone 20 — Mobile/Desktop API — is the next planned product milestone.
+M20 — Owner combined Google live smoke / hardening when ready. Then M21 GitHub or M22 Workspace per Owner priority. Do not start Tauri/Flutter/Orb/GitHub OAuth in this repo until those milestones.

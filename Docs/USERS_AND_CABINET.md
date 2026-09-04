@@ -19,7 +19,7 @@ User A, User B и Owner personal context **никогда** не смешива�
 
 | Role | Кто | Web после login | Telegram | Admin / integrations |
 | --- | --- | --- | --- | --- |
-| `owner` | один главный владелец инстанса | **Admin Panel** | тот же pairing, код `2000` | `*` |
+| `owner` | один главный владелец инстанса | **Admin Panel** (техника) + planned **Personal Workspace** (общение) | тот же pairing, код `2000` | `*` |
 | `user` | все остальные в каталоге Users | **Personal Cabinet** | pairing своим `access_code` | нет |
 
 Ровно один owner на инстанс. Не `if ($userId === 1)`.
@@ -77,7 +77,7 @@ Owner = все. Расширение permissions без нового engine.
 - impersonation;
 - все будущие tools/actions.
 
-Owner **также** обычный участник Conversation Core: своя history, topics, memories, Telegram DM, User General Prompt.
+Owner **также** обычный участник Conversation Core: своя history, topics, memories, Telegram DM, User General Prompt. Основной web-чат owner — planned Personal Workspace, не Admin. ADR-086.
 
 ### User
 
@@ -121,11 +121,11 @@ Owner **также** обычный участник Conversation Core: своя
 Один `User` model, один guard допустим. После login:
 
 ```
-if role === owner → Admin Panel (dashboard)
+if role === owner → Admin Panel (technical) ; Personal Workspace later (`/workspace` or `/jarvis`)
 if role === user  → Personal Cabinet
 ```
 
-User на admin route: **403** или redirect в cabinet по согласованной policy. Решение фиксируется в реализации; инвариант — user не видит admin data. Owner на cabinet: свой кабинет или impersonation; не обязательно запрещать owner иметь personal chats UI (`TBD` поверхность: отдельный cabinet vs admin «мои чаты»).
+User на admin route: **403** или redirect в cabinet по согласованной policy. Инвариант — user не видит admin data. Owner не должен использовать Admin как основной messenger. Текущий код: owner login → admin; Workspace ещё не реализован.
 
 Impersonation: только owner, без пароля жертвы. ADR-020.
 

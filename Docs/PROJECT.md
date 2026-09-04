@@ -25,7 +25,7 @@ Jarvis должен:
 - Не набор изолированных чатов с обнуляемым контекстом.
 - Не Telegram-бот с AI-логикой внутри адаптера.
 - Не отдельный «голосовой ассистент» рядом с текстовым.
-- Не админка: Admin Panel — конфигурация и диагностика, не источник решений модели.
+- Не админка: Admin Panel — техническое управление, не основной интерфейс общения и не источник решений модели. Owner Personal Workspace — отдельная поверхность (planned).
 - Не один «мозг на весь инстанс» и не «только один человек в системе»: owner и users делят Core, не права.
 - Не админка для каждого залогиненного: `role=user` не получает Admin Panel.
 
@@ -33,11 +33,12 @@ Jarvis должен:
 
 Существует один **Jarvis Core**. Все клиенты — адаптеры:
 
-- Telegram (Phase 1);
-- Web Cabinet (после persist; тот же Core);
-- Mobile App (Phase 3);
-- Desktop App (Phase 3);
-- другие каналы в будущем.
+- Telegram (implemented);
+- User Cabinet (implemented, `role=user`);
+- Owner Personal Workspace (planned, same repo);
+- Desktop App — Tauri 2, repo `Owiiiii1/JARVIS-Desktop` (planned);
+- Mobile App — Flutter, repo `Owiiiii1/JARVIS-Mobile` (planned);
+- Voice mode over Web/Desktop/Mobile (planned modality).
 
 Ядро владеет пользователями, разговорами, памятью, оркестрацией AI и сборкой контекста. Канал только доставляет нормализованное сообщение и возвращает ответ.
 
@@ -47,7 +48,7 @@ Telegram-группы — отдельный модуль поверх того 
 
 AI-конфигурация: **Owner Conversation AI**, **Owner Analysis AI**, **Default User Conversation AI**. Не одна модель на owner и users.
 
-Integrations (Google Calendar/Gmail, ElevenLabs) — **owner-only** через Tool Layer. [INTEGRATIONS.md](INTEGRATIONS.md). Исполнение: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+Integrations (Google Calendar/Gmail, later GitHub, ElevenLabs) — **owner-only** через Tool Layer. [INTEGRATIONS.md](INTEGRATIONS.md). Исполнение: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Клиенты: [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md).
 
 ## Этапы в одном предложении
 
@@ -55,7 +56,7 @@ Integrations (Google Calendar/Gmail, ElevenLabs) — **owner-only** через T
 | --- | --- |
 | 1 | Roles + pairing + owner DM + Chat Selector + Cabinet + User Telegram + Reminders (вехи 1–10) |
 | 2 | Структурированная долговременная память и выборочный контекст |
-| 3 | Mobile, Desktop и realtime voice к тому же ядру |
+| 3 | Owner Workspace, Client API, Voice, Desktop/Mobile repos к тому же ядру |
 | 4 | Естественный непрерывный ассистент, а не схема «вопрос → ответ» |
 
 Подробности: [DEVELOPMENT_PHASES.md](DEVELOPMENT_PHASES.md), [ROADMAP.md](ROADMAP.md).
@@ -95,7 +96,10 @@ Integrations (Google Calendar/Gmail, ElevenLabs) — **owner-only** через T
 - [ARCHITECTURE.md](ARCHITECTURE.md) — модули ядра, AI, каналов, админки
 - [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md) — долговременная память
 - [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md) — жизненный цикл сообщения
-- [CHANNELS.md](CHANNELS.md) — Telegram / Mobile / Desktop
+- [CHANNELS.md](CHANNELS.md) — Telegram / Workspace / Desktop / Mobile / Voice mode
+- [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md) — owner Personal Workspace (planned)
+- [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md) — versioned client protocol (planned)
+- [DECISIONS.md](DECISIONS.md) — ADR-001–095
 - [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md) — группы, discovery, админ-чат, анализ
 - [AI_PROVIDER_ARCHITECTURE.md](AI_PROVIDER_ARCHITECTURE.md) — три AI configuration domains
 - [DATABASE.md](DATABASE.md) — концептуальная модель, включая telegram_groups
@@ -106,4 +110,3 @@ Integrations (Google Calendar/Gmail, ElevenLabs) — **owner-only** через T
 - [INTEGRATIONS.md](INTEGRATIONS.md) — tools, confirmation, multi-step
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 - [CURRENT_STATE.md](CURRENT_STATE.md) — только факт кода
-- [DECISIONS.md](DECISIONS.md) — ADR-001–045

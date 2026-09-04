@@ -182,19 +182,21 @@ Jarvis имеет большую долговременную память, но
 
 ---
 
-## Phase 3 — Mobile, Desktop, Voice
+## Phase 3 — Workspace, native clients, Voice
 
 ### Цель
 
-Один Jarvis доступен из Telegram, Cabinet, мобильного и desktop-клиента, включая голосовое общение. Память и история общие **внутри user**, не между users.
+Owner общается в Personal Workspace (не в Admin). Тот же Jarvis на Desktop и Mobile, включая Voice Mode. Память и история общие **внутри user**. Репозитории клиентов отдельные.
 
 ### Функциональность
 
-- API для клиентов (auth, conversations, messages, позднее streaming/voice)
-- Mobile: вход, текстовый чат, история, голос, статус
-- Desktop: то же + быстрый доступ; background/tray — `TBD`
-- Voice: STT → тот же conversation engine → TTS; целевой режим — realtime, не «запись файла → долгое ожидание»
-- Speech provider (предпочтительно ElevenLabs) за abstraction layer
+- Combined Google smoke (validation)
+- GitHub tools (owner)
+- Owner Web Workspace в `Owiiiii1/JARVIS`
+- Versioned Client API
+- Voice Runtime + Orb UI (раздельно)
+- Desktop: Tauri 2, `Owiiiii1/JARVIS-Desktop`
+- Mobile: Flutter, `Owiiiii1/JARVIS-Mobile`
 
 Клиенты **не** содержат собственной memory/AI-логики.
 
@@ -206,7 +208,7 @@ Jarvis имеет большую долговременную память, но
 
 ### Definition of done
 
-- Одно и то же conversation/memory **данного user** видно из Telegram, Cabinet и приложений.
+- Одно и то же `conversation_id` / memory **данного user** видно из Telegram, Cabinet, Workspace и приложений.
 - Голосовая реплика пишет в те же messages.
 - Смена канала не создаёт второго «мозга».
 
