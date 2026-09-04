@@ -41,12 +41,18 @@ class SettingsController extends Controller
             ->all();
 
         $allowedTabs = ['general', 'users', 'ai', 'app', 'integrations'];
+        $allowedSections = ['overview', 'web-research', 'telegram', 'activity'];
         $tab = (string) $request->query('tab', 'general');
+        $section = (string) $request->query('section', 'overview');
         if ($tab === 'telegram') {
             $tab = 'integrations';
+            $section = 'telegram';
         }
         if (! in_array($tab, $allowedTabs, true)) {
             $tab = 'general';
+        }
+        if ($tab !== 'integrations' || ! in_array($section, $allowedSections, true)) {
+            $section = 'overview';
         }
 
         /** @var AiSettingsController $aiSettings */
@@ -60,6 +66,7 @@ class SettingsController extends Controller
             'webResearch' => app(WebResearchSettingsService::class)->adminPayload(),
             'integrations' => app(IntegrationsController::class)->payload($request),
             'tab' => $tab,
+            'section' => $section,
         ]);
     }
 

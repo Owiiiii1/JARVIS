@@ -4,7 +4,7 @@
 
 Owner-only tools so Jarvis can search the public web, read a few selected pages, synthesize an answer, and cite real URLs. Web Research is a Tool Layer / Integration-like provider abstraction. Controllers and models do not call search APIs. Conversation Engine does not know the vendor.
 
-Settings are **Admin infrastructure**, not a `/jarvis` Workspace preference. Admin: **Settings → Integrations → Web Research**.
+Settings are **Admin infrastructure**, not a `/jarvis` Workspace preference. Admin: **Settings → Integrations → Web Research** subsection (`?tab=integrations&section=web-research`).
 
 See [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md), [INTEGRATIONS.md](INTEGRATIONS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [DATABASE.md](DATABASE.md).
 
@@ -181,7 +181,7 @@ Supported types: `text/html`, `text/plain`, bounded `application/json`. No binar
 
 ## Admin UI
 
-Settings → Integrations → Web Research card.
+Settings → Integrations → Web Research subsection.
 
 Status distinguishes: **Ready** (enabled + configured), **API key required** / **Gemini not configured** (enabled + not configured), **Disabled**.
 

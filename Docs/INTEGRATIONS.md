@@ -49,11 +49,14 @@ Telegram integration card never writes `integration_accounts.credentials_encrypt
 
 ## Settings → Integrations (Owner Admin)
 
-Owner-only (`/settings?tab=integrations`, also `/settings/integrations`).
+Owner-only (`/settings?tab=integrations`, also `/settings/integrations`). Subsections:
 
-Cards: Google (Connect / Reconnect / Disconnect / Enable Calendar / Enable Gmail; Identity vs Calendar vs Gmail capability states; Not configured if env missing), Telegram (current bot/webhook/groups status, no token), GitHub (Connect / Reconnect / Disconnect; login; scopes; Not configured if env missing), ElevenLabs (voice later, no API key form). Connected Google is not automatically Gmail-enabled. No Gmail inbox admin UI. No GitHub PAT field. GitHub card does not call GitHub on page load.
+- **Overview** — Google / GitHub / ElevenLabs account cards; compact tiles that open Telegram, Web Research, and Activity.
+- **Web Research** — provider, enablement, limits, Tavily key. Not on the overview form.
+- **Telegram** — bot token and webhook. Legacy `?tab=telegram` opens this subsection.
+- **Activity** — Recent Tool Executions (time, tool, provider, status, duration, safe error code; no arguments/result bodies). Limit `config/integrations.php` `recent_executions_limit` (50). Retention TBD.
 
-Recent Tool Executions: time, tool, provider, status, duration, safe error code. No arguments/result bodies. Limit `config/integrations.php` `recent_executions_limit` (50). Retention TBD.
+Cards: Google (Connect / Reconnect / Disconnect / Enable Calendar / Enable Gmail; Identity vs Calendar vs Gmail capability states; Not configured if env missing), GitHub (Connect / Reconnect / Disconnect; login; scopes; Not configured if env missing), ElevenLabs (voice later, no API key form). Connected Google is not automatically Gmail-enabled. No Gmail inbox admin UI. No GitHub PAT field. GitHub card does not call GitHub on page load.
 
 Normal user: 403. No Cabinet Integrations section.
 

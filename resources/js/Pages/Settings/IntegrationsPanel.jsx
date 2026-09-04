@@ -1,43 +1,52 @@
 import { router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import IntegrationActivityPanel from './IntegrationActivityPanel';
+import IntegrationProviderCard from './IntegrationProviderCard';
 import TelegramPanel from './TelegramPanel';
 import WebResearchPanel from './WebResearchPanel';
 
-function statusClass(state) {
-    if (state === 'connected') {
+const SECTIONS = ['overview', 'web-research', 'telegram', 'activity'];
+
+function tileStatusClass(state) {
+    if (state === 'ready' || state === 'connected' || state === 'enabled') {
         return 'bg-emerald-100 text-emerald-700';
+    }
+    if (state === 'not_configured' || state === 'incomplete' || state === 'connecting') {
+        return 'bg-amber-100 text-amber-800';
     }
     if (state === 'error' || state === 'revoked') {
         return 'bg-red-100 text-red-700';
-    }
-    if (state === 'connecting') {
-        return 'bg-amber-100 text-amber-800';
     }
 
     return 'bg-slate-100 text-slate-700';
 }
 
-function actionAvailable(provider, key) {
-    return (provider.actions ?? []).some((action) => action.key === key && action.available);
-}
-
 export default function IntegrationsPanel() {
-    const { integrations = {}, locale = 'en', flash = {} } = usePage().props;
+    const {
+        integrations = {},
+        webResearch = {},
+        telegram = {},
+        locale = 'en',
+        flash = {},
+        section: initialSection = 'overview',
+    } = usePage().props;
     const providers = integrations.providers ?? [];
     const executions = integrations.recent_executions ?? [];
     const [disconnecting, setDisconnecting] = useState(null);
+    const [section, setSection] = useState(SECTIONS.includes(initialSection) ? initialSection : 'overview');
+
+    useEffect(() => {
+        setSection(SECTIONS.includes(initialSection) ? initialSection : 'overview');
+    }, [initialSection]);
 
     const text = {
         en: {
-            hint: 'Owner integration cards. Web Research, Telegram bot token, Google, and GitHub are configured here. Workspace shows read-only web search status only.',
-            recent: 'Recent Tool Executions',
-            empty: 'No tool executions yet.',
-            time: 'Time',
-            tool: 'Tool',
-            provider: 'Provider',
-            status: 'Status',
-            duration: 'Duration',
-            error: 'Error',
+            hint: 'Connected accounts stay here. Telegram, Web Research, and the execution log have their own subsections.',
+            overview: 'Overview',
+            webResearch: 'Web Research',
+            telegram: 'Telegram',
+            activity: 'Activity',
+            open: 'Open',
             connect: 'Connect Google',
             connectGitHub: 'Connect GitHub',
             reconnect: 'Reconnect',
@@ -47,18 +56,18 @@ export default function IntegrationsPanel() {
             tokenHealth: 'Token health',
             enableCalendar: 'Enable Calendar',
             enableGmail: 'Enable Gmail',
-            capabilities: 'Capabilities',
+            telegramHint: 'Bot token, webhook, and connection status.',
+            webResearchHint: 'Search provider, credentials status, and research limits.',
+            activityHint: `${executions.length} recent tool executions`,
+            telegramTitle: 'Telegram',
         },
         ru: {
-            hint: 'Карточки интеграций owner. Web Research, токен Telegram, Google и GitHub настраиваются здесь. Workspace показывает только read-only статус web search.',
-            recent: 'Recent Tool Executions',
-            empty: 'Пока нет выполнений tools.',
-            time: 'Time',
-            tool: 'Tool',
-            provider: 'Provider',
-            status: 'Status',
-            duration: 'Duration',
-            error: 'Error',
+            hint: 'Подключённые аккаунты остаются здесь. Telegram, Web Research и журнал выполнений вынесены в подразделы.',
+            overview: 'Overview',
+            webResearch: 'Web Research',
+            telegram: 'Telegram',
+            activity: 'Activity',
+            open: 'Open',
             connect: 'Connect Google',
             connectGitHub: 'Connect GitHub',
             reconnect: 'Reconnect',
@@ -68,18 +77,18 @@ export default function IntegrationsPanel() {
             tokenHealth: 'Token health',
             enableCalendar: 'Enable Calendar',
             enableGmail: 'Enable Gmail',
-            capabilities: 'Capabilities',
+            telegramHint: 'Токен бота, webhook и статус подключения.',
+            webResearchHint: 'Провайдер поиска, статус credentials и лимиты research.',
+            activityHint: `${executions.length} recent tool executions`,
+            telegramTitle: 'Telegram',
         },
         uk: {
-            hint: 'Картки інтеграцій owner. Web Research, токен Telegram, Google і GitHub налаштовуються тут. Workspace показує лише read-only статус web search.',
-            recent: 'Recent Tool Executions',
-            empty: 'Поки немає виконань tools.',
-            time: 'Time',
-            tool: 'Tool',
-            provider: 'Provider',
-            status: 'Status',
-            duration: 'Duration',
-            error: 'Error',
+            hint: 'Підключені акаунти залишаються тут. Telegram, Web Research і журнал виконань винесені в підрозділи.',
+            overview: 'Overview',
+            webResearch: 'Web Research',
+            telegram: 'Telegram',
+            activity: 'Activity',
+            open: 'Open',
             connect: 'Connect Google',
             connectGitHub: 'Connect GitHub',
             reconnect: 'Reconnect',
@@ -89,10 +98,31 @@ export default function IntegrationsPanel() {
             tokenHealth: 'Token health',
             enableCalendar: 'Enable Calendar',
             enableGmail: 'Enable Gmail',
-            capabilities: 'Capabilities',
+            telegramHint: 'Токен бота, webhook і статус підключення.',
+            webResearchHint: 'Провайдер пошуку, статус credentials і ліміти research.',
+            activityHint: `${executions.length} recent tool executions`,
+            telegramTitle: 'Telegram',
         },
     };
     const t = text[locale] ?? text.en;
+
+    const switchSection = (next) => {
+        if (next === section) {
+            return;
+        }
+
+        setSection(next);
+        const query = { tab: 'integrations' };
+        if (next !== 'overview') {
+            query.section = next;
+        }
+
+        router.get(route('settings.index'), query, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    };
 
     const disconnectProvider = (provider) => {
         if (disconnecting) {
@@ -110,9 +140,56 @@ export default function IntegrationsPanel() {
         });
     };
 
+    const accountProviders = providers.filter((provider) => provider.provider !== 'telegram');
+    const telegramProvider = providers.find((provider) => provider.provider === 'telegram');
+    const telegramStatus = telegram.last_error
+        ? 'error'
+        : telegram.is_webhook_set
+            ? 'connected'
+            : telegram.has_bot_token
+                ? 'connecting'
+                : 'not_configured';
+    const telegramLabel = telegram.last_error
+        ? 'Error'
+        : telegram.is_webhook_set
+            ? 'Webhook set'
+            : telegram.is_connected
+                ? 'Connected'
+                : telegram.has_bot_token
+                    ? 'Token saved'
+                    : (telegramProvider?.label ?? 'Not configured');
+
+    const sections = [
+        { id: 'overview', label: t.overview },
+        { id: 'web-research', label: t.webResearch },
+        { id: 'telegram', label: t.telegram },
+        { id: 'activity', label: t.activity },
+    ];
+
     return (
         <div className="space-y-6">
-            <p className="text-sm text-slate-600">{t.hint}</p>
+            <div className="flex flex-wrap gap-2">
+                {sections.map((item) => {
+                    const active = section === item.id;
+
+                    return (
+                        <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => switchSection(item.id)}
+                            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                                active
+                                    ? 'bg-slate-900 text-white'
+                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            }`}
+                        >
+                            {item.label}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {section === 'overview' && <p className="text-sm text-slate-600">{t.hint}</p>}
 
             {flash.success && (
                 <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{flash.success}</p>
@@ -124,190 +201,90 @@ export default function IntegrationsPanel() {
                 <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{flash.error}</p>
             )}
 
-            <WebResearchPanel />
-
-            <div className="grid gap-4 md:grid-cols-3">
-                {providers.map((provider) => (
-                    <section
-                        key={provider.provider}
-                        className={`rounded-xl border border-[#E6DCC8] bg-[#FBF8F1] p-4 ${
-                            provider.provider === 'telegram' ? 'md:col-span-3 md:order-last' : ''
-                        }`}
-                    >
-                        <div className="flex items-start justify-between gap-3">
-                            <h2 className="text-base font-semibold text-slate-900">
-                                {provider.display_name}
-                            </h2>
-                            <span
-                                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(provider.state)}`}
-                            >
-                                {provider.label}
-                            </span>
-                        </div>
-                        {provider.account_label && (
-                            <p className="mt-2 text-sm text-slate-700">{provider.account_label}</p>
-                        )}
-                        {provider.capability_states?.length > 0 && (
-                            <ul className="mt-2 space-y-1 text-sm text-slate-600">
-                                {provider.capability_states.map((item) => (
-                                    <li key={item.key}>
-                                        {item.label}: {item.state.replaceAll('_', ' ')}
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                        {provider.scope_labels?.length > 0 && (
-                            <p className="mt-1 text-sm text-slate-600">
-                                {t.scopes}: {provider.scope_labels.join(', ')}
-                            </p>
-                        )}
-                        {provider.connected_at && (
-                            <p className="mt-1 text-sm text-slate-600">
-                                {t.connectedAt}: {provider.connected_at}
-                            </p>
-                        )}
-                        {provider.token_health && (
-                            <p className="mt-1 text-sm text-slate-600">
-                                {t.tokenHealth}: {provider.token_health}
-                            </p>
-                        )}
-                        {provider.diagnostic_message && (
-                            <p className="mt-2 text-sm text-slate-600">{provider.diagnostic_message}</p>
-                        )}
-                        {provider.provider !== 'telegram' && (
-                        <div className="mt-4 flex flex-wrap gap-2">
-                            {provider.provider === 'google' && actionAvailable(provider, 'connect') && (
-                                <a
-                                    href={route('integrations.google.connect')}
-                                    className="inline-flex h-9 items-center rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700"
-                                >
-                                    {t.connect}
-                                </a>
-                            )}
-                            {provider.provider === 'google' && actionAvailable(provider, 'reconnect') && (
-                                <a
-                                    href={route('integrations.google.connect')}
-                                    className="inline-flex h-9 items-center rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700"
-                                >
-                                    {t.reconnect}
-                                </a>
-                            )}
-                            {provider.provider === 'google' && actionAvailable(provider, 'enable_calendar') && (
-                                <a
-                                    href={route('integrations.google.connect', { intent: 'calendar' })}
-                                    className="inline-flex h-9 items-center rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700"
-                                >
-                                    {t.enableCalendar}
-                                </a>
-                            )}
-                            {provider.provider === 'google' && actionAvailable(provider, 'enable_gmail') && (
-                                <a
-                                    href={route('integrations.google.connect', { intent: 'gmail' })}
-                                    className="inline-flex h-9 items-center rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700"
-                                >
-                                    {t.enableGmail}
-                                </a>
-                            )}
-                            {provider.provider === 'google' && !provider.configured && (
-                                <button
-                                    type="button"
-                                    disabled
-                                    className="inline-flex h-9 items-center rounded-lg bg-slate-200 px-3 text-sm font-medium text-slate-500"
-                                >
-                                    {t.connect}
-                                </button>
-                            )}
-                            {provider.provider === 'google' && actionAvailable(provider, 'disconnect') && (
-                                <button
-                                    type="button"
-                                    onClick={() => disconnectProvider('google')}
-                                    disabled={disconnecting !== null}
-                                    className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                                >
-                                    {t.disconnect}
-                                </button>
-                            )}
-                            {provider.provider === 'github' && actionAvailable(provider, 'connect') && (
-                                <a
-                                    href={route('integrations.github.connect')}
-                                    className="inline-flex h-9 items-center rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700"
-                                >
-                                    {t.connectGitHub}
-                                </a>
-                            )}
-                            {provider.provider === 'github' && actionAvailable(provider, 'reconnect') && (
-                                <a
-                                    href={route('integrations.github.connect')}
-                                    className="inline-flex h-9 items-center rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700"
-                                >
-                                    {t.reconnect}
-                                </a>
-                            )}
-                            {provider.provider === 'github' && !provider.configured && (
-                                <button
-                                    type="button"
-                                    disabled
-                                    className="inline-flex h-9 items-center rounded-lg bg-slate-200 px-3 text-sm font-medium text-slate-500"
-                                >
-                                    {t.connectGitHub}
-                                </button>
-                            )}
-                            {provider.provider === 'github' && actionAvailable(provider, 'disconnect') && (
-                                <button
-                                    type="button"
-                                    onClick={() => disconnectProvider('github')}
-                                    disabled={disconnecting !== null}
-                                    className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                                >
-                                    {t.disconnect}
-                                </button>
-                            )}
-                        </div>
-                        )}
-                        {provider.provider === 'telegram' && (
-                            <div className="mt-4">
-                                <TelegramPanel />
-                            </div>
-                        )}
-                    </section>
-                ))}
-            </div>
-
-            <section className="rounded-xl border border-[#E6DCC8] bg-white p-4">
-                <h2 className="text-base font-semibold text-slate-900">{t.recent}</h2>
-                {executions.length === 0 ? (
-                    <p className="mt-3 text-sm text-slate-600">{t.empty}</p>
-                ) : (
-                    <div className="mt-3 overflow-x-auto">
-                        <table className="min-w-full text-left text-sm">
-                            <thead className="text-xs uppercase tracking-wide text-slate-500">
-                                <tr>
-                                    <th className="py-2 pr-4">{t.time}</th>
-                                    <th className="py-2 pr-4">{t.tool}</th>
-                                    <th className="py-2 pr-4">{t.provider}</th>
-                                    <th className="py-2 pr-4">{t.status}</th>
-                                    <th className="py-2 pr-4">{t.duration}</th>
-                                    <th className="py-2">{t.error}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {executions.map((row) => (
-                                    <tr key={row.id} className="border-t border-slate-100">
-                                        <td className="py-2 pr-4 text-slate-600">{row.time ?? '—'}</td>
-                                        <td className="py-2 pr-4 font-medium text-slate-800">{row.tool}</td>
-                                        <td className="py-2 pr-4 text-slate-600">{row.provider ?? 'core'}</td>
-                                        <td className="py-2 pr-4 text-slate-700">{row.status}</td>
-                                        <td className="py-2 pr-4 text-slate-600">
-                                            {row.duration_ms != null ? `${row.duration_ms} ms` : '—'}
-                                        </td>
-                                        <td className="py-2 text-slate-600">{row.error_code ?? '—'}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+            {section === 'overview' && (
+                <div className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-3">
+                        {accountProviders.map((provider) => (
+                            <IntegrationProviderCard
+                                key={provider.provider}
+                                provider={provider}
+                                t={t}
+                                disconnecting={disconnecting}
+                                onDisconnect={disconnectProvider}
+                            />
+                        ))}
                     </div>
-                )}
-            </section>
+
+                    <div className="grid gap-4 md:grid-cols-3">
+                        <button
+                            type="button"
+                            onClick={() => switchSection('web-research')}
+                            className="rounded-xl border border-[#E6DCC8] bg-[#FBF8F1] p-4 text-left hover:border-slate-300"
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <h2 className="text-base font-semibold text-slate-900">{t.webResearch}</h2>
+                                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tileStatusClass(webResearch.status)}`}>
+                                    {webResearch.status_label ?? 'Disabled'}
+                                </span>
+                            </div>
+                            <p className="mt-2 text-sm text-slate-600">{t.webResearchHint}</p>
+                            <p className="mt-2 text-sm text-slate-700">
+                                {webResearch.active_provider_label ?? 'Disabled'}
+                            </p>
+                            <p className="mt-3 text-sm font-medium text-indigo-700">{t.open}</p>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => switchSection('telegram')}
+                            className="rounded-xl border border-[#E6DCC8] bg-[#FBF8F1] p-4 text-left hover:border-slate-300"
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <h2 className="text-base font-semibold text-slate-900">{t.telegramTitle}</h2>
+                                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tileStatusClass(telegramStatus)}`}>
+                                    {telegramLabel}
+                                </span>
+                            </div>
+                            <p className="mt-2 text-sm text-slate-600">{t.telegramHint}</p>
+                            <p className="mt-2 text-sm text-slate-700">
+                                {telegram.bot_username ? `@${telegram.bot_username}` : telegramProvider?.account_label || 'Telegram'}
+                            </p>
+                            <p className="mt-3 text-sm font-medium text-indigo-700">{t.open}</p>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => switchSection('activity')}
+                            className="rounded-xl border border-[#E6DCC8] bg-[#FBF8F1] p-4 text-left hover:border-slate-300"
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <h2 className="text-base font-semibold text-slate-900">{t.activity}</h2>
+                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                    {executions.length}
+                                </span>
+                            </div>
+                            <p className="mt-2 text-sm text-slate-600">{t.activityHint}</p>
+                            <p className="mt-3 text-sm font-medium text-indigo-700">{t.open}</p>
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {section === 'web-research' && <WebResearchPanel />}
+
+            {section === 'telegram' && (
+                <section className="rounded-xl border border-[#E6DCC8] bg-[#FBF8F1] p-4">
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                        <h2 className="text-base font-semibold text-slate-900">{t.telegramTitle}</h2>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tileStatusClass(telegramStatus)}`}>
+                            {telegramLabel}
+                        </span>
+                    </div>
+                    <TelegramPanel />
+                </section>
+            )}
+
+            {section === 'activity' && <IntegrationActivityPanel />}
         </div>
     );
 }
