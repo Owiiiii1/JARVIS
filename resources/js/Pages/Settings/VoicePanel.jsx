@@ -21,18 +21,26 @@ export default function VoicePanel() {
         tts_provider: voice.tts_provider ?? 'none',
         spoken_style_enabled: Boolean(voice.spoken_style_enabled),
         elevenlabs_voice_id: voice.elevenlabs_voice_id ?? '',
+        stt_model: voice.stt_model ?? voice.stt_model_default ?? 'gemini-3.5-transcribe',
     });
 
     const text = {
         en: {
             title: 'Voice / Speech',
-            hint: 'Technical STT/TTS settings. This does not change Owner Conversation AI. No Test Connection. Telephony and the final Orb are out of scope.',
+            hint: 'Technical STT/TTS settings. This does not change Conversation AI. No Test Connection. Telephony is out of scope.',
             status: 'Status',
             stt: 'STT provider',
             tts: 'TTS provider',
-            none: 'Not configured',
-            openai: 'OpenAI Whisper',
+            sttModel: 'STT model',
+            none: 'None',
+            gemini: 'Gemini',
+            openai: 'OpenAI',
             elevenlabs: 'ElevenLabs',
+            geminiSection: 'Gemini STT',
+            geminiHelp: 'Uses the existing Gemini credential from AI Settings. No second API key. Transcription is not Conversation AI.',
+            geminiConfigured: 'Gemini configured',
+            geminiCredential: 'Credential reused from AI Settings',
+            geminiNoKey: 'No Voice/Speech Gemini API key field. Configure Gemini under AI provider credentials.',
             spoken: 'Spoken-style presentation hint',
             spokenHelp: 'Adds a bounded spoken-response hint. It is not a second personality prompt.',
             voiceId: 'ElevenLabs voice id (optional)',
@@ -48,21 +56,27 @@ export default function VoicePanel() {
             elevenClear: 'Remove stored key',
             elevenEnv: 'Using env ELEVENLABS_API_KEY fallback. Saving a key here takes precedence.',
             elevenAdmin: 'Configured from Admin.',
-            openaiHelp: 'Whisper uses the existing OpenAI key from AI provider settings. It does not go through Conversation AI chat.',
+            openaiHelp: 'OpenAI Whisper uses the existing OpenAI key from AI provider settings. It does not go through Conversation AI chat.',
             yes: 'yes',
             no: 'no',
             limits: 'Hard bounds (config)',
-            sttNote: 'A dedicated Gemini/other STT adapter is deferred to M23.1 if Whisper is not the production STT.',
         },
         ru: {
             title: 'Voice / Speech',
-            hint: 'Технические настройки STT/TTS. Owner Conversation AI не меняется. Test Connection нет. Телефония и финальный Orb вне scope.',
+            hint: 'Технические настройки STT/TTS. Conversation AI не меняется. Test Connection нет. Телефония вне scope.',
             status: 'Status',
             stt: 'STT provider',
             tts: 'TTS provider',
-            none: 'Not configured',
-            openai: 'OpenAI Whisper',
+            sttModel: 'STT model',
+            none: 'None',
+            gemini: 'Gemini',
+            openai: 'OpenAI',
             elevenlabs: 'ElevenLabs',
+            geminiSection: 'Gemini STT',
+            geminiHelp: 'Используется существующий Gemini credential из AI Settings. Второго API key нет. Транскрипция — не Conversation AI.',
+            geminiConfigured: 'Gemini configured',
+            geminiCredential: 'Credential reused from AI Settings',
+            geminiNoKey: 'Поля Gemini API key в Voice/Speech нет. Gemini настраивается в AI provider credentials.',
             spoken: 'Spoken-style presentation hint',
             spokenHelp: 'Ограниченная подсказка для устной речи. Это не второй personality prompt.',
             voiceId: 'ElevenLabs voice id (optional)',
@@ -78,21 +92,27 @@ export default function VoicePanel() {
             elevenClear: 'Remove stored key',
             elevenEnv: 'Используется env ELEVENLABS_API_KEY. Сохранённый здесь ключ имеет приоритет.',
             elevenAdmin: 'Configured from Admin.',
-            openaiHelp: 'Whisper использует существующий OpenAI ключ из AI provider settings. Не через Conversation AI chat.',
+            openaiHelp: 'OpenAI Whisper использует существующий OpenAI ключ из AI provider settings. Не через Conversation AI chat.',
             yes: 'yes',
             no: 'no',
             limits: 'Hard bounds (config)',
-            sttNote: 'Отдельный Gemini/другой STT adapter отложен на M23.1, если Whisper не станет production STT.',
         },
         uk: {
             title: 'Voice / Speech',
-            hint: 'Технічні налаштування STT/TTS. Owner Conversation AI не змінюється. Test Connection немає. Телефонія і фінальний Orb поза scope.',
+            hint: 'Технічні налаштування STT/TTS. Conversation AI не змінюється. Test Connection немає. Телефонія поза scope.',
             status: 'Status',
             stt: 'STT provider',
             tts: 'TTS provider',
-            none: 'Not configured',
-            openai: 'OpenAI Whisper',
+            sttModel: 'STT model',
+            none: 'None',
+            gemini: 'Gemini',
+            openai: 'OpenAI',
             elevenlabs: 'ElevenLabs',
+            geminiSection: 'Gemini STT',
+            geminiHelp: 'Використовується наявний Gemini credential з AI Settings. Другого API key немає. Транскрипція — не Conversation AI.',
+            geminiConfigured: 'Gemini configured',
+            geminiCredential: 'Credential reused from AI Settings',
+            geminiNoKey: 'Поля Gemini API key у Voice/Speech немає. Gemini налаштовується в AI provider credentials.',
             spoken: 'Spoken-style presentation hint',
             spokenHelp: 'Обмежена підказка для усного мовлення. Це не другий personality prompt.',
             voiceId: 'ElevenLabs voice id (optional)',
@@ -108,11 +128,10 @@ export default function VoicePanel() {
             elevenClear: 'Remove stored key',
             elevenEnv: 'Використовується env ELEVENLABS_API_KEY. Збережений тут ключ має пріоритет.',
             elevenAdmin: 'Configured from Admin.',
-            openaiHelp: 'Whisper використовує наявний OpenAI ключ з AI provider settings. Не через Conversation AI chat.',
+            openaiHelp: 'OpenAI Whisper використовує наявний OpenAI ключ з AI provider settings. Не через Conversation AI chat.',
             yes: 'yes',
             no: 'no',
             limits: 'Hard bounds (config)',
-            sttNote: 'Окремий Gemini/інший STT adapter відкладено на M23.1, якщо Whisper не стане production STT.',
         },
     };
     const t = text[locale] ?? text.en;
@@ -162,15 +181,47 @@ export default function VoicePanel() {
                     {t.stt}
                     <select
                         value={form.stt_provider}
-                        onChange={(event) => setForm((current) => ({ ...current, stt_provider: event.target.value }))}
+                        onChange={(event) => {
+                            const stt_provider = event.target.value;
+                            setForm((current) => ({
+                                ...current,
+                                stt_provider,
+                                stt_model: stt_provider === 'gemini'
+                                    ? (current.stt_model || voice.stt_model_default || 'gemini-3.5-transcribe')
+                                    : current.stt_model,
+                            }));
+                        }}
                         className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
                     >
                         <option value="none">{t.none}</option>
+                        <option value="gemini">{t.gemini}</option>
                         <option value="openai">{t.openai}</option>
                     </select>
                 </label>
-                <p className="text-xs text-slate-500">{t.openaiHelp}</p>
-                <p className="text-xs text-slate-500">{t.sttNote}</p>
+                {form.stt_provider === 'openai' && <p className="text-xs text-slate-500">{t.openaiHelp}</p>}
+
+                {form.stt_provider === 'gemini' && (
+                    <div className="space-y-3 rounded-lg border border-[#E6DCC8] bg-white/60 p-3">
+                        <h3 className="text-sm font-semibold text-slate-900">{t.geminiSection}</h3>
+                        <p className="text-sm text-slate-600">{t.geminiHelp}</p>
+                        <p className="text-xs text-slate-500">{t.geminiCredential}</p>
+                        <p className="text-xs text-slate-500">{t.geminiNoKey}</p>
+                        <dl className="grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                            <div className="flex justify-between gap-3 rounded-lg bg-white/70 px-3 py-2">
+                                <dt>{t.geminiConfigured}</dt>
+                                <dd>{voice.gemini_configured ? t.yes : t.no}</dd>
+                            </div>
+                        </dl>
+                        <label className="block text-sm text-slate-700">
+                            {t.sttModel}
+                            <input
+                                value={form.stt_model}
+                                onChange={(event) => setForm((current) => ({ ...current, stt_model: event.target.value }))}
+                                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                            />
+                        </label>
+                    </div>
+                )}
 
                 <label className="block text-sm text-slate-700">
                     {t.tts}
@@ -204,6 +255,7 @@ export default function VoicePanel() {
                 </label>
 
                 {errors.stt_provider && <p className="text-sm text-red-600">{errors.stt_provider}</p>}
+                {errors.stt_model && <p className="text-sm text-red-600">{errors.stt_model}</p>}
 
                 <button
                     type="submit"

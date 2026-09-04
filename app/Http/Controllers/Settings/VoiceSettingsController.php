@@ -30,15 +30,24 @@ class VoiceSettingsController extends Controller
             'tts_provider' => ['required', Rule::enum(VoiceTtsProvider::class)],
             'spoken_style_enabled' => ['required', 'boolean'],
             'elevenlabs_voice_id' => ['nullable', 'string', 'max:64'],
+            'stt_model' => ['nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9._-]*$/'],
         ]);
 
+        $provider = VoiceSttProvider::from($validated['stt_provider']);
+        $model = trim((string) ($validated['stt_model'] ?? ''));
+
+        if ($model === '') {
+            $model = $this->settings->defaultSttModel($provider);
+        }
+
         $this->settings->update([
-            'stt_provider' => $validated['stt_provider'],
+            'stt_provider' => $provider,
             'tts_provider' => $validated['tts_provider'],
             'spoken_style_enabled' => $validated['spoken_style_enabled'],
             'elevenlabs_voice_id' => filled($validated['elevenlabs_voice_id'] ?? null)
                 ? trim((string) $validated['elevenlabs_voice_id'])
                 : null,
+            'stt_model' => $model !== '' ? $model : null,
         ]);
 
         return back()->with('success', 'Voice settings saved.');

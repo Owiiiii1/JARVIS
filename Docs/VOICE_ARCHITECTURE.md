@@ -1,6 +1,6 @@
 # Голосовая архитектура
 
-**Status.** IMPLEMENTED / NOT VALIDATED (M23 Voice Runtime Foundation + M24 Voice UI / Orb, 2026-09-04). M25U.1 exposes the same runtime to ordinary users with capability `voice` via `/chat/.../voice/sessions` (aliases of the same controller as `/jarvis/...`). Automated tests not run. No live STT/TTS/AI. Telephony is out of scope.
+**Status.** IMPLEMENTED / NOT VALIDATED (M23 Voice Runtime Foundation + M23.2 Gemini STT + M24 Voice UI / Orb, 2026-09-04). M25U.1 exposes the same runtime to ordinary users with capability `voice` via `/chat/.../voice/sessions` (aliases of the same controller as `/jarvis/...`). Automated tests not run. No live STT/TTS/AI. Telephony is out of scope.
 
 Voice is a **modality** over an existing conversation. It is not a second Jarvis, second memory, second User Space, or a special voice chat.
 
@@ -89,14 +89,38 @@ Null providers return safe errors: `voice_stt_not_configured` / `voice_tts_not_c
 
 Optional future: `RealtimeDuplexSpeechProvider` (telephony / vendor duplex). Not the Core. STT and TTS remain the canonical ports.
 
-### M23 adapters
+### Provider matrix
 
-| Port | Implemented | Notes |
+STT (`SpeechToTextManager`):
+
+| Key | Adapter | Notes |
 | --- | --- | --- |
-| TTS | `ElevenLabsTextToSpeechProvider` + Null | Structural HTTP adapter. Configured status only in Admin. No live Test Connection. |
-| STT | `OpenAiSpeechToTextProvider` (Whisper endpoint) + Null | Dedicated `/audio/transcriptions` API. Reuses OpenAI key from `ai_provider_settings` **without** going through Conversation AI `chat()`. Default provider is `none`. |
+| `none` | `NullSpeechToTextProvider` | Safe `voice_stt_not_configured`. |
+| `gemini` | `GeminiSpeechToTextProvider` | Dedicated transcription path. Reuses Gemini `ai_provider_settings` via `GeminiCredentialResolver`. Not Conversation AI. Not `AiChatGateway`. |
+| `openai` | `OpenAiSpeechToTextProvider` | Optional Whisper `/audio/transcriptions`. Reuses OpenAI `ai_provider_settings`. Not required for the current product. |
 
-Gemini generateContent-as-STT is **not** wired (would contaminate Conversation AI). Concrete Gemini/other STT = **M23.1** if Whisper is not the production STT.
+TTS (`TextToSpeechManager`):
+
+| Key | Adapter | Notes |
+| --- | --- | --- |
+| `none` | `NullTextToSpeechProvider` | Safe `voice_tts_not_configured`. |
+| `elevenlabs` | `ElevenLabsTextToSpeechProvider` | Encrypted key on `voice_settings`. |
+
+Recommended instance config: **STT = Gemini**, **TTS = ElevenLabs**. Conversation AI stays Default User / Owner role configs (currently Gemini chat).
+
+### Gemini STT (M23.2)
+
+Official API family: Gemini API `models.generateContent` (`v1beta`), same HTTP family as existing `GeminiClient` chat, **separate code path**.
+
+Default model id: `gemini-3.5-transcribe` (Gemini Developer API / blog name). Google Cloud Agent Platform notebook also documents `gemini-3.5-transcribe-preview` for `generate_content`; Admin STT model is editable. Live streaming model `gemini-3.5-transcribe-live` is **not** used (M23 is HTTP utterance blobs, not WebSocket Live API).
+
+Request: `inlineData` audio + `generationConfig.audioTranscriptionConfig`. Auto language detection by default; optional `languageCodes` hint only. No text prompt / chat / tools.
+
+Official audio-understanding MIME: `audio/wav`, `audio/mp3`, `audio/aiff`, `audio/aac`, `audio/ogg`, `audio/flac`. Browser MediaRecorder also produces `audio/webm` / `audio/ogg` / `audio/mp4`; those are passed through the same `inlineData` path. Unsupported MIME → `voice_audio_format_unsupported`.
+
+Limits: `config/voice.php` (`max_audio_chunk_bytes`, `max_utterance_seconds`, `stt_timeout_seconds`). Effective size = min(Jarvis, Gemini inline ceiling).
+
+STT is instance-level Admin infrastructure. Ordinary users do not configure it. Owner and User voice sessions both use it; Conversation AI role mapping is unchanged.
 
 Selecting STT/TTS does **not** change Owner Conversation AI provider/model.
 
@@ -106,7 +130,7 @@ Selecting STT/TTS does **not** change Owner Conversation AI provider/model.
 
 Table `voice_sessions`: `public_id` UUID, `user_id`, `conversation_id`, `origin` (`web|desktop|mobile`), `status`, nullable `stt_provider` / `tts_provider`, `started_at`, `last_activity_at`, `ended_at`, `error_code`, bounded `metadata` JSON.
 
-Admin technical settings: singleton `voice_settings` (STT/TTS provider, spoken-style toggle, encrypted ElevenLabs key). Not Owner personal prefs. `user_voice_settings` is not created in M23.
+Admin technical settings: singleton `voice_settings` (STT/TTS provider, optional `stt_model`, spoken-style toggle, encrypted ElevenLabs key). Not Owner personal prefs. `user_voice_settings` is not created. Gemini STT does not store a second API key.
 
 ### State machine (`VoiceSessionStatus`)
 
@@ -207,7 +231,7 @@ Latency timestamps in session metadata: capture complete, STT final, AI start/co
 
 ## Errors
 
-`voice_session_not_found`, `voice_session_invalid_state`, `voice_session_limit_reached`, `voice_audio_too_large`, `voice_audio_format_unsupported`, `voice_stt_not_configured`, `voice_stt_failed`, `voice_tts_not_configured`, `voice_tts_failed`, `voice_session_expired`, `voice_microphone_unavailable`, `voice_runtime_failed`.
+`voice_session_not_found`, `voice_session_invalid_state`, `voice_session_limit_reached`, `voice_audio_too_large`, `voice_audio_format_unsupported`, `voice_stt_not_configured`, `voice_stt_failed`, `voice_stt_rate_limited`, `voice_stt_timeout`, `voice_tts_not_configured`, `voice_tts_failed`, `voice_session_expired`, `voice_microphone_unavailable`, `voice_runtime_failed`.
 
 No raw provider body.
 
@@ -217,7 +241,7 @@ No raw provider body.
 
 - Twilio Voice, SIP, PSTN, phone numbers, call recording, ElevenLabs phone agent
 - Final Three.js Orb (M24)
-- Live STT/TTS/AI validation in this milestone
+- Live STT/TTS/AI validation
 - Automated tests (`php artisan test`)
 
 Telephony is a future **adapter** over Voice Runtime, not a second engine.

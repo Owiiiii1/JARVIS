@@ -1,6 +1,6 @@
 # Voice UI
 
-**Status.** M24 IMPLEMENTED / NOT VALIDATED (2026-09-04). M25U.1: same Three.js Orb on Owner `/jarvis` and User `/chat` Shared Personal Workspace. No live STT/TTS. Automated tests not run.
+**Status.** M24 IMPLEMENTED / NOT VALIDATED (2026-09-04). M23.2 Gemini STT is Admin infrastructure; the Orb/Workspace UI stays provider-neutral. M25U.1: same Three.js Orb on Owner `/jarvis` and User `/chat` Shared Personal Workspace. No live STT/TTS. Automated tests not run. Ordinary users do not see a Gemini vendor label. When STT/TTS are configured, the generic **Speech providers not configured** notice is not shown.
 
 Voice **UI** ≠ Voice **Runtime**.
 

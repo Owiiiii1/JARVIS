@@ -13,5 +13,6 @@ final readonly class VoiceEffectiveSettings
         public bool $spokenStyleEnabled,
         public string $spokenStyleHint,
         public ?string $elevenLabsVoiceId,
+        public string $sttModel = '',
     ) {}
 }

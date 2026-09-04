@@ -121,6 +121,12 @@ function friendlyError(code) {
     if (code === 'voice_audio_format_unsupported') {
         return 'This audio format is not supported.';
     }
+    if (code === 'voice_stt_rate_limited') {
+        return 'Speech recognition is busy. Try again shortly.';
+    }
+    if (code === 'voice_stt_timeout') {
+        return 'Speech recognition timed out.';
+    }
 
     return code || '';
 }

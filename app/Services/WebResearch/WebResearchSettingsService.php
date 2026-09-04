@@ -3,13 +3,17 @@
 namespace App\Services\WebResearch;
 
 use App\Enums\WebResearchProvider;
-use App\Models\AiProviderSetting;
 use App\Models\WebResearchSetting;
+use App\Services\Ai\GeminiCredentialResolver;
 use App\Services\WebResearch\DTO\WebResearchEffectiveSettings;
 use Illuminate\Support\Facades\Schema;
 
 final class WebResearchSettingsService
 {
+    public function __construct(
+        private readonly GeminiCredentialResolver $geminiCredentials,
+    ) {}
+
     public function record(): ?WebResearchSetting
     {
         if (! $this->tableReady()) {
@@ -104,9 +108,7 @@ final class WebResearchSettingsService
 
     public function geminiConfigured(): bool
     {
-        $credential = AiProviderSetting::query()->where('provider', 'gemini')->first();
-
-        return $credential !== null && $credential->is_connected && filled($credential->api_key);
+        return $this->geminiCredentials->isConfigured();
     }
 
     public function providerConfigured(?WebResearchProvider $provider = null): bool

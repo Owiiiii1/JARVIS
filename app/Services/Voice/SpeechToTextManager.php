@@ -7,6 +7,7 @@ use App\Services\Voice\Contracts\SpeechToTextProvider;
 use App\Services\Voice\DTO\SpeechTranscript;
 use App\Services\Voice\DTO\VoiceAudioChunk;
 use App\Services\Voice\Exceptions\VoiceException;
+use App\Services\Voice\Providers\GeminiSpeechToTextProvider;
 use App\Services\Voice\Providers\NullSpeechToTextProvider;
 use App\Services\Voice\Providers\OpenAiSpeechToTextProvider;
 
@@ -14,6 +15,7 @@ final class SpeechToTextManager
 {
     public function __construct(
         private readonly VoiceSettingsService $settings,
+        private readonly GeminiSpeechToTextProvider $gemini,
         private readonly OpenAiSpeechToTextProvider $openAi,
         private readonly NullSpeechToTextProvider $disabled,
     ) {}
@@ -21,6 +23,7 @@ final class SpeechToTextManager
     public function activeProvider(): SpeechToTextProvider
     {
         return match ($this->settings->effective()->sttProvider) {
+            VoiceSttProvider::Gemini => $this->gemini,
             VoiceSttProvider::OpenAi => $this->openAi,
             VoiceSttProvider::None => $this->disabled,
         };

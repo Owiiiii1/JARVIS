@@ -103,7 +103,11 @@ Internal content is provider-neutral: `AiChatMessage` + `AiContentPart` (`text` 
 - usage/latency;
 - ошибки.
 
-Speech: [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Voice uses **the same** conversation AI config of that space. STT/TTS provider selection does not change Owner Conversation AI. OpenAI Whisper STT, if enabled, uses the OpenAI credential only for `/audio/transcriptions`, never `ConversationAiService` / `chat()`.
+Speech: [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Voice uses **the same** conversation AI config of that space. STT/TTS provider selection does not change Owner or Default User Conversation AI.
+
+Gemini STT (`GeminiSpeechToTextProvider`) reuses the existing Gemini `ai_provider_settings` credential through `GeminiCredentialResolver`. It calls Gemini API `generateContent` for transcription only. It is **not** Conversation AI, **not** `AiChatGateway`, and **not** a second Gemini key.
+
+OpenAI Whisper STT, if enabled, uses the OpenAI credential only for `/audio/transcriptions`, never `ConversationAiService` / `chat()`. OpenAI is optional and not required for the current product.
 
 ---
 

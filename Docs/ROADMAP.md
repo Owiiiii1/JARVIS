@@ -118,7 +118,7 @@
 - Combined Google smoke / hardening (validation; deferred by Owner)
 - GitHub integration (M21 implemented, not live-validated)
 - Owner Web Workspace (`/jarvis`) and User Personal Workspace (`/chat`, M25U.1 shared frontend)
-- Voice Runtime Foundation (M23) and Voice UI / Orb (M24) implemented / not live-validated; users share the same Orb/runtime
+- Voice Runtime Foundation (M23), Gemini STT provider (M23.2), and Voice UI / Orb (M24) implemented / not live-validated; users share the same Orb/runtime
 - Desktop repo `Owiiiii1/JARVIS-Desktop`
 - Mobile repo `Owiiiii1/JARVIS-Mobile`
 - Те же accounts, `conversation_id`, **личная** memory

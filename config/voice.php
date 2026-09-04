@@ -64,6 +64,12 @@ return [
         'base_url' => rtrim((string) env('OPENAI_BASE_URL', 'https://api.openai.com/v1'), '/'),
     ],
 
+    'gemini_stt' => [
+        'model' => env('VOICE_GEMINI_STT_MODEL', 'gemini-3.5-transcribe'),
+        'base_url' => rtrim((string) env('VOICE_GEMINI_STT_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'), '/'),
+        'max_inline_bytes' => (int) env('VOICE_GEMINI_STT_MAX_INLINE_BYTES', 20_000_000),
+    ],
+
     'elevenlabs' => [
         'api_key' => env('ELEVENLABS_API_KEY'),
         'base_url' => rtrim((string) env('ELEVENLABS_BASE_URL', 'https://api.elevenlabs.io'), '/'),

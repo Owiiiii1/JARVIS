@@ -167,9 +167,9 @@ Workspace does not reproduce OAuth forms or AI provider settings.
 
 ---
 
-## Voice (M23 runtime + M24 Orb)
+## Voice (M23 runtime + M23.2 Gemini STT + M24 Orb)
 
-Text / Voice toggle keeps the selected conversation. `VoiceSession` owns session HTTP. `JarvisVoiceOrb` renders a provider-neutral Three.js energy sphere from `VoiceVisualizationState`. Microphone after user gesture. Local Web Audio analyser drives listening deformation even when STT is not configured. Status **Speech providers not configured** is a clean notice, not a crash.
+Text / Voice toggle keeps the selected conversation. `VoiceSession` owns session HTTP. `JarvisVoiceOrb` renders a provider-neutral Three.js energy sphere from `VoiceVisualizationState`. Microphone after user gesture. Local Web Audio analyser drives listening deformation even when STT is not configured. Status **Speech providers not configured** is a clean notice, not a crash; it clears through existing status/error props when Admin STT/TTS are configured. Ordinary users do not see a Gemini vendor label.
 
 Switching Voice → Text ends the active `voice_session` and shows the same message thread.
 

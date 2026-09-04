@@ -68,6 +68,16 @@ final class VoiceException extends RuntimeException
         return new self('voice_stt_failed', 'Speech-to-text failed.');
     }
 
+    public static function sttRateLimited(): self
+    {
+        return new self('voice_stt_rate_limited', 'Speech-to-text is rate limited.', 429);
+    }
+
+    public static function sttTimeout(): self
+    {
+        return new self('voice_stt_timeout', 'Speech-to-text timed out.', 504);
+    }
+
     public static function ttsNotConfigured(): self
     {
         return new self('voice_tts_not_configured', 'Text-to-speech is not configured.');

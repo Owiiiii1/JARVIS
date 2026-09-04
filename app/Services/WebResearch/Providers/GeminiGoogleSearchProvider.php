@@ -5,6 +5,7 @@ namespace App\Services\WebResearch\Providers;
 use App\Enums\AiRoleKey;
 use App\Models\AiProviderSetting;
 use App\Models\AiRoleSetting;
+use App\Services\Ai\GeminiCredentialResolver;
 use App\Services\WebResearch\Contracts\WebSearchProvider;
 use App\Services\WebResearch\DTO\WebSearchHit;
 use App\Services\WebResearch\DTO\WebSearchQuery;
@@ -20,6 +21,7 @@ final class GeminiGoogleSearchProvider implements WebSearchProvider
 {
     public function __construct(
         private readonly WebResearchSettingsService $settings,
+        private readonly GeminiCredentialResolver $credentials,
     ) {}
 
     public function name(): string
@@ -29,9 +31,7 @@ final class GeminiGoogleSearchProvider implements WebSearchProvider
 
     public function isConfigured(): bool
     {
-        $credential = $this->geminiCredential();
-
-        return $credential !== null && $credential->is_connected && filled($credential->api_key);
+        return $this->credentials->isConfigured();
     }
 
     public function search(WebSearchQuery $query): WebSearchResultSet
@@ -327,7 +327,7 @@ final class GeminiGoogleSearchProvider implements WebSearchProvider
 
     private function geminiCredential(): ?AiProviderSetting
     {
-        return AiProviderSetting::query()->where('provider', 'gemini')->first();
+        return $this->credentials->setting();
     }
 
     private function model(AiProviderSetting $credential): string

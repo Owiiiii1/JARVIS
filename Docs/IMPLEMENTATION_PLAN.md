@@ -705,6 +705,20 @@ Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
 ---
 
+## Milestone 23.2 — Gemini STT Provider
+
+**Status.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live STT/TTS/AI.
+
+**Цель.** Dedicated `GeminiSpeechToTextProvider` on the STT port. Reuse existing Gemini `ai_provider_settings` credential. Keep Conversation AI unchanged. Keep ElevenLabs TTS.
+
+**Реализовано.** `SpeechToTextManager` keys `none` / `gemini` / `openai`. Admin STT select + `stt_model` (default `gemini-3.5-transcribe`). Gemini API `generateContent` transcription adapter. `GeminiCredentialResolver`. Additive `voice_settings.stt_model`. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
+
+**Не реализовывать.** Live Gemini transcription. Live ElevenLabs. Live Conversation AI. Second Gemini key. `AiChatGateway` transcription. Telephony. Conversation AI provider/model change. `php artisan test`.
+
+**Зависимости:** M23, M4.
+
+---
+
 ## Milestone 24 — Voice UI / Orb
 
 **Status.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live STT/TTS.

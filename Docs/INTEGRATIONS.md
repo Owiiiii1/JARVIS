@@ -351,11 +351,18 @@ Safe errors: `github_not_connected`, `github_scope_required`, `github_repository
 
 Owner-only capability `web_research`. Tools `search_web` and `fetch_web_page`. Search goes through `WebSearchManager` → `WebSearchProvider` (`gemini_google` / `tavily` / `disabled`). Admin: Settings → Integrations → Web Research. Runtime uses `WebResearchSettingsService` (DB → env/config → defaults, then hard ceilings). `gemini_google` uses the existing Gemini credential in `ai_provider_settings` (Google Search grounding for **discovery** only). Tavily remains an alternative; encrypted Admin key with `WEB_SEARCH_API_KEY` fallback. Fetch is always SSRF-guarded `WebPageFetchService`, never Gemini grounding. Disabled search → `web_search_disabled`. Fetch off → `web_fetch_disabled`. Secrets never returned to Inertia. Workspace shows read-only provider status only. Full spec: [WEB_RESEARCH.md](WEB_RESEARCH.md).
 
-### ElevenLabs / Voice Speech (M23)
+### ElevenLabs / Voice Speech (M23 + M23.2)
 
-Admin: Settings → Integrations → Voice/Speech. TTS adapter `ElevenLabsTextToSpeechProvider`. Encrypted key on `voice_settings` (env `ELEVENLABS_API_KEY` fallback). Overview ElevenLabs card shows configured/not configured only. Selecting TTS/STT does **not** change Owner Conversation AI. No live Test Connection. Telephony is not implemented.
+Admin: Settings → Integrations → Voice/Speech. TTS adapter `ElevenLabsTextToSpeechProvider`. Encrypted key on `voice_settings` (env `ELEVENLABS_API_KEY` fallback). Overview ElevenLabs card shows configured/not configured only. Selecting TTS/STT does **not** change Conversation AI. No live Test Connection. Telephony is not implemented.
 
-STT: `SpeechToTextProvider` + Null; optional OpenAI Whisper adapter using the existing OpenAI AI-provider credential (transcriptions API, not chat). Default STT is `none`. Gemini-as-STT is M23.1.
+Provider matrix:
+
+- STT: `none` | `gemini` | `openai`
+- TTS: `none` | `elevenlabs`
+
+Gemini STT (`GeminiSpeechToTextProvider`) reuses the existing Gemini credential in `ai_provider_settings` (`GeminiCredentialResolver`). No Voice-specific Gemini key. Configured status is local (provider + connected credential + non-empty model). Recommended: STT = Gemini, TTS = ElevenLabs.
+
+OpenAI Whisper remains an optional adapter on `/audio/transcriptions`. It is not required.
 
 See [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
 

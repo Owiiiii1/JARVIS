@@ -13,7 +13,7 @@ This document describes **what exists on the server now**. Target architecture i
 
 **PLANNED / DOCUMENTED ONLY (not implemented):** versioned Client API; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch; telephony. Do not treat these as shipped.
 
-M23 Voice Runtime Foundation and M24 Voice UI / Orb are **IMPLEMENTED / NOT VALIDATED** (no live STT/TTS/AI).
+M23 Voice Runtime Foundation, M23.2 Gemini STT, and M24 Voice UI / Orb are **IMPLEMENTED / NOT VALIDATED** (no live STT/TTS/AI).
 
 Status vocabulary:
 
@@ -544,7 +544,7 @@ New providers without changing Jarvis Core.
 | User Cabinet | IMPLEMENTED |
 | Impersonation / ownership policies | DOCUMENTED ONLY |
 | Public/mobile API | DOCUMENTED ONLY |
-| Voice / ElevenLabs | IMPLEMENTED / NOT VALIDATED (M23 runtime + M24 Orb; no live STT/TTS) |
+| Voice / ElevenLabs | IMPLEMENTED / NOT VALIDATED (M23 runtime + M23.2 Gemini STT + M24 Orb; no live STT/TTS) |
 | Google Calendar / Gmail | DOCUMENTED ONLY / MISSING FROM DOCS |
 | Integrations registry | DOCUMENTED ONLY / MISSING FROM DOCS |
 | Queue workers / scheduler | IMPLEMENTED (Telegram queue worker + analysis/memory/default systemd worker + reminder scheduler) |
@@ -786,6 +786,14 @@ See [WEB_RESEARCH.md](WEB_RESEARCH.md), [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md), 
 ### Milestone 23 — Voice Runtime Foundation — IMPLEMENTED / NOT VALIDATED (2026-09-04)
 
 `voice_sessions` + `voice_settings`. `VoiceRuntimeService` over existing `ConversationTurnService`. STT/TTS ports, Null providers, ElevenLabs TTS adapter, optional OpenAI Whisper STT port. Workspace `VoiceSession` (mic after user gesture). Admin Integrations → Voice/Speech. No telephony. Automated tests not run. No live STT/TTS/AI.
+
+See [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md), [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 23.2 — Gemini STT Provider — IMPLEMENTED / NOT VALIDATED (2026-09-04)
+
+`GeminiSpeechToTextProvider` on `SpeechToTextManager` (`none` / `gemini` / `openai`). Reuses Gemini `ai_provider_settings` via `GeminiCredentialResolver`. No second Gemini key. Admin STT select includes Gemini; optional `stt_model` (default `gemini-3.5-transcribe`). VoiceRuntime remains vendor-neutral. Conversation AI unchanged. ElevenLabs TTS unchanged. TESTS NOT RUN. NO LIVE STT/TTS/AI.
+
+Recommended config: STT = Gemini, TTS = ElevenLabs.
 
 See [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md), [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 

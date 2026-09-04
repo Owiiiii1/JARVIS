@@ -6,11 +6,16 @@ use App\Enums\VoiceSttProvider;
 use App\Enums\VoiceTtsProvider;
 use App\Models\AiProviderSetting;
 use App\Models\VoiceSetting;
+use App\Services\Ai\GeminiCredentialResolver;
 use App\Services\Voice\DTO\VoiceEffectiveSettings;
 use Illuminate\Support\Facades\Schema;
 
 final class VoiceSettingsService
 {
+    public function __construct(
+        private readonly GeminiCredentialResolver $geminiCredentials,
+    ) {}
+
     public function record(): ?VoiceSetting
     {
         if (! $this->tableReady()) {
@@ -30,13 +35,19 @@ final class VoiceSettingsService
 
         $effective = $this->fromConfig();
 
-        return VoiceSetting::query()->create([
+        $attributes = [
             'stt_provider' => $effective->sttProvider,
             'tts_provider' => $effective->ttsProvider,
             'spoken_style_enabled' => $effective->spokenStyleEnabled,
             'elevenlabs_api_key' => null,
             'elevenlabs_voice_id' => $effective->elevenLabsVoiceId,
-        ]);
+        ];
+
+        if ($this->hasSttModelColumn()) {
+            $attributes['stt_model'] = $effective->sttModel !== '' ? $effective->sttModel : null;
+        }
+
+        return VoiceSetting::query()->create($attributes);
     }
 
     public function effective(): VoiceEffectiveSettings
@@ -49,16 +60,19 @@ final class VoiceSettingsService
 
         $voiceId = trim((string) ($record->elevenlabs_voice_id ?: ''));
 
+        $provider = $record->stt_provider instanceof VoiceSttProvider
+            ? $record->stt_provider
+            : VoiceSttProvider::normalize($record->stt_provider);
+
         return new VoiceEffectiveSettings(
-            sttProvider: $record->stt_provider instanceof VoiceSttProvider
-                ? $record->stt_provider
-                : VoiceSttProvider::normalize($record->stt_provider),
+            sttProvider: $provider,
             ttsProvider: $record->tts_provider instanceof VoiceTtsProvider
                 ? $record->tts_provider
                 : VoiceTtsProvider::normalize($record->tts_provider),
             spokenStyleEnabled: (bool) $record->spoken_style_enabled,
             spokenStyleHint: $this->spokenHint(),
             elevenLabsVoiceId: $voiceId !== '' ? $voiceId : $this->fromConfig()->elevenLabsVoiceId,
+            sttModel: $this->sttModelFromRecord($record, $provider),
         );
     }
 
@@ -118,11 +132,66 @@ final class VoiceSettingsService
         return trim((string) $credential->api_key);
     }
 
-    public function sttConfigured(): bool
+    public function geminiConfigured(): bool
     {
-        $provider = $this->effective()->sttProvider;
+        return $this->geminiCredentials->isConfigured();
+    }
+
+    public function sttModel(): string
+    {
+        return $this->effective()->sttModel;
+    }
+
+    public function defaultSttModel(?VoiceSttProvider $provider = null): string
+    {
+        $provider ??= $this->effective()->sttProvider;
 
         return match ($provider) {
+            VoiceSttProvider::Gemini => trim((string) config('voice.gemini_stt.model', 'gemini-3.5-transcribe')),
+            VoiceSttProvider::OpenAi => trim((string) config('voice.openai_stt.model', 'whisper-1')),
+            VoiceSttProvider::None => '',
+        };
+    }
+
+    public function sttTimeoutSeconds(): int
+    {
+        return max(2, (int) config('voice.stt_timeout_seconds', 20));
+    }
+
+    public function connectTimeoutSeconds(): int
+    {
+        return max(1, (int) config('voice.connect_timeout_seconds', 5));
+    }
+
+    public function maxAudioChunkBytes(): int
+    {
+        return max(1024, (int) config('voice.max_audio_chunk_bytes', 2_000_000));
+    }
+
+    public function maxUtteranceSeconds(): int
+    {
+        return max(1, (int) config('voice.max_utterance_seconds', 30));
+    }
+
+    public function geminiSttBaseUrl(): string
+    {
+        return rtrim((string) config(
+            'voice.gemini_stt.base_url',
+            'https://generativelanguage.googleapis.com/v1beta',
+        ), '/');
+    }
+
+    public function geminiSttMaxInlineBytes(): int
+    {
+        return max(1024, (int) config('voice.gemini_stt.max_inline_bytes', 20_000_000));
+    }
+
+    public function sttConfigured(): bool
+    {
+        $effective = $this->effective();
+
+        return match ($effective->sttProvider) {
+            VoiceSttProvider::Gemini => $this->geminiConfigured() && $effective->sttModel !== '',
             VoiceSttProvider::OpenAi => $this->openaiConfigured(),
             VoiceSttProvider::None => false,
         };
@@ -143,6 +212,10 @@ final class VoiceSettingsService
      */
     public function update(array $attributes): VoiceSetting
     {
+        if (array_key_exists('stt_model', $attributes) && ! $this->hasSttModelColumn()) {
+            unset($attributes['stt_model']);
+        }
+
         $record = $this->ensureRecord();
         $record->fill($attributes);
         $record->save();
@@ -193,6 +266,10 @@ final class VoiceSettingsService
             'stt_provider' => $effective->sttProvider->value,
             'stt_provider_label' => $effective->sttProvider->label(),
             'stt_configured' => $sttConfigured,
+            'stt_model' => $effective->sttModel,
+            'stt_model_default' => $this->defaultSttModel($effective->sttProvider),
+            'gemini_configured' => $this->geminiConfigured(),
+            'gemini_credential_source' => 'ai_provider_settings',
             'tts_provider' => $effective->ttsProvider->value,
             'tts_provider_label' => $effective->ttsProvider->label(),
             'tts_configured' => $ttsConfigured,
@@ -218,12 +295,15 @@ final class VoiceSettingsService
     {
         $voiceId = trim((string) config('voice.elevenlabs.voice_id', ''));
 
+        $provider = VoiceSttProvider::normalize(config('voice.stt_provider'));
+
         return new VoiceEffectiveSettings(
-            sttProvider: VoiceSttProvider::normalize(config('voice.stt_provider')),
+            sttProvider: $provider,
             ttsProvider: VoiceTtsProvider::normalize(config('voice.tts_provider')),
             spokenStyleEnabled: (bool) config('voice.spoken_style.enabled', true),
             spokenStyleHint: $this->spokenHint(),
             elevenLabsVoiceId: $voiceId !== '' ? $voiceId : null,
+            sttModel: $this->defaultSttModel($provider),
         );
     }
 
@@ -238,5 +318,23 @@ final class VoiceSettingsService
     private function tableReady(): bool
     {
         return Schema::hasTable('voice_settings');
+    }
+
+    private function hasSttModelColumn(): bool
+    {
+        return $this->tableReady() && Schema::hasColumn('voice_settings', 'stt_model');
+    }
+
+    private function sttModelFromRecord(VoiceSetting $record, VoiceSttProvider $provider): string
+    {
+        if ($this->hasSttModelColumn()) {
+            $stored = trim((string) ($record->stt_model ?? ''));
+
+            if ($stored !== '') {
+                return $stored;
+            }
+        }
+
+        return $this->defaultSttModel($provider);
     }
 }

@@ -1904,13 +1904,90 @@
 
 ---
 
-## Открытые решения (`TBD`)
+## ADR-201 — Gemini STT is a SpeechToTextProvider, not Conversation AI
+
+**Контекст.** Gemini chat and Gemini transcription could be collapsed into one call.
+
+**Решение.** `GeminiSpeechToTextProvider` implements `SpeechToTextProvider`. Audio → text only. Conversation AI remains `ConversationTurnService` → `AiChatGateway`. No transcription through `AiChatGateway`.
+
+**Следствие.** The same Gemini credential family can serve STT and chat as separate code paths.
+
+---
+
+## ADR-202 — Gemini STT reuses the existing Gemini credential
+
+**Контекст.** A Voice-specific Gemini key would duplicate secrets.
+
+**Решение.** Resolve the key from `ai_provider_settings` where `provider = gemini` via `GeminiCredentialResolver`. No `GEMINI_STT_API_KEY`, no plaintext Voice secret.
+
+**Следствие.** Admin Voice/Speech has no Gemini API key field.
+
+---
+
+## ADR-203 — STT provider selection is instance-level Admin infrastructure
+
+**Контекст.** Per-user STT settings would fragment the voice stack.
+
+**Решение.** `voice_settings.stt_provider` / `stt_model` are Admin Integrations settings. Ordinary users do not configure STT.
+
+**Следствие.** Owner and User voice sessions share the same STT adapter; Conversation AI roles stay Owner vs Default User.
+
+---
+
+## ADR-204 — Ordinary users do not configure STT
+
+**Контекст.** Users already have Default User Conversation AI.
+
+**Решение.** Workspace Voice UI stays provider-neutral. No Gemini vendor label for ordinary users.
+
+**Следствие.** Configured STT clears the generic “not configured” notice through existing status/error props.
+
+---
+
+## ADR-205 — Auto language detection is the STT default
+
+**Контекст.** Forced ru/it/en would break code-switching.
+
+**Решение.** Gemini `audioTranscriptionConfig` omits `languageCodes` unless an optional hint is present. No required language Admin setting.
+
+**Следствие.** Language/confidence are nullable on the transcript DTO.
+
+---
+
+## ADR-206 — VoiceRuntimeService remains vendor-neutral
+
+**Контекст.** `if (provider === gemini)` in runtime would leak vendors into Core.
+
+**Решение.** Runtime calls `$this->stt->transcribe(...)`. Manager resolves Gemini / OpenAI / Null.
+
+**Следствие.** Adding another STT vendor does not rewrite turn orchestration.
+
+---
+
+## ADR-207 — OpenAI STT remains optional fallback, not required
+
+**Контекст.** OpenAI is not connected for the current product.
+
+**Решение.** Keep `OpenAiSpeechToTextProvider`. Do not require an OpenAI key for Voice.
+
+**Следствие.** Production path is Gemini STT + ElevenLabs TTS.
+
+---
+
+## ADR-208 — Live STT/TTS/AI validation remains deferred
+
+**Контекст.** Owner policy: no live provider smoke in this milestone.
+
+**Решение.** Configured status is local (provider + credential connected + model). No Test Connection. No live Gemini transcription.
+
+**Следствие.** Status is IMPLEMENTED / NOT VALIDATED until Owner exercises Voice.
+
+---
 
 - Алфавит generated access_code (кроме зарезервированного 2000).
 - 403 vs redirect когда user открывает admin URL.
 - Auth схема Desktop/Mobile (token flavour).
 - Realtime native voice transport (WebRTC vs WebSocket streaming) beyond M23 HTTP utterance blobs.
-- Concrete production STT beyond Whisper-or-Null (M23.1 if Gemini/other).
 - Optional long-term audio recording retention.
 - Набор service updates (`my_chat_member`) beyond bot left/kicked/member/admin/restricted.
 - Retention raw messages по закону/желанию пользователя (отдельно от derived lifecycle).

@@ -15,6 +15,7 @@ class VoiceSetting extends Model
     protected $fillable = [
         'stt_provider',
         'tts_provider',
+        'stt_model',
         'spoken_style_enabled',
         'elevenlabs_api_key',
         'elevenlabs_voice_id',
