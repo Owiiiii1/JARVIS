@@ -66,6 +66,11 @@ class Message extends Model
         return $this->hasMany(self::class, 'parent_message_id');
     }
 
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(MessageAttachment::class)->orderBy('id');
+    }
+
     public function telegramGroup(): BelongsTo
     {
         return $this->belongsTo(TelegramGroup::class);

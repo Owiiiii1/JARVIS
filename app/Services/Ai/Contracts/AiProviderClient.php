@@ -15,6 +15,8 @@ interface AiProviderClient
 
     public function supportsTools(): bool;
 
+    public function supportsVision(): bool;
+
     /**
      * @return array<int, array{id: string, name: string}>
      */

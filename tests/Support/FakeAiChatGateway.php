@@ -22,6 +22,8 @@ final class FakeAiChatGateway implements AiChatGateway
 
     public bool $supportsTools = true;
 
+    public bool $supportsVision = true;
+
     /** @var list<AiChatResponse|\Closure> */
     public array $script = [];
 
@@ -66,6 +68,11 @@ final class FakeAiChatGateway implements AiChatGateway
     public function supportsTools(AiRoleSetting $configuration): bool
     {
         return $this->supportsTools;
+    }
+
+    public function supportsVision(AiRoleSetting $configuration): bool
+    {
+        return $this->supportsVision;
     }
 
     /**

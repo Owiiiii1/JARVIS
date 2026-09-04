@@ -32,6 +32,7 @@
 - channel identities (Telegram pairing кодом; без auto-create User);
 - привязку внешних identity;
 - conversations и messages (kind: `direct` | `group`; personal всегда с `user_id`);
+- message_attachments (private, owned; Web first, same rows for later Telegram/Desktop/Mobile);
 - Telegram Groups: авторегистрация, group conversations; **owner-only** admin;
 - Tool / Integration Layer (owner-only: Google, GitHub, ElevenLabs placeholder; Telegram channel отдельно);
 - memory и topics (с Phase 2; retrieval всегда scoped);

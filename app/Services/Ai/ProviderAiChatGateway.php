@@ -39,6 +39,10 @@ final class ProviderAiChatGateway implements AiChatGateway
             throw new AiConfigurationException('AI provider does not support tools.');
         }
 
+        if ($request->hasImageParts() && ! $this->providers->supportsVision($provider)) {
+            throw new AiConfigurationException('vision_not_supported');
+        }
+
         return $this->providers->chat($provider, (string) $setting->api_key, $request);
     }
 
@@ -51,5 +55,16 @@ final class ProviderAiChatGateway implements AiChatGateway
         }
 
         return $this->providers->supportsTools($provider);
+    }
+
+    public function supportsVision(AiRoleSetting $configuration): bool
+    {
+        $provider = (string) $configuration->provider;
+
+        if ($provider === '') {
+            return false;
+        }
+
+        return $this->providers->supportsVision($provider);
     }
 }

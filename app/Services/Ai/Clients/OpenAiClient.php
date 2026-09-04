@@ -32,6 +32,11 @@ class OpenAiClient implements AiProviderClient
         return false;
     }
 
+    public function supportsVision(): bool
+    {
+        return false;
+    }
+
     public function listModels(string $apiKey): array
     {
         $response = Http::timeout(15)
@@ -66,6 +71,10 @@ class OpenAiClient implements AiProviderClient
     {
         if ($request->hasTools()) {
             throw new AiProviderException('OpenAI client does not support tools yet.');
+        }
+
+        if ($request->hasImageParts()) {
+            throw new AiProviderException('vision_not_supported');
         }
 
         $response = $this->postResponses($apiKey, $request);

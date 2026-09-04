@@ -31,6 +31,11 @@ class AnthropicClient implements AiProviderClient
         return false;
     }
 
+    public function supportsVision(): bool
+    {
+        return false;
+    }
+
     public function listModels(string $apiKey): array
     {
         $response = Http::timeout(15)
@@ -68,6 +73,10 @@ class AnthropicClient implements AiProviderClient
     {
         if ($request->hasTools()) {
             throw new AiProviderException('Anthropic client does not support tools yet.');
+        }
+
+        if ($request->hasImageParts()) {
+            throw new AiProviderException('vision_not_supported');
         }
 
         $messages = AiProviderMessageNormalizer::ensureStartsWithUser(

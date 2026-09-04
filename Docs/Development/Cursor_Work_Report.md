@@ -1,76 +1,46 @@
-# Cursor Work Report — Workspace message 500 fix
+# Cursor Work Report — M22.1 Multimodal images + copyable artifacts
 
 **Date:** 2026-09-04  
 **Host:** `/var/www/jarvis`  
 **GitHub:** `Owiiiii1/JARVIS` (`origin/main`)  
 **Public URL:** https://jarvis.owlsolutions.net
 
-Status: **HOTFIX IMPLEMENTED**. Owner deferred all automated tests. No live AI/Google/GitHub smoke.
+Status: **IMPLEMENTED / NOT VALIDATED**. Owner deferred automated tests. No live AI vision, Google, or GitHub calls.
 
 ---
 
-## Before HEAD
+## Scope
 
-`aa80f1a655ad8fe7f5389a07ed3a35c97976f15a` — `feat: add owner Jarvis workspace` (M22). Fix lived only in the working tree until this commit.
+Owner Workspace can attach PNG/JPEG/WebP (picker, drag/drop, Ctrl/Cmd+V screenshot), send text+images as one user turn through the existing Conversation Engine, and copy assistant artifacts in one click.
 
----
-
-## Symptom
-
-`POST /jarvis/chats/{conversation}/messages` returned HTTP 500 (`{"message":"Server Error"}`) when the owner asked Jarvis about a reminder.
-
-Nginx showed two 500s. The user inbound rows stayed `metadata.ai.status = pending`. `create_reminder` had already inserted `reminders` rows. No assistant reply was persisted.
+No second chat engine. No Telegram photo ingestion. No public attachment URLs. No attachment memory pipeline.
 
 ---
 
-## Cause
+## Backend
 
-php-fpm runs as `www-data`. `storage/logs/laravel.log` was `deploy:deploy` mode `664`, so the web process could not append.
+- `config/chat_attachments.php` is the only limit source (max 5 images, 10 MB each, 25 MB total, MIME allow-list, thumbnail size, retention TBD).
+- Migration `message_attachments`: generic `kind`, private `storage_disk`/`storage_path`, sanitized name, mime, size, dimensions, sha256, bounded metadata. No bytes in DB.
+- Multipart `POST /jarvis/chats/{id}/messages` with `body`, `client_message_id`, `images[]`. Empty body allowed iff ≥1 image.
+- `public/.user.ini` raises PHP `upload_max_filesize`/`post_max_size` to 32M for this app (nginx already allows 64M). App limits remain in `config/chat_attachments.php`.
+- If storage succeeds and DB fails, pending files are deleted. If AI fails, the user message and attachments remain.
+- `AiContentPart` + `AiChatMessage.contentParts`. Current inbound images only. Historical images are text placeholders. `supportsVision()` on the provider client: Gemini true; OpenAI/Anthropic false → user-safe `vision_not_supported`.
+- Gemini adapter maps image parts to `inlineData` internally. Conversation Engine does not speak Gemini JSON.
 
-Reminder create always called `Log::info('reminder created')`. After a successful tool run, `ToolExecutionService` called `Log::info('tool executed')`. Laravel stack channel had `ignore_exceptions => false`, so a failed log write threw.
+## Frontend
 
-That exception escaped the tool path before the assistant follow-up/fallback was persisted. The outer conversation catch also called `Log::warning`, which threw again, so the turn never marked the inbound failed/completed. HTTP layer returned 500.
+- Workspace composer: paperclip, drop, paste-image without hijacking text paste, thumbnail strip, remove-before-send, limit errors from server props.
+- History thumbnails + lightbox.
+- SafeMarkdown: fenced code stays a code block; ` ```artifact Title ` is a distinct Artifact block. Copy is raw text.
 
-Logging failure was the abort. The reminder engine itself had already succeeded.
+## Verification (allowed)
 
----
-
-## Fix
-
-- `config/logging.php`: stack `ignore_exceptions => true`.
-- `ReminderService::create`: wrap reminder log write in `try/catch`.
-- `ToolExecutionService`: wrap tool-failure logs, `persistLog()`, and `tool executed` logs so audit/log I/O cannot abort a successful tool result.
-- `ConversationAiService`: wrap turn/follow-up/tool-loop warning logs so fallback/error persist still runs.
-- Runtime: `chmod 666` on `storage/logs/laravel.log` so php-fpm can append (file not committed).
-
-No schema change. No second conversation engine.
-
----
-
-## Files
-
-- `config/logging.php`
-- `app/Services/Reminders/ReminderService.php`
-- `app/Services/Tools/ToolExecutionService.php`
-- `app/Services/Conversations/ConversationAiService.php`
-
----
-
-## Verification (non-test)
-
-- Confirmed fix present in working tree before commit.
-- `vendor/bin/pint --dirty` already passed on these PHP files.
-- **TESTS NOT RUN — Owner deferred.**
-- **NO LIVE AI / Google / GitHub send from this commit step.**
-
----
-
-## Known issues
-
-- Two reminder rows were created by the failed attempts; owner may see duplicates.
-- Log file permissions can drift again if a deploy user recreates `laravel.log` without www-data write access; code now survives that.
-
----
+- `php artisan migrate` for `message_attachments`
+- `php artisan route:list` for attachment routes
+- `vendor/bin/pint --dirty`
+- `npm run build`
+- **TESTS NOT RUN**
+- **NO LIVE VISION / Google / GitHub**
 
 ## Next
 

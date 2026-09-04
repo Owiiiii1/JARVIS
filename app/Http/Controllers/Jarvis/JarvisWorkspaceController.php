@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Jarvis;
 
 use App\Http\Controllers\Controller;
 use App\Models\UserAiSetting;
+use App\Services\ChatAttachments\ChatAttachmentConfig;
 use App\Services\Conversations\ConversationService;
 use App\Services\Conversations\PersonalChatSurfaceService;
 use App\Services\Workspace\OwnerWorkspaceContextService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -47,6 +49,7 @@ class JarvisWorkspaceController extends Controller
             'hasMore' => $page['has_more'],
             'oldestId' => $page['oldest_id'],
             'context' => $this->context->compact($user, $current),
+            'chatAttachments' => ChatAttachmentConfig::publicLimits(),
         ]);
     }
 
@@ -81,18 +84,39 @@ class JarvisWorkspaceController extends Controller
     {
         $user = $request->user();
         $current = $this->chats->ensureOwned($user, $conversation);
+        $maxImages = ChatAttachmentConfig::maxImagesPerMessage();
+        $maxKilobytes = ChatAttachmentConfig::maxFileSizeKilobytes();
 
         $validated = $request->validate([
-            'body' => ['required', 'string', 'max:8000'],
+            'body' => ['nullable', 'string', 'max:8000'],
             'client_message_id' => ['required', 'uuid'],
+            'images' => ['sometimes', 'array', 'max:'.$maxImages],
+            'images.*' => ['file', 'max:'.$maxKilobytes],
         ]);
+
+        $files = [];
+
+        foreach ($request->file('images', []) as $file) {
+            if ($file instanceof UploadedFile) {
+                $files[] = $file;
+            }
+        }
+
+        $body = trim((string) ($validated['body'] ?? ''));
+
+        if ($body === '' && $files === []) {
+            throw ValidationException::withMessages([
+                'body' => 'Нужен текст или хотя бы одно изображение.',
+            ]);
+        }
 
         return response()->json(
             $this->chats->sendTurn(
                 $user,
                 $current,
-                $validated['body'],
+                $body,
                 $validated['client_message_id'],
+                $files,
             ),
         );
     }

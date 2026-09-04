@@ -11,4 +11,6 @@ interface AiChatGateway
     public function chat(AiRoleSetting $configuration, AiChatRequest $request): AiChatResponse;
 
     public function supportsTools(AiRoleSetting $configuration): bool;
+
+    public function supportsVision(AiRoleSetting $configuration): bool;
 }

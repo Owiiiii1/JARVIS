@@ -1138,11 +1138,61 @@
 
 ---
 
-## ADR-117 — M22 tests and live AI/Google/GitHub are deferred by Owner
+## ADR-118 — Vision images are current-turn payload, not replayed context blobs
 
-**Контекст.** Production DB tests and live turns are high-risk.
+**Контекст.** Multimodal turns must not resend every historical screenshot on every later message.
 
-**Решение.** Implement M22 without `php artisan test` and without conversational live send or live Google/GitHub.
+**Решение.** Only the current inbound message’s image bytes are converted to `AiContentPart` image parts. Previous attachments stay as text placeholders (`[N images attached]`) plus whatever the assistant already said. No attachment-specific memory ingestion.
+
+**Следствие.** Explicit historical-image retrieval can be added later. Telegram/Desktop/Mobile can reuse `message_attachments` without changing this policy.
+
+---
+
+## ADR-119 — Copyable artifacts are distinct from fenced code
+
+**Контекст.** Jarvis often returns prompts, configs, and drafts that should be copied in one click. Ordinary code fences are already used for illustrative snippets.
+
+**Решение.** Provider-neutral markdown: ` ```artifact Title ` renders as an Artifact block with Copy of raw text. Language-tagged fences remain Code blocks with Copy. SafeMarkdown parses this in Core UI; adapters do not emit vendor-specific widgets.
+
+**Следствие.** Models are instructed to use artifact fences only for copy-paste payloads.
+
+---
+
+## ADR-120 — Chat images are private and ownership-gated
+
+**Контекст.** Screenshots must not get permanent public URLs.
+
+**Решение.** Store on the private `local` disk under `chat-attachments/`. Preview/full routes require auth + conversation/message/attachment ownership. Clients receive only route URLs, never filesystem paths. Limits live in `config/chat_attachments.php`.
+
+**Следствие.** Cabinet/Telegram/native clients can mount the same access service later.
+
+---
+
+## ADR-121 — OpenAI/Anthropic vision is not faked in M22.1
+
+**Контекст.** Production conversation path is Gemini. OpenAI and Anthropic adapters are text-only.
+
+**Решение.** `supportsVision()` is true only for Gemini. Other providers return `vision_not_supported` instead of dropping images.
+
+**Следствие.** Adding vision to another adapter is an adapter change, not a Conversation Engine rewrite.
+
+---
+
+## ADR-122 — Telegram photo ingestion is later, same entity
+
+**Контекст.** M22.1 is Web-first.
+
+**Решение.** Do not ingest Telegram photos now. The `message_attachments` schema is not image-only and is not Web-only.
+
+**Следствие.** A later Telegram adapter can persist the same rows and call the same Conversation Engine.
+
+---
+
+## ADR-123 — M22.1 tests and live vision are deferred by Owner
+
+**Контекст.** Production DB tests and live Gemini vision are high-risk.
+
+**Решение.** Implement M22.1 without `php artisan test` and without live AI vision / Google / GitHub.
 
 **Следствие.** Status: implemented, not validated.
 

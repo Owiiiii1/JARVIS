@@ -4,7 +4,7 @@ const HTTP_URL = /^https?:\/\//i;
 
 function splitFenced(text) {
     const parts = [];
-    const pattern = /```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g;
+    const pattern = /```([^\n]*)\n?([\s\S]*?)```/g;
     let last = 0;
     let match;
 
@@ -13,11 +13,7 @@ function splitFenced(text) {
             parts.push({ type: 'markdown', value: text.slice(last, match.index) });
         }
 
-        parts.push({
-            type: 'code',
-            language: match[1] || '',
-            value: match[2].replace(/\n$/, ''),
-        });
+        parts.push(parseFence(match[1] || '', match[2].replace(/\n$/, '')));
         last = match.index + match[0].length;
     }
 
@@ -26,6 +22,35 @@ function splitFenced(text) {
     }
 
     return parts.length > 0 ? parts : [{ type: 'markdown', value: text }];
+}
+
+function parseFence(info, value) {
+    const raw = String(info || '').trim();
+    const tokens = raw === '' ? [] : raw.split(/\s+/);
+    const firstRaw = tokens[0] || '';
+    const first = firstRaw.toLowerCase();
+
+    if (first === 'artifact' || first === 'copy' || first.startsWith('artifact:')) {
+        let title = '';
+
+        if (first.startsWith('artifact:')) {
+            title = `${firstRaw.slice('artifact:'.length)} ${tokens.slice(1).join(' ')}`.trim();
+        } else {
+            title = raw.slice(firstRaw.length).trim().replace(/^[:\-]\s*/, '');
+        }
+
+        return {
+            type: 'artifact',
+            title: title || 'Artifact',
+            value,
+        };
+    }
+
+    return {
+        type: 'code',
+        language: first.replace(/:$/, ''),
+        value,
+    };
 }
 
 function Inline({ text }) {
@@ -238,6 +263,42 @@ function CodeBlock({ language, value }) {
     );
 }
 
+function ArtifactBlock({ title, value }) {
+    const [copied, setCopied] = useState(false);
+
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(value);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1600);
+        } catch {
+            setCopied(false);
+        }
+    };
+
+    return (
+        <div className="my-3 overflow-hidden rounded-xl border border-sky-400/25 bg-sky-500/10 shadow-[inset_0_0_0_1px_rgba(56,189,248,0.08)]">
+            <div className="flex items-center justify-between gap-3 border-b border-sky-400/20 px-3 py-2">
+                <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-sky-300/80">Artifact</p>
+                    <p className="truncate text-sm font-medium text-sky-50">{title}</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={copy}
+                    className="shrink-0 rounded-lg bg-sky-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-sky-400"
+                    aria-label="Copy artifact"
+                >
+                    {copied ? 'Copied' : 'Copy'}
+                </button>
+            </div>
+            <pre className="overflow-x-auto whitespace-pre-wrap break-words p-3 text-[12.5px] leading-6 text-slate-100">
+                {value}
+            </pre>
+        </div>
+    );
+}
+
 export default function SafeMarkdown({ text }) {
     if (!text) {
         return null;
@@ -245,13 +306,17 @@ export default function SafeMarkdown({ text }) {
 
     return (
         <div className="jarvis-markdown">
-            {splitFenced(text).map((part, index) =>
-                part.type === 'code' ? (
-                    <CodeBlock key={index} language={part.language} value={part.value} />
-                ) : (
-                    <MarkdownBlock key={index} text={part.value} />
-                ),
-            )}
+            {splitFenced(text).map((part, index) => {
+                if (part.type === 'artifact') {
+                    return <ArtifactBlock key={index} title={part.title} value={part.value} />;
+                }
+
+                if (part.type === 'code') {
+                    return <CodeBlock key={index} language={part.language} value={part.value} />;
+                }
+
+                return <MarkdownBlock key={index} text={part.value} />;
+            })}
         </div>
     );
 }

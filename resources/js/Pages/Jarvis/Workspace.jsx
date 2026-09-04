@@ -13,6 +13,7 @@ import {
     PanelRight,
     Pencil,
     Plug,
+    Paperclip,
     Search,
     Send,
     Settings2,
@@ -117,9 +118,15 @@ export default function JarvisWorkspace() {
         context = {},
         owlAdmin = {},
         flash = {},
+        chatAttachments = null,
     } = usePage().props;
 
     const timezone = user.timezone || undefined;
+    const acceptTypes = (chatAttachments?.allowed_mime_types || []).join(',');
+    const maxImages = Number(chatAttachments?.max_images_per_message || 0);
+    const maxFileBytes = Number(chatAttachments?.max_file_size_mb || 0) * 1024 * 1024;
+    const maxTotalBytes = Number(chatAttachments?.max_total_upload_mb || 0) * 1024 * 1024;
+    const allowedMimes = chatAttachments?.allowed_mime_types || [];
     const brandName = owlAdmin?.brand_name ?? 'Jarvis';
     const [mode, setMode] = useState('text');
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -130,6 +137,8 @@ export default function JarvisWorkspace() {
     const [hasMore, setHasMore] = useState(initialHasMore);
     const [oldestId, setOldestId] = useState(initialOldestId);
     const [draft, setDraft] = useState('');
+    const [pendingFiles, setPendingFiles] = useState([]);
+    const [lightbox, setLightbox] = useState(null);
     const [sending, setSending] = useState(false);
     const [loadingOlder, setLoadingOlder] = useState(false);
     const [error, setError] = useState('');
@@ -138,7 +147,9 @@ export default function JarvisWorkspace() {
     const [promptOpen, setPromptOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const scrollerRef = useRef(null);
+    const fileInputRef = useRef(null);
     const shouldStickToBottom = useRef(true);
+    const pendingFilesRef = useRef([]);
 
     const promptForm = useForm({
         general_prompt: context?.settings?.general_prompt ?? '',
@@ -151,6 +162,15 @@ export default function JarvisWorkspace() {
         setTitleDraft(conversation?.title ?? '');
         setError('');
         setSidebarOpen(false);
+        setPendingFiles((current) => {
+            current.forEach((item) => {
+                if (item.url) {
+                    URL.revokeObjectURL(item.url);
+                }
+            });
+
+            return [];
+        });
         shouldStickToBottom.current = true;
 
         try {
@@ -175,6 +195,20 @@ export default function JarvisWorkspace() {
             // ignore quota / private mode
         }
     }, [conversation?.id, draft]);
+
+    useEffect(() => {
+        pendingFilesRef.current = pendingFiles;
+    }, [pendingFiles]);
+
+    useEffect(() => {
+        return () => {
+            pendingFilesRef.current.forEach((item) => {
+                if (item.url) {
+                    URL.revokeObjectURL(item.url);
+                }
+            });
+        };
+    }, []);
 
     useEffect(() => {
         if (!shouldStickToBottom.current || !scrollerRef.current) {
@@ -227,10 +261,118 @@ export default function JarvisWorkspace() {
         }
     };
 
+    const firstError = (payload) => {
+        const errors = payload?.errors;
+
+        if (errors && typeof errors === 'object') {
+            for (const value of Object.values(errors)) {
+                if (Array.isArray(value) && value[0]) {
+                    return String(value[0]);
+                }
+
+                if (typeof value === 'string' && value !== '') {
+                    return value;
+                }
+            }
+        }
+
+        return payload?.message || payload?.error || 'Не удалось отправить сообщение.';
+    };
+
+    const addPendingFiles = (fileList) => {
+        const incoming = Array.from(fileList || []).filter(Boolean);
+
+        if (incoming.length === 0) {
+            return;
+        }
+
+        setPendingFiles((current) => {
+            const next = [...current];
+            let message = '';
+
+            incoming.forEach((file) => {
+                if (next.length >= maxImages) {
+                    message = `Можно прикрепить не больше ${maxImages} изображений.`;
+                    return;
+                }
+
+                if (!allowedMimes.includes(file.type)) {
+                    message = 'Этот тип файла не принимается. Нужны PNG, JPEG или WebP.';
+                    return;
+                }
+
+                if (file.size > maxFileBytes) {
+                    message = `Изображение больше ${chatAttachments.max_file_size_mb} МБ.`;
+                    return;
+                }
+
+                const total = next.reduce((sum, item) => sum + item.file.size, 0) + file.size;
+
+                if (total > maxTotalBytes) {
+                    message = `Суммарный размер вложений больше ${chatAttachments.max_total_upload_mb} МБ.`;
+                    return;
+                }
+
+                next.push({
+                    id: `local-${newClientId()}`,
+                    file,
+                    url: URL.createObjectURL(file),
+                    name: file.name || 'image',
+                    mime: file.type,
+                    size: file.size,
+                });
+            });
+
+            if (message) {
+                setError(message);
+            }
+
+            return next;
+        });
+    };
+
+    const removePendingFile = (id) => {
+        setPendingFiles((current) => {
+            const selected = current.find((item) => item.id === id);
+
+            if (selected?.url) {
+                URL.revokeObjectURL(selected.url);
+            }
+
+            return current.filter((item) => item.id !== id);
+        });
+    };
+
+    const handleClipboardPaste = (event) => {
+        const items = Array.from(event.clipboardData?.items || []);
+        const imageFiles = items
+            .filter((item) => item.type && allowedMimes.includes(item.type))
+            .map((item) => item.getAsFile())
+            .filter(Boolean);
+
+        if (imageFiles.length === 0) {
+            return;
+        }
+
+        addPendingFiles(imageFiles);
+
+        const text = event.clipboardData?.getData('text/plain') || '';
+
+        if (text === '') {
+            event.preventDefault();
+        }
+    };
+
+    const handleDrop = (event) => {
+        event.preventDefault();
+        addPendingFiles(event.dataTransfer?.files);
+    };
+
     const sendBody = async (body) => {
         const text = body.trim();
+        const files = pendingFiles.map((item) => item.file);
 
-        if (!text || sending) {
+        if (sending || (!text && files.length === 0)) {
             return;
         }
 
@@ -244,6 +386,14 @@ export default function JarvisWorkspace() {
             occurred_at: new Date().toISOString(),
             pending: true,
             status: 'pending',
+            attachments: pendingFiles.map((item) => ({
+                id: item.id,
+                kind: 'image',
+                mime_type: item.mime,
+                size_bytes: item.size,
+                preview_url: item.url,
+                view_url: item.url,
+            })),
         };
 
         shouldStickToBottom.current = true;
@@ -252,28 +402,35 @@ export default function JarvisWorkspace() {
         setError('');
         setMessages((current) => [...current, optimistic]);
 
+        const form = new FormData();
+        form.append('body', text);
+        form.append('client_message_id', clientMessageId);
+        files.forEach((file) => form.append('images[]', file));
+
         try {
             const response = await fetch(route('jarvis.messages.store', conversation.id), {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
                     Accept: 'application/json',
-                    'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': csrfToken(),
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({
-                    body: text,
-                    client_message_id: clientMessageId,
-                }),
+                body: form,
             });
 
             const payload = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(payload.message || payload.error || 'Не удалось отправить сообщение.');
+                throw new Error(firstError(payload));
             }
 
+            pendingFiles.forEach((item) => {
+                if (item.url) {
+                    URL.revokeObjectURL(item.url);
+                }
+            });
+            setPendingFiles([]);
             applyTurnPayload(payload, optimistic.id, clientMessageId);
         } catch (caught) {
             setError(caught.message || 'Не удалось получить ответ от Jarvis. Попробуйте ещё раз позже.');
@@ -786,6 +943,7 @@ export default function JarvisWorkspace() {
                                             message={message}
                                             time={formatWhen(message.occurred_at, timezone)}
                                             sending={sending}
+                                            onOpenImage={setLightbox}
                                             onConfirm={() => resolveConfirmation(message.pending_confirmation?.id, true)}
                                             onCancel={() => resolveConfirmation(message.pending_confirmation?.id, false)}
                                         />
@@ -804,34 +962,77 @@ export default function JarvisWorkspace() {
                             {error ? <p className="mb-2 text-sm text-rose-300">{error}</p> : null}
                             {flash?.success ? <p className="mb-2 text-sm text-emerald-300">{flash.success}</p> : null}
                             <form
-                                className="mx-auto flex max-w-3xl items-end gap-2"
+                                className="mx-auto max-w-3xl"
                                 onSubmit={(event) => {
                                     event.preventDefault();
                                     sendBody(draft);
                                 }}
+                                onDragOver={(event) => event.preventDefault()}
+                                onDrop={handleDrop}
                             >
-                                <textarea
-                                    value={draft}
-                                    rows={1}
-                                    placeholder="Сообщение"
-                                    disabled={sending}
-                                    onChange={(event) => setDraft(event.target.value)}
-                                    onKeyDown={(event) => {
-                                        if (event.key === 'Enter' && !event.shiftKey) {
-                                            event.preventDefault();
-                                            sendBody(draft);
-                                        }
-                                    }}
-                                    className="max-h-40 min-h-[48px] flex-1 resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 shadow-inner outline-none placeholder:text-slate-500 focus:border-sky-400/40 disabled:opacity-60"
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={sending || !draft.trim()}
-                                    className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-500 text-white hover:bg-sky-400 disabled:opacity-50"
-                                    aria-label="Send"
-                                >
-                                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                                </button>
+                                {pendingFiles.length > 0 ? (
+                                    <div className="mb-2 flex flex-wrap gap-2">
+                                        {pendingFiles.map((item) => (
+                                            <div key={item.id} className="relative h-16 w-16 overflow-hidden rounded-xl ring-1 ring-white/15">
+                                                <img src={item.url} alt="" className="h-full w-full object-cover" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removePendingFile(item.id)}
+                                                    className="absolute right-0.5 top-0.5 rounded-full bg-black/70 p-0.5 text-white"
+                                                    aria-label="Remove attachment"
+                                                    disabled={sending}
+                                                >
+                                                    <X className="h-3 w-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : null}
+                                <div className="flex items-end gap-2">
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept={acceptTypes}
+                                        multiple
+                                        hidden
+                                        onChange={(event) => {
+                                            addPendingFiles(event.target.files);
+                                            event.target.value = '';
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        disabled={sending || maxImages < 1}
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300 hover:text-white disabled:opacity-50"
+                                        aria-label="Attach image"
+                                    >
+                                        <Paperclip className="h-4 w-4" />
+                                    </button>
+                                    <textarea
+                                        value={draft}
+                                        rows={1}
+                                        placeholder="Сообщение или Ctrl+V для скрина"
+                                        disabled={sending}
+                                        onChange={(event) => setDraft(event.target.value)}
+                                        onPaste={handleClipboardPaste}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter' && !event.shiftKey) {
+                                                event.preventDefault();
+                                                sendBody(draft);
+                                            }
+                                        }}
+                                        className="max-h-40 min-h-[48px] flex-1 resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 shadow-inner outline-none placeholder:text-slate-500 focus:border-sky-400/40 disabled:opacity-60"
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={sending || (!draft.trim() && pendingFiles.length === 0)}
+                                        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-500 text-white hover:bg-sky-400 disabled:opacity-50"
+                                        aria-label="Send"
+                                    >
+                                        {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                    </button>
+                                </div>
                             </form>
                         </div>
                     </div>
@@ -906,6 +1107,28 @@ export default function JarvisWorkspace() {
                     </div>
                 </Modal>
             ) : null}
+
+            {lightbox ? (
+                <div
+                    className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4"
+                    onClick={() => setLightbox(null)}
+                >
+                    <img
+                        src={lightbox.view_url || lightbox.preview_url}
+                        alt=""
+                        className="max-h-full max-w-full rounded-xl object-contain shadow-2xl"
+                        onClick={(event) => event.stopPropagation()}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => setLightbox(null)}
+                        className="absolute right-4 top-4 rounded-lg bg-black/60 p-2 text-white"
+                        aria-label="Close image"
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
+            ) : null}
         </div>
     );
 }
@@ -932,7 +1155,7 @@ function Modal({ title, onClose, children }) {
     );
 }
 
-function Bubble({ message, time, sending = false, onConfirm, onCancel }) {
+function Bubble({ message, time, sending = false, onConfirm, onCancel, onOpenImage }) {
     if (message.kind === 'error' || message.status === 'failed') {
         return (
             <div className="mx-auto max-w-xl rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-center text-sm text-rose-200">
@@ -955,10 +1178,31 @@ function Bubble({ message, time, sending = false, onConfirm, onCancel }) {
                 } ${message.pending || message.status === 'pending' ? 'opacity-70' : ''}`}
             >
                 {mine ? (
-                    <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.body}</p>
+                    message.body ? (
+                        <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.body}</p>
+                    ) : null
                 ) : (
                     <SafeMarkdown text={message.body} />
                 )}
+                {Array.isArray(message.attachments) && message.attachments.length > 0 ? (
+                    <div className={`mt-2 flex flex-wrap gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
+                        {message.attachments.map((attachment) => (
+                            <button
+                                key={attachment.id}
+                                type="button"
+                                onClick={() => onOpenImage?.(attachment)}
+                                className="h-20 w-20 overflow-hidden rounded-xl ring-1 ring-white/15"
+                                aria-label="Open image"
+                            >
+                                <img
+                                    src={attachment.preview_url || attachment.view_url}
+                                    alt=""
+                                    className="h-full w-full object-cover"
+                                />
+                            </button>
+                        ))}
+                    </div>
+                ) : null}
                 {streaming ? <p className="mt-1 text-[11px] text-slate-500">streaming…</p> : null}
                 {pending?.id && !mine ? <ConfirmationCard pending={pending} sending={sending} onConfirm={onConfirm} onCancel={onCancel} /> : null}
                 <p className={`mt-1 text-[11px] ${mine ? 'text-sky-200/70' : 'text-slate-500'}`}>{time}</p>

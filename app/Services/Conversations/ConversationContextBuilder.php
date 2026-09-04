@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\UserAiSetting;
 use App\Services\Ai\DTO\AiChatMessage;
 use App\Services\Ai\DTO\ToolDefinition;
+use App\Services\ChatAttachments\ChatAttachmentVisionLoader;
 use App\Services\Memory\DTO\MemoryContextPackage;
 use App\Services\Memory\PersonalMemoryRetriever;
 use App\Services\Tools\CreateReminderTool;
@@ -31,6 +32,7 @@ final class ConversationContextBuilder
 
     public function __construct(
         private readonly PersonalMemoryRetriever $memoryRetriever,
+        private readonly ChatAttachmentVisionLoader $visionLoader,
     ) {}
 
     /**
@@ -52,6 +54,8 @@ final class ConversationContextBuilder
         if ($toolContext !== null) {
             $sections[] = $toolContext;
         }
+
+        $sections[] = $this->copyableArtifactHint();
 
         $generalPrompt = $this->generalPromptFor($user);
 
@@ -223,6 +227,7 @@ final class ConversationContextBuilder
         $limit = $this->recentLimit($configuration);
 
         $rows = Message::query()
+            ->with('attachments')
             ->where('conversation_id', $conversation->id)
             ->orderByDesc('occurred_at')
             ->orderByDesc('id')
@@ -265,13 +270,30 @@ final class ConversationContextBuilder
         }
 
         $payload = [];
+        $currentId = $currentInbound !== null ? (int) $currentInbound->id : null;
 
         foreach ($selected as $message) {
             $role = $message->role === MessageRole::Assistant ? 'assistant' : 'user';
             $body = trim((string) $message->body);
+            $isCurrent = $currentId !== null && (int) $message->id === $currentId;
+
+            if ($isCurrent && $this->messageHasImages($message)) {
+                $payload[] = AiChatMessage::fromContentParts(
+                    $role,
+                    $this->visionLoader->currentTurnParts($message),
+                );
+
+                continue;
+            }
 
             if ($body === '') {
-                continue;
+                $placeholder = $this->visionLoader->historicalPlaceholder($message);
+
+                if ($placeholder === null) {
+                    continue;
+                }
+
+                $body = $placeholder;
             }
 
             $payload[] = new AiChatMessage($role, $body);
@@ -303,6 +325,32 @@ final class ConversationContextBuilder
         }
 
         return in_array($message->role, [MessageRole::User, MessageRole::Assistant], true);
+    }
+
+    private function messageHasImages(Message $message): bool
+    {
+        $message->loadMissing('attachments');
+
+        foreach ($message->attachments as $attachment) {
+            if ($attachment->isImage()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function copyableArtifactHint(): string
+    {
+        return implode("\n", [
+            'When the user needs a copy-paste payload (Cursor prompt, config, JSON, SQL, .env example, email draft, template, or instructions meant to be copied elsewhere), wrap the raw text in a markdown fence whose first token is artifact:',
+            '',
+            '```artifact Title',
+            'raw text to copy',
+            '```',
+            '',
+            'Use ordinary language-tagged code fences for illustrative snippets. Do not mark every code example as an artifact.',
+        ]);
     }
 
     private function isUnfinishedHistoricalInbound(Message $message, ?Message $currentInbound): bool

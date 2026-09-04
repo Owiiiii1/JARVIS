@@ -7,6 +7,7 @@ use App\Services\Ai\Contracts\AiProviderClient;
 use App\Services\Ai\DTO\AiChatMessage;
 use App\Services\Ai\DTO\AiChatRequest;
 use App\Services\Ai\DTO\AiChatResponse;
+use App\Services\Ai\DTO\AiContentPart;
 use App\Services\Ai\DTO\ToolCall;
 use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\Exceptions\AiProviderException;
@@ -31,6 +32,11 @@ class GeminiClient implements AiProviderClient
     }
 
     public function supportsTools(): bool
+    {
+        return true;
+    }
+
+    public function supportsVision(): bool
     {
         return true;
     }
@@ -111,7 +117,9 @@ class GeminiClient implements AiProviderClient
         $model = ltrim($request->model, '/');
         $model = str_starts_with($model, 'models/') ? substr($model, 7) : $model;
 
-        $response = Http::timeout(60)
+        $timeout = $request->hasImageParts() ? 90 : 60;
+
+        $response = Http::timeout($timeout)
             ->acceptJson()
             ->withQueryParameters(['key' => $apiKey])
             ->post(
@@ -196,32 +204,8 @@ class GeminiClient implements AiProviderClient
      */
     private function contents(AiChatRequest $request): array
     {
-        if ($this->hasToolMessages($request)) {
-            $contents = [];
-
-            foreach ($request->messages as $message) {
-                $content = $this->contentFromMessage($message);
-
-                if ($content !== null) {
-                    $contents[] = $content;
-                }
-            }
-
-            if ($contents === []) {
-                return [[
-                    'role' => 'user',
-                    'parts' => [['text' => 'Please proceed.']],
-                ]];
-            }
-
-            if (($contents[0]['role'] ?? '') !== 'user') {
-                array_unshift($contents, [
-                    'role' => 'user',
-                    'parts' => [['text' => '[conversation start]']],
-                ]);
-            }
-
-            return $contents;
+        if ($this->hasToolMessages($request) || $request->hasImageParts()) {
+            return $this->structuredContents($request);
         }
 
         $messages = AiProviderMessageNormalizer::ensureStartsWithUser(
@@ -239,10 +223,55 @@ class GeminiClient implements AiProviderClient
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    private function structuredContents(AiChatRequest $request): array
+    {
+        $contents = [];
+
+        foreach ($request->messages as $message) {
+            $content = $this->contentFromMessage($message);
+
+            if ($content !== null) {
+                $contents[] = $content;
+            }
+        }
+
+        if ($contents === []) {
+            return [[
+                'role' => 'user',
+                'parts' => [['text' => 'Please proceed.']],
+            ]];
+        }
+
+        if (($contents[0]['role'] ?? '') !== 'user') {
+            array_unshift($contents, [
+                'role' => 'user',
+                'parts' => [['text' => '[conversation start]']],
+            ]);
+        }
+
+        return $contents;
+    }
+
+    /**
      * @return array{role: string, parts: list<array<string, mixed>>}|null
      */
     private function contentFromMessage(AiChatMessage $message): ?array
     {
+        if ($message->contentParts !== []) {
+            $parts = $this->providerPartsFromContent($message);
+
+            if ($parts === []) {
+                return null;
+            }
+
+            return [
+                'role' => $message->role === 'assistant' ? 'model' : 'user',
+                'parts' => $parts,
+            ];
+        }
+
         if ($message->nativeParts !== []) {
             return [
                 'role' => $message->role === 'assistant' ? 'model' : 'user',
@@ -327,6 +356,35 @@ class GeminiClient implements AiProviderClient
         }
 
         return false;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function providerPartsFromContent(AiChatMessage $message): array
+    {
+        $parts = [];
+
+        foreach ($message->contentParts as $part) {
+            if (! $part instanceof AiContentPart) {
+                continue;
+            }
+
+            if ($part->isText() && filled($part->text)) {
+                $parts[] = ['text' => $part->text];
+            }
+
+            if ($part->isImage() && filled($part->mimeType) && filled($part->data)) {
+                $parts[] = [
+                    'inlineData' => [
+                        'mimeType' => $part->mimeType,
+                        'data' => $part->data,
+                    ],
+                ];
+            }
+        }
+
+        return $parts;
     }
 
     /**

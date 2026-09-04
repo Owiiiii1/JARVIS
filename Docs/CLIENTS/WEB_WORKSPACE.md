@@ -1,6 +1,6 @@
 # Owner Web Workspace
 
-**Status.** IMPLEMENTED / NOT VALIDATED (M22). Voice runtime is still planned.
+**Status.** IMPLEMENTED / NOT VALIDATED (M22 + M22.1). Voice runtime is still planned.
 
 Owner-facing Personal Workspace. This is **not** the Admin Panel and **not** the User Cabinet (`/cabinet`).
 
@@ -62,8 +62,10 @@ Web inbound stays `channel=web` + client UUID idempotency. Channel is transport,
 | GET | `/jarvis/chats/{conversation}` | `jarvis.chats.show` |
 | POST | `/jarvis/chats` | `jarvis.chats.store` |
 | PATCH | `/jarvis/chats/{conversation}` | `jarvis.chats.update` |
-| POST | `/jarvis/chats/{conversation}/messages` | `jarvis.messages.store` |
+| POST | `/jarvis/chats/{conversation}/messages` | `jarvis.messages.store` (JSON or multipart `body` + `images[]`) |
 | GET | `/jarvis/chats/{conversation}/messages/older` | `jarvis.messages.older` |
+| GET | `/jarvis/chats/{conversation}/attachments/{attachment}/preview` | `jarvis.attachments.preview` (auth + ownership) |
+| GET | `/jarvis/chats/{conversation}/attachments/{attachment}` | `jarvis.attachments.show` (auth + ownership) |
 | POST | `/jarvis/confirmations/{confirmation}/confirm` | `jarvis.confirmations.confirm` |
 | POST | `/jarvis/confirmations/{confirmation}/cancel` | `jarvis.confirmations.cancel` |
 | PATCH | `/jarvis/settings/general-prompt` | `jarvis.settings.prompt.update` |
@@ -91,11 +93,13 @@ Desktop-first (1280–2560). Sidebar and context collapse on smaller widths. Com
 
 Send path: Workspace → `PersonalChatSurfaceService` → `ConversationTurnService` → Conversation AI → tools → persisted assistant message.
 
-Composer: multiline, Enter send, Shift+Enter newline, UUID `client_message_id`, local draft, disabled while in flight.
+Composer: multiline, Enter send, Shift+Enter newline, UUID `client_message_id`, local draft, disabled while in flight. M22.1: paperclip, drag/drop, Ctrl/Cmd+V screenshot (text paste is not hijacked), multiple images, image-only turns. Limits come from `chatAttachments` Inertia props (`config/chat_attachments.php`), not hardcoded separately.
 
 Thinking state: `Jarvis is thinking...` (no token streaming in M22). Frontend message `status`: `pending` | `streaming` | `completed` | `failed` so streaming can replace the thinking row later.
 
-Assistant bodies render sanitized Markdown (lists, code blocks with copy, tables, http(s) links). No raw HTML execution. No internal system prompts. No raw tool JSON.
+Assistant bodies render sanitized Markdown (lists, **code fences with Copy**, **artifact fences with Copy**, tables, http(s) links). Code ≠ artifact. Artifact fence: ` ```artifact Title `. Copy uses raw text. No raw HTML execution. No internal system prompts. No raw tool JSON.
+
+User history shows image thumbnails; click opens a session-auth lightbox. No public attachment URLs.
 
 Empty chat: «Чем займёмся?» + suggestion chips that send ordinary user text.
 
@@ -151,5 +155,7 @@ No credentials, system prompts, tool logs, or raw group archive.
 
 - Public versioned Client API ([CLIENT_API.md](CLIENT_API.md))
 - Three.js Orb / Voice runtime
-- Workspace-specific database tables
-- Attachments, streaming, delete-chat (unless Core adds it)
+- Workspace-specific database tables (attachments live in Core `message_attachments`)
+- Telegram photo ingestion (same table later)
+- Streaming, delete-chat
+- Historical image byte replay into later turns

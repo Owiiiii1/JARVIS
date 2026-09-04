@@ -9,7 +9,7 @@ This document describes **what exists on the server now**. Target architecture i
 
 ### Implemented vs planned (post-M22)
 
-**IMPLEMENTED (code/runtime, Google/GitHub/Workspace not live-validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Owner Personal Workspace (`/jarvis`); Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, and Workspace conversational validation are deferred by Owner.
+**IMPLEMENTED (code/runtime, Google/GitHub/Workspace/vision not live-validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Owner Personal Workspace (`/jarvis`) including M22.1 image attachments + copyable artifacts; Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, Workspace conversational validation, and live vision calls are deferred by Owner.
 
 **PLANNED / DOCUMENTED ONLY (not implemented):** versioned Client API; realtime Voice Runtime; Orb Voice UI; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch. Do not treat these as shipped.
 
@@ -725,7 +725,13 @@ Owner Personal Workspace at `/jarvis`. Owner-only. Same `conversations`/`message
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
-### Planned after M22 — DOCUMENTED ONLY
+### Milestone 22.1 — Workspace images + copyable artifacts — IMPLEMENTED, NOT VALIDATED (2026-09-04)
+
+Private `message_attachments` (generic kind, images first). Multipart send on Workspace through existing `ConversationTurnService`. Provider-neutral `AiContentPart`; Gemini `supportsVision=true` with current-turn inline images only. OpenAI/Anthropic return `vision_not_supported`. SafeMarkdown distinguishes fenced code vs `artifact` copy blocks. No Telegram photo ingestion. No live vision calls. Automated tests not run.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Planned after M22.1 — DOCUMENTED ONLY
 
 Voice Runtime / Orb; Desktop Tauri; Mobile Flutter; GitHub merge/file-write/webhooks; proactive assistant. Do not treat as shipped.
 

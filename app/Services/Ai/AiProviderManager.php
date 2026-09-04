@@ -26,7 +26,7 @@ class AiProviderManager
     }
 
     /**
-     * @return array<int, array{provider: string, label: string, supports_chat: bool, supports_tools: bool}>
+     * @return array<int, array{provider: string, label: string, supports_chat: bool, supports_tools: bool, supports_vision: bool}>
      */
     public function providers(): array
     {
@@ -36,6 +36,7 @@ class AiProviderManager
                 'label' => $client->label(),
                 'supports_chat' => $client->supportsChat(),
                 'supports_tools' => $client->supportsTools(),
+                'supports_vision' => $client->supportsVision(),
             ],
             $this->clients
         ));
@@ -84,12 +85,21 @@ class AiProviderManager
             throw new AiConfigurationException('Tools are not implemented for provider '.$provider.'.');
         }
 
+        if ($request->hasImageParts() && ! $client->supportsVision()) {
+            throw new AiConfigurationException('vision_not_supported');
+        }
+
         return $client->chat($apiKey, $request);
     }
 
     public function supportsTools(string $provider): bool
     {
         return $this->client($provider)->supportsTools();
+    }
+
+    public function supportsVision(string $provider): bool
+    {
+        return $this->client($provider)->supportsVision();
     }
 
     public function client(string $provider): AiProviderClient

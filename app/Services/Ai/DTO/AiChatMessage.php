@@ -8,6 +8,7 @@ final readonly class AiChatMessage
      * @param  list<ToolCall>  $toolCalls
      * @param  array<string, mixed>|null  $toolResponse
      * @param  list<array<string, mixed>>  $nativeParts
+     * @param  list<AiContentPart>  $contentParts
      */
     public function __construct(
         public string $role,
@@ -17,6 +18,7 @@ final readonly class AiChatMessage
         public ?string $toolName = null,
         public ?array $toolResponse = null,
         public array $nativeParts = [],
+        public array $contentParts = [],
     ) {}
 
     /**
@@ -33,6 +35,37 @@ final readonly class AiChatMessage
     public function isToolMessage(): bool
     {
         return $this->role === 'tool' || $this->toolResponse !== null || $this->toolCalls !== [];
+    }
+
+    public function hasImageParts(): bool
+    {
+        foreach ($this->contentParts as $part) {
+            if ($part instanceof AiContentPart && $part->isImage()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  list<AiContentPart>  $parts
+     */
+    public static function fromContentParts(string $role, array $parts): self
+    {
+        $text = [];
+
+        foreach ($parts as $part) {
+            if ($part instanceof AiContentPart && $part->isText() && filled($part->text)) {
+                $text[] = $part->text;
+            }
+        }
+
+        return new self(
+            role: $role,
+            content: implode("\n", $text),
+            contentParts: $parts,
+        );
     }
 
     /**

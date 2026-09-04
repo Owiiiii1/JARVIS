@@ -22,6 +22,17 @@ final readonly class AiChatRequest
         return $this->tools !== [];
     }
 
+    public function hasImageParts(): bool
+    {
+        foreach ($this->messages as $message) {
+            if ($message->hasImageParts()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function temperature(): ?float
     {
         if (! array_key_exists('temperature', $this->parameters) || $this->parameters['temperature'] === null) {

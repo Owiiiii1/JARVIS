@@ -5,6 +5,7 @@ namespace App\Services\Conversations;
 use App\Enums\MessageRole;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Services\ChatAttachments\ChatAttachmentPresenter;
 
 final class MessageHistoryService
 {
@@ -12,6 +13,7 @@ final class MessageHistoryService
 
     public function __construct(
         private readonly ConversationContextBuilder $contextBuilder,
+        private readonly ChatAttachmentPresenter $attachments,
     ) {}
 
     /**
@@ -22,6 +24,7 @@ final class MessageHistoryService
         $limit = max(1, min(100, $limit));
 
         $query = Message::query()
+            ->with('attachments')
             ->where('conversation_id', $conversation->id)
             ->orderByDesc('occurred_at')
             ->orderByDesc('id');
@@ -107,6 +110,7 @@ final class MessageHistoryService
                         : null,
                 ]
                 : null,
+            'attachments' => $this->attachments->forMessage($message),
             'status' => 'completed',
         ];
     }

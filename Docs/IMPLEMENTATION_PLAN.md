@@ -623,6 +623,22 @@ Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
 ---
 
+## Milestone 22.1 — Multimodal Chat Images + Copyable Artifacts
+
+**Статус.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live vision calls.
+
+**Цель.** Owner Workspace can send PNG/JPEG/WebP with a turn through the existing Conversation Engine, and assistant copy-paste payloads render as distinct Artifact blocks.
+
+**Реализовано.** `message_attachments`; private storage; multipart `images[]`; `AiContentPart`; Gemini current-turn vision; OpenAI/Anthropic `vision_not_supported`; SafeMarkdown code vs artifact.
+
+**Не входит:** Telegram photos; GIF; historical image replay; Cabinet composer; Desktop/Mobile UI; live vision validation.
+
+**Зависимости:** M22, M4.
+
+После M22.1 — M23 Voice Runtime Foundation.
+
+---
+
 ## Milestone 23 — Voice Runtime Foundation
 
 **Цель.** STT/TTS/realtime abstraction. Тот же space, selected `conversation_id`, Conversation Engine, одна memory.

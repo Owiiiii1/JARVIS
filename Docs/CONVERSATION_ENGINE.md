@@ -14,7 +14,7 @@ Channel adapter (или Voice layer) передаёт в Core структуру
 - `modality` (`text` / `voice`) — голос не отдельный ассистент, не отдельный канал-мозг и не новый `conversation_id`;
 - `external_identity` (telegram user id, app user id, …);
 - `conversation_id` или hint: Telegram → `channel_identities.active_conversation_id`; Cabinet / Workspace / apps → открытый chat; тот же id на всех клиентах;
-- `payload` (текст; медиа — refs, `TBD`);
+- `payload` (текст и/или current-turn image attachments; медиа refs в `message_attachments`);
 - `occurred_at`;
 - `channel_message_id` для идемпотентности.
 
@@ -87,6 +87,10 @@ normalize
 - send to channel.
 
 Sync retrieve: current recent + summaries + compact memory. Тяжёлый raw-on-demand и group hierarchical analysis — tool/job, не обязательный sync dump.
+
+Web Workspace may send multipart images with the user turn. Empty body is allowed when at least one image is present. Image files are **not** personal memory. Telegram photo ingestion is not in M22.1; the same `message_attachments` rows can be created later.
+
+Vision context: current inbound image bytes only. Historical attachments become a short text placeholder, not replayed pixels. ADR-118.
 
 ---
 

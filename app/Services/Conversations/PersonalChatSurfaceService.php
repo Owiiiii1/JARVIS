@@ -5,8 +5,12 @@ namespace App\Services\Conversations;
 use App\Enums\MessageChannel;
 use App\Models\Conversation;
 use App\Models\User;
+use App\Services\ChatAttachments\Exceptions\ChatAttachmentException;
 use App\Services\Tools\ToolConfirmationService;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 
 final class PersonalChatSurfaceService
 {
@@ -79,10 +83,16 @@ final class PersonalChatSurfaceService
     }
 
     /**
+     * @param  list<UploadedFile>  $files
      * @return array<string, mixed>
      */
-    public function sendTurn(User $user, Conversation $conversation, string $body, string $clientMessageId): array
-    {
+    public function sendTurn(
+        User $user,
+        Conversation $conversation,
+        string $body,
+        string $clientMessageId,
+        array $files = [],
+    ): array {
         try {
             $turn = $this->turns->handleUserMessage(
                 $user,
@@ -92,9 +102,18 @@ final class PersonalChatSurfaceService
                     channel: MessageChannel::Web,
                     channelMessageId: $clientMessageId,
                 ),
+                $files,
             );
         } catch (AuthorizationException) {
             abort(404);
+        } catch (ChatAttachmentException $exception) {
+            throw ValidationException::withMessages([
+                'images' => $exception->getMessage(),
+            ]);
+        } catch (InvalidArgumentException $exception) {
+            throw ValidationException::withMessages([
+                'body' => $exception->getMessage(),
+            ]);
         }
 
         return $this->turnPayload($turn, $conversation);

@@ -19,6 +19,7 @@ use App\Services\Ai\DTO\AiChatResponse;
 use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\DTO\ToolResult;
 use App\Services\Ai\Exceptions\AiConfigurationException;
+use App\Services\ChatAttachments\Exceptions\ChatAttachmentException;
 use App\Services\Memory\MemoryTurnDispatcher;
 use App\Services\Tools\ConfirmationIntentParser;
 use App\Services\Tools\CreateReminderTool;
@@ -33,6 +34,8 @@ final class ConversationAiService
     public const PAIRING_GREETING_EVENT = 'Пользователь только что подключил Jarvis. Поприветствуй его и коротко представься.';
 
     public const AI_FAILURE = 'Не удалось получить ответ от AI. Попробуйте ещё раз позже.';
+
+    public const VISION_NOT_SUPPORTED = 'Этот AI-провайдер не принимает изображения. Смените модель в Admin или отправьте текст.';
 
     public const MAX_TOOL_ROUNDS = 5;
 
@@ -122,6 +125,14 @@ final class ConversationAiService
 
         try {
             $this->assertReady($configuration);
+
+            if ($inbound !== null) {
+                $inbound->loadMissing('attachments');
+            }
+
+            if ($this->inboundHasImages($inbound) && ! $this->gateway->supportsVision($configuration)) {
+                return $this->completeWithoutVision($conversation, $inbound, $configuration, $startedAt, $eventName);
+            }
 
             $intent = $this->confirmationIntent->parse($inbound?->body);
             $toolContext = new ToolExecutionContext(
@@ -240,6 +251,12 @@ final class ConversationAiService
             }
 
             $errorText = self::AI_FAILURE;
+
+            if ($exception instanceof ChatAttachmentException) {
+                $errorText = $exception->getMessage();
+            } elseif ($exception instanceof AiConfigurationException && $exception->getMessage() === 'vision_not_supported') {
+                $errorText = self::VISION_NOT_SUPPORTED;
+            }
 
             $this->messages->persistSystem(new PersistMessageData(
                 conversation: $conversation,
@@ -393,6 +410,57 @@ final class ConversationAiService
         }
 
         return null;
+    }
+
+    private function inboundHasImages(?Message $inbound): bool
+    {
+        if ($inbound === null) {
+            return false;
+        }
+
+        $inbound->loadMissing('attachments');
+
+        foreach ($inbound->attachments as $attachment) {
+            if ($attachment->isImage()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function completeWithoutVision(
+        Conversation $conversation,
+        Message $inbound,
+        AiRoleSetting $configuration,
+        float $startedAt,
+        ?string $eventName,
+    ): ConversationAiTurnResult {
+        $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
+
+        $assistant = $this->messages->persistOutbound(new PersistMessageData(
+            conversation: $conversation,
+            role: MessageRole::Assistant,
+            channel: $inbound->channel ?? MessageChannel::Telegram,
+            messageType: MessageType::Text,
+            body: self::VISION_NOT_SUPPORTED,
+            parentMessageId: $inbound->id,
+            occurredAt: now(),
+            metadata: [
+                'ai' => [
+                    'configuration' => $configuration->roleKey()->value,
+                    'provider' => $configuration->provider,
+                    'model' => $configuration->model,
+                    'latency_ms' => $latencyMs,
+                    'event' => $eventName,
+                    'error' => 'vision_not_supported',
+                ],
+            ],
+        ))->message;
+
+        $this->markInbound($inbound, 'completed');
+
+        return new ConversationAiTurnResult(assistantMessage: $assistant);
     }
 
     private function assertReady(AiRoleSetting $configuration): void

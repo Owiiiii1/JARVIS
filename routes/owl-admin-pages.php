@@ -3,6 +3,7 @@
 use App\Http\Controllers\CabinetChatController;
 use App\Http\Controllers\CabinetController;
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\Jarvis\JarvisAttachmentController;
 use App\Http\Controllers\Jarvis\JarvisConfirmationController;
 use App\Http\Controllers\Jarvis\JarvisWorkspaceController;
 use App\Http\Controllers\ProfileController;
@@ -55,6 +56,8 @@ Route::middleware(['web', 'auth', 'user.active', 'owner.workspace'])->group(func
     Route::patch('/jarvis/chats/{conversation}', [JarvisWorkspaceController::class, 'update'])->name('jarvis.chats.update');
     Route::post('/jarvis/chats/{conversation}/messages', [JarvisWorkspaceController::class, 'storeMessage'])->name('jarvis.messages.store');
     Route::get('/jarvis/chats/{conversation}/messages/older', [JarvisWorkspaceController::class, 'olderMessages'])->name('jarvis.messages.older');
+    Route::get('/jarvis/chats/{conversation}/attachments/{attachment}/preview', [JarvisAttachmentController::class, 'preview'])->name('jarvis.attachments.preview');
+    Route::get('/jarvis/chats/{conversation}/attachments/{attachment}', [JarvisAttachmentController::class, 'show'])->name('jarvis.attachments.show');
     Route::post('/jarvis/confirmations/{confirmation}/confirm', [JarvisConfirmationController::class, 'confirm'])->name('jarvis.confirmations.confirm');
     Route::post('/jarvis/confirmations/{confirmation}/cancel', [JarvisConfirmationController::class, 'cancel'])->name('jarvis.confirmations.cancel');
     Route::patch('/jarvis/settings/general-prompt', [JarvisWorkspaceController::class, 'updateGeneralPrompt'])->name('jarvis.settings.prompt.update');

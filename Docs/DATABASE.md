@@ -107,6 +107,24 @@ Raw history. Закладывается в Phase 1 и **не ломается** 
 
 Никогда не удаляются автоматически из-за summary/memory. Group raw — до и после анализа. ADR-014.
 
+### message_attachments
+
+Core attachment entity (M22.1). Generic `kind` (images first: `image`; later files/audio). **No raw bytes in DB.**
+
+- `message_id` → `messages`
+- `user_id` (owner of the conversation)
+- `kind`
+- `storage_disk` / `storage_path` (private disk, random filename)
+- `original_name` sanitized nullable
+- `mime_type`, `size_bytes`, `width`/`height` nullable
+- `sha256` optional
+- `metadata` JSON bounded (thumbnail path)
+- timestamps
+
+Access only via authenticated ownership routes. Not the public disk. Retention TBD.
+
+Telegram photos later can insert the same rows. Desktop/Mobile reuse the same table.
+
 ### channels (справочник или enum)
 
 Тип канала как сущность или enum в identities/messages. Отдельная таблица нужна только если появятся per-channel настройки уровня «канал включён» сверх telegram settings. `TBD`.
