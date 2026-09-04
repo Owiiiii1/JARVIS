@@ -1,6 +1,12 @@
 # Jarvis Storage and ephemeral chat media
 
-**Status.** IMPLEMENTED / NOT VALIDATED (M22.2, 2026-09-04). Automated tests and live vision/AI calls deferred by Owner.
+**Status.** PARTIAL MANUAL PASS (M22.2, 2026-09-04). Automated tests not run.
+
+- Text file upload: **MANUAL PASS**
+- Storage persistence / read / retrieval: **MANUAL PASS**
+- Storage UI основные операции: IMPLEMENTED / NOT VALIDATED
+- screenshot summarization / purge: IMPLEMENTED / NOT VALIDATED
+- destructive delete confirmation: IMPLEMENTED / NOT VALIDATED
 
 This document is the product and implementation source for:
 
@@ -10,6 +16,14 @@ This document is the product and implementation source for:
 - Storage tools.
 
 See also [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md), [DATABASE.md](DATABASE.md).
+
+---
+
+## Manual production validation — 2026-09-04
+
+**PASS:** persistent text-file upload from Workspace; Jarvis read the file and retrieved it after upload.
+
+Not Owner-checked: `/jarvis/storage` library rename/download/delete, screenshot summarization, 24h/7d purge, destructive `delete_storage_file` confirmation.
 
 ---
 
@@ -228,4 +242,6 @@ Touch/mobile: do not force the software keyboard after a turn.
 - ContextBudgetManager (done in M22.3; Storage still never auto-dumps files)
 - User-role Storage
 - Telegram document/photo ingestion
-- Automated tests / live vision validation
+- Automated tests
+- screenshot summarization/purge (still NOT VALIDATED)
+- Storage library UI and destructive delete confirmation (still NOT VALIDATED)

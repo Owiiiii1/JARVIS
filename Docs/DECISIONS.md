@@ -1558,6 +1558,16 @@
 
 ---
 
+## ADR-160 — Owner manual production validation (vision, Storage, Gemini web search)
+
+**Контекст.** M22.1–M22.3.1 shipped as implemented / not validated. Automated tests were not run. Owner later used production Workspace and confirmed specific functions.
+
+**Решение.** Record **MANUAL PASS** only for: Workspace image upload; Gemini vision recognition; persistent text-file upload; persistent Storage retrieval/read; Gemini Google Search web research (current information). Admin Gemini Google Search configuration is PASS only insofar as that working search path required it. Do not mark whole milestones validated. Do not mark `fetch_web_page`, Tavily, SSRF, ContextBudgetManager, screenshot purge/summarization, Storage library UI, destructive delete, artifact copy, Google Calendar/Gmail combined smoke, or GitHub runtime as PASS.
+
+**Следствие.** Automated tests remain not run. Status vocabulary includes MANUAL PASS vs IMPLEMENTED / NOT VALIDATED.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Алфавит generated access_code (кроме зарезервированного 2000).

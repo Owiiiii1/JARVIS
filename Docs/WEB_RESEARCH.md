@@ -1,12 +1,28 @@
 # Web Research
 
-**Status.** IMPLEMENTED / NOT VALIDATED (M22.3 + M22.3.1, 2026-09-04). Automated tests, live search, live page fetch, and live AI conversation are deferred by Owner.
+**Status.** PARTIAL MANUAL PASS (M22.3 + M22.3.1, 2026-09-04). Automated tests not run.
+
+- Web Search via Gemini Google Search: **MANUAL PASS**
+- actual current-information retrieval: **MANUAL PASS**
+- M22.3.1 Admin Gemini Google Search configuration (working path): **MANUAL PASS**
+- `fetch_web_page`: IMPLEMENTED / NOT VALIDATED
+- ContextBudgetManager: IMPLEMENTED / NOT VALIDATED
+- SSRF protections: IMPLEMENTED / NOT VALIDATED
+- Tavily search and Tavily Admin configuration: IMPLEMENTED / NOT VALIDATED
 
 Owner-only tools so Jarvis can search the public web, read a few selected pages, synthesize an answer, and cite real URLs. Web Research is a Tool Layer / Integration-like provider abstraction. Controllers and models do not call search APIs. Conversation Engine does not know the vendor.
 
 Settings are **Admin infrastructure**, not a `/jarvis` Workspace preference. Admin: **Settings → Integrations → Web Research** subsection (`?tab=integrations&section=web-research`).
 
 See [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md), [INTEGRATIONS.md](INTEGRATIONS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [DATABASE.md](DATABASE.md).
+
+---
+
+## Manual production validation — 2026-09-04
+
+**PASS:** Gemini Google Search web research; Jarvis retrieved current public-web information in Owner Workspace.
+
+Not declared PASS: `fetch_web_page` (Owner search success does not prove that tool ran), Tavily, SSRF, ContextBudgetManager, Tavily Admin configuration.
 
 ---
 

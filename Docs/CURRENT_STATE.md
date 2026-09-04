@@ -9,7 +9,7 @@ This document describes **what exists on the server now**. Target architecture i
 
 ### Implemented vs planned (post-M22)
 
-**IMPLEMENTED (code/runtime, Google/GitHub/Workspace/vision/web not live-validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Owner Personal Workspace (`/jarvis`) including M22.1 image attachments + copyable artifacts, M22.2 persistent Storage + ephemeral screenshots, and M22.3 Web Research + Context Budget Manager + M22.3.1 Admin Web Research settings; Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, Workspace conversational validation, live vision, and live web search/fetch are deferred by Owner.
+**IMPLEMENTED (code/runtime; Google Calendar/Gmail combined smoke and GitHub live integration still not validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Owner Personal Workspace (`/jarvis`) including M22.1 image attachments + copyable artifacts, M22.2 persistent Storage + ephemeral screenshots, and M22.3 Web Research + Context Budget Manager + M22.3.1 Admin Web Research settings; Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, reminders/groups deferred checks, `fetch_web_page`, Tavily, screenshot purge, and ContextBudgetManager remain not Owner-validated. Automated tests have not been run.
 
 **PLANNED / DOCUMENTED ONLY (not implemented):** versioned Client API; realtime Voice Runtime; Orb Voice UI; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch. Do not treat these as shipped.
 
@@ -18,11 +18,29 @@ Status vocabulary:
 | Status | Meaning |
 | --- | --- |
 | IMPLEMENTED | Works in production code/runtime |
+| MANUAL PASS | Owner confirmed the function in production (not automated tests) |
 | PARTIAL | Present, incomplete vs target |
 | PLACEHOLDER | UI/route exists, no real domain logic |
 | DOCUMENTED ONLY | In `Docs/` only; no tables/code |
 | UNUSED / LEGACY | Code or tables exist, not used by Jarvis product |
 | UNKNOWN | Not verified |
+| IMPLEMENTED / NOT VALIDATED | Code exists; Owner has not confirmed this specific function |
+
+---
+
+## Manual production validation — 2026-09-04
+
+Owner-only production confirmation. No automated tests. No new live test runs in this documentation pass.
+
+**PASS:**
+
+- Owner Workspace image upload
+- Gemini vision recognition
+- persistent text-file upload
+- persistent Storage retrieval/read
+- Gemini Google Search web research (current-information retrieval)
+
+**Not included (Owner did not confirm):** `fetch_web_page` as a distinct tool, Tavily, ContextBudgetManager, SSRF, screenshot expiry/purge, screenshot summarization, Storage UI besides chat upload/read, destructive Storage delete, artifact rendering as a separate check, Google Calendar/Gmail combined smoke, GitHub runtime, reminders/groups deferred checks.
 
 ---
 
@@ -31,9 +49,9 @@ Status vocabulary:
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | (see latest `feat: add configurable web research providers`) |
-| Previous origin/main | `bd1e1a994135200d0f813e9c2367a9bbbe7ef811` |
-| Message | `feat: add configurable web research providers` |
+| HEAD | (see latest `docs: record manual validation of web vision and storage`) |
+| Previous origin/main | `14687d62dd7d29605f960f5daff27b5aae6313b1` |
+| Message | `docs: record manual validation of web vision and storage` |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 | Working tree (at audit start) | clean |
 | Uncommitted / untracked | none (before this file) |
@@ -720,27 +738,45 @@ Owner GitHub OAuth App + tools over live GitHub API (no local repo mirror, no sh
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
-### Milestone 22 — Owner Web Workspace — IMPLEMENTED, NOT VALIDATED (2026-09-04)
+### Milestone 22 — Owner Web Workspace — IMPLEMENTED / PARTIAL MANUAL PASS (2026-09-04)
 
-Owner Personal Workspace at `/jarvis`. Owner-only. Same `conversations`/`messages` and `ConversationTurnService` as Telegram/Cabinet. Channel remains `web`. Owner login → `/jarvis`. Owner `/cabinet` → `/jarvis`. Admin stays `/dashboard` with Open Jarvis. Voice Mode is a CSS placeholder only. No new tables. Automated tests not run. No live AI/Google/GitHub send.
-
-See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
-
-### Milestone 22.1 — Workspace images + copyable artifacts — IMPLEMENTED, NOT VALIDATED (2026-09-04)
-
-Private `message_attachments` (generic kind, images first). Multipart send on Workspace through existing `ConversationTurnService`. Provider-neutral `AiContentPart`; Gemini `supportsVision=true` with current-turn inline images only. OpenAI/Anthropic return `vision_not_supported`. SafeMarkdown distinguishes fenced code vs `artifact` copy blocks. No Telegram photo ingestion. No live vision calls. Automated tests not run.
+Owner Personal Workspace at `/jarvis`. Owner-only. Same `conversations`/`messages` and `ConversationTurnService` as Telegram/Cabinet. Channel remains `web`. Owner login → `/jarvis`. Owner `/cabinet` → `/jarvis`. Admin stays `/dashboard` with Open Jarvis. Voice Mode is a CSS placeholder only. No new tables. Automated tests not run. Workspace as a whole is not fully validated; see M22.1–M22.3 granular PASS below. Google/GitHub send still not Owner-validated.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
-### Milestone 22.2 — Persistent Storage + ephemeral screenshots — IMPLEMENTED, NOT VALIDATED (2026-09-04)
+### Milestone 22.1 — Workspace images + copyable artifacts — PARTIAL MANUAL PASS (2026-09-04)
 
-Attachment lifecycle + 24h/7d purge; derived screenshot summaries; `stored_files` / chunks / chat pivot; `/jarvis/storage`; Storage tools. No live vision/AI. Automated tests not run.
+- Image upload (Workspace): **MANUAL PASS**
+- Gemini vision recognition: **MANUAL PASS**
+- screenshot expiry/purge lifecycle: IMPLEMENTED / NOT VALIDATED
+- artifact rendering: IMPLEMENTED / NOT VALIDATED (not separately Owner-checked)
+
+Private `message_attachments` (generic kind, images first). Multipart send on Workspace through existing `ConversationTurnService`. Provider-neutral `AiContentPart`; Gemini `supportsVision=true` with current-turn inline images only. OpenAI/Anthropic return `vision_not_supported`. SafeMarkdown distinguishes fenced code vs `artifact` copy blocks. No Telegram photo ingestion. Automated tests not run.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 22.2 — Persistent Storage + ephemeral screenshots — PARTIAL MANUAL PASS (2026-09-04)
+
+- Text file upload: **MANUAL PASS**
+- Storage persistence / read / retrieval: **MANUAL PASS**
+- Storage UI основные операции (library rename/download/delete UI): IMPLEMENTED / NOT VALIDATED
+- screenshot summarization / purge: IMPLEMENTED / NOT VALIDATED
+- destructive delete confirmation: IMPLEMENTED / NOT VALIDATED
+
+Attachment lifecycle + 24h/7d purge; derived screenshot summaries; `stored_files` / chunks / chat pivot; `/jarvis/storage`; Storage tools. Automated tests not run.
 
 See [STORAGE.md](STORAGE.md), [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
-### Milestone 22.3 — Web Research + Context Budget Manager — IMPLEMENTED, NOT VALIDATED (2026-09-04)
+### Milestone 22.3 — Web Research + Context Budget Manager — PARTIAL MANUAL PASS (2026-09-04)
 
-Owner `search_web` / `fetch_web_page` behind `WebSearchManager` → `WebSearchProvider` (`gemini_google` / `tavily` / `disabled`) and SSRF-guarded fetch. M22.3.1: Admin Settings → Integrations → Web Research (`web_research_settings`, `WebResearchSettingsService`). `gemini_google` reuses existing Gemini credentials for Google Search grounding (discovery only). Tavily key encrypted separately with env fallback. No web content tables. `ContextBudgetManager` + per-model policy + conservative `TokenEstimator` + global ToolResult budget + incremental summary refresh. No live web/AI. Automated tests not run.
+- Web Search via Gemini Google Search: **MANUAL PASS**
+- actual current-information retrieval: **MANUAL PASS**
+- `fetch_web_page`: IMPLEMENTED / NOT VALIDATED (Owner search PASS does not prove this tool ran)
+- ContextBudgetManager: IMPLEMENTED / NOT VALIDATED
+- SSRF protections: IMPLEMENTED / NOT VALIDATED
+- Tavily: IMPLEMENTED / NOT VALIDATED
+
+Owner `search_web` / `fetch_web_page` behind `WebSearchManager` → `WebSearchProvider` (`gemini_google` / `tavily` / `disabled`) and SSRF-guarded fetch. M22.3.1: Admin Settings → Integrations → Web Research (`web_research_settings`, `WebResearchSettingsService`). Gemini Google Search Admin configuration used in production: **MANUAL PASS** for the working Gemini path only. Tavily configuration: NOT VALIDATED. `gemini_google` reuses existing Gemini credentials for Google Search grounding (discovery only). No web content tables. Automated tests not run.
 
 See [WEB_RESEARCH.md](WEB_RESEARCH.md), [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md), [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 

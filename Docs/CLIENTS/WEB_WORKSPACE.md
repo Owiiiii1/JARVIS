@@ -1,6 +1,6 @@
 # Owner Web Workspace
 
-**Status.** IMPLEMENTED / NOT VALIDATED (M22 + M22.1 + M22.2 + M22.3). Voice runtime is still planned.
+**Status.** IMPLEMENTED / PARTIAL MANUAL PASS (M22 + M22.1 + M22.2 + M22.3). Voice runtime is still planned. Owner production confirmation 2026-09-04 covers image upload, Gemini vision, text Storage upload/read, and Gemini Google Search only — not the whole Workspace milestone.
 
 Owner-facing Personal Workspace. This is **not** the Admin Panel and **not** the User Cabinet (`/cabinet`).
 
@@ -17,6 +17,22 @@ Workspace is part of `Owiiiii1/JARVIS`: Laravel + Inertia/React, one deployment 
 | User Cabinet | `/cabinet` | `role=user` space |
 
 Owner default landing after ordinary login is `/jarvis`. Admin remains one click from Workspace (`Admin`) and has a reciprocal **Open Jarvis**.
+
+---
+
+## Manual production validation — 2026-09-04
+
+Owner confirmed in production (automated tests not run):
+
+**PASS:**
+
+- Owner Workspace image upload
+- Gemini vision recognition
+- persistent text-file upload
+- persistent Storage retrieval/read
+- Gemini Google Search web research
+
+Not Owner-checked here: screenshot expiry/purge, artifact copy as a separate UX check, Storage library rename/download/delete, `fetch_web_page`, Tavily, ContextBudgetManager, Google Calendar/Gmail combined smoke, GitHub runtime.
 
 ---
 

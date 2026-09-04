@@ -617,7 +617,7 @@ Plan: [INTEGRATIONS.md](INTEGRATIONS.md), [Development/Cursor_Work_Report.md](De
 
 Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
-**Status.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live AI/Google/GitHub send. Voice runtime not included.
+**Status.** IMPLEMENTED / PARTIAL MANUAL PASS (2026-09-04). Automated tests not run. No live AI/Google/GitHub send. Voice runtime not included. Owner later confirmed specific Workspace image/Storage/web-search functions; the Workspace milestone as a whole is not fully validated.
 
 **Зависимости:** M4, M8, M19; желателен M20 smoke.
 
@@ -625,13 +625,18 @@ Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
 ## Milestone 22.1 — Multimodal Chat Images + Copyable Artifacts
 
-**Статус.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live vision calls.
+**Статус.** PARTIAL MANUAL PASS (2026-09-04). Automated tests not run.
+
+- Image upload: **MANUAL PASS**
+- Vision recognition (Gemini, Workspace): **MANUAL PASS**
+- screenshot expiry/purge lifecycle: IMPLEMENTED / NOT VALIDATED
+- artifact rendering: IMPLEMENTED / NOT VALIDATED (not separately Owner-checked)
 
 **Цель.** Owner Workspace can send PNG/JPEG/WebP with a turn through the existing Conversation Engine, and assistant copy-paste payloads render as distinct Artifact blocks.
 
 **Реализовано.** `message_attachments`; private storage; multipart `images[]`; `AiContentPart`; Gemini current-turn vision; OpenAI/Anthropic `vision_not_supported`; SafeMarkdown code vs artifact.
 
-**Не входит:** Telegram photos; GIF; historical image replay; Cabinet composer; Desktop/Mobile UI; live vision validation.
+**Не входит:** Telegram photos; GIF; historical image replay; Cabinet composer; Desktop/Mobile UI. Artifact copy UX was not a separate Owner check.
 
 **Зависимости:** M22, M4.
 
@@ -641,13 +646,19 @@ Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
 ## Milestone 22.2 — Persistent Storage + Ephemeral Screenshots + Workspace UX
 
-**Статус.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live vision / AI / Google / GitHub.
+**Статус.** PARTIAL MANUAL PASS (2026-09-04). Automated tests not run.
+
+- Text file upload: **MANUAL PASS**
+- Storage persistence/read/retrieval: **MANUAL PASS**
+- Storage UI основные операции: IMPLEMENTED / NOT VALIDATED
+- screenshot summarization/purge: IMPLEMENTED / NOT VALIDATED
+- destructive delete confirmation: IMPLEMENTED / NOT VALIDATED
 
 **Цель.** Screenshots remain current-turn + short-lived media with a derived visual summary; owner gets a permanent textual Storage library with chunked retrieval tools; desktop composer keeps focus.
 
 **Реализовано.** Attachment lifecycle columns; 24h/7d retention; `AttachmentVisionSummaryService`; `jarvis:attachments:purge-ephemeral`; `stored_files` + chunks + pivot; `/jarvis/storage`; chat `files[]`; Storage tools; composer focus helper. See [STORAGE.md](STORAGE.md).
 
-**Не входит:** PDF/Office; screenshot library; ContextBudgetManager; user-role Storage; tests/live vision.
+**Не входит:** PDF/Office; screenshot library; ContextBudgetManager; user-role Storage. Screenshot lifecycle and Storage library UI were not Owner-validated.
 
 **Зависимости:** M22.1.
 
@@ -657,13 +668,22 @@ Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
 ## Milestone 22.3 — Web Research + Context Budget Manager
 
-**Статус.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live web search, live page fetch, or live AI.
+**Статус.** PARTIAL MANUAL PASS (2026-09-04). Automated tests not run.
+
+- Web Search via Gemini Google Search: **MANUAL PASS**
+- actual current-information retrieval: **MANUAL PASS**
+- `fetch_web_page`: IMPLEMENTED / NOT VALIDATED
+- ContextBudgetManager: IMPLEMENTED / NOT VALIDATED
+- SSRF protections: IMPLEMENTED / NOT VALIDATED
+- Tavily: IMPLEMENTED / NOT VALIDATED
+- M22.3.1 Admin Gemini Google Search configuration (working path): **MANUAL PASS**
+- M22.3.1 Tavily configuration: NOT VALIDATED
 
 **Цель.** Owner web research tools (search then selective fetch) plus a global Context Budget Manager so one LLM request stays bounded regardless of DB size.
 
 **Реализовано.** `WebSearchProvider` (`gemini_google` / `tavily` / `disabled`) + `WebPageFetchService` / SSRF guard; `search_web` / `fetch_web_page`; capability `web_research`; Admin Web Research settings (`web_research_settings` + `WebResearchSettingsService`); `ContextBudgetManager`, `AiModelContextPolicy`, `TokenEstimator`, `ToolResultBudgetManager`; budget-aware incremental summaries. See [WEB_RESEARCH.md](WEB_RESEARCH.md), [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md).
 
-**Не входит:** live provider validation; PDF fetch; browser automation; web content DB; user-role web tools; Test Connection; tests.
+**Не входит:** proving `fetch_web_page` ran in the Owner scenario; PDF fetch; browser automation; web content DB; user-role web tools; Test Connection; Tavily live search; tests.
 
 **Зависимости:** M22.2, M4.
 

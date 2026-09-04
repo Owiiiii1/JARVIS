@@ -84,7 +84,9 @@ Every tool execute goes through `ToolExecutionService`. Conversation Engine does
 
 Model context windows are resolved by `AiModelContextPolicy` (`config/ai_model_context.php`). Unknown models use a conservative default. `TokenEstimator` overestimates input tokens; `ContextBudgetManager` trims until estimated input fits the computed input budget.
 
-**Gemini (production):** function calling обязателен — `tools.functionDeclarations`, `functionCall`, `functionResponse` обратно модели, затем natural-language answer. Conversation Engine не парсит Gemini JSON в ReminderService. `supportsVision=true`. Current-turn images become Gemini `inlineData` only inside `GeminiClient`. Attachment visual summaries use the same gateway + Owner Conversation config (vision-capable); they do not hardcode Gemini HTTP and do not change the Owner Analysis AI role.
+**Gemini (production):** function calling обязателен — `tools.functionDeclarations`, `functionCall`, `functionResponse` обратно модели, затем natural-language answer. Conversation Engine не парсит Gemini JSON в ReminderService. `supportsVision=true`. Current-turn images become Gemini `inlineData` only inside `GeminiClient`. Owner 2026-09-04 **MANUAL PASS**: Workspace image upload and Gemini vision recognition. Attachment visual summaries (screenshot expiry path) remain IMPLEMENTED / NOT VALIDATED. They use the same gateway + Owner Conversation config (vision-capable); they do not hardcode Gemini HTTP and do not change the Owner Analysis AI role.
+
+Gemini Google Search grounding is a `WebSearchProvider` (`gemini_google`), not Conversation Engine `chat()`. Owner 2026-09-04 **MANUAL PASS** for live search / current-information retrieval. `fetch_web_page` and Tavily remain NOT VALIDATED. See [WEB_RESEARCH.md](WEB_RESEARCH.md).
 
 **OpenAI / Anthropic:** chat без tools. `supportsTools=false`. `supportsVision=false` in M22.1 — image turns return safe `vision_not_supported`. Do not silently drop images. Do not fake vision.
 
