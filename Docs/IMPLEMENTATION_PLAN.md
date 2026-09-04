@@ -719,6 +719,20 @@ Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
 ---
 
+## Milestone 25U.1 — Shared Personal Workspace + Full User Chat
+
+**Status.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live AI / Web Search / Voice.
+
+**Цель.** Owner and User share one Personal Workspace. User `/chat` gets full chat (images, files, voice, web research, memory, General Prompt). No second engine. No Cabinet product fork.
+
+**Реализовано.** Shared `PersonalWorkspace` frontend; `/chat` + `/jarvis` aliases; `/cabinet` redirects; default user capabilities include `web_research`, `voice`, `storage` (read tools); `delete_storage_file` owner-only; same Orb/VoiceRuntime.
+
+**Не реализовывать в M25U.1.** User Administration lifecycle (M25U.2). Storage page for users. Projects/integrations for users. Self-registration. Live provider validation. `php artisan test`.
+
+**Зависимости:** M8, M22, M23, M24.
+
+---
+
 ## Milestone 25 — Desktop Client Foundation
 
 **Цель.** Tauri 2 + React/TS client in `Owiiiii1/JARVIS-Desktop`. Thin client, Client API, same conversations.

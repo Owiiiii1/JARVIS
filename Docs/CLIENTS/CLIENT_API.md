@@ -4,7 +4,7 @@
 
 Telegram, Web Workspace, Desktop, and Mobile are adapters/clients. None of them implement Core locally.
 
-Cabinet today talks to Laravel in-process (Inertia + session). That is an implementation detail, not a second engine. Desktop/Mobile require a versioned HTTP/realtime API. Workspace may keep same-origin session first and still obey this contract.
+Web Personal Workspace today talks to Laravel in-process (Inertia + session). That is an implementation detail, not a second engine. Desktop/Mobile require a versioned HTTP/realtime API. Workspace may keep same-origin session first and still obey this contract.
 
 Canonical protocol lives in `Owiiiii1/JARVIS`. Client repos keep a reference only.
 
@@ -91,7 +91,7 @@ Safe codes only. No provider raw bodies, tokens, email dumps, or fetched web pag
 | Client | Today | Target |
 | --- | --- | --- |
 | Telegram | in-process adapter | stays adapter |
-| User Cabinet | Inertia session | stays User Space web |
+| User Personal Workspace | Inertia session `/chat` | stays User Space web (`/cabinet` redirect) |
 | Owner Admin | Inertia session | stays technical admin |
-| Owner Workspace | Inertia session `/jarvis` (M22) | Inertia now; Client API later for native clients |
+| Owner Workspace | Inertia session `/jarvis` | Inertia now; Client API later for native clients |
 | Desktop / Mobile | not built | Client API only |

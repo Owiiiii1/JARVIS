@@ -26,15 +26,17 @@ export default function JarvisWorkspaceLayout({ title, header, sidebar, context,
 
                     <main className="flex min-w-0 min-h-0 flex-1 flex-col">{children}</main>
 
-                    <aside
-                        className={`hidden min-h-0 w-[min(22rem,28vw)] shrink-0 border-l border-white/10 bg-black/15 xl:flex xl:flex-col ${
-                            contextCollapsed ? 'xl:hidden' : ''
-                        }`}
-                    >
-                        {context}
-                    </aside>
+                    {context ? (
+                        <aside
+                            className={`hidden min-h-0 w-[min(22rem,28vw)] shrink-0 border-l border-white/10 bg-black/15 xl:flex xl:flex-col ${
+                                contextCollapsed ? 'xl:hidden' : ''
+                            }`}
+                        >
+                            {context}
+                        </aside>
+                    ) : null}
 
-                    {contextDrawer ? (
+                    {context && contextDrawer ? (
                         <div className="absolute inset-0 z-30 flex justify-end xl:hidden">
                             <div className="min-h-0 flex-1 bg-black/50" data-context-backdrop="true" />
                             <div className="flex h-full w-[min(22rem,90vw)] flex-col border-l border-white/10 bg-[#0b1220] shadow-2xl">

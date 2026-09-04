@@ -10,9 +10,11 @@
 - SSRF protections: IMPLEMENTED / NOT VALIDATED
 - Tavily search and Tavily Admin configuration: IMPLEMENTED / NOT VALIDATED
 
-Owner-only tools so Jarvis can search the public web, read a few selected pages, synthesize an answer, and cite real URLs. Web Research is a Tool Layer / Integration-like provider abstraction. Controllers and models do not call search APIs. Conversation Engine does not know the vendor.
+Owner and ordinary users with capability `web_research` use the **same instance-level** Web Research provider (Admin → Web Research). Users do not choose provider, enter API keys, or see limits/settings.
 
-Settings are **Admin infrastructure**, not a `/jarvis` Workspace preference. Admin: **Settings → Integrations → Web Research** subsection (`?tab=integrations&section=web-research`).
+User default capability set includes `web_research`, so Tool Registry exposes `search_web` and `fetch_web_page` (not owner tools). SSRF, budgets, and TurnBudgetTracker are unchanged.
+
+Settings remain **Admin infrastructure**, not a Workspace preference. Admin: **Settings → Integrations → Web Research** subsection (`?tab=integrations&section=web-research`).
 
 See [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md), [INTEGRATIONS.md](INTEGRATIONS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [DATABASE.md](DATABASE.md).
 

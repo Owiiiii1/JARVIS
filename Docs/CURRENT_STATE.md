@@ -9,7 +9,7 @@ This document describes **what exists on the server now**. Target architecture i
 
 ### Implemented vs planned (post-M22)
 
-**IMPLEMENTED (code/runtime; Google Calendar/Gmail combined smoke and GitHub live integration still not validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Owner Personal Workspace (`/jarvis`) including M22.1 image attachments + copyable artifacts, M22.2 persistent Storage + ephemeral screenshots, and M22.3 Web Research + Context Budget Manager + M22.3.1 Admin Web Research settings; Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, reminders/groups deferred checks, `fetch_web_page`, Tavily, screenshot purge, and ContextBudgetManager remain not Owner-validated. Automated tests have not been run.
+**IMPLEMENTED (code/runtime; Google Calendar/Gmail combined smoke and GitHub live integration still not validated):** Admin Panel; Telegram pairing/DM/Chat Selector; Shared Personal Workspace (`/jarvis` owner, `/chat` user; `/cabinet` redirect); Owner Workspace including M22.1 image attachments + copyable artifacts, M22.2 persistent Storage + ephemeral screenshots, and M22.3 Web Research + Context Budget Manager + M22.3.1 Admin Web Research settings; Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, reminders/groups deferred checks, `fetch_web_page`, Tavily, screenshot purge, and ContextBudgetManager remain not Owner-validated. Automated tests have not been run.
 
 **PLANNED / DOCUMENTED ONLY (not implemented):** versioned Client API; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch; telephony. Do not treat these as shipped.
 
@@ -361,10 +361,11 @@ No `app/Services` conversation classes. No controllers for chats.
 | Users list (admin settings tab) | PARTIAL | name, email, created_at; CRUD |
 | User Card | DOCUMENTED ONLY | |
 | User profile (cabinet) | DOCUMENTED ONLY | Admin `/profile` is self-edit for the logged-in admin |
-| User General Prompt | IMPLEMENTED | Owner: Profile; User: `/cabinet/ai-settings`. Self-only |
+| User General Prompt | IMPLEMENTED | Workspace settings drawer; `user_ai_settings`. Self-only |
 | User AI override | DOCUMENTED ONLY | No per-user model override |
 | User conversations / topics | PARTIAL | Personal conversations exist; topics later |
-| Cabinet | IMPLEMENTED | Chat UI `/cabinet/chats/{id}`, New chat, rename, General Prompt |
+| Cabinet | COMPATIBILITY | Redirect `/cabinet` → `/chat` |
+| User Personal Workspace | IMPLEMENTED / NOT VALIDATED | `/chat` shared frontend (M25U.1) |
 | Cabinet login | IMPLEMENTED | Role-based redirect after login |
 | Chat list / new chat / history | DOCUMENTED ONLY | |
 | Impersonation | DOCUMENTED ONLY | |
@@ -794,8 +795,12 @@ Three.js + custom GLSL Orb (`resources/js/voice/visualization`). `VoiceVisualiza
 
 See [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md), [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
-### Planned after M24 — DOCUMENTED ONLY
+### Milestone 25U.1 — Shared Personal Workspace + Full User Chat — IMPLEMENTED / NOT VALIDATED (2026-09-04)
 
-Desktop Tauri; Mobile Flutter; GitHub merge/file-write/webhooks; proactive assistant; telephony adapter. Do not treat as shipped.
+Owner and User share one Personal Workspace frontend. Canonical user route `/chat`; `/cabinet` compatibility redirect. User login → `/chat`. Default user capabilities: chat, memory, telegram_dm, reminders, web_research, voice, storage-read. No Projects, Admin, integrations, Storage page. Same Conversation Engine, Default User Conversation AI, M24 Orb. TESTS NOT RUN. NO LIVE AI/WEB/VOICE.
+
+### Planned after M25U.1 — DOCUMENTED ONLY
+
+M25U.2 User Administration + Isolation Validation; Desktop Tauri; Mobile Flutter; GitHub merge/file-write/webhooks; proactive assistant; telephony adapter. Do not treat as shipped.
 
 See [ROADMAP.md](ROADMAP.md), [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md).

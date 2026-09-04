@@ -29,7 +29,7 @@ class JarvisWorkspaceController extends Controller
     {
         $conversation = $this->chats->latestOrDefault($request->user());
 
-        return redirect()->route('jarvis.chats.show', $conversation);
+        return redirect()->route($this->named($request, 'chats.show'), $conversation);
     }
 
     public function show(Request $request, int $conversation): Response
@@ -38,8 +38,13 @@ class JarvisWorkspaceController extends Controller
         $user->loadMissing('aiSettings');
         $current = $this->chats->ensureOwned($user, $conversation);
         $page = $this->chats->page($current);
+        $settings = $this->chats->personalSettings($user);
+        $owner = $user->isOwner();
 
-        return Inertia::render('Jarvis/Workspace', [
+        return Inertia::render($this->page($request), [
+            'surface' => $this->surface($request),
+            'capabilities' => $this->chats->uiCapabilities($user),
+            'settings' => $settings,
             'user' => $this->chats->userProfile($user),
             'conversations' => $this->chats->sidebar($user, (int) $current->id),
             'conversation' => [
@@ -49,7 +54,9 @@ class JarvisWorkspaceController extends Controller
             'messages' => $page['messages'],
             'hasMore' => $page['has_more'],
             'oldestId' => $page['oldest_id'],
-            'context' => $this->context->compact($user, $current),
+            'context' => $owner
+                ? $this->context->compact($user, $current)
+                : ['settings' => $settings],
             'chatAttachments' => ChatAttachmentConfig::publicLimits(),
             'jarvisStorage' => StoredFileConfig::publicLimits(),
         ]);
@@ -59,7 +66,7 @@ class JarvisWorkspaceController extends Controller
     {
         $conversation = $this->chats->createChat($request->user());
 
-        return redirect()->route('jarvis.chats.show', $conversation);
+        return redirect()->route($this->named($request, 'chats.show'), $conversation);
     }
 
     public function update(Request $request, int $conversation): RedirectResponse
@@ -168,5 +175,37 @@ class JarvisWorkspaceController extends Controller
         );
 
         return back()->with('success', 'General Prompt saved.');
+    }
+
+    public function updateProfile(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'timezone' => ['required', 'timezone'],
+        ]);
+
+        $request->user()->forceFill([
+            'name' => $validated['name'],
+            'timezone' => $validated['timezone'],
+        ])->save();
+
+        return back()->with('success', 'Profile saved.');
+    }
+
+    private function surface(Request $request): string
+    {
+        $name = (string) $request->route()?->getName();
+
+        return str_starts_with($name, 'chat.') ? 'chat' : 'jarvis';
+    }
+
+    private function named(Request $request, string $name): string
+    {
+        return $this->surface($request).'.'.$name;
+    }
+
+    private function page(Request $request): string
+    {
+        return $this->surface($request) === 'chat' ? 'Chat/Workspace' : 'Jarvis/Workspace';
     }
 }

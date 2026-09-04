@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\CabinetChatController;
-use App\Http\Controllers\CabinetController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\Jarvis\JarvisAttachmentController;
 use App\Http\Controllers\Jarvis\JarvisConfirmationController;
@@ -42,59 +41,90 @@ Route::post('/telegram/webhook', TelegramWebhookController::class)
     ])
     ->name('telegram.webhook');
 
-Route::middleware(['web', 'auth', 'user.active', 'cabinet.owner.redirect'])->group(function () {
-    Route::get('/cabinet', [CabinetController::class, 'index'])->name('cabinet.index');
-    Route::get('/cabinet/ai-settings', [UserAiSettingsController::class, 'edit'])->name('cabinet.ai-settings.edit');
-    Route::patch('/cabinet/ai-settings', [UserAiSettingsController::class, 'update'])->name('cabinet.ai-settings.update');
-    Route::get('/cabinet/chats/{conversation}', [CabinetChatController::class, 'show'])->name('cabinet.chats.show');
+Route::middleware(['web', 'auth', 'user.active'])->group(function () {
+    Route::get('/cabinet', function () {
+        $user = request()->user();
+
+        return redirect()->route($user?->isOwner() ? 'jarvis.index' : 'chat.index');
+    })->name('cabinet.index');
+    Route::get('/cabinet/ai-settings', function () {
+        $user = request()->user();
+
+        return redirect()->route($user?->isOwner() ? 'jarvis.index' : 'chat.index');
+    })->name('cabinet.ai-settings.edit');
+    Route::patch('/cabinet/ai-settings', [UserAiSettingsController::class, 'update'])
+        ->name('cabinet.ai-settings.update');
+    Route::get('/cabinet/chats/{conversation}', function (int $conversation) {
+        $user = request()->user();
+
+        return redirect()->route(
+            $user?->isOwner() ? 'jarvis.chats.show' : 'chat.chats.show',
+            $conversation,
+        );
+    })->name('cabinet.chats.show');
     Route::post('/cabinet/chats', [CabinetChatController::class, 'store'])->name('cabinet.chats.store');
     Route::patch('/cabinet/chats/{conversation}', [CabinetChatController::class, 'update'])->name('cabinet.chats.update');
     Route::get('/cabinet/chats/{conversation}/messages', [CabinetChatController::class, 'messages'])->name('cabinet.chats.messages.index');
     Route::post('/cabinet/chats/{conversation}/messages', [CabinetChatController::class, 'storeMessage'])->name('cabinet.chats.messages.store');
 });
 
-Route::middleware(['web', 'auth', 'user.active', 'owner.workspace'])->group(function () {
-    Route::get('/jarvis', [JarvisWorkspaceController::class, 'index'])->name('jarvis.index');
-    Route::post('/jarvis/chats', [JarvisWorkspaceController::class, 'store'])->name('jarvis.chats.store');
-    Route::get('/jarvis/chats/{conversation}', [JarvisWorkspaceController::class, 'show'])->name('jarvis.chats.show');
-    Route::patch('/jarvis/chats/{conversation}', [JarvisWorkspaceController::class, 'update'])->name('jarvis.chats.update');
-    Route::post('/jarvis/chats/{conversation}/messages', [JarvisWorkspaceController::class, 'storeMessage'])->name('jarvis.messages.store');
-    Route::get('/jarvis/chats/{conversation}/messages/older', [JarvisWorkspaceController::class, 'olderMessages'])->name('jarvis.messages.older');
-    Route::get('/jarvis/chats/{conversation}/attachments/{attachment}/preview', [JarvisAttachmentController::class, 'preview'])->name('jarvis.attachments.preview');
-    Route::get('/jarvis/chats/{conversation}/attachments/{attachment}', [JarvisAttachmentController::class, 'show'])->name('jarvis.attachments.show');
-    Route::post('/jarvis/confirmations/{confirmation}/confirm', [JarvisConfirmationController::class, 'confirm'])->name('jarvis.confirmations.confirm');
-    Route::post('/jarvis/confirmations/{confirmation}/cancel', [JarvisConfirmationController::class, 'cancel'])->name('jarvis.confirmations.cancel');
-    Route::get('/jarvis/storage', [JarvisStorageController::class, 'index'])->name('jarvis.storage.index');
-    Route::post('/jarvis/storage', [JarvisStorageController::class, 'store'])->name('jarvis.storage.store');
-    Route::get('/jarvis/storage/{file}', [JarvisStorageController::class, 'show'])->name('jarvis.storage.show');
-    Route::patch('/jarvis/storage/{file}', [JarvisStorageController::class, 'update'])->name('jarvis.storage.update');
-    Route::delete('/jarvis/storage/{file}', [JarvisStorageController::class, 'destroy'])->name('jarvis.storage.destroy');
-    Route::get('/jarvis/storage/{file}/download', [JarvisStorageController::class, 'download'])->name('jarvis.storage.download');
-    Route::patch('/jarvis/settings/general-prompt', [JarvisWorkspaceController::class, 'updateGeneralPrompt'])->name('jarvis.settings.prompt.update');
-    Route::post('/jarvis/chats/{conversation}/voice/sessions', [JarvisVoiceController::class, 'store'])
-        ->middleware('throttle:20,1')
-        ->name('jarvis.voice.sessions.store');
-    Route::get('/jarvis/voice/sessions/{session}', [JarvisVoiceController::class, 'show'])
-        ->name('jarvis.voice.sessions.show');
-    Route::post('/jarvis/voice/sessions/{session}/listen', [JarvisVoiceController::class, 'listen'])
-        ->middleware('throttle:60,1')
-        ->name('jarvis.voice.sessions.listen');
-    Route::post('/jarvis/voice/sessions/{session}/audio', [JarvisVoiceController::class, 'audio'])
-        ->middleware('throttle:30,1')
-        ->name('jarvis.voice.sessions.audio');
-    Route::post('/jarvis/voice/sessions/{session}/interrupt', [JarvisVoiceController::class, 'interrupt'])
-        ->middleware('throttle:60,1')
-        ->name('jarvis.voice.sessions.interrupt');
-    Route::post('/jarvis/voice/sessions/{session}/mute', [JarvisVoiceController::class, 'mute'])
-        ->middleware('throttle:60,1')
-        ->name('jarvis.voice.sessions.mute');
-    Route::post('/jarvis/voice/sessions/{session}/resume', [JarvisVoiceController::class, 'resume'])
-        ->middleware('throttle:60,1')
-        ->name('jarvis.voice.sessions.resume');
-    Route::delete('/jarvis/voice/sessions/{session}', [JarvisVoiceController::class, 'destroy'])
-        ->middleware('throttle:20,1')
-        ->name('jarvis.voice.sessions.destroy');
-});
+$registerPersonalWorkspace = static function (string $prefix, string $as, array $middleware, bool $ownerStorage): void {
+    Route::middleware($middleware)->prefix($prefix)->name($as.'.')->group(function () use ($ownerStorage): void {
+        Route::get('/', [JarvisWorkspaceController::class, 'index'])->name('index');
+        Route::post('/chats', [JarvisWorkspaceController::class, 'store'])->name('chats.store');
+        Route::get('/chats/{conversation}', [JarvisWorkspaceController::class, 'show'])->name('chats.show');
+        Route::patch('/chats/{conversation}', [JarvisWorkspaceController::class, 'update'])->name('chats.update');
+        Route::post('/chats/{conversation}/messages', [JarvisWorkspaceController::class, 'storeMessage'])->name('messages.store');
+        Route::get('/chats/{conversation}/messages/older', [JarvisWorkspaceController::class, 'olderMessages'])->name('messages.older');
+        Route::get('/chats/{conversation}/attachments/{attachment}/preview', [JarvisAttachmentController::class, 'preview'])
+            ->name('attachments.preview');
+        Route::get('/chats/{conversation}/attachments/{attachment}', [JarvisAttachmentController::class, 'show'])
+            ->name('attachments.show');
+        Route::post('/confirmations/{confirmation}/confirm', [JarvisConfirmationController::class, 'confirm'])
+            ->name('confirmations.confirm');
+        Route::post('/confirmations/{confirmation}/cancel', [JarvisConfirmationController::class, 'cancel'])
+            ->name('confirmations.cancel');
+        Route::patch('/settings/general-prompt', [JarvisWorkspaceController::class, 'updateGeneralPrompt'])
+            ->name('settings.prompt.update');
+        Route::patch('/settings/profile', [JarvisWorkspaceController::class, 'updateProfile'])
+            ->name('settings.profile.update');
+        Route::post('/chats/{conversation}/voice/sessions', [JarvisVoiceController::class, 'store'])
+            ->middleware('throttle:20,1')
+            ->name('voice.sessions.store');
+        Route::get('/voice/sessions/{session}', [JarvisVoiceController::class, 'show'])
+            ->name('voice.sessions.show');
+        Route::post('/voice/sessions/{session}/listen', [JarvisVoiceController::class, 'listen'])
+            ->middleware('throttle:60,1')
+            ->name('voice.sessions.listen');
+        Route::post('/voice/sessions/{session}/audio', [JarvisVoiceController::class, 'audio'])
+            ->middleware('throttle:30,1')
+            ->name('voice.sessions.audio');
+        Route::post('/voice/sessions/{session}/interrupt', [JarvisVoiceController::class, 'interrupt'])
+            ->middleware('throttle:60,1')
+            ->name('voice.sessions.interrupt');
+        Route::post('/voice/sessions/{session}/mute', [JarvisVoiceController::class, 'mute'])
+            ->middleware('throttle:60,1')
+            ->name('voice.sessions.mute');
+        Route::post('/voice/sessions/{session}/resume', [JarvisVoiceController::class, 'resume'])
+            ->middleware('throttle:60,1')
+            ->name('voice.sessions.resume');
+        Route::delete('/voice/sessions/{session}', [JarvisVoiceController::class, 'destroy'])
+            ->middleware('throttle:20,1')
+            ->name('voice.sessions.destroy');
+
+        if ($ownerStorage) {
+            Route::get('/storage', [JarvisStorageController::class, 'index'])->name('storage.index');
+            Route::post('/storage', [JarvisStorageController::class, 'store'])->name('storage.store');
+            Route::get('/storage/{file}', [JarvisStorageController::class, 'show'])->name('storage.show');
+            Route::patch('/storage/{file}', [JarvisStorageController::class, 'update'])->name('storage.update');
+            Route::delete('/storage/{file}', [JarvisStorageController::class, 'destroy'])->name('storage.destroy');
+            Route::get('/storage/{file}/download', [JarvisStorageController::class, 'download'])->name('storage.download');
+        }
+    });
+};
+
+$registerPersonalWorkspace('/jarvis', 'jarvis', ['web', 'auth', 'user.active', 'owner.workspace'], true);
+$registerPersonalWorkspace('/chat', 'chat', ['web', 'auth', 'user.active', 'personal.workspace'], false);
 
 Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'owner']))->group(function () {
     Route::get('/dashboard', function () {

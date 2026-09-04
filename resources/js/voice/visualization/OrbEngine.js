@@ -1,10 +1,9 @@
 import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { clampPixelRatio, pickQualityTier, prefersReducedMotion, webglAvailable } from './capabilities';
+import { clampPixelRatio, pickQualityTier, webglAvailable } from './capabilities';
 import { createVisualParams, stepVisualParams } from './statePresets';
 import {
+    haloFragmentShader,
+    haloVertexShader,
     innerFragmentShader,
     innerVertexShader,
     lineFragmentShader,
@@ -17,10 +16,24 @@ import {
 import { createVoiceVisualizationState } from './VoiceVisualizationState';
 
 const TIER = {
-    high: { detail: 3, particles: 420, curves: 48, curvePts: 96, bloom: true },
-    medium: { detail: 2, particles: 240, curves: 32, curvePts: 72, bloom: false },
-    low: { detail: 2, particles: 120, curves: 20, curvePts: 48, bloom: false },
+    high: { detail: 3, particles: 280, curves: 40, curvePts: 88 },
+    medium: { detail: 2, particles: 180, curves: 28, curvePts: 64 },
+    low: { detail: 2, particles: 90, curves: 18, curvePts: 48 },
 };
+
+const WEB_DISPLAY_SCALE = 0.7;
+const MOBILE_DISPLAY_SCALE = 0.49;
+const MOBILE_BREAKPOINT = 768;
+const WEB_LIFT_Y = 0.12;
+const MOBILE_LIFT_Y = 0.28;
+
+function displayScaleFor(width) {
+    return width < MOBILE_BREAKPOINT ? MOBILE_DISPLAY_SCALE : WEB_DISPLAY_SCALE;
+}
+
+function liftFor(width) {
+    return width < MOBILE_BREAKPOINT ? MOBILE_LIFT_Y : WEB_LIFT_Y;
+}
 
 function makeUniforms() {
     return {
@@ -79,6 +92,8 @@ export class OrbEngine {
         this.uniforms = makeUniforms();
         this.sourceRef = options.sourceRef ?? null;
         this.clock = 0;
+        this.displayScale = displayScaleFor(typeof window !== 'undefined' ? window.innerWidth : 1280);
+        this.liftY = liftFor(typeof window !== 'undefined' ? window.innerWidth : 1280);
 
         const spec = TIER[this.tier] ?? TIER.medium;
         const width = Math.max(1, container.clientWidth);
@@ -87,20 +102,26 @@ export class OrbEngine {
         this.renderer = new THREE.WebGLRenderer({
             antialias: this.tier !== 'low',
             alpha: true,
+            premultipliedAlpha: false,
             powerPreference: 'high-performance',
         });
         this.renderer.setPixelRatio(clampPixelRatio(this.tier));
         this.renderer.setSize(width, height);
         this.renderer.setClearColor(0x000000, 0);
+        this.renderer.setClearAlpha(0);
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        this.renderer.toneMapping = THREE.NoToneMapping;
+        this.renderer.autoClear = true;
         container.appendChild(this.renderer.domElement);
         this.renderer.domElement.style.display = 'block';
         this.renderer.domElement.style.width = '100%';
         this.renderer.domElement.style.height = '100%';
+        this.renderer.domElement.style.background = 'transparent';
 
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(32, width / Math.max(1, height), 0.1, 20);
-        this.camera.position.set(0, 0.08, 4.15);
+        this.scene.background = null;
+        this.camera = new THREE.PerspectiveCamera(30, width / Math.max(1, height), 0.1, 20);
+        this.camera.position.set(0, 0.06, 4.35);
 
         this.group = new THREE.Group();
         this.scene.add(this.group);
@@ -116,6 +137,32 @@ export class OrbEngine {
         this.orbGeo = new THREE.IcosahedronGeometry(1, spec.detail);
         this.orb = new THREE.Mesh(this.orbGeo, this.orbMat);
         this.group.add(this.orb);
+
+        this.shellMat = new THREE.ShaderMaterial({
+            uniforms: this.uniforms,
+            vertexShader: orbVertexShader,
+            fragmentShader: orbFragmentShader,
+            transparent: true,
+            depthWrite: false,
+            side: THREE.BackSide,
+        });
+        this.shell = new THREE.Mesh(this.orbGeo, this.shellMat);
+        this.shell.scale.setScalar(0.985);
+        this.group.add(this.shell);
+
+        this.haloMat = new THREE.ShaderMaterial({
+            uniforms: this.uniforms,
+            vertexShader: haloVertexShader,
+            fragmentShader: haloFragmentShader,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            side: THREE.BackSide,
+        });
+        this.haloGeo = new THREE.IcosahedronGeometry(1, 2);
+        this.halo = new THREE.Mesh(this.haloGeo, this.haloMat);
+        this.halo.scale.setScalar(1.42);
+        this.group.add(this.halo);
 
         this.innerMat = new THREE.ShaderMaterial({
             uniforms: this.uniforms,
@@ -153,14 +200,6 @@ export class OrbEngine {
         });
         this.particles = new THREE.Points(this.particleGeo, this.particleMat);
         this.group.add(this.particles);
-
-        this.useBloom = Boolean(spec.bloom && !prefersReducedMotion());
-        if (this.useBloom) {
-            this.composer = new EffectComposer(this.renderer);
-            this.composer.addPass(new RenderPass(this.scene, this.camera));
-            this.bloom = new UnrealBloomPass(new THREE.Vector2(width, height), 0.42, 0.6, 0.82);
-            this.composer.addPass(this.bloom);
-        }
 
         this.resizeObserver = new ResizeObserver(() => this.resize());
         this.resizeObserver.observe(container);
@@ -224,12 +263,12 @@ export class OrbEngine {
 
         const width = Math.max(1, this.container.clientWidth);
         const height = Math.max(1, this.container.clientHeight);
+        this.displayScale = displayScaleFor(typeof window !== 'undefined' ? window.innerWidth : width);
+        this.liftY = liftFor(typeof window !== 'undefined' ? window.innerWidth : width);
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
         this.renderer.setPixelRatio(clampPixelRatio(this.tier));
         this.renderer.setSize(width, height, false);
-        this.composer?.setSize(width, height);
-        this.bloom?.setSize(width, height);
     }
 
     degrade() {
@@ -241,13 +280,11 @@ export class OrbEngine {
             return;
         }
 
-        this.useBloom = false;
-        this.composer = null;
-        this.bloom = null;
         this.renderer.setPixelRatio(clampPixelRatio(this.tier));
-        this.particles.visible = this.tier !== 'low' ? this.particles.visible : true;
         if (this.tier === 'low') {
-            this.uniforms.uSize.value = 0.7;
+            this.uniforms.uSize.value = 0.55;
+            this.particles.visible = false;
+            this.halo.visible = false;
         }
     }
 
@@ -277,13 +314,7 @@ export class OrbEngine {
         this.visual = stepVisualParams(this.visual, this.viz.state, dt);
         this.applyUniforms();
         this.animateCamera(dt);
-
-        if (this.useBloom && this.composer) {
-            this.composer.render();
-        } else {
-            this.renderer.render(this.scene, this.camera);
-        }
-
+        this.renderer.render(this.scene, this.camera);
         this.raf = requestAnimationFrame(this.loop);
     }
 
@@ -317,8 +348,9 @@ export class OrbEngine {
         this.uniforms.uSpeed.value = v.lineSpeed;
         this.uniforms.uSize.value = this.tier === 'low' ? 0.7 : 1;
 
-        const s = v.scale * (1 + amp * 0.04);
+        const s = this.displayScale * v.scale * (1 + amp * 0.04);
         this.group.scale.setScalar(s);
+        this.group.position.y = this.liftY;
         this.group.rotation.y += v.lineSpeed * 0.0025 * (1 - reduced * 0.8);
         this.particles.rotation.y -= v.particleSpeed * 0.003 * (1 - reduced * 0.8);
         this.inner.rotation.z += v.innerSpin * 0.004 * (1 - reduced * 0.8);
@@ -326,17 +358,17 @@ export class OrbEngine {
 
     animateCamera(dt) {
         if (this.viz.reducedMotion) {
-            this.camera.position.set(0, 0.08, 4.15);
+            this.camera.position.set(0, 0.06, 4.35);
             this.camera.lookAt(0, 0, 0);
 
             return;
         }
 
         const t = this.clock;
-        this.camera.position.x = Math.sin(t * 0.07) * 0.08;
-        this.camera.position.y = 0.08 + Math.cos(t * 0.05) * 0.04;
+        this.camera.position.x = Math.sin(t * 0.07) * 0.06;
+        this.camera.position.y = 0.06 + Math.cos(t * 0.05) * 0.03;
         this.camera.lookAt(0, 0, 0);
-        this.camera.position.z = 4.15;
+        this.camera.position.z = 4.35;
         void dt;
     }
 
@@ -348,12 +380,13 @@ export class OrbEngine {
         this.innerGeo?.dispose();
         this.lineGeo?.dispose();
         this.particleGeo?.dispose();
+        this.haloGeo?.dispose();
         this.orbMat?.dispose();
+        this.shellMat?.dispose();
+        this.haloMat?.dispose();
         this.innerMat?.dispose();
         this.lineMat?.dispose();
         this.particleMat?.dispose();
-        this.composer = null;
-        this.bloom = null;
         this.renderer?.dispose();
         this.renderer?.forceContextLoss?.();
         if (this.renderer?.domElement?.parentNode) {

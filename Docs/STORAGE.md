@@ -11,9 +11,11 @@
 This document is the product and implementation source for:
 
 - ephemeral chat screenshots (`message_attachments`);
-- persistent owner files (`stored_files` + `stored_file_chunks`);
-- Storage Workspace UI (`/jarvis/storage`);
-- Storage tools.
+- persistent files (`stored_files` + `stored_file_chunks`), scoped by `user_id`;
+- Storage Workspace UI (`/jarvis/storage`) — **owner only**;
+- Storage tools (read/search for any user with `storage`; `delete_storage_file` owner-only).
+
+Ordinary users may attach supported files in `/chat`. Jarvis can retrieve those files via tools. There is **no** `/chat/storage` page. No per-user total quota in M25U.1 (future hardening).
 
 See also [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md), [DATABASE.md](DATABASE.md).
 

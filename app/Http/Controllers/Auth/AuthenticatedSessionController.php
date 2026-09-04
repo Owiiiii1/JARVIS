@@ -33,7 +33,7 @@ class AuthenticatedSessionController extends Controller
             return redirect()->intended(route('jarvis.index', absolute: false));
         }
 
-        return redirect()->intended(route('cabinet.index', absolute: false));
+        return redirect()->intended(route('chat.index', absolute: false));
     }
 
     public function destroy(Request $request): RedirectResponse

@@ -128,7 +128,7 @@ function friendlyError(code) {
 /**
  * Workspace Voice client. Orb is visualization-only; session lifecycle stays here.
  */
-export default function VoiceSession({ conversationId, onSwitchToText, onTurn }) {
+export default function VoiceSession({ conversationId, onSwitchToText, onTurn, surface = 'jarvis' }) {
     const demoEnabled = isVoiceDemoEnabled();
     const [status, setStatus] = useState('idle');
     const [demoState, setDemoState] = useState(null);
@@ -231,7 +231,7 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
             analyserRef.current = null;
             const id = sessionIdRef.current;
             if (id) {
-                fetch(route('jarvis.voice.sessions.destroy', id), {
+                fetch(route(`${surface}.voice.sessions.destroy`, id), {
                     method: 'DELETE',
                     credentials: 'same-origin',
                     headers: jsonHeaders(),
@@ -239,7 +239,7 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
                 }).catch(() => {});
             }
         };
-    }, [conversationId, demoEnabled]);
+    }, [conversationId, demoEnabled, surface]);
 
     const applySnapshot = (payload, clientMessageId = null) => {
         const code = eventError(payload);
@@ -369,14 +369,14 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
         try {
             const stream = await startMicOnly();
 
-            const created = await postJson(route('jarvis.voice.sessions.store', conversationId), {
+            const created = await postJson(route(`${surface}.voice.sessions.store`, conversationId), {
                 origin: 'web',
             });
             sessionIdRef.current = created.public_id;
             setSessionId(created.public_id);
             applySnapshot(created);
 
-            const listening = await postJson(route('jarvis.voice.sessions.listen', created.public_id));
+            const listening = await postJson(route(`${surface}.voice.sessions.listen`, created.public_id));
             applySnapshot(listening);
             beginRecording(stream);
         } catch (caught) {
@@ -466,7 +466,7 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
 
         setBusy(true);
         try {
-            const response = await fetch(route('jarvis.voice.sessions.audio', id), {
+            const response = await fetch(route(`${surface}.voice.sessions.audio`, id), {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -546,19 +546,19 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
         setBusy(true);
         try {
             if (muted) {
-                const payload = await postJson(route('jarvis.voice.sessions.resume', id));
+                const payload = await postJson(route(`${surface}.voice.sessions.resume`, id));
                 applySnapshot(payload);
                 if (! streamRef.current) {
                     await startMicOnly();
                 }
-                const listening = await postJson(route('jarvis.voice.sessions.listen', id));
+                const listening = await postJson(route(`${surface}.voice.sessions.listen`, id));
                 applySnapshot(listening);
                 beginRecording(streamRef.current);
             } else {
                 skipSendRef.current = true;
                 stopPlayback();
                 stopCapture();
-                const payload = await postJson(route('jarvis.voice.sessions.mute', id));
+                const payload = await postJson(route(`${surface}.voice.sessions.mute`, id));
                 applySnapshot(payload);
             }
         } catch (caught) {
@@ -582,7 +582,7 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
 
         stopPlayback();
         try {
-            const payload = await postJson(route('jarvis.voice.sessions.interrupt', id));
+            const payload = await postJson(route(`${surface}.voice.sessions.interrupt`, id));
             applySnapshot(payload);
         } catch (caught) {
             setError(friendlyError(caught.message || 'voice_runtime_failed'));
@@ -603,7 +603,7 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
 
         if (id) {
             try {
-                await fetch(route('jarvis.voice.sessions.destroy', id), {
+                await fetch(route(`${surface}.voice.sessions.destroy`, id), {
                     method: 'DELETE',
                     credentials: 'same-origin',
                     headers: jsonHeaders(),
@@ -652,8 +652,8 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
 
     return (
         <div className="jarvis-voice-mode">
+            <JarvisVoiceOrb visualizationRef={vizRef} fallbackState={orbState} />
             <div className="jarvis-voice-mode__stage">
-                <JarvisVoiceOrb visualizationRef={vizRef} fallbackState={orbState} />
                 <p className="jarvis-voice-mode__state" aria-live="polite">
                     {stateLabel}
                 </p>

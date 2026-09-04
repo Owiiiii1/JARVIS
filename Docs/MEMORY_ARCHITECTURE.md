@@ -14,7 +14,7 @@
 - смена темы «заражает» ответ чужим контекстом;
 - схема не масштабируется.
 
-Поэтому raw history — **архив и source of truth**, а не постоянный prompt.
+Personal memory retrieval is always scoped by the current `user_id`. M25U.1 does not add a new memory engine. User A never receives Owner or User B memory.
 
 ---
 

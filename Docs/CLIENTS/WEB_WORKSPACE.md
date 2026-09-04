@@ -1,8 +1,10 @@
-# Owner Web Workspace
+# Personal Web Workspace
 
-**Status.** IMPLEMENTED / PARTIAL MANUAL PASS (M22 + M22.1 + M22.2 + M22.3). M23 Voice Runtime and M24 Orb are IMPLEMENTED / NOT VALIDATED (no live STT/TTS). Owner production confirmation 2026-09-04 covers image upload, Gemini vision, text Storage upload/read, and Gemini Google Search only — not Voice.
+**Status.** M25U.1 IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live AI / Web Search / Voice provider calls.
 
-Owner-facing Personal Workspace. This is **not** the Admin Panel and **not** the User Cabinet (`/cabinet`).
+Owner and ordinary users share **one Personal Workspace product**. Role/capabilities change available features, not the chat implementation.
+
+This is **not** the Admin Panel. `/cabinet` is a compatibility redirect only.
 
 Workspace is part of `Owiiiii1/JARVIS`: Laravel + Inertia/React, one deployment with Core.
 
@@ -13,10 +15,15 @@ Workspace is part of `Owiiiii1/JARVIS`: Laravel + Inertia/React, one deployment 
 | Surface | Route | For |
 | --- | --- | --- |
 | Admin Panel | `/dashboard` | technical management: users, AI providers, integrations, Telegram groups, diagnostics |
-| Personal Workspace | `/jarvis` | Owner talking to Jarvis |
-| User Cabinet | `/cabinet` | `role=user` space |
+| Owner Personal Workspace | `/jarvis` | Owner talking to Jarvis + owner context (projects, integrations, Storage link, Admin) |
+| User Personal Workspace | `/chat` | `role=user` talking to Jarvis (full chat, no owner chrome) |
+| Cabinet (deprecated) | `/cabinet` | redirects to `/chat` (owner → `/jarvis`) |
 
-Owner default landing after ordinary login is `/jarvis`. Admin remains one click from Workspace (`Admin`) and has a reciprocal **Open Jarvis**.
+Owner default landing after ordinary login is `/jarvis`. User landing is `/chat`. Admin remains one click from Owner Workspace (`Admin`) and has a reciprocal **Open Jarvis**.
+
+Frontend: `resources/js/personal-workspace/PersonalWorkspace.jsx`. Inertia pages `Jarvis/Workspace` and `Chat/Workspace` re-export it. UI `capabilities` props are presentation-only; backend ownership/capability checks are authoritative.
+
+---
 
 ---
 
@@ -40,13 +47,16 @@ Not Owner-checked here: screenshot expiry/purge, artifact copy as a separate UX 
 
 `/jarvis` requires an authenticated active **owner**. Middleware: `auth`, `user.active`, `owner.workspace`.
 
+`/chat` requires an authenticated active **user**. Middleware: `auth`, `user.active`, `personal.workspace` (owner is redirected to `/jarvis`).
+
 - Guest → login.
-- `role=user` → redirect to `/cabinet`.
-- Owner identity is enough. Workspace does **not** require `integrations_admin` just to open.
+- `role=user` on `/jarvis` → redirect to `/chat`.
+- `role=owner` on `/chat` → redirect to `/jarvis`.
+- Owner identity is enough for `/jarvis`. Workspace does **not** require `integrations_admin` just to open.
 
 No hardcoded owner id.
 
-Owner `/cabinet` redirects to `/jarvis` (conversation show maps to the same id). Normal user Cabinet is unchanged.
+Owner `/cabinet` redirects to `/jarvis`. User `/cabinet` redirects to `/chat`.
 
 ---
 

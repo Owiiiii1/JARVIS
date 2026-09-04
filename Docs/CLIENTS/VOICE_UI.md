@@ -1,6 +1,6 @@
 # Voice UI
 
-**Status.** M24 IMPLEMENTED / NOT VALIDATED (2026-09-04). Three.js Orb in Owner Workspace. No live STT/TTS. Automated tests not run.
+**Status.** M24 IMPLEMENTED / NOT VALIDATED (2026-09-04). M25U.1: same Three.js Orb on Owner `/jarvis` and User `/chat` Shared Personal Workspace. No live STT/TTS. Automated tests not run.
 
 Voice **UI** ≠ Voice **Runtime**.
 
@@ -17,7 +17,7 @@ A speech vendor can change without rewriting the Orb. The Orb never calls `Voice
 
 Voice Mode is a mode of the selected conversation on Web Workspace (and later Desktop / Mobile). Not a separate User Space. Not a human avatar.
 
-`/jarvis/chats/{id}` Text/Voice toggle. Voice uses **that** `conversation_id`. Switching Voice → Text ends the voice session and keeps the same thread.
+`/jarvis/chats/{id}` or `/chat/chats/{id}` Text/Voice toggle. Voice uses **that** `conversation_id`. Switching Voice → Text ends the voice session and keeps the same thread.
 
 ---
 
@@ -69,10 +69,10 @@ Interpolation: visual presets ease toward the target. Interrupt/listening are fa
 ### Layers
 
 1. Translucent icosphere (custom vertex/fragment GLSL: noise displacement, fresnel)
-2. Inner energy shell
+2. Inner energy shell + backface glass
 3. Thin flowing energy lines (not Saturn rings)
 4. Subtle orbiting particles
-5. Optional UnrealBloom on the high quality tier
+5. Shader rim halo — no UnrealBloom (bloom filled an opaque square and washed the sphere)
 
 Identity: cyan/steel precision core. Not a Siri rainbow clone. No OrbitControls. Subtle camera drift only.
 
@@ -91,7 +91,7 @@ Enable with `?voice_demo=1` or `VITE_VOICE_DEMO_MODE=true`. Hidden drawer cycles
 - No WebGL → CSS orb (`CssFallbackOrb`)
 - `prefers-reduced-motion` reduces deform, particles, camera, pulses; text state remains
 - DPR clamped (`min(devicePixelRatio, 2)`, lower on weak/mobile)
-- Quality tiers; repeated slow frames drop bloom/DPR
+- Quality tiers; repeated slow frames drop halo/particles/DPR
 - ResizeObserver; dispose geometries, materials, renderer, rAF, analyser
 
 ---

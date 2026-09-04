@@ -2,16 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\Conversations\ConversationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class CabinetController extends Controller
 {
-    public function index(Request $request, ConversationService $conversations): RedirectResponse
+    public function index(Request $request): RedirectResponse
     {
-        $conversation = $conversations->getOrCreateDefault($request->user());
-
-        return redirect()->route('cabinet.chats.show', $conversation);
+        return redirect()->route($request->user()->isOwner() ? 'jarvis.index' : 'chat.index');
     }
 }

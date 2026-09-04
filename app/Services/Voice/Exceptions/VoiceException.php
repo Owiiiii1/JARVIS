@@ -18,6 +18,11 @@ final class VoiceException extends RuntimeException
         parent::__construct($message !== '' ? $message : $error);
     }
 
+    public static function forbidden(): self
+    {
+        return new self('voice_forbidden', 'Voice is not available for this account.', 403);
+    }
+
     public static function notFound(): self
     {
         return new self('voice_session_not_found', 'Voice session was not found.', 404);

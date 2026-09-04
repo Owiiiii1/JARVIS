@@ -30,7 +30,7 @@ export default function UsersPanel() {
     const text = {
         en: {
             usersTitle: 'Users',
-            usersDescription: 'Jarvis user accounts for admin and personal cabinet access.',
+            usersDescription: 'Jarvis user accounts for admin and personal workspace access.',
             addUser: 'Add user',
             colName: 'Name',
             colEmail: 'Email',

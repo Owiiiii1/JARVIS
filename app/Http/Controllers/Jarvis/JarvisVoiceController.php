@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Jarvis;
 
 use App\Enums\VoiceOrigin;
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\VoiceSession;
 use App\Services\Conversations\PersonalChatSurfaceService;
+use App\Services\Users\UserCapability;
 use App\Services\Voice\Exceptions\VoiceException;
 use App\Services\Voice\VoiceRuntimeService;
 use Illuminate\Http\JsonResponse;
@@ -23,6 +25,7 @@ class JarvisVoiceController extends Controller
     public function store(Request $request, int $conversation): JsonResponse
     {
         $user = $request->user();
+        $this->authorizeVoice($user);
         $current = $this->chats->ensureOwned($user, $conversation);
         $validated = $request->validate([
             'origin' => ['nullable', 'in:web,desktop,mobile'],
@@ -43,6 +46,7 @@ class JarvisVoiceController extends Controller
 
     public function show(Request $request, VoiceSession $session): JsonResponse
     {
+        $this->authorizeVoice($request->user());
         try {
             return response()->json($this->runtime->snapshot($request->user(), $session)->toArray());
         } catch (VoiceException $exception) {
@@ -52,6 +56,7 @@ class JarvisVoiceController extends Controller
 
     public function listen(Request $request, VoiceSession $session): JsonResponse
     {
+        $this->authorizeVoice($request->user());
         try {
             return response()->json($this->runtime->listen($request->user(), $session)->toArray());
         } catch (VoiceException $exception) {
@@ -61,6 +66,7 @@ class JarvisVoiceController extends Controller
 
     public function audio(Request $request, VoiceSession $session): JsonResponse
     {
+        $this->authorizeVoice($request->user());
         $maxKilobytes = (int) ceil(max(1024, (int) config('voice.max_audio_chunk_bytes', 2_000_000)) / 1024);
         $request->merge([
             'is_final' => $request->boolean('is_final'),
@@ -107,6 +113,7 @@ class JarvisVoiceController extends Controller
 
     public function interrupt(Request $request, VoiceSession $session): JsonResponse
     {
+        $this->authorizeVoice($request->user());
         try {
             return response()->json($this->runtime->interrupt($request->user(), $session)->toArray());
         } catch (VoiceException $exception) {
@@ -116,6 +123,7 @@ class JarvisVoiceController extends Controller
 
     public function mute(Request $request, VoiceSession $session): JsonResponse
     {
+        $this->authorizeVoice($request->user());
         try {
             return response()->json($this->runtime->mute($request->user(), $session)->toArray());
         } catch (VoiceException $exception) {
@@ -125,6 +133,7 @@ class JarvisVoiceController extends Controller
 
     public function resume(Request $request, VoiceSession $session): JsonResponse
     {
+        $this->authorizeVoice($request->user());
         try {
             return response()->json($this->runtime->resume($request->user(), $session)->toArray());
         } catch (VoiceException $exception) {
@@ -134,6 +143,7 @@ class JarvisVoiceController extends Controller
 
     public function destroy(Request $request, VoiceSession $session): JsonResponse
     {
+        $this->authorizeVoice($request->user());
         try {
             return response()->json($this->runtime->end($request->user(), $session)->toArray());
         } catch (VoiceException $exception) {
@@ -147,5 +157,12 @@ class JarvisVoiceController extends Controller
             'error' => $exception->error,
             'message' => $exception->getMessage(),
         ], $exception->httpStatus);
+    }
+
+    private function authorizeVoice(?User $user): void
+    {
+        if ($user === null || ! $user->canUseCapability(UserCapability::VOICE)) {
+            abort(403);
+        }
     }
 }

@@ -20,9 +20,7 @@ class CabinetChatController extends Controller
 
     public function index(Request $request): RedirectResponse
     {
-        $conversation = $this->chats->latestOrDefault($request->user());
-
-        return redirect()->route('cabinet.chats.show', $conversation);
+        return redirect()->route($request->user()->isOwner() ? 'jarvis.index' : 'chat.index');
     }
 
     public function show(Request $request, int $conversation): Response
@@ -47,8 +45,9 @@ class CabinetChatController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $conversation = $this->chats->createChat($request->user());
+        $route = $request->user()->isOwner() ? 'jarvis.chats.show' : 'chat.chats.show';
 
-        return redirect()->route('cabinet.chats.show', $conversation);
+        return redirect()->route($route, $conversation);
     }
 
     public function update(Request $request, int $conversation): RedirectResponse

@@ -45,6 +45,11 @@ final class DeleteStorageFileTool extends StorageTool
         return 'Delete this file from Jarvis Storage. This cannot be undone.';
     }
 
+    public function isAvailable(ToolExecutionContext $context): bool
+    {
+        return parent::isAvailable($context) && $context->user->isOwner();
+    }
+
     public function execute(ToolCall $call, ToolExecutionContext $context): ToolResult
     {
         $id = trim((string) ($call->arguments['file_id'] ?? ''));

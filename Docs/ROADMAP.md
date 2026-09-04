@@ -117,9 +117,8 @@
 
 - Combined Google smoke / hardening (validation; deferred by Owner)
 - GitHub integration (M21 implemented, not live-validated)
-- Owner Web Workspace (`/jarvis`, M22 implemented / partial manual pass: image upload + Gemini vision, text Storage upload/read, Gemini Google Search; screenshot purge, artifact copy, `fetch_web_page`, Tavily, ContextBudgetManager, Google/GitHub live still not validated)
-- Versioned Client API
-- Voice Runtime Foundation (M23) and Voice UI / Orb (M24) implemented / not live-validated
+- Owner Web Workspace (`/jarvis`) and User Personal Workspace (`/chat`, M25U.1 shared frontend)
+- Voice Runtime Foundation (M23) and Voice UI / Orb (M24) implemented / not live-validated; users share the same Orb/runtime
 - Desktop repo `Owiiiii1/JARVIS-Desktop`
 - Mobile repo `Owiiiii1/JARVIS-Mobile`
 - Те же accounts, `conversation_id`, **личная** memory

@@ -1798,6 +1798,112 @@
 
 ---
 
+## ADR-184 — Owner and User share one Personal Workspace product
+
+**Контекст.** Cabinet was a simpler chat. Product decision: ordinary users get the same chat product.
+
+**Решение.** One Shared Personal Workspace frontend and `PersonalChatSurfaceService`. Role/capabilities gate features. No second Conversation Engine.
+
+**Следствие.** Do not fork composer, message renderer, or Voice UI.
+
+---
+
+## ADR-185 — Role and capabilities change features, not chat implementation
+
+**Решение.** Owner chrome (projects, integrations, Admin, Storage page) is additive. User sees the same thread/composer/Orb without those panels.
+
+---
+
+## ADR-186 — One login form for Owner and User
+
+**Решение.** Email + password. No self-registration. Accounts created only by Owner via Admin → Users.
+
+---
+
+## ADR-187 — Login landing `/jarvis` vs `/chat`
+
+**Решение.** Owner → `/jarvis`. User → `/chat`. Owner `/chat` → `/jarvis`. User `/jarvis` → `/chat`.
+
+---
+
+## ADR-188 — User self-registration forbidden
+
+**Решение.** No register route/page. Access code remains Telegram pairing only, not a web password.
+
+---
+
+## ADR-189 — User accounts only Owner-created
+
+**Решение.** Admin Users catalog is the only account factory.
+
+---
+
+## ADR-190 — Users get instance Web Research by default
+
+**Решение.** Capability `web_research` is in the default user set. Provider/keys stay Admin. Users do not configure Web Research.
+
+---
+
+## ADR-191 — Users get image and file chat
+
+**Решение.** Same attachment and Storage-upload path as Owner, scoped to `user_id`. Vision uses Default User Conversation AI, never Owner AI as fallback.
+
+---
+
+## ADR-192 — Persistent user files are private by user_id
+
+**Решение.** `StoredFile` queries always include authenticated `user_id`. No cross-user public_id access.
+
+---
+
+## ADR-193 — No Storage page for users
+
+**Решение.** Files in chat + AI retrieval tools. `/jarvis/storage` remains owner-only. No `/chat/storage`.
+
+---
+
+## ADR-194 — Users get Voice Runtime and Orb
+
+**Решение.** Capability `voice`. Same `VoiceRuntimeService`, `VoiceSession`, `JarvisVoiceOrb`. Routes `/chat/.../voice` alias the same controller as `/jarvis/.../voice`. Session `user_id` must match.
+
+---
+
+## ADR-195 — Users have no Projects
+
+**Решение.** No Projects UI/routes. `get_project_context` stays capability `projects` (owner). Backend deny, not only hidden UI.
+
+---
+
+## ADR-196 — Users have no configurable integrations
+
+**Решение.** No Google/Gmail/GitHub/ElevenLabs/Web Research settings for users. Telegram pairing remains a channel mechanism.
+
+---
+
+## ADR-197 — Users have own memory and General Prompt
+
+**Решение.** Existing memory engine + `user_ai_settings.general_prompt`. Retrieval scoped by `user_id`. Workspace settings drawer edits the user’s own prompt.
+
+---
+
+## ADR-198 — Default User Conversation AI stays separate from Owner AI
+
+**Решение.** `AiConfigurationResolver::resolveConversation` still picks Owner vs User role configs. No fallback to Owner AI.
+
+---
+
+## ADR-199 — `/cabinet` is a compatibility redirect
+
+**Решение.** Canonical user URL is `/chat`. `/cabinet` and `/cabinet/chats/{id}` redirect. Cabinet is not a separate product.
+
+---
+
+## ADR-200 — Frontend capability props are presentation only
+
+**Решение.** Inertia `capabilities` hide chrome. Authorization remains `User::canUseCapability` + ownership queries.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Алфавит generated access_code (кроме зарезервированного 2000).

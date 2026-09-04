@@ -6,7 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class EnsureOwnerWorkspace
+class RedirectOwnerFromUserWorkspace
 {
     /**
      * @param  Closure(Request): Response  $next
@@ -20,13 +20,13 @@ class EnsureOwnerWorkspace
         }
 
         if (! $user->isOwner()) {
-            if ($request->routeIs('jarvis.chats.show')) {
-                return redirect()->route('chat.chats.show', $request->route('conversation'));
-            }
-
-            return redirect()->route('chat.index');
+            return $next($request);
         }
 
-        return $next($request);
+        if ($request->routeIs('chat.chats.show')) {
+            return redirect()->route('jarvis.chats.show', $request->route('conversation'));
+        }
+
+        return redirect()->route('jarvis.index');
     }
 }

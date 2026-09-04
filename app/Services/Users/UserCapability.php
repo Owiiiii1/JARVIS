@@ -14,6 +14,8 @@ final class UserCapability
 
     public const CABINET = 'cabinet';
 
+    public const PERSONAL_WORKSPACE = 'personal_workspace';
+
     public const PROFILE = 'profile';
 
     public const ADMIN = 'admin';
@@ -55,7 +57,11 @@ final class UserCapability
             self::TELEGRAM_DM,
             self::REMINDERS,
             self::CABINET,
+            self::PERSONAL_WORKSPACE,
             self::PROFILE,
+            self::WEB_RESEARCH,
+            self::VOICE,
+            self::STORAGE,
         ];
     }
 }

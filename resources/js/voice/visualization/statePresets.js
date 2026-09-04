@@ -1,7 +1,7 @@
 const BASE = {
     scale: 1,
     opacity: 1,
-    glow: 0.28,
+    glow: 0.22,
     deform: 0.08,
     breath: 0.35,
     lineSpeed: 0.14,
@@ -19,7 +19,7 @@ const BASE = {
 export const STATE_PRESETS = {
     idle: {
         ...BASE,
-        glow: 0.24,
+        glow: 0.22,
         deform: 0.07,
         breath: 0.42,
         lineSpeed: 0.1,
@@ -29,7 +29,7 @@ export const STATE_PRESETS = {
     connecting: {
         ...BASE,
         scale: 0.92,
-        glow: 0.38,
+        glow: 0.3,
         deform: 0.04,
         breath: 0.18,
         lineSpeed: 0.72,
@@ -40,7 +40,7 @@ export const STATE_PRESETS = {
     },
     listening: {
         ...BASE,
-        glow: 0.48,
+        glow: 0.36,
         deform: 0.18,
         breath: 0.16,
         lineSpeed: 0.36,
@@ -52,7 +52,7 @@ export const STATE_PRESETS = {
     transcribing: {
         ...BASE,
         scale: 0.94,
-        glow: 0.34,
+        glow: 0.26,
         deform: 0.1,
         breath: 0.1,
         lineSpeed: 0.88,
@@ -63,7 +63,7 @@ export const STATE_PRESETS = {
     },
     thinking: {
         ...BASE,
-        glow: 0.52,
+        glow: 0.34,
         deform: 0.16,
         breath: 0.22,
         lineSpeed: 0.32,
@@ -76,7 +76,7 @@ export const STATE_PRESETS = {
     speaking: {
         ...BASE,
         scale: 1.04,
-        glow: 0.72,
+        glow: 0.44,
         deform: 0.22,
         breath: 0.18,
         lineSpeed: 0.44,
@@ -88,7 +88,7 @@ export const STATE_PRESETS = {
     interrupted: {
         ...BASE,
         scale: 0.9,
-        glow: 0.4,
+        glow: 0.32,
         deform: 0.14,
         breath: 0.2,
         lineSpeed: 0.95,
@@ -98,7 +98,7 @@ export const STATE_PRESETS = {
     },
     muted: {
         ...BASE,
-        glow: 0.12,
+        glow: 0.08,
         deform: 0.03,
         breath: 0.16,
         lineSpeed: 0.05,
@@ -109,7 +109,7 @@ export const STATE_PRESETS = {
     },
     error: {
         ...BASE,
-        glow: 0.3,
+        glow: 0.22,
         deform: 0.05,
         breath: 0.08,
         lineSpeed: 0.06,

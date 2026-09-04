@@ -3,8 +3,9 @@
 Целевая модульная архитектура. Реализация наращивается по фазам; границы модулей фиксируются сразу.
 
 ```
-[Telegram] [User Cabinet] [Owner Workspace] [Desktop] [Mobile] [Voice mode]
+[Telegram] [User /chat] [Owner /jarvis] [Desktop] [Mobile] [Voice mode]
         \         |              |             |        /         |
+                     Channel / Client Layer
                      Channel / Client Layer
                               |
                          Jarvis Core
@@ -35,7 +36,7 @@
 - привязку внешних identity;
 - conversations и messages (kind: `direct` | `group`; personal всегда с `user_id`);
 - message_attachments (private, owned, ephemeral screenshots by default);
-- stored_files / stored_file_chunks (owner persistent Storage; retrieval, not auto-context);
+- stored_files / stored_file_chunks (persistent Storage per `user_id`; retrieval, not auto-context; Storage page owner-only);
 - voice_sessions (modality over an existing conversation; no voice_messages / voice_memory);
 - Web Research tools (`search_web`, `fetch_web_page`) via provider abstraction; no web content mirror tables;
 - ContextBudgetManager: one LLM request is token-bounded regardless of DB size;

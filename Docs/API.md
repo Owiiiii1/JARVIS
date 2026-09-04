@@ -1,6 +1,6 @@
 # API
 
-API нужен User Cabinet, Owner Workspace, Desktop, Mobile. Telegram ходит в Core in-process. Cabinet/Workspace могут оставаться same-origin session; Desktop/Mobile требуют versioned Client API.
+API нужен User Workspace, Owner Workspace, Desktop, Mobile. Telegram ходит в Core in-process. Workspace может оставаться same-origin session; Desktop/Mobile требуют versioned Client API.
 
 Целевой контракт: [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md). Этот файл — инварианты. Окончательные URL **не фиксируются**. Клиенты не реализуют Memory/Tools/credentials локально.
 
@@ -13,10 +13,10 @@ API нужен User Cabinet, Owner Workspace, Desktop, Mobile. Telegram ходи
 - Все клиентские операции идут в Jarvis Core, не в «mobile backend».
 - Личная история и personal memory — только **текущего** `user_id`. Те же данные, что у его Telegram DM / Cabinet.
 - Ownership: id в URL недостаточен. Policy проверяет, что conversation/message/topic принадлежит user. ADR-021.
-- Клиент не присылает platform prompt и не выбирает произвольный vendor. Ядро резолвит Owner Conversation AI или Default User Conversation AI. User General Prompt правит сам user в Cabinet.
+- Клиент не присылает platform prompt и не выбирает произвольный vendor. Ядро резолвит Owner Conversation AI или Default User Conversation AI. User General Prompt правит сам user в Personal Workspace.
 - GitHub/Google credentials never leave Core. Clients send conversation turns; Core may call GitHub tools.
-- Group administration — не cabinet API. `TBD` узкий read для owner.
-- Два web context: owner → admin; `role=user` → cabinet. User на admin API/routes — deny.
+- Group administration — не user workspace API. `TBD` узкий read для owner.
+- Два web context: owner → `/jarvis` + admin; `role=user` → `/chat`. User на admin API/routes — deny. `/cabinet` is compatibility only.
 - Access code не является API/web password.
 - Схема токенов (sanctum, JWT, cookies) — `TBD`.
 - Realtime и voice — отдельные группы.

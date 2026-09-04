@@ -5,6 +5,7 @@ use App\Http\Middleware\EnsureOwnerWorkspace;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\RedirectOwnerCabinetToWorkspace;
+use App\Http\Middleware\RedirectOwnerFromUserWorkspace;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -24,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'owner' => EnsureOwner::class,
             'owner.workspace' => EnsureOwnerWorkspace::class,
+            'personal.workspace' => RedirectOwnerFromUserWorkspace::class,
             'cabinet.owner.redirect' => RedirectOwnerCabinetToWorkspace::class,
             'user.active' => EnsureUserIsActive::class,
         ]);

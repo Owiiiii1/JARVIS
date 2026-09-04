@@ -14,6 +14,7 @@ use App\Models\VoiceSession;
 use App\Services\Conversations\ChannelContext;
 use App\Services\Conversations\ConversationTurnService;
 use App\Services\Conversations\MessageHistoryService;
+use App\Services\Users\UserCapability;
 use App\Services\Voice\DTO\SynthesizedSpeech;
 use App\Services\Voice\DTO\VoiceAudioChunk;
 use App\Services\Voice\DTO\VoiceSessionEvent;
@@ -40,6 +41,10 @@ final class VoiceRuntimeService
 
     public function start(User $user, Conversation $conversation, VoiceOrigin $origin = VoiceOrigin::Web): VoiceSessionSnapshot
     {
+        if (! $user->canUseCapability(UserCapability::VOICE)) {
+            throw VoiceException::forbidden();
+        }
+
         $this->assertOwnedConversation($user, $conversation);
         $this->assertNotGroup($conversation);
         $this->endExpiredForUser($user);

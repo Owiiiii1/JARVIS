@@ -1,15 +1,19 @@
 # Users, spaces, Cabinet, Telegram pairing
 
-Два **логических пространства** на общих engines. Role задаёт default **capability set**, не второй Conversation Engine.
+Два **логических пространства** на общих engines. Role задаёт default **capability set**, не второй Conversation Engine и не второй chat frontend.
 
 - **Owner Space** — полностью изолированный AI-контекст владельца + admin/integrations/groups/projects.
 - **User Space** — полностью независимое пространство каждого `role=user`.
 
 User A, User B и Owner personal context **никогда** не смешиваются. Изоляция: `user_id` / scope / configuration domain / capabilities.
 
-Связано: [CHANNELS.md](CHANNELS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [REMINDERS.md](REMINDERS.md), [PROJECTS.md](PROJECTS.md), [INTEGRATIONS.md](INTEGRATIONS.md), ADR-016–045.
+Связано: [CHANNELS.md](CHANNELS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [REMINDERS.md](REMINDERS.md), [PROJECTS.md](PROJECTS.md), [INTEGRATIONS.md](INTEGRATIONS.md), ADR-016–045, ADR-184–200.
 
-Фактический код: user на admin route получает 403; `/cabinet` редирект на `/cabinet/chats/{id}`; web chat и Telegram используют один catalog и `ConversationTurnService`. Owner login → `/jarvis`. Owner `/cabinet` → `/jarvis`. Owner General Prompt — Workspace и Admin Profile (одна `user_ai_settings`). User General Prompt — Cabinet AI Settings. System AI configs — только owner Settings → AI.
+Фактический код (M25U.1): один Shared Personal Workspace frontend (`resources/js/personal-workspace`). Owner `/jarvis`, user `/chat`. `/cabinet` — compatibility redirect. User на admin route получает 403. Web chat и Telegram используют один catalog и `ConversationTurnService`. Owner login → `/jarvis`. User login → `/chat`. Owner `/chat` → `/jarvis`. User `/jarvis` → `/chat`. General Prompt — workspace settings drawer (`user_ai_settings`). System AI configs — только owner Settings → AI. No self-registration.
+
+---
+
+## Roles
 
 ---
 
@@ -20,7 +24,7 @@ User A, User B и Owner personal context **никогда** не смешива�
 | Role | Кто | Web после login | Telegram | Admin / integrations |
 | --- | --- | --- | --- | --- |
 | `owner` | один главный владелец инстанса | **Personal Workspace** `/jarvis` (общение) + **Admin Panel** `/dashboard` (техника) | тот же pairing, код `2000` | `*` |
-| `user` | все остальные в каталоге Users | **Personal Cabinet** | pairing своим `access_code` | нет |
+| `user` | все остальные в каталоге Users | **Personal Workspace** `/chat` (`/cabinet` redirects here) | pairing своим `access_code` | нет |
 
 Ровно один owner на инстанс. Не `if ($userId === 1)`.
 
@@ -32,9 +36,9 @@ conversations; conversation summaries; personal memories; **projects**; topics; 
 
 ### User Space
 
-conversations; summaries; personal memory; General Prompt; **Default User Conversation AI**; Telegram DM; Web Cabinet; reminders; timezone.
+conversations; summaries; personal memory; General Prompt; **Default User Conversation AI**; Telegram DM; Web Personal Workspace (`/chat`); reminders; timezone; images/files in chat; instance Web Research; Voice Runtime/UI.
 
-Нет: Admin, Groups, Projects, Google, owner AI config.
+Нет: Admin, Groups, Projects, Google, GitHub, owner AI config, Storage page, integration settings.
 
 Engines общие: Conversation, Context Builder, Telegram Adapter, Reminder Engine, AI Provider Layer.
 
@@ -44,22 +48,27 @@ Engines общие: Conversation, Context Builder, Telegram Adapter, Reminder En
 
 Не размазывать `if role === owner` по всему коду. Role → default set. Проверка в Core.
 
-| Capability | owner | user (сейчас) |
+| Capability | owner | user (M25U.1) |
 | --- | --- | --- |
 | chat | да | да |
 | memory | да | да |
 | telegram_dm | да | да |
 | reminders | да | да |
-| cabinet / profile | да | да |
+| cabinet / personal_workspace / profile | да | да |
+| web_research | да | да (instance provider) |
+| voice | да | да |
+| storage (read/search tools; chat files) | да | да |
+| storage page / delete_storage_file | да | нет |
 | projects | да | нет |
 | telegram_groups | да | нет |
 | group_analysis | да | нет |
 | gmail | да | нет |
 | google_calendar | да | нет |
+| github | да | нет |
 | integrations_admin | да | нет |
 | users_admin | да | нет |
-| voice | later | later / нет |
 | impersonation | да | нет |
+| system_ai_settings | да | нет |
 
 Owner = все. Расширение permissions без нового engine.
 
@@ -83,9 +92,11 @@ Owner **также** обычный участник Conversation Core: своя
 
 Пока **только**:
 
-- Web Cabinet: login, Profile (timezone), Chat (список, New Chat, свои треды), свой General Prompt;
-- Telegram DM после pairing кодом + Chat Selector;
-- reminders (доставка только Telegram).
+- Web Personal Workspace `/chat`: login, chats, composer, images/files, Voice, General Prompt, profile name/timezone;
+- Telegram DM after pairing + Chat Selector;
+- reminders (delivery Telegram-only);
+- instance Web Research tools (`search_web`, `fetch_web_page`);
+- own Storage files via chat + read/search tools (no Storage page).
 
 **Не** имеет (backend 403 / deny, не только скрытое меню):
 
@@ -122,10 +133,12 @@ Owner **также** обычный участник Conversation Core: своя
 
 ```
 if role === owner → /jarvis (Personal Workspace); Admin at /dashboard
-if role === user  → Personal Cabinet
+if role === user  → /chat (Personal Workspace)
 ```
 
-User на admin route: **403** или redirect в cabinet по согласованной policy. Инвариант — user не видит admin data. Owner `/cabinet` → `/jarvis`. Owner login → `/jarvis` (`intended()` still honours an explicit Admin URL).
+`/cabinet` and `/cabinet/chats/{id}` redirect to `/chat` (owner `/cabinet` → `/jarvis`).
+
+User на admin route: **403**. Owner `/chat` → `/jarvis`. User `/jarvis` → `/chat`. Owner login → `/jarvis` (`intended()` still honours an explicit Admin URL).
 
 Impersonation: только owner, без пароля жертвы. ADR-020.
 
@@ -171,7 +184,7 @@ Impersonation: только owner, без пароля жертвы. ADR-020.
 
 Минимум: **Chat**, плюс редактирование **своего General Prompt**. Timezone используется для отображения времени сообщений.
 
-Chat: sidebar список, Новый чат, history, composer. URL `/cabinet/chats/{id}`. Тот же каталог conversations и те же messages, что в Telegram. Engine: `ConversationTurnService` (тот же, что Telegram DM).
+Chat: sidebar список, Новый чат, history, composer, attachments, Voice. Canonical URL `/chat/chats/{id}`. `/cabinet/chats/{id}` redirects here. Тот же каталог conversations и те же messages, что в Telegram. Engine: `ConversationTurnService`. Frontend: тот же `PersonalWorkspace`, что Owner `/jarvis`.
 
 New Chat: title `Новый чат`, пустой raw. AI: **Default User Conversation AI**, не Owner Conversation AI.
 

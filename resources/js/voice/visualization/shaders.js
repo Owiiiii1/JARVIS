@@ -90,19 +90,21 @@ varying float vNoise;
 void main() {
     vec3 n = normalize(vNormal);
     vec3 v = normalize(vView);
-    float fresnel = pow(1.0 - abs(dot(n, v)), 2.4);
-    float inner = pow(abs(dot(n, v)), 1.6);
-    vec3 cool = vec3(0.22, 0.62, 0.78);
-    vec3 steel = vec3(0.55, 0.72, 0.82);
-    vec3 core = mix(cool, steel, clamp(vNoise, 0.0, 1.0));
+    float facing = abs(dot(n, v));
+    float fresnel = pow(1.0 - facing, 3.1);
+    float glass = pow(facing, 2.2);
+    vec3 cool = vec3(0.05, 0.16, 0.24);
+    vec3 plasma = vec3(0.18, 0.55, 0.72);
+    vec3 rim = vec3(0.42, 0.82, 1.0);
+    vec3 core = mix(cool, plasma, clamp(vNoise * 0.55, 0.0, 1.0));
     core = mix(vec3(dot(core, vec3(0.3, 0.5, 0.2))), core, uSaturate);
-    vec3 warn = vec3(0.72, 0.48, 0.22);
+    vec3 warn = vec3(0.62, 0.38, 0.16);
     core = mix(core, warn, uWarning * 0.55);
     core *= uTint;
-    float glow = uGlow * (0.35 + fresnel * 1.15 + uAmp * 0.25);
-    vec3 color = core * (0.22 + inner * 0.45) + vec3(0.72, 0.9, 1.0) * glow;
-    float alpha = uOpacity * (0.18 + fresnel * 0.72 + inner * 0.12);
-    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.92));
+    float glow = uGlow * (0.12 + fresnel * 0.9 + uAmp * 0.12);
+    vec3 color = core * (0.08 + glass * 0.16) + rim * glow + rim * vNoise * 0.08;
+    float alpha = uOpacity * (0.04 + fresnel * 0.62 + vNoise * 0.06 + glass * 0.05);
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.72));
 }
 `;
 
@@ -136,8 +138,8 @@ void main() {
     float bands = 0.5 + 0.5 * sin(vPos.y * 18.0 + uTime * (1.4 + uGlow));
     vec3 c = mix(vec3(0.12, 0.42, 0.58), vec3(0.7, 0.9, 1.0), bands);
     c = mix(c, vec3(0.7, 0.42, 0.18), uWarning * 0.4);
-    float a = uOpacity * (0.12 + n * 0.18 + bands * 0.22) * uGlow;
-    gl_FragColor = vec4(c, clamp(a, 0.0, 0.55));
+    float a = uOpacity * (0.05 + n * 0.08 + bands * 0.14) * uGlow;
+    gl_FragColor = vec4(c, clamp(a, 0.0, 0.32));
 }
 `;
 
@@ -165,7 +167,7 @@ void main() {
     vec3 c = mix(vec3(0.35, 0.78, 0.92), vec3(0.85, 0.95, 1.0), dash);
     c = mix(vec3(dot(c, vec3(0.33))), c, uSaturate);
     c = mix(c, vec3(0.85, 0.55, 0.25), uWarning * 0.5);
-    gl_FragColor = vec4(c, uOpacity * dash * (0.25 + uGlow * 0.7));
+    gl_FragColor = vec4(c, uOpacity * dash * (0.16 + uGlow * 0.38));
 }
 `;
 
@@ -185,8 +187,8 @@ void main() {
     p.y += lift;
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = uSize * (1.4 - uReduced * 0.5) * (140.0 / -mv.z);
-    vAlpha = 0.25 + 0.55 * fract(aSeed + t * 0.1);
+    gl_PointSize = uSize * (0.7 - uReduced * 0.25) * (42.0 / max(0.8, -mv.z));
+    vAlpha = 0.12 + 0.28 * fract(aSeed + t * 0.1);
 }
 `;
 
@@ -199,6 +201,33 @@ void main() {
     float d = dot(uv, uv);
     if (d > 1.0) discard;
     vec3 c = mix(vec3(0.55, 0.85, 1.0), vec3(0.9, 0.6, 0.3), uWarning);
-    gl_FragColor = vec4(c, uOpacity * vAlpha * (1.0 - d));
+    gl_FragColor = vec4(c, uOpacity * vAlpha * (1.0 - d) * 0.55);
+}
+`;
+
+export const haloVertexShader = /* glsl */ `
+varying vec3 vNormal;
+varying vec3 vView;
+void main() {
+    vNormal = normalize(mat3(modelMatrix) * normal);
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vView = -mv.xyz;
+    gl_Position = projectionMatrix * mv;
+}
+`;
+
+export const haloFragmentShader = /* glsl */ `
+uniform float uGlow;
+uniform float uOpacity;
+uniform float uWarning;
+varying vec3 vNormal;
+varying vec3 vView;
+void main() {
+    vec3 n = normalize(vNormal);
+    vec3 v = normalize(vView);
+    float fresnel = pow(1.0 - abs(dot(n, v)), 4.2);
+    vec3 c = mix(vec3(0.28, 0.72, 0.95), vec3(0.78, 0.48, 0.22), uWarning);
+    float a = uOpacity * fresnel * (0.08 + uGlow * 0.18);
+    gl_FragColor = vec4(c, clamp(a, 0.0, 0.22));
 }
 `;

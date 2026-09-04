@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\ChatAttachments\Exceptions\ChatAttachmentException;
 use App\Services\Storage\Exceptions\StoredFileException;
 use App\Services\Tools\ToolConfirmationService;
+use App\Services\Users\UserCapability;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
@@ -48,6 +49,43 @@ final class PersonalChatSurfaceService
             'email' => $user->email,
             'role' => $user->role->value,
             'timezone' => $user->timezone,
+        ];
+    }
+
+    /**
+     * Presentation flags only. Backend capability and ownership checks are authoritative.
+     *
+     * @return array<string, bool>
+     */
+    public function uiCapabilities(User $user): array
+    {
+        $owner = $user->isOwner();
+
+        return [
+            'voice' => $user->canUseCapability(UserCapability::VOICE),
+            'webResearch' => $user->canUseCapability(UserCapability::WEB_RESEARCH),
+            'attachments' => $user->canUseCapability(UserCapability::CHAT),
+            'files' => $user->canUseCapability(UserCapability::STORAGE),
+            'projects' => $user->canUseCapability(UserCapability::PROJECTS),
+            'admin' => $owner,
+            'integrations' => $user->canUseCapability(UserCapability::INTEGRATIONS_ADMIN),
+            'storagePage' => $owner,
+            'ownerContext' => $owner,
+            'reminders' => $user->canUseCapability(UserCapability::REMINDERS),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function personalSettings(User $user): array
+    {
+        $user->loadMissing('aiSettings');
+
+        return [
+            'name' => $user->name,
+            'timezone' => $user->timezone,
+            'general_prompt' => $user->aiSettings?->general_prompt,
         ];
     }
 
