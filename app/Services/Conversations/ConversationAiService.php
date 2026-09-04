@@ -173,12 +173,15 @@ final class ConversationAiService
                     throw $exception;
                 }
 
-                Log::warning('AI follow-up after tool failed; using fallback reply', [
-                    'configuration' => $configuration->roleKey()->value,
-                    'provider' => $configuration->provider,
-                    'model' => $configuration->model,
-                    'error_class' => $exception::class,
-                ]);
+                try {
+                    Log::warning('AI follow-up after tool failed; using fallback reply', [
+                        'configuration' => $configuration->roleKey()->value,
+                        'provider' => $configuration->provider,
+                        'model' => $configuration->model,
+                        'error_class' => $exception::class,
+                    ]);
+                } catch (Throwable) {
+                }
 
                 $response = new AiChatResponse(
                     text: $fallback,
@@ -225,13 +228,16 @@ final class ConversationAiService
         } catch (Throwable $exception) {
             $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
 
-            Log::warning('AI conversation turn failed', [
-                'provider' => $configuration->provider,
-                'model' => $configuration->model,
-                'configuration' => $configuration->roleKey()->value,
-                'error_class' => $exception::class,
-                'latency_ms' => $latencyMs,
-            ]);
+            try {
+                Log::warning('AI conversation turn failed', [
+                    'provider' => $configuration->provider,
+                    'model' => $configuration->model,
+                    'configuration' => $configuration->roleKey()->value,
+                    'error_class' => $exception::class,
+                    'latency_ms' => $latencyMs,
+                ]);
+            } catch (Throwable) {
+            }
 
             $errorText = self::AI_FAILURE;
 
@@ -298,12 +304,15 @@ final class ConversationAiService
             }
 
             if ($rounds >= self::MAX_TOOL_ROUNDS) {
-                Log::warning('AI tool loop limit reached', [
-                    'configuration' => $configuration->roleKey()->value,
-                    'provider' => $configuration->provider,
-                    'model' => $configuration->model,
-                    'error_class' => 'tool_loop_limit',
-                ]);
+                try {
+                    Log::warning('AI tool loop limit reached', [
+                        'configuration' => $configuration->roleKey()->value,
+                        'provider' => $configuration->provider,
+                        'model' => $configuration->model,
+                        'error_class' => 'tool_loop_limit',
+                    ]);
+                } catch (Throwable) {
+                }
 
                 throw new AiConfigurationException('AI tool loop exceeded the safety limit.');
             }

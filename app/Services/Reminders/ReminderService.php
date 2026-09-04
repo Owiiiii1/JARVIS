@@ -44,11 +44,14 @@ final class ReminderService
             ],
         ]);
 
-        Log::info('reminder created', [
-            'reminder_id' => $reminder->id,
-            'user_id' => $user->id,
-            'status' => ReminderStatus::Scheduled->value,
-        ]);
+        try {
+            Log::info('reminder created', [
+                'reminder_id' => $reminder->id,
+                'user_id' => $user->id,
+                'status' => ReminderStatus::Scheduled->value,
+            ]);
+        } catch (\Throwable) {
+        }
 
         return $reminder;
     }

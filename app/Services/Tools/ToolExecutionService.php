@@ -134,12 +134,16 @@ final class ToolExecutionService
                 'retryable' => $exception->retryable,
             ], $exception->context));
         } catch (Throwable $exception) {
-            Log::warning('tool execution failed', [
-                'tool' => $tool->name(),
-                'user_id' => $context->user->id,
-                'provider' => $meta?->provider,
-                'error_code' => 'tool_failed',
-            ]);
+            try {
+                Log::warning('tool execution failed', [
+                    'tool' => $tool->name(),
+                    'user_id' => $context->user->id,
+                    'provider' => $meta?->provider,
+                    'error_code' => 'tool_failed',
+                ]);
+            } catch (Throwable) {
+            }
+
             $result = ToolResult::failure($call->id, $tool->name(), [
                 'success' => false,
                 'error' => 'tool_failed',
@@ -150,16 +154,19 @@ final class ToolExecutionService
             ? ToolExecutionLogStatus::Succeeded
             : ToolExecutionLogStatus::Failed;
 
-        $this->persistLog(
-            $context,
-            $call,
-            $meta,
-            $account,
-            $status,
-            $decision,
-            $result,
-            $startedAt,
-        );
+        try {
+            $this->persistLog(
+                $context,
+                $call,
+                $meta,
+                $account,
+                $status,
+                $decision,
+                $result,
+                $startedAt,
+            );
+        } catch (Throwable) {
+        }
 
         if ($account !== null) {
             if ($result->success) {
@@ -214,15 +221,18 @@ final class ToolExecutionService
             'finished_at' => $finishedAt,
         ]);
 
-        Log::info('tool executed', [
-            'tool' => $call->name,
-            'user_id' => $context->user->id,
-            'provider' => $meta?->provider,
-            'status' => $status->value,
-            'duration_ms' => $duration,
-            'account_id' => $account?->id,
-            'error_code' => $result->success ? null : (string) ($result->payload['error'] ?? 'tool_failed'),
-        ]);
+        try {
+            Log::info('tool executed', [
+                'tool' => $call->name,
+                'user_id' => $context->user->id,
+                'provider' => $meta?->provider,
+                'status' => $status->value,
+                'duration_ms' => $duration,
+                'account_id' => $account?->id,
+                'error_code' => $result->success ? null : (string) ($result->payload['error'] ?? 'tool_failed'),
+            ]);
+        } catch (Throwable) {
+        }
     }
 
     /**

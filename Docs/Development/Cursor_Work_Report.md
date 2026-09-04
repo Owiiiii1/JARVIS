@@ -1,144 +1,77 @@
-# Cursor Work Report — Milestone 22 Owner Web Workspace
+# Cursor Work Report — Workspace message 500 fix
 
 **Date:** 2026-09-04  
 **Host:** `/var/www/jarvis`  
 **GitHub:** `Owiiiii1/JARVIS` (`origin/main`)  
 **Public URL:** https://jarvis.owlsolutions.net
 
-Status: **IMPLEMENTED / NOT VALIDATED**. Owner deferred all automated tests and all live AI / Google / GitHub sends.
+Status: **HOTFIX IMPLEMENTED**. Owner deferred all automated tests. No live AI/Google/GitHub smoke.
 
 ---
 
 ## Before HEAD
 
-`ac1ada4d6f9ac9120f1eaea92f6579228c89a3a4` — `feat: add GitHub integration` (M21). Working tree was clean.
-
-No database migration in this milestone. Production schema unchanged: Workspace is a UI surface over existing `conversations` / `messages` / `tool_confirmations` / `user_ai_settings`.
+`aa80f1a655ad8fe7f5389a07ed3a35c97976f15a` — `feat: add owner Jarvis workspace` (M22). Fix lived only in the working tree until this commit.
 
 ---
 
-## Routes
+## Symptom
 
-| Method | Path | Name |
-| --- | --- | --- |
-| GET | `/jarvis` | `jarvis.index` |
-| GET | `/jarvis/chats/{conversation}` | `jarvis.chats.show` |
-| POST | `/jarvis/chats` | `jarvis.chats.store` |
-| PATCH | `/jarvis/chats/{conversation}` | `jarvis.chats.update` |
-| POST | `/jarvis/chats/{conversation}/messages` | `jarvis.messages.store` |
-| GET | `/jarvis/chats/{conversation}/messages/older` | `jarvis.messages.older` |
-| POST | `/jarvis/confirmations/{confirmation}/confirm` | `jarvis.confirmations.confirm` |
-| POST | `/jarvis/confirmations/{confirmation}/cancel` | `jarvis.confirmations.cancel` |
-| PATCH | `/jarvis/settings/general-prompt` | `jarvis.settings.prompt.update` |
+`POST /jarvis/chats/{conversation}/messages` returned HTTP 500 (`{"message":"Server Error"}`) when the owner asked Jarvis about a reminder.
 
-`GET /jarvis` redirects to the owner’s latest personal conversation (`ConversationService::latestOrDefault`), otherwise creates the existing `Основной` default once.
+Nginx showed two 500s. The user inbound rows stayed `metadata.ai.status = pending`. `create_reminder` had already inserted `reminders` rows. No assistant reply was persisted.
 
 ---
 
-## Authorization
+## Cause
 
-- Middleware: `auth`, `user.active`, `owner.workspace` (`EnsureOwnerWorkspace`).
-- Guest → login.
-- `role=user` → `/cabinet`.
-- Owner identity is enough; Workspace does not require `integrations_admin`.
-- No hardcoded owner id.
+php-fpm runs as `www-data`. `storage/logs/laravel.log` was `deploy:deploy` mode `664`, so the web process could not append.
 
-Owner hitting `/cabinet*` is redirected by `RedirectOwnerCabinetToWorkspace` (`cabinet.chats.show` keeps the same conversation id). Normal user Cabinet routes are unchanged.
+Reminder create always called `Log::info('reminder created')`. After a successful tool run, `ToolExecutionService` called `Log::info('tool executed')`. Laravel stack channel had `ignore_exceptions => false`, so a failed log write threw.
 
----
+That exception escaped the tool path before the assistant follow-up/fallback was persisted. The outer conversation catch also called `Log::warning`, which threw again, so the turn never marked the inbound failed/completed. HTTP layer returned 500.
 
-## Owner login redirect
-
-Ordinary owner login lands on `/jarvis`. `intended()` still honours an explicit Admin URL. Admin Panel remains at `/dashboard` with **Open Jarvis** in the header, sidebar, and dashboard cards. Workspace header has a secondary **Admin** link.
+Logging failure was the abort. The reminder engine itself had already succeeded.
 
 ---
 
-## Layout / components
+## Fix
 
-- `JarvisWorkspaceLayout` — dark cinematic shell, not Admin, not Cabinet.
-- `Pages/Jarvis/Workspace.jsx` — sidebar, thread, composer, context panel, settings/prompt modals.
-- `SafeMarkdown` — lists, fenced code + copy, tables, http(s) links; no raw HTML.
-- `VoiceModePlaceholder` + `OrbPlaceholder` — CSS only; future `<VoiceSession conversationId>` boundary documented.
-- Admin `Open Jarvis`; Dashboard first card is Workspace.
+- `config/logging.php`: stack `ignore_exceptions => true`.
+- `ReminderService::create`: wrap reminder log write in `try/catch`.
+- `ToolExecutionService`: wrap tool-failure logs, `persistLog()`, and `tool executed` logs so audit/log I/O cannot abort a successful tool result.
+- `ConversationAiService`: wrap turn/follow-up/tool-loop warning logs so fallback/error persist still runs.
+- Runtime: `chmod 666` on `storage/logs/laravel.log` so php-fpm can append (file not committed).
 
----
-
-## Conversation reuse
-
-Same `conversations` and `messages` as Telegram. No `workspace_conversations`. New Chat = `ConversationService::createPersonal`. Channel stays `web` + UUID `client_message_id`.
+No schema change. No second conversation engine.
 
 ---
 
-## Shared services
+## Files
 
-`PersonalChatSurfaceService` is the shared application layer for Cabinet and Workspace: sidebar, page, create, rename, send turn, confirmation resolve. `ConversationTurnService` is not rewritten.
-
-`OwnerWorkspaceContextService` builds bounded secondary-panel summaries from `ProjectService`, `ReminderService`, `IntegrationRegistry`, and memory/topic counts. No Admin controllers.
-
-Cabinet `CabinetChatController` now calls the shared surface service. User-facing Cabinet behavior stays the same catalog/turn path.
-
----
-
-## Sidebar / chat / context
-
-- Left: New Chat, local search, titles, last activity, selected state, rename.
-- Center: recent messages, load older, sticky composer (Enter send, Shift+Enter newline, thinking state, local draft).
-- Empty chat: «Чем займёмся?» + suggestion chips that send normal user text.
-- Right / mobile drawer: projects (list + attached + Admin deep link), upcoming reminders read-only, integrations compact status (Google identity/Calendar/Gmail, GitHub, Telegram, ElevenLabs placeholder), memory counts + General Prompt.
-
----
-
-## Confirmations
-
-Confirm / Cancel hit Workspace confirmation routes, then the same turn path (`да` / `отмена`) and `ToolConfirmationService`. Safe previews: Gmail recipients/subject/body; Calendar/GitHub bounded argument fields. Encrypted args are not sent to the client.
-
----
-
-## General Prompt
-
-Editable from Workspace modal/drawer via `user_ai_settings` (`jarvis.settings.prompt.update`). Provider/model stay Admin-only.
-
----
-
-## Voice placeholder
-
-Text / Voice toggle. Voice panel: CSS sphere + glow + idle breathing (`prefers-reduced-motion` disables animation). No microphone, WebRTC, ElevenLabs, STT/TTS, or Three.js.
-
----
-
-## Responsive
-
-Desktop: conversation-first, sidebar ~260–320px class width, context panel collapsible. Mobile web: conversation list overlay, context drawer, sticky composer.
+- `config/logging.php`
+- `app/Services/Reminders/ReminderService.php`
+- `app/Services/Tools/ToolExecutionService.php`
+- `app/Services/Conversations/ConversationAiService.php`
 
 ---
 
 ## Verification (non-test)
 
-Ran only:
-
-- `npm run build`
-- `php artisan route:list --name=jarvis`
-- `php artisan migrate:status`
-- `php artisan queue:failed`
-- `php artisan schedule:list`
-- `vendor/bin/pint --dirty`
-
-**TESTS NOT RUN — Owner deferred.**  
-**NO LIVE AI / Google / GitHub.**  
-No conversational send. Production DB tables unchanged.
+- Confirmed fix present in working tree before commit.
+- `vendor/bin/pint --dirty` already passed on these PHP files.
+- **TESTS NOT RUN — Owner deferred.**
+- **NO LIVE AI / Google / GitHub send from this commit step.**
 
 ---
 
 ## Known issues
 
-- Workspace conversational UX is unvalidated (no live turn).
-- Google / GitHub integrations may still be disconnected in production; status panel will show that honestly.
-- Voice is a layout placeholder only (M23).
-- Public Client API is not implemented (still later).
-- Delete-chat is not offered (Core has no delete).
+- Two reminder rows were created by the failed attempts; owner may see duplicates.
+- Log file permissions can drift again if a deploy user recreates `laravel.log` without www-data write access; code now survives that.
 
 ---
 
 ## Next
 
-**M23 Voice Runtime Foundation** — STT/TTS/realtime abstraction on the selected `conversation_id`. Replace `VoiceModePlaceholder` with `<VoiceSession />`. No Three.js Orb yet (M24).
+**M23 Voice Runtime Foundation.**
