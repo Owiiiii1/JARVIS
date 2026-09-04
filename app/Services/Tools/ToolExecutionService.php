@@ -73,11 +73,11 @@ final class ToolExecutionService
                 try {
                     $tool->assertReady($context);
                 } catch (IntegrationException $exception) {
-                    $result = ToolResult::failure($call->id, $tool->name(), [
+                    $result = ToolResult::failure($call->id, $tool->name(), array_merge([
                         'success' => false,
                         'error' => $exception->error,
                         'retryable' => $exception->retryable,
-                    ]);
+                    ], $exception->context));
                     $this->persistLog(
                         $context,
                         $call,
@@ -128,11 +128,11 @@ final class ToolExecutionService
         try {
             $result = $tool->execute($call, $context);
         } catch (IntegrationException $exception) {
-            $result = ToolResult::failure($call->id, $tool->name(), [
+            $result = ToolResult::failure($call->id, $tool->name(), array_merge([
                 'success' => false,
                 'error' => $exception->error,
                 'retryable' => $exception->retryable,
-            ]);
+            ], $exception->context));
         } catch (Throwable $exception) {
             Log::warning('tool execution failed', [
                 'tool' => $tool->name(),
@@ -252,6 +252,10 @@ final class ToolExecutionService
             $metadata['truncated'] = (bool) $payload['truncated'];
         }
 
+        if (isset($payload['repository']) && is_string($payload['repository']) && $payload['repository'] !== '') {
+            $metadata['repository'] = $payload['repository'];
+        }
+
         if (isset($payload['confirmation_id']) && is_string($payload['confirmation_id'])) {
             $metadata['confirmation_id'] = $payload['confirmation_id'];
         }
@@ -278,6 +282,12 @@ final class ToolExecutionService
 
         if (isset($payload['labels']) && is_array($payload['labels'])) {
             $metadata['result_count'] = count($payload['labels']);
+        }
+
+        foreach (['repositories', 'commits', 'files', 'issues', 'pull_requests', 'branches', 'workflow_runs', 'comments', 'results'] as $key) {
+            if (isset($payload[$key]) && is_array($payload[$key])) {
+                $metadata['result_count'] = count($payload[$key]);
+            }
         }
 
         return $metadata;

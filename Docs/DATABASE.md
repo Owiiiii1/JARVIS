@@ -315,15 +315,15 @@ IMPLEMENTED M13 + M11 `project_groups`. `projects` (`user_id`, unique `(user_id,
 
 ### integration_accounts (M16 + M17)
 
-Owner-only connected-account state. Unique `(user_id, provider, external_account_id)`. Status: `disconnected|connecting|connected|error|revoked`. `credentials_encrypted` is Laravel-encrypted JSON (never plaintext tokens). Google `expires_at` lives inside that envelope, not a separate column. Google `external_account_id` = OpenID `sub`. Telegram bot token is **not** stored here. [INTEGRATIONS.md](INTEGRATIONS.md).
+Owner-only connected-account state. Unique `(user_id, provider, external_account_id)`. Status: `disconnected|connecting|connected|error|revoked`. `credentials_encrypted` is Laravel-encrypted JSON (never plaintext tokens). Google `expires_at` lives inside that envelope, not a separate column. Google `external_account_id` = OpenID `sub`. GitHub `external_account_id` = GitHub numeric user id (email is not the identity key). Telegram bot token is **not** stored here. [INTEGRATIONS.md](INTEGRATIONS.md).
 
 ### tool_execution_logs (M16)
 
-Owner/user tool audit: tool_name, capability, provider, nullable `integration_account_id`, status (`started|succeeded|failed|denied|confirmation_required`), duration, safe error_code, bounded metadata. No tokens, arguments, or result bodies. Calendar/Gmail metadata may include `result_count` / `operation` / `truncated` / `confirmation_id` only — never email bodies, subjects, addresses, event titles, or tokens. Indexes: user_id, tool_name, provider, status, started_at. Retention TBD.
+Owner/user tool audit: tool_name, capability, provider, nullable `integration_account_id`, status (`started|succeeded|failed|denied|confirmation_required`), duration, safe error_code, bounded metadata. No tokens, arguments, or result bodies. Calendar/Gmail metadata may include `result_count` / `operation` / `truncated` / `confirmation_id` only — never email bodies, subjects, addresses, event titles, or tokens. GitHub metadata may include `repository` full_name / `result_count` / `truncated` — never tokens, file contents, issue/PR/comment bodies, or diffs. Indexes: user_id, tool_name, provider, status, started_at. Retention TBD.
 
 ### tool_confirmations (M18 + M19)
 
-Persisted pending tool confirmations for destructive Calendar delete, Gmail send (always), and model-proposed external writes (including Gmail drafts). `public_id` UUID, `user_id`, `conversation_id`, `tool_name`, optional `tool_call_id`, `arguments_encrypted` (Laravel encrypted JSON, no OAuth tokens), status `pending|confirmed|cancelled|expired|executed`, `expires_at` (default 10 minutes), `confirmed_at`, `executed_at`. Bound to user+conversation. One-time execute is the send-idempotency guard. No local Google Calendar event mirror. No local Gmail mailbox tables (`emails` / `gmail_messages` / `gmail_threads` are not created).
+Persisted pending tool confirmations for destructive Calendar delete, Gmail send (always), and model-proposed external writes (including Gmail drafts and GitHub issue/comment/branch/PR create). `public_id` UUID, `user_id`, `conversation_id`, `tool_name`, optional `tool_call_id`, `arguments_encrypted` (Laravel encrypted JSON, no OAuth tokens), status `pending|confirmed|cancelled|expired|executed`, `expires_at` (default 10 minutes), `confirmed_at`, `executed_at`. Bound to user+conversation. One-time execute is the send-idempotency guard. No local Google Calendar event mirror. No local Gmail mailbox tables. No local GitHub repository/commit/issue/PR tables.
 
 ---
 

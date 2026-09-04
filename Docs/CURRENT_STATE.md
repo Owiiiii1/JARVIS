@@ -9,9 +9,9 @@ This document describes **what exists on the server now**. Target architecture i
 
 ### Implemented vs planned (post-M19)
 
-**IMPLEMENTED (code/runtime):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools (automated tests; live Google smoke deferred). Owner currently reaches personal chat via Telegram and can use Admin surfaces; there is **no** Owner Personal Workspace route.
+**IMPLEMENTED (code/runtime, GitHub/Google not live-validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Owner currently reaches personal chat via Telegram and can use Admin surfaces; there is **no** Owner Personal Workspace route. Combined Google smoke and all GitHub live/automated tests are deferred by Owner.
 
-**PLANNED / DOCUMENTED ONLY (not implemented):** Owner Personal Workspace redesign; versioned Client API; realtime Voice Runtime; Orb Voice UI; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub integration; proactive assistant / inbox watch. Do not treat these as shipped.
+**PLANNED / DOCUMENTED ONLY (not implemented):** Owner Personal Workspace redesign; versioned Client API; realtime Voice Runtime; Orb Voice UI; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch. Do not treat these as shipped.
 
 Status vocabulary:
 
@@ -709,8 +709,18 @@ Owner Gmail tools over live Gmail (no local mailbox mirror, no polling, no watch
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
-### Planned after M19 — DOCUMENTED ONLY
+### Milestone 20 — Combined Google smoke — DEFERRED BY OWNER
 
-Docs-only architecture (no runtime/schema change in that commit): Admin ≠ Personal Workspace; conversation-centric Owner Web Workspace; Voice Runtime vs Orb UI; Desktop = Tauri 2 in `Owiiiii1/JARVIS-Desktop`; Mobile = Flutter in `Owiiiii1/JARVIS-Mobile`; versioned Client API; GitHub via Integration Framework; milestone order M20–M28. None of these are implemented.
+Validation only. Not a coding milestone. Live Google still not exercised.
+
+### Milestone 21 — GitHub Integration — IMPLEMENTED, NOT LIVE-VALIDATED (2026-09-04)
+
+Owner GitHub OAuth App + tools over live GitHub API (no local repo mirror, no shell git, no webhook/polling). Scopes `repo` + `read:org`. Credentials encrypted on `integration_accounts`. Token only via `GitHubCredentialService`. HTTP only via `GitHubApiService`. Read: repos/branches/commits/compare/file/code search/issues/PRs/workflow runs. Write: create issue, comment, create branch, create PR. No merge/delete/force/file-write/workflow edit. Capability `github` (owner). Normal users do not receive GitHub tools. Integrations card: Connect / Reconnect / Disconnect; Not configured without env. Env client id/secret were not set by Cursor. Automated tests not run (Owner decision). Live GitHub not connected. Combined Google smoke still deferred.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Planned after M21 — DOCUMENTED ONLY
+
+Owner Personal Workspace (M22); Voice Runtime / Orb; Desktop Tauri; Mobile Flutter; GitHub merge/file-write/webhooks; proactive assistant. Do not treat as shipped.
 
 See [ROADMAP.md](ROADMAP.md), [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md).

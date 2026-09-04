@@ -13,7 +13,7 @@
       spaces Engine         Owner     Google/    (technical)
       +caps                 Conv/     Gmail      not chat
                             Analysis  Calendar
-                            User Conv GitHub later
+                            User Conv GitHub (M21)
                                       Reminders
                               |
                            Database
@@ -33,7 +33,7 @@
 - привязку внешних identity;
 - conversations и messages (kind: `direct` | `group`; personal всегда с `user_id`);
 - Telegram Groups: авторегистрация, group conversations; **owner-only** admin;
-- Tool / Integration Layer (owner-only: Google, ElevenLabs; Telegram channel отдельно);
+- Tool / Integration Layer (owner-only: Google, GitHub, ElevenLabs placeholder; Telegram channel отдельно);
 - memory и topics (с Phase 2; retrieval всегда scoped);
 - AI: Owner Conversation / Owner Analysis / Default User Conversation;
 - Reminder Engine; Projects (owner); Proactive placeholder;

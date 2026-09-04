@@ -157,6 +157,7 @@ Tools:
 - `search_group_knowledge` — owner-only (`group_analysis`). Explicit group search only.
 - Google Calendar tools — owner-only (`google_calendar`). Live Google is the source of truth. [INTEGRATIONS.md](INTEGRATIONS.md).
 - Gmail tools — owner-only (`gmail`). Live Gmail is the source of truth; no local mailbox. Search/list/read/thread/labels/draft/send/modify. Send always requires persisted confirmation. [INTEGRATIONS.md](INTEGRATIONS.md).
+- GitHub tools — owner-only (`github`). Live GitHub is the source of truth; no local repo mirror and no shell git. Read repos/commits/files/search/issues/PRs/CI; controlled write: issue/comment/branch/PR create. No merge/delete/force/file-write. [INTEGRATIONS.md](INTEGRATIONS.md).
 - `confirm_tool_action` / `cancel_tool_action` — only while a pending confirmation exists; require a server-side yes/cancel signal.
 
 Gemini — production provider с function calling (`functionDeclarations` / `functionCall` / `functionResponse`). OpenAI и Anthropic chat работают; tool-enabled request им **не** отправляется молча (`supportsTools=false`).

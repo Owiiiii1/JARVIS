@@ -36,7 +36,7 @@ All of that stays in Jarvis Core.
 | reminders | list/status if needed; create remains a conversation tool |
 | projects | list / context via Core (owner) |
 | user / profile / settings | timezone, General Prompt, voice prefs |
-| integrations status | connected / permission required — no secrets |
+| integrations status | connected / permission required — no secrets; GitHub login/scopes without tokens |
 
 Ownership: URL id is not enough. Policy checks `user_id`. ADR-021.
 

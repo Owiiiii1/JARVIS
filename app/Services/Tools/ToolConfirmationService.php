@@ -248,6 +248,10 @@ final class ToolConfirmationService
             'create_gmail_draft' => 'Create a Gmail draft. It will not be sent.',
             'modify_gmail_labels' => 'Change Gmail labels on the identified mail.',
             'send_gmail_message' => $this->gmailSendSummary($confirmation),
+            'create_github_issue' => 'Create a GitHub issue.',
+            'comment_github_issue' => 'Add a GitHub issue or pull request comment.',
+            'create_github_branch' => 'Create a GitHub branch.',
+            'create_github_pull_request' => 'Create a GitHub pull request. It will not be merged.',
             default => 'Run the pending tool action '.$confirmation->tool_name.'.',
         };
     }

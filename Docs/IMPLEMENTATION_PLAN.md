@@ -579,7 +579,7 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
 ## Milestone 20 — Combined Google smoke / hardening
 
-**Статус.** PLANNED. Validation phase — не обязательно coding milestone.
+**Статус.** DEFERRED BY OWNER. Validation phase — не обязательно coding milestone.
 
 **Цель.** Owner включает Google Cloud (Calendar API + Gmail API + OAuth env) и проверяет M17–M19 live. Hardening only if smoke finds defects.
 
@@ -593,13 +593,19 @@ Plan: [INTEGRATIONS.md](INTEGRATIONS.md), [Development/Cursor_Work_Report.md](De
 
 ## Milestone 21 — GitHub Integration
 
+**Статус.** COMPLETED (2026-09-04) — implementation only. Automated tests and live GitHub smoke DEFERRED BY OWNER.
+
 **Цель.** Owner-only GitHub through Integration Framework. Tools, not Telegram adapter.
 
-**Реализуем later:** read repos/branches/commits/files/code search/issues/PRs/workflow status; write later (issues, comments, branches, controlled PR ops). Credentials via `integration_accounts`.
+**Реализовано.** GitHub OAuth App (`repo` + `read:org`); encrypted `integration_accounts`; `GitHubCredentialService` / `GitHubApiService`; Integrations card; read tools (repos/branches/commits/compare/file/search/issues/PRs/workflows); controlled write (issue/comment/branch/PR create). No merge/delete/force/file-write. No local git/mirror/webhook. No PAT field.
 
-**Не реализовывать сейчас.**
+**Migrations:** none.
+
+**Не входит:** live OAuth; GitHub App installations; merge; workspace/desktop/mobile.
 
 **Зависимости:** M16.
+
+После M21 — M22 Owner Web Workspace.
 
 ---
 

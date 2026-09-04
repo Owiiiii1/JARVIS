@@ -56,7 +56,7 @@ class IntegrationFrameworkTest extends TestCase
             static fn ($provider): string => $provider->key(),
             app(IntegrationRegistry::class)->all(),
         );
-        $this->assertSame(['google', 'telegram', 'elevenlabs'], $keys);
+        $this->assertSame(['google', 'telegram', 'elevenlabs', 'github'], $keys);
     }
 
     public function test_owner_integrations_page_and_user_denied(): void
@@ -74,6 +74,7 @@ class IntegrationFrameworkTest extends TestCase
             $this->assertStringContainsString('Google', $html);
             $this->assertStringContainsString('Telegram', $html);
             $this->assertStringContainsString('ElevenLabs', $html);
+            $this->assertStringContainsString('GitHub', $html);
             $this->assertStringContainsString('Not configured', $html);
             $this->assertStringContainsString('has_bot_token', $html);
             $this->assertStringNotContainsString('Open Telegram settings', $html);

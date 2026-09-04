@@ -115,8 +115,8 @@
 
 ### Goals
 
-- Combined Google smoke / hardening (validation; не обязательно coding milestone)
-- GitHub integration (tools, not adapter)
+- Combined Google smoke / hardening (validation; deferred by Owner)
+- GitHub integration (M21 implemented, not live-validated)
 - Owner Web Workspace (`Owiiiii1/JARVIS`, Inertia/React)
 - Versioned Client API
 - Voice Runtime ≠ Voice UI

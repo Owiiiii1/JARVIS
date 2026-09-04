@@ -962,9 +962,109 @@
 
 **Контекст.** «Посмотри commit» легко сделать в Telegram adapter или локальном git.
 
-**Решение.** GitHub — owner-only provider + tools. Credentials в `integration_accounts`. Не реализовывать до M21.
+**Решение.** GitHub — owner-only provider + tools. Credentials в `integration_accounts`. Implemented in M21 (OAuth App MVP). Live validation deferred by Owner.
 
-**Следствие.** Read first; controlled write later. Не в Channel Layer.
+**Следствие.** Read + controlled write (issue/comment/branch/PR create). Не в Channel Layer. GitHub App installations may follow.
+
+---
+
+## ADR-096 — GitHub OAuth App MVP; GitHub App later
+
+**Контекст.** Granular per-repo installation is better long-term but heavier.
+
+**Решение.** M21 uses a GitHub OAuth App (`repo` + `read:org`). A GitHub App installation model may replace or extend this later.
+
+**Следствие.** `repo` is broad; document why. No PAT in Admin.
+
+---
+
+## ADR-097 — GitHub is a live external source of truth
+
+**Контекст.** Local commit mirrors go stale.
+
+**Решение.** No `github_*` content tables. On-demand REST tools only.
+
+**Следствие.** No webhook/polling in M21.
+
+---
+
+## ADR-098 — GitHub credentials only through encrypted IntegrationAccount
+
+**Контекст.** PAT fields leak through UI and logs.
+
+**Решение.** OAuth token envelope in `credentials_encrypted`. Tools use `GitHubCredentialService`. Envelope never serializes.
+
+**Следствие.** Disconnect wipes local credentials even if remote revoke fails.
+
+---
+
+## ADR-099 — GitHub HTTP only through GitHubApiService
+
+**Контекст.** Tool classes otherwise copy headers and leak tokens.
+
+**Решение.** All REST calls live in `GitHubApiService`. Central Accept / API version / User-Agent / Authorization.
+
+**Следствие.** Provider can change without rewriting each tool.
+
+---
+
+## ADR-100 — GitHub retrieval is explicit and tool-driven
+
+**Контекст.** Private repos must not appear in every prompt.
+
+**Решение.** No automatic GitHub context injection. No automatic memory ingestion.
+
+**Следствие.** Owner must ask; Conversation AI calls tools.
+
+---
+
+## ADR-101 — No repository mirror and no shell git for integration
+
+**Контекст.** `git clone` on the server is a different product.
+
+**Решение.** GitHub API only. No clone/pull/log for conversational GitHub.
+
+**Следствие.** Local repo operations remain out of scope.
+
+---
+
+## ADR-102 — M21 write surface is issue / comment / branch / PR create
+
+**Контекст.** Full write access via `repo` is dangerous.
+
+**Решение.** Implement only create issue, comment, create branch, create PR. Config `allowed_write_operations`.
+
+**Следствие.** No merge, delete, force, file write, workflow edit, secrets.
+
+---
+
+## ADR-103 — No merge / delete / force operations in M21
+
+**Контекст.** Merge and delete are hard to undo.
+
+**Решение.** Do not register those tools. Branch create refuses overwrite.
+
+**Следствие.** Risk stays limited even with `repo` scope.
+
+---
+
+## ADR-104 — GitHub writes use standard confirmation; not alwaysConfirm
+
+**Контекст.** Send-mail is alwaysConfirm because it is externally visible and easy to spam.
+
+**Решение.** GitHub issue/comment/branch/PR follow M16 external-write policy (explicit allowed, model-proposed confirmation_required). Not alwaysConfirm.
+
+**Следствие.** No merge means residual risk is manageable.
+
+---
+
+## ADR-105 — M21 tests and live GitHub validation are deferred by Owner
+
+**Контекст.** Production DB tests and live OAuth are high-risk without Owner smoke windows.
+
+**Решение.** Implement M21 without `php artisan test` and without connecting a real GitHub account.
+
+**Следствие.** Status: implemented, not live-validated. Combined Google smoke remains deferred.
 
 ---
 

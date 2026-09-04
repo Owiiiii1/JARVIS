@@ -32,6 +32,8 @@ final class UserCapability
 
     public const GOOGLE_CALENDAR = 'google_calendar';
 
+    public const GITHUB = 'github';
+
     public const VOICE = 'voice';
 
     public const IMPERSONATION = 'impersonation';

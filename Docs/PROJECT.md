@@ -99,7 +99,7 @@ Integrations (Google Calendar/Gmail, later GitHub, ElevenLabs) — **owner-only*
 - [CHANNELS.md](CHANNELS.md) — Telegram / Workspace / Desktop / Mobile / Voice mode
 - [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md) — owner Personal Workspace (planned)
 - [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md) — versioned client protocol (planned)
-- [DECISIONS.md](DECISIONS.md) — ADR-001–095
+- [DECISIONS.md](DECISIONS.md) — ADR-001–105
 - [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md) — группы, discovery, админ-чат, анализ
 - [AI_PROVIDER_ARCHITECTURE.md](AI_PROVIDER_ARCHITECTURE.md) — три AI configuration domains
 - [DATABASE.md](DATABASE.md) — концептуальная модель, включая telegram_groups

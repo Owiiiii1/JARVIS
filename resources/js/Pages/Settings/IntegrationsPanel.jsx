@@ -24,11 +24,11 @@ export default function IntegrationsPanel() {
     const { integrations = {}, locale = 'en', flash = {} } = usePage().props;
     const providers = integrations.providers ?? [];
     const executions = integrations.recent_executions ?? [];
-    const [disconnecting, setDisconnecting] = useState(false);
+    const [disconnecting, setDisconnecting] = useState(null);
 
     const text = {
         en: {
-            hint: 'Owner integration cards. Telegram bot token and webhook are configured here. Google identity, Calendar, and Gmail permissions are granted separately.',
+            hint: 'Owner integration cards. Telegram bot token and webhook are configured here. Google identity, Calendar, and Gmail permissions are granted separately. GitHub uses OAuth — no personal access token in Admin.',
             recent: 'Recent Tool Executions',
             empty: 'No tool executions yet.',
             time: 'Time',
@@ -38,6 +38,7 @@ export default function IntegrationsPanel() {
             duration: 'Duration',
             error: 'Error',
             connect: 'Connect Google',
+            connectGitHub: 'Connect GitHub',
             reconnect: 'Reconnect',
             disconnect: 'Disconnect',
             connectedAt: 'Connected',
@@ -48,7 +49,7 @@ export default function IntegrationsPanel() {
             capabilities: 'Capabilities',
         },
         ru: {
-            hint: 'Карточки интеграций owner. Токен и webhook Telegram настраиваются здесь. Google identity, Calendar и Gmail выдаются отдельно.',
+            hint: 'Карточки интеграций owner. Токен и webhook Telegram настраиваются здесь. Google identity, Calendar и Gmail выдаются отдельно. GitHub подключается через OAuth, без PAT в Admin.',
             recent: 'Recent Tool Executions',
             empty: 'Пока нет выполнений tools.',
             time: 'Time',
@@ -58,6 +59,7 @@ export default function IntegrationsPanel() {
             duration: 'Duration',
             error: 'Error',
             connect: 'Connect Google',
+            connectGitHub: 'Connect GitHub',
             reconnect: 'Reconnect',
             disconnect: 'Disconnect',
             connectedAt: 'Connected',
@@ -68,7 +70,7 @@ export default function IntegrationsPanel() {
             capabilities: 'Capabilities',
         },
         uk: {
-            hint: 'Картки інтеграцій owner. Токен і webhook Telegram налаштовуються тут. Google identity, Calendar і Gmail надаються окремо.',
+            hint: 'Картки інтеграцій owner. Токен і webhook Telegram налаштовуються тут. Google identity, Calendar і Gmail надаються окремо. GitHub підключається через OAuth, без PAT в Admin.',
             recent: 'Recent Tool Executions',
             empty: 'Поки немає виконань tools.',
             time: 'Time',
@@ -78,6 +80,7 @@ export default function IntegrationsPanel() {
             duration: 'Duration',
             error: 'Error',
             connect: 'Connect Google',
+            connectGitHub: 'Connect GitHub',
             reconnect: 'Reconnect',
             disconnect: 'Disconnect',
             connectedAt: 'Connected',
@@ -90,15 +93,19 @@ export default function IntegrationsPanel() {
     };
     const t = text[locale] ?? text.en;
 
-    const disconnectGoogle = () => {
+    const disconnectProvider = (provider) => {
         if (disconnecting) {
             return;
         }
 
-        setDisconnecting(true);
-        router.post(route('integrations.google.disconnect'), {}, {
+        const namedRoute = provider === 'github'
+            ? 'integrations.github.disconnect'
+            : 'integrations.google.disconnect';
+
+        setDisconnecting(provider);
+        router.post(route(namedRoute), {}, {
             preserveScroll: true,
-            onFinish: () => setDisconnecting(false),
+            onFinish: () => setDisconnecting(null),
         });
     };
 
@@ -210,8 +217,43 @@ export default function IntegrationsPanel() {
                             {provider.provider === 'google' && actionAvailable(provider, 'disconnect') && (
                                 <button
                                     type="button"
-                                    onClick={disconnectGoogle}
-                                    disabled={disconnecting}
+                                    onClick={() => disconnectProvider('google')}
+                                    disabled={disconnecting !== null}
+                                    className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                >
+                                    {t.disconnect}
+                                </button>
+                            )}
+                            {provider.provider === 'github' && actionAvailable(provider, 'connect') && (
+                                <a
+                                    href={route('integrations.github.connect')}
+                                    className="inline-flex h-9 items-center rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700"
+                                >
+                                    {t.connectGitHub}
+                                </a>
+                            )}
+                            {provider.provider === 'github' && actionAvailable(provider, 'reconnect') && (
+                                <a
+                                    href={route('integrations.github.connect')}
+                                    className="inline-flex h-9 items-center rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700"
+                                >
+                                    {t.reconnect}
+                                </a>
+                            )}
+                            {provider.provider === 'github' && !provider.configured && (
+                                <button
+                                    type="button"
+                                    disabled
+                                    className="inline-flex h-9 items-center rounded-lg bg-slate-200 px-3 text-sm font-medium text-slate-500"
+                                >
+                                    {t.connectGitHub}
+                                </button>
+                            )}
+                            {provider.provider === 'github' && actionAvailable(provider, 'disconnect') && (
+                                <button
+                                    type="button"
+                                    onClick={() => disconnectProvider('github')}
+                                    disabled={disconnecting !== null}
                                     className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                                 >
                                     {t.disconnect}

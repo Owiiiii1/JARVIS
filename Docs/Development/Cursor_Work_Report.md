@@ -1,123 +1,131 @@
-# Cursor Work Report — Client / Voice / GitHub architecture docs
+# Cursor Work Report — Milestone 21 GitHub Integration
 
 **Date:** 2026-09-04  
 **Host:** `/var/www/jarvis`  
-**GitHub:** `Owiiiii1/JARVIS`  
-**Branch:** `main`
-
-Documentation-only. No runtime, route, schema, OAuth, voice provider, Tauri, Flutter, or Three.js changes.
-
----
+**GitHub:** `Owiiiii1/JARVIS`
 
 ## Before HEAD
 
-`af693aa` — `feat: add Gmail tools` (M19)
+- `0223b09` `fix: keep Telegram settings only in Integrations` (unrelated UI cleanup immediately before M21)
+- Prior docs HEAD: `b3011f3` `docs: plan Jarvis clients voice workspace and GitHub`
 
----
+## Migration
 
-## Documents created
+None. Reused `integration_accounts`, `tool_execution_logs`, `tool_confirmations`.
 
-- `Docs/CLIENTS/WEB_WORKSPACE.md`
-- `Docs/CLIENTS/DESKTOP_APP.md`
-- `Docs/CLIENTS/MOBILE_APP.md`
-- `Docs/CLIENTS/CLIENT_API.md`
-- `Docs/CLIENTS/VOICE_UI.md`
+`php artisan migrate:status`: latest ran `2026_09_04_030000_create_tool_confirmations_table` (batch 14). No new migration executed.
 
----
+## GitHub OAuth routes
 
-## Documents changed
+| Method | URI | Name |
+| --- | --- | --- |
+| GET | `/settings/integrations/github/connect` | `integrations.github.connect` |
+| GET | `/integrations/github/callback` | `integrations.github.callback` |
+| POST | `/settings/integrations/github/disconnect` | `integrations.github.disconnect` |
 
-- `Docs/PROJECT.md`
-- `Docs/ARCHITECTURE.md`
-- `Docs/CONVERSATION_ENGINE.md`
-- `Docs/VOICE_ARCHITECTURE.md`
-- `Docs/CHANNELS.md`
-- `Docs/API.md`
-- `Docs/INTEGRATIONS.md`
-- `Docs/IMPLEMENTATION_PLAN.md`
-- `Docs/ROADMAP.md`
-- `Docs/DEVELOPMENT_PHASES.md`
-- `Docs/CURRENT_STATE.md`
-- `Docs/DECISIONS.md` (ADR-086–095)
-- `Docs/USERS_AND_CABINET.md`
+Owner-only (`integrations_admin`). Throttle on connect. Default callback `{APP_URL}/integrations/github/callback`.
 
----
+## Env names (no values written)
 
-## Product decision
+Placeholders added only in `.env.example`:
 
-Admin Panel ≠ Personal Workspace.
+- `GITHUB_CLIENT_ID`
+- `GITHUB_CLIENT_SECRET`
+- `GITHUB_REDIRECT_URI`
 
-Admin: users, AI providers, integrations, Telegram groups, diagnostics, tool logs, system settings.
+Cursor did not create or write actual credentials. Runtime `GitHubOAuthService::isConfigured()` = no.
 
-Workspace: owner talks to Jarvis. Center = conversation (text + voice). Other panels are secondary.
+## OAuth scopes
 
-Owner must not use Admin as the primary chat UI. Current `/cabinet` stays User Space. Workspace route `/workspace` or `/jarvis` is TBD and not built.
+Requested: `repo`, `read:org`.
 
----
+Not requested: `admin:org`, `delete_repo`, `admin:repo_hook`, `admin:public_key`, `gist`, `user:email`, `workflow`.
 
-## Repository topology
+`repo` is broad and required for private repository read/write through an OAuth App.
 
-One product, three repos:
+## Provider registration
 
-| Repo | Role |
-| --- | --- |
-| `Owiiiii1/JARVIS` | Core, Admin, Cabinet, planned Workspace, master API docs |
-| `Owiiiii1/JARVIS-Desktop` | Tauri 2 client, own releases |
-| `Owiiiii1/JARVIS-Mobile` | Flutter iOS/Android, store lifecycle |
+`IntegrationRegistry`: `google`, `telegram`, `elevenlabs`, `github`.
 
-Reasons: toolchains, release cycles, deploy targets, CI, Cursor context, store/updater isolation. Production Laravel tree must not contain Tauri/Rust or Flutter.
+Capability: `UserCapability::GITHUB` (`github`). Owner defaults remain `*`. Regular users do not receive GitHub tools.
 
----
+## Credential / API services
 
-## Client stacks
+- `GitHubOAuthService` — authorize URL, code exchange, user fetch, optional refresh, revoke
+- `GitHubOAuthState` — random state, PKCE verifier, owner-bound, TTL, one-time
+- `GitHubConnectionService` — connect/callback/disconnect
+- `GitHubCredentialService` — usable token only; supports non-expiring tokens and refresh-token envelope
+- `GitHubApiService` — all GitHub REST HTTP
+- `GitHubIntegrationProvider` — card status without live GitHub calls on page load
 
-- Web Workspace: existing Laravel + Inertia/React in JARVIS
-- Desktop: Tauri 2 + React + TypeScript + Vite + Three.js/WebGL
-- Mobile: Flutter latest stable
-- Protocol: versioned Client API in JARVIS; clients are thin
+Envelope stored only in `integration_accounts.credentials_encrypted`. Model remains hidden from array/JSON.
 
-None implement Memory Engine, tools, or Google/GitHub credentials locally.
+## Tools implemented
 
----
+**Read:** `list_github_repositories`, `get_github_repository`, `list_github_branches`, `list_github_commits`, `get_github_commit`, `compare_github_refs`, `get_github_file`, `search_github_code`, `list_github_issues`, `get_github_issue`, `list_github_pull_requests`, `get_github_pull_request`, `get_github_pull_request_diff`, `list_github_workflow_runs`, `get_github_workflow_run`.
 
-## Voice UI concept
+**Write:** `create_github_issue`, `comment_github_issue`, `create_github_branch`, `create_github_pull_request`.
 
-Voice Runtime ≠ Voice UI.
+**Not registered:** merge, delete branch/repo, force push, file writes, workflow file edits, secrets, releases, admin ops.
 
-Orb: 3D animated Jarvis identity (not a human avatar). States: idle, connecting, listening, thinking, speaking, interrupted, error, muted. Dark cinematic glass/plasma sphere, many energy lines, audio-reactive, barge-in snap. Provider-neutral `VoiceVisualizationState`. References are direction only; final look is original Jarvis.
+## Confirmation
 
----
+Standard M16 external-write policy. GitHub writes are not `alwaysConfirm`. Explicit user command allowed; model-proposed requires persisted confirmation.
 
-## GitHub roadmap
+## Bounds / rate limit / revoke
 
-M21, owner-only, Integration Framework. Read first (repos, commits, files, issues, PRs, workflows). Controlled write later. Use cases: what changed, last commit, find a class, open issues, diffs, create issue. Not implemented.
+Limits live in `config/github.php`. Truncated results set `truncated=true`. File/diff/comment/search caps applied.
 
----
+GET may retry once on transient errors. Writes retry = 0. Existing branch → `github_conflict`. Existing open PR same head/base returned instead of duplicating.
 
-## Revised milestone order
+Rate limit → `github_rate_limited` plus `reset_at` / `remaining` when headers exist.
 
-| # | Focus |
-| --- | --- |
-| M20 | Combined Google smoke / hardening (validation) |
-| M21 | GitHub Integration |
-| M22 | Owner Web Workspace (+ Client API foundation) |
-| M23 | Voice Runtime Foundation |
-| M24 | Voice UI / Orb |
-| M25 | Desktop Client Foundation |
-| M26 | Mobile Client Foundation |
-| M27 | Proactive assistant / monitoring |
-| M28+ | Human-like / polish / wake word / files |
+401 / bad credentials → account revoked, credentials wiped, `github_token_revoked`.
 
-M0–M19 unchanged and completed in code except live Google smoke.
+## Integrations UI
 
----
+GitHub card: Not configured (Connect disabled) / Disconnected / Connected / Reconnect required. Shows login, scopes, connected_at, token health. Connect / Reconnect / Disconnect. Never shows token or client secret.
 
-## No runtime / schema changes
+Google and Telegram cards unchanged in behavior.
 
-No migrations. No new routes. No production behavior change. `integration_accounts` still 0. Workers/schedule unchanged.
+## Build / non-test verification
 
----
+- `npm run build` — succeeded
+- `php artisan migrate:status` — no pending M21 migration
+- `php artisan route:list --name=github` — 3 routes
+- `php artisan queue:failed` — none
+- `php artisan schedule:list` — reminders only
+- `php artisan config:clear` — ran (safe; new `config/github.php`)
+- `composer dump-autoload` — ran
+- `vendor/bin/pint --dirty` — passed
+- `php artisan test` — **NOT RUN** (Owner deferred)
+
+## Production counts (safe)
+
+- `integration_accounts` = 0
+- GitHub accounts = 0
+- owners = 1
+
+No tokens, secrets, private file contents, issue bodies, or diffs inspected.
+
+## TESTS NOT RUN — explicitly deferred by Owner
+
+No PHPUnit. No live OAuth. No live repo reads. No live issue/branch/PR creation.
+
+**LIVE GITHUB NOT TESTED.**
+
+**Existing Google validation still deferred.**
+
+## Known issues / residual risk
+
+- GitHub OAuth env is unset; card is Not configured until Owner adds a GitHub OAuth App.
+- `repo` scope is broad relative to the implemented write subset.
+- Repeated distinct user requests can still create a second issue/comment (no blind HTTP retry; no cross-request issue fingerprint).
+- GitHub code search index lag is reported via `incomplete_results` / truncated, not hidden.
+- PKCE is sent on authorize/exchange (GitHub-supported); first live connect is the real check.
 
 ## Next milestone
 
-M20 — Owner combined Google live smoke / hardening when ready. Then M21 GitHub or M22 Workspace per Owner priority. Do not start Tauri/Flutter/Orb/GitHub OAuth in this repo until those milestones.
+M22 — Owner Web Workspace.
+
+M20 combined Google smoke remains deferred by Owner.
