@@ -32,7 +32,7 @@ class BaselineTest extends TestCase
             ->assertOk();
     }
 
-    public function test_owner_can_access_telegram_settings(): void
+    public function test_legacy_telegram_tab_opens_integrations(): void
     {
         $this->actingAs($this->existingOwner())
             ->get('/settings?tab=telegram')

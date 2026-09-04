@@ -75,6 +75,8 @@ class IntegrationFrameworkTest extends TestCase
             $this->assertStringContainsString('Telegram', $html);
             $this->assertStringContainsString('ElevenLabs', $html);
             $this->assertStringContainsString('Not configured', $html);
+            $this->assertStringContainsString('has_bot_token', $html);
+            $this->assertStringNotContainsString('Open Telegram settings', $html);
             $this->assertStringNotContainsString('credentials_encrypted', $html);
             $this->assertStringNotContainsString('access_token', $html);
 
@@ -83,6 +85,17 @@ class IntegrationFrameworkTest extends TestCase
 
             $this->actingAs($user)->get(route('settings.index', ['tab' => 'integrations']))->assertForbidden();
             $this->actingAs($user)->get(route('settings.integrations.index'))->assertForbidden();
+
+            $legacyTelegramTab = $this->actingAs($owner)->get(route('settings.index', ['tab' => 'telegram']));
+            $legacyTelegramTab->assertOk();
+            $this->assertStringContainsString('"tab":"integrations"', $legacyTelegramTab->getContent());
+            $this->assertStringContainsString('has_bot_token', $legacyTelegramTab->getContent());
+
+            $this->actingAs($owner)
+                ->from(route('settings.index', ['tab' => 'integrations']))
+                ->post(route('settings.telegram.save-token'), [])
+                ->assertRedirect(route('settings.index', ['tab' => 'integrations']))
+                ->assertSessionHasErrors('bot_token');
         } finally {
             $this->deleteTemporaryUser($owner);
             $this->deleteTemporaryUser($user);

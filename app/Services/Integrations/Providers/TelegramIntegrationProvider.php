@@ -86,9 +86,7 @@ final class TelegramIntegrationProvider implements IntegrationProvider
             lastSuccessAt: optional($setting?->last_checked_at)?->toIso8601String(),
             lastErrorAt: $hasError ? optional($setting?->last_checked_at)?->toIso8601String() : null,
             diagnosticMessage: implode(' · ', $diagnostics),
-            actions: [
-                ['key' => 'manage', 'available' => true, 'label' => 'Open Telegram settings'],
-            ],
+            actions: [],
         );
     }
 

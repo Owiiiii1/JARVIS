@@ -248,7 +248,7 @@ Nav (actual): Home, Calendar, Statistics → Logs, Settings. Footer: Powered by 
 | Settings Users | `tab=users` | `Settings\UserController` CRUD | `UsersPanel.jsx` | PARTIAL (admin accounts, not User Card) |
 | Settings AI | `tab=ai` | `AiSettingsController` | `AiPanel.jsx` | PARTIAL (one global provider) |
 | Settings App | `tab=app` | redirect `/app-settings` → tab | `AppPanel.jsx` | PLACEHOLDER |
-| Settings Telegram | `tab=telegram` | `TelegramSettingsController` | `TelegramPanel.jsx` | PARTIAL (token/webhook) |
+| Settings Telegram | Integrations tab (`?tab=telegram` aliases here) | `TelegramSettingsController` | `TelegramPanel.jsx` inside Integrations | IMPLEMENTED (token/webhook) |
 | Profile | `/profile` | `ProfileController` | `Profile/Edit.jsx` | IMPLEMENTED (admin self) |
 | Logs | `/statistics/logs` | closure | `Statistics/Logs.jsx` | PLACEHOLDER |
 | AI settings alias | `/ai-settings` | redirect to settings tab | — | IMPLEMENTED redirect |

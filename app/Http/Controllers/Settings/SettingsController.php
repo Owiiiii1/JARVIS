@@ -39,8 +39,11 @@ class SettingsController extends Controller
             ])
             ->all();
 
-        $allowedTabs = ['general', 'users', 'ai', 'app', 'telegram', 'integrations'];
+        $allowedTabs = ['general', 'users', 'ai', 'app', 'integrations'];
         $tab = (string) $request->query('tab', 'general');
+        if ($tab === 'telegram') {
+            $tab = 'integrations';
+        }
         if (! in_array($tab, $allowedTabs, true)) {
             $tab = 'general';
         }

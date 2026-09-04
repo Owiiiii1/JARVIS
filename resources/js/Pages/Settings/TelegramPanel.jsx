@@ -9,7 +9,7 @@ export default function TelegramPanel() {
 
     const text = {
         en: {
-            subtitle: 'Connect a Telegram bot token and configure the webhook endpoint.',
+            subtitle: 'Connect the Telegram bot token and webhook. This is the only place to manage the bot.',
             token: 'Bot token',
             saveToken: 'Save token',
             check: 'Check bot',
@@ -29,7 +29,7 @@ export default function TelegramPanel() {
             error: 'Error',
         },
         ru: {
-            subtitle: 'Connect a Telegram bot token and configure the webhook endpoint.',
+            subtitle: 'Токен бота и webhook настраиваются только здесь.',
             token: 'Bot token',
             saveToken: 'Save token',
             check: 'Check bot',
@@ -49,7 +49,7 @@ export default function TelegramPanel() {
             error: 'Error',
         },
         uk: {
-            subtitle: 'Connect a Telegram bot token and configure the webhook endpoint.',
+            subtitle: 'Токен бота і webhook налаштовуються лише тут.',
             token: 'Bot token',
             saveToken: 'Save token',
             check: 'Check bot',

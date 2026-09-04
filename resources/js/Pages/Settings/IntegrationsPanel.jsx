@@ -1,5 +1,6 @@
-import { Link, router, usePage } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import TelegramPanel from './TelegramPanel';
 
 function statusClass(state) {
     if (state === 'connected') {
@@ -27,7 +28,7 @@ export default function IntegrationsPanel() {
 
     const text = {
         en: {
-            hint: 'Owner integration cards. Telegram uses the existing bot settings. Google identity, Calendar, and Gmail permissions are granted separately.',
+            hint: 'Owner integration cards. Telegram bot token and webhook are configured here. Google identity, Calendar, and Gmail permissions are granted separately.',
             recent: 'Recent Tool Executions',
             empty: 'No tool executions yet.',
             time: 'Time',
@@ -36,7 +37,6 @@ export default function IntegrationsPanel() {
             status: 'Status',
             duration: 'Duration',
             error: 'Error',
-            telegramSettings: 'Telegram settings',
             connect: 'Connect Google',
             reconnect: 'Reconnect',
             disconnect: 'Disconnect',
@@ -48,7 +48,7 @@ export default function IntegrationsPanel() {
             capabilities: 'Capabilities',
         },
         ru: {
-            hint: 'Карточки интеграций owner. Telegram читает существующие настройки бота. Google identity, Calendar и Gmail выдаются отдельно.',
+            hint: 'Карточки интеграций owner. Токен и webhook Telegram настраиваются здесь. Google identity, Calendar и Gmail выдаются отдельно.',
             recent: 'Recent Tool Executions',
             empty: 'Пока нет выполнений tools.',
             time: 'Time',
@@ -57,7 +57,6 @@ export default function IntegrationsPanel() {
             status: 'Status',
             duration: 'Duration',
             error: 'Error',
-            telegramSettings: 'Telegram settings',
             connect: 'Connect Google',
             reconnect: 'Reconnect',
             disconnect: 'Disconnect',
@@ -69,7 +68,7 @@ export default function IntegrationsPanel() {
             capabilities: 'Capabilities',
         },
         uk: {
-            hint: 'Картки інтеграцій owner. Telegram читає наявні налаштування бота. Google identity, Calendar і Gmail надаються окремо.',
+            hint: 'Картки інтеграцій owner. Токен і webhook Telegram налаштовуються тут. Google identity, Calendar і Gmail надаються окремо.',
             recent: 'Recent Tool Executions',
             empty: 'Поки немає виконань tools.',
             time: 'Time',
@@ -78,7 +77,6 @@ export default function IntegrationsPanel() {
             status: 'Status',
             duration: 'Duration',
             error: 'Error',
-            telegramSettings: 'Telegram settings',
             connect: 'Connect Google',
             reconnect: 'Reconnect',
             disconnect: 'Disconnect',
@@ -122,7 +120,9 @@ export default function IntegrationsPanel() {
                 {providers.map((provider) => (
                     <section
                         key={provider.provider}
-                        className="rounded-xl border border-[#E6DCC8] bg-[#FBF8F1] p-4"
+                        className={`rounded-xl border border-[#E6DCC8] bg-[#FBF8F1] p-4 ${
+                            provider.provider === 'telegram' ? 'md:col-span-3 md:order-last' : ''
+                        }`}
                     >
                         <div className="flex items-start justify-between gap-3">
                             <h2 className="text-base font-semibold text-slate-900">
@@ -164,6 +164,7 @@ export default function IntegrationsPanel() {
                         {provider.diagnostic_message && (
                             <p className="mt-2 text-sm text-slate-600">{provider.diagnostic_message}</p>
                         )}
+                        {provider.provider !== 'telegram' && (
                         <div className="mt-4 flex flex-wrap gap-2">
                             {provider.provider === 'google' && actionAvailable(provider, 'connect') && (
                                 <a
@@ -216,15 +217,13 @@ export default function IntegrationsPanel() {
                                     {t.disconnect}
                                 </button>
                             )}
-                            {provider.provider === 'telegram' && (
-                                <Link
-                                    href={route('settings.index', { tab: 'telegram' })}
-                                    className="inline-flex h-9 items-center rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700"
-                                >
-                                    {t.telegramSettings}
-                                </Link>
-                            )}
                         </div>
+                        )}
+                        {provider.provider === 'telegram' && (
+                            <div className="mt-4">
+                                <TelegramPanel />
+                            </div>
+                        )}
                     </section>
                 ))}
             </div>
