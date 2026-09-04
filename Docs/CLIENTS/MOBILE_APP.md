@@ -1,41 +1,34 @@
-# Mobile client
+# Mobile companion
 
-**Status.** DOCUMENTED ONLY. Not implemented.
+**Status.** DEFERRED. Optional future companion to Web/Core. **Not current priority.** Not required for Core roadmap.
 
-Thin mobile client to Jarvis Core. iOS and Android. Source of truth remains the backend.
+Thin client. Source of truth remains Jarvis backend. Mobile does **not** contain Core, Memory Engine, Tool execution, or provider credentials.
 
----
-
-## Repository
-
-Recommended GitHub repo: **`Owiiiii1/JARVIS-Mobile`**
-
-- Developed locally, pushed to GitHub.
-- Flutter iOS/Android build and store lifecycle are separate from Laravel and Tauri.
-- Master API / client protocol stays in `Owiiiii1/JARVIS` ([CLIENT_API.md](CLIENT_API.md)).
+Desktop is **CANCELLED**. Mobile does not depend on Tauri, JARVIS-Desktop, Desktop Client API work, or a native-shell prerequisite.
 
 ---
 
-## Stack
+## Role
 
-Flutter, latest stable. Platforms: iOS, Android.
+Companion to Web Personal Workspace:
 
-Orb / voice visualization on mobile uses a Flutter renderer equivalent to the WebGL Orb concept. Visual identity and `VoiceVisualizationState` follow [VOICE_UI.md](VOICE_UI.md). Do not reuse the Three.js module in Flutter.
+- reliable push
+- voice on the go
+- camera / photo input
+- share-to-Jarvis
+- location if permission granted
+- quick capture
+- mobile notifications
+
+Same `user_id`, same conversations, same tools-on-server.
 
 ---
 
-## Capabilities
+## Repository (if started)
 
-- same conversations as Telegram / Workspace / Desktop
-- text chat
-- voice chat + live transcript
-- Orb visualization
-- reminders (create via Core tools; delivery policy remains server-side)
-- push notifications later
-- project context via server tools
-- integrations **through server tools only**
-- tool confirmations
-- microphone / audio routing
+Possible future repo `Owiiiii1/JARVIS-Mobile`. Not created. Flutter remains a reasonable stack if/when this starts. Do not treat that as a commitment.
+
+A versioned Client API is designed **then**, not now. [CLIENT_API.md](CLIENT_API.md).
 
 ---
 
@@ -44,24 +37,11 @@ Orb / voice visualization on mobile uses a Flutter renderer equivalent to the We
 - Call Google / Gmail / Calendar / GitHub APIs directly
 - Store provider tokens
 - Run Memory Engine or Tool Registry locally
-- Create a second assistant or a silent voice conversation
+- Create a second assistant
+- Depend on a Desktop client
 
 ---
 
-## Conversation continuity
+## Voice
 
-One `conversation_id`. Voice is a mode. New Chat only when the user asks.
-
----
-
-## Auth
-
-`TBD` against versioned Client API. Same `user_id`. Access code is Telegram pairing, not mobile login.
-
----
-
-## Out of scope now
-
-- Creating the Flutter project
-- App Store / Play setup
-- Voice provider SDKs on device beyond transport to Core
+Reuse the same `VoiceRuntimeService` contract conceptually. Visualization may differ (not Three.js). Wake word is optional research, not a Web requirement.

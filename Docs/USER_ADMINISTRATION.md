@@ -1,6 +1,6 @@
 # User administration (M25U.2)
 
-**Status.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live AI / Web Search / Voice / Telegram. No production test users created in this milestone.
+**Status.** Ordinary user create + login + `/chat` + ordinary requests: **MANUAL PASS** (Owner). Full A/B isolation campaign: **IMPLEMENTED / NOT VALIDATED**. Automated tests not run.
 
 Owner-only management of ordinary Jarvis users. Canonical product doc for lifecycle, isolation, and impersonation. Related: [USERS_AND_CABINET.md](USERS_AND_CABINET.md), [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md).
 

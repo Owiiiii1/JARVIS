@@ -1,6 +1,6 @@
 # Assistant personalization
 
-**Status.** M25U.3 IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live onboarding conversation, reminders, Telegram, or Voice in this milestone.
+**Status.** IMPLEMENTED. Owner confirmed onboarding **entry** («Знакомство») — MANUAL PARTIAL. Full onboarding completion / profile-update E2E is **not** MANUAL PASS.
 
 Per-user assistant identity is a **first-class profile**, not concatenated into `user_ai_settings.general_prompt`.
 

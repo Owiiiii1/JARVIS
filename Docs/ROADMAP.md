@@ -1,198 +1,158 @@
 # Дорожная карта
 
-Четыре фазы. Каждая даёт работающий инкремент. Не делать Phase 4 внутри Phase 1.
+Product direction as of **M26D** (2026-09-05). Executable next work: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Actual runtime: [CURRENT_STATE.md](CURRENT_STATE.md).
 
-Исполняемые вехи: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Фазы ниже — группировка, не замена вех.
+The old four-phase model (Telegram MVP → Memory → Workspace+Desktop+Voice → conversational intelligence) is **HISTORICAL**. It no longer describes what to build next.
 
----
-
-## Phase 1 — Telegram + persistent conversations
-
-**Результат.** Owner проходит pairing (`2000`) и ведёт Telegram DM с persist + Owner Conversation AI. Chat Selector. Затем Cabinet, User Spaces, Reminders. Groups persist — следующая группа вех, не Google.
-
-### Goals
-
-- Первый канал: Telegram adapter (DM + groups).
-- Raw messages и conversations в БД (`kind=direct|group`, `user_id` на personal).
-- Личный ответ через **Owner Conversation AI** или **Default User Conversation AI** (`resolveConversationAI(user)`).
-- Telegram Chat Selector + каталог chats общий с Cabinet; pairing создаёт `Основной`.
-- Reminders (Core, Telegram-only delivery) — после работающего DM, до Google.
-- Telegram Groups: discovery, persist, админ-чат, outbound через adapter, passive monitoring.
-- Админка: три AI config; Telegram bot; Telegram Groups.
-- Pairing + access_code; owner admin vs user cabinet routing.
-
-### Основные компоненты
-
-- Core (users, identities, conversations, messages, telegram_groups, user_ai_settings слот)
-- Telegram adapter
-- Groups module + Group Messaging Service
-- Recent-window retriever **per user + conversation**
-- Owner Conversation / Owner Analysis / Default User Conversation — без inheritance owner→user
-- Admin config
-
-### Prerequisites
-
-- Работающий backend и админка окружения
-- Telegram bot token
-- Выбранные реализации для трёх AI configs (могут совпасть физически; конфиги раздельные)
-
-### Definition of done
-
-См. Phase 1 в [DEVELOPMENT_PHASES.md](DEVELOPMENT_PHASES.md). Коротко: рестарт не обнуляет личный контекст; AI не в Telegram-коде; группа без ручного ID; Jarvis в группу сам не пишет.
-
-### Не входит
-
-- Topics / extraction / vector search / глубокий group analysis
-- Автоответы и сложные group policies
-- Смешение group history с personal memory или context разных users
-- Обязательный полный Cabinet в первом Telegram-срезе
-- Mobile, Desktop, Voice
-- Tools как продукт
-- Human-like barge-in
+**Primary interactive client:** Web Personal Workspace (`/jarvis` Owner, `/chat` users).  
+**Desktop client:** **CANCELLED**.  
+**Mobile:** optional future companion, **not** current priority.  
+**Voice:** a Web modality. Basic hands-free flow is **MANUAL PASS**.
 
 ---
 
-## Users & Cabinet (после persist Phase 1)
+## PHASE A — Core Personal Jarvis
 
-**Результат.** Несколько изолированных пользователей; Web Cabinet как ChatGPT; админ видит User Card.
+**Status.** Mostly complete. Web is the product.
 
-### Goals
+Includes (in code unless noted):
 
-- Admin Users / User Card / Chats (read) / Topics / AI Settings / impersonated Open Cabinet
-- Cabinet: список чатов, New Chat, Profile, timezone, свой General Prompt
-- Тот же каталог chats, что Telegram Chat Selector
-- Reminders (Telegram-only delivery)
-- Default User Conversation AI ≠ Owner Conversation AI
-- Ownership на всех user endpoints
+- Identity / owner vs user / no public registration
+- Telegram DM pairing + Chat Selector
+- Persistent conversations / Conversation Engine
+- Shared Personal Workspace
+- Admin user management + impersonation
+- AI provider abstraction (Owner Conv / Owner Analysis / Default User Conv)
+- Personal Memory Engine + Context Budget
+- Persistent Storage + ephemeral attachments
+- Web Research
+- Projects (Owner-only)
+- Telegram Groups + group knowledge
+- Google Calendar / Gmail tools (Owner)
+- GitHub tools (Owner)
+- Assistant personalization / onboarding foundation
+- Voice (STT Gemini, TTS ElevenLabs, local VAD, Orb)
+- Reminder engine foundation (Telegram-gated create/delivery)
 
-См. [USERS_AND_CABINET.md](USERS_AND_CABINET.md). Не ждать Phase 4.
+### Validation (Owner-confirmed)
 
----
+| Area | Status |
+| --- | --- |
+| Ordinary user create / login / `/chat` / basic requests | MANUAL PASS |
+| Owner Workspace images, Storage-through-chat, Gemini Google Search | MANUAL PASS |
+| Voice start, mic, hands-free end-of-turn, Gemini STT, reply, ElevenLabs TTS, VAD hotfix | MANUAL PASS |
+| Onboarding «Знакомство» entry | MANUAL PARTIAL |
+| Full onboarding completion / profile update E2E | IMPLEMENTED / NOT VALIDATED |
+| Reminders panel in live user workspace | IMPLEMENTED IN CODE / LIVE BUG |
+| Reminder create without Telegram | NOT SUPPORTED (known gap) |
+| Combined Google / GitHub live smoke | IMPLEMENTED / NOT VALIDATED |
+| A/B isolation campaign | PREPARED / NOT EXECUTED |
 
-## Phase 2 — Structured Memory
+### Phase A remaining
 
-**Результат.** У Jarvis большая долговременная память, в модель уходит только релевантное.
-
-### Goals
-
-- Topics, memories, summaries, revisions
-- Selective context package (не вся личная история и не вся лента группы)
-- Пересчёт derived слоя с raw
-- Classifier / extractor как отдельные шаги (**Owner Analysis AI**)
-- Projects (Owner Space, ≠ Topic) — relations, не копии
-- Group Knowledge Search tool для owner personal chat
-- Cross-chat: summary-first / raw-on-demand
-- Hierarchical analysis больших group histories
-- Group knowledge с provenance ≠ personal memory
-
-### Основные компоненты
-
-- Memory engine (personal per `user_id` + group + optional global)
-- Расширенный context builder
-- Owner Analysis AI на jobs; позже вложенные слоты без смены бизнес-логики
-- Диагностика памяти и group knowledge в админке (базовая)
-
-### Prerequisites
-
-- Phase 1 persist, adapter, telegram_groups
-- Те же таблицы messages (direct + group)
-
-### Definition of done
-
-Вся история не пихается в prompt. Факты трассируются к raw. Смена модели не уничтожает архив. Group analysis не пишет в user profile.
-
-### Не входит
-
-- Обязательная Vector DB
-- Mobile/Desktop/Voice как must
-- Полноценный ручной редактор графа памяти
+1. **M25U.3.1 Web Reminders without Telegram** — next executable milestone
+2. Reminders panel visibility bug
+3. Full onboarding manual validation
+4. Selected integration manual validation (Google / GitHub)
+5. Optional A/B isolation campaign
 
 ---
 
-## Phase 3 — Workspace + native clients + Voice
+## PHASE B — Time & Productivity
 
-**Результат.** Owner общается с Jarvis в Personal Workspace (не в Admin). Тот же Core на Desktop (Tauri) и Mobile (Flutter), включая Voice Mode + Orb. GitHub — owner Integration Framework tools.
+**Status.** PLANNED. After reminders-without-Telegram.
 
-### Goals
+Jarvis should become time-aware and action-aware, not merely chat-aware.
 
-- Combined Google smoke / hardening (validation; deferred by Owner)
-- GitHub integration (M21 implemented, not live-validated)
-- Owner Web Workspace (`/jarvis`) and User Personal Workspace (`/chat`, M25U.1 shared frontend; M25U.2 Owner user administration — core login/chat MANUAL PASS; M25U.3 personalization + reminders panel IMPLEMENTED / NOT VALIDATED)
-- Voice Runtime Foundation (M23), Gemini STT provider (M23.2), Voice UI / Orb (M24), and hands-free VAD (M24.1) implemented / not live-validated; users share the same Orb/runtime
-- Desktop repo `Owiiiii1/JARVIS-Desktop`
-- Mobile repo `Owiiiii1/JARVIS-Mobile`
-- Те же accounts, `conversation_id`, **личная** memory
+1. Reminder Core decoupled from Telegram (target; see [REMINDERS.md](REMINDERS.md))
+2. Web Reminder Center
+3. Web Push / browser notifications
+4. Recurring reminders
+5. Snooze / done / edit
+6. Tasks (separate domain from reminders)
+7. Task ↔ Reminder relationships
+8. Task ↔ Conversation relationships
+9. Notification Center
+10. Calendar ↔ Tasks ↔ Reminders
+11. Daily Brief
+12. Evening / Weekly Review
+13. Controlled proactive suggestions
 
-### Основные компоненты
-
-- [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md)
-- [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md)
-- [CLIENTS/DESKTOP_APP.md](CLIENTS/DESKTOP_APP.md)
-- [CLIENTS/MOBILE_APP.md](CLIENTS/MOBILE_APP.md)
-- [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md) + [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md)
-
-### Prerequisites
-
-- M19 Gmail + M18 Calendar implemented
-- Live Google smoke before relying on mail/calendar in Workspace
-- Auth / realtime transport `TBD`
-
-### Definition of done
-
-Смена клиента не меняет «личность» и историю **этого** user. Голосовая реплика пишется в выбранный `conversation_id`. Admin остаётся технической панелью.
-
-### Не входит
-
-- Полный Phase 4 initiative/barge-in качества
-- Отдельный голосовой продукт
-- Tauri/Flutter внутри Laravel repo
-- Overbuilt mobile ecosystem
+Detail: [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).
 
 ---
 
-## Phase 4 — Human-like conversational system
+## PHASE C — Natural Conversation
 
-**Результат.** Общение естественное и непрерывное: не только пары вопрос–ответ.
+**Status.** Basic Voice is **complete** (MANUAL PASS). This phase is **future improvement**, not a redo of VAD / hands-free.
 
-### Goals
+Do **not** plan as future:
 
-- Latency, turn-taking, interruptibility
-- References и неполные фразы
-- Initiative и clarification в рамках настроек
-- Тон/личность стабильны на всех каналах
+- basic local VAD
+- hands-free end-of-turn
+- barge-in foundation
+- Gemini STT / ElevenLabs TTS path
+- Voice as a Web Workspace mode
 
-### Основные компоненты
+Future:
 
-- Conversational intelligence layer
-- Улучшенный working context
-- Voice barge-in доведённый до продукта
-- Политики пауз и смены темы
+- lower latency
+- streaming STT if valuable
+- streaming TTS if valuable
+- more robust barge-in / conversational overlap
+- better short-pause policy
+- text generation cancellation
+- incomplete phrases / pronouns
+- topic continuity
+- clarification policy
+- stable personality
+- better working memory
+- natural conversational initiative
 
-### Prerequisites
+**Wake word:** not mandatory. Desktop is cancelled; a wake word in a normal browser has limited product value. Optional future research (mobile/native or always-open environments only).
 
-- Phase 2 retrieval
-- Phase 3 клиенты и голос
-- Зрелый system prompt / profile
-
-### Definition of done
-
-См. [HUMAN_LIKE_ASSISTANT.md](HUMAN_LIKE_ASSISTANT.md). Пользователь не пересказывает вчерашний день с нуля.
-
-### Не входит
-
-- Переписывание storage
-- Привязка к одному LLM или speech vendor
+[HUMAN_LIKE_ASSISTANT.md](HUMAN_LIKE_ASSISTANT.md), [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
 
 ---
 
-## Принцип приоритизации
+## PHASE D — Mobile companion
 
-1. Сначала простая рабочая система (Phase 1) с spaces, Chat Selector и multi-user контрактами.
-2. Reminders до Google. Users / Cabinet сразу после persist.
-3. Затем memory, Projects, group analysis/search (Phase 2).
-4. Затем Google smoke, GitHub, Owner Workspace, Voice, native clients (Phase 3) на тех же accounts.
-5. Proactive Engine — future, не MVP. Затем естественность (Phase 4).
+**Status.** DEFERRED. Not current priority. Not a new Core.
 
-Post-M19 executable order: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (M20–M28).
+Potential value: reliable push, voice on the go, camera / photo, share-to-Jarvis, location if permitted, quick capture, mobile notifications.
 
-Не over-engineer Phase 1. Не принимать решений, которые ломают этот порядок (например, AI внутри Telegram handler).
+Web remains the primary product. No Desktop dependency. [CLIENTS/MOBILE_APP.md](CLIENTS/MOBILE_APP.md).
+
+Versioned Client API is built **only if** Mobile (or another first-party non-Web client) actually starts. [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md).
+
+---
+
+## PHASE E — Knowledge & Proactive Jarvis
+
+**Status.** PLANNED strategic layer. Not committed immediate implementation.
+
+- Personal Knowledge Graph (optional structured layer over Memory / raw sources — does **not** replace Memory Engine)
+- People / Contacts intelligence
+- Richer Project intelligence
+- Timeline / activity understanding
+- Cross-source entity relationships
+- Event-triggered workflows / watchers
+- Controlled automations
+- Proactive assistant (event/condition driven, not unsolicited chatter)
+- Daily / Weekly synthesis
+- Conditional alerts
+
+Examples: “When Apple replies, read the mail and say what to do.” “When a GitHub commit lands on this project, review it.” “If the deadline is tomorrow and the task is open — remind me.”
+
+Strict permissions, confirmation, and audit required.
+
+---
+
+## Cancelled
+
+| Item | Decision |
+| --- | --- |
+| Desktop client / Tauri / JARVIS-Desktop | CANCELLED (ADR-235) |
+| System tray / global hotkey / desktop native shell | CANCELLED |
+| Desktop-specific auth / API lifecycle | CANCELLED |
+| Desktop as prerequisite for Voice / clients / API | CANCELLED |

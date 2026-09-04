@@ -230,7 +230,7 @@ Schedule:
 
 ## Composer focus (Workspace UX)
 
-Desktop (`(hover: hover) and (pointer: fine)`): restore composer focus after send, error, suggestion chip, attachment remove, lightbox close — once the textarea is enabled again.
+Wide-pointer browsers (`(hover: hover) and (pointer: fine)`): restore composer focus after send, error, suggestion chip, attachment remove, lightbox close — once the textarea is enabled again.
 
 Touch/mobile: do not force the software keyboard after a turn.
 

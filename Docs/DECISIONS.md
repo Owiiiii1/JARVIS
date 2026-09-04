@@ -62,7 +62,7 @@
 
 **Решение.** Приложения и Cabinet — клиенты API того же Core. Нет локального memory engine. Речь о **личной** памяти **текущего** `user_id`. Group knowledge не подмешивается автоматически.
 
-**Следствие.** Чаты этого user видны в Cabinet / mobile / desktop / его Telegram DM. Чужой user их не видит. Группы — отдельная область.
+**Следствие.** Чаты этого user видны в Web Workspace и его Telegram DM. Чужой user их не видит. Группы — отдельная область. **Desktop CANCELLED (ADR-235).** Mobile deferred (ADR-237).
 
 ---
 
@@ -400,7 +400,7 @@
 
 **Контекст.** Нет product-ready web/mobile push.
 
-**Решение.** Доставка только через Telegram Adapter. Нет web/email/mobile/desktop notification. Без linked Telegram identity — сообщить, что нужно подключить Telegram.
+**Status.** CURRENT CODE still Telegram-only delivery. **TARGET SUPERSEDED by ADR-240 / ADR-241.**
 
 **Следствие.** Cabinet может создать reminder текстом, но канал доставки — бот.
 
@@ -468,11 +468,13 @@
 
 ## ADR-046 — Reminder без Telegram identity не создаётся
 
+**Status.** HISTORICAL / SUPERSEDED as product target by ADR-240. **CURRENT CODE still enforces this.**
+
 **Контекст.** Delivery сейчас только Telegram. Можно было бы сохранить scheduled reminder до pairing.
 
 **Решение.** Если у User нет linked Telegram identity, reminder **не создаётся**. Сообщение: «Для получения напоминаний сначала подключите Telegram.» Не копить undeliverable rows.
 
-**Следствие.** Tool result `telegram_not_connected`. Web Cabinet тоже требует Telegram pairing для create.
+**Следствие.** Tool result `telegram_not_connected`. Web Workspace тоже требует Telegram pairing для create until M25U.3.1.
 
 ---
 
@@ -890,11 +892,13 @@
 
 ## ADR-088 — Web / Desktop / Mobile share one Jarvis Core
 
+**Status.** Partially SUPERSEDED: Desktop cancelled (ADR-235). Core-ownership of memory/tools/credentials remains. Mobile deferred (ADR-237). Client API deferred (ADR-238).
+
 **Контекст.** Нативные клиенты соблазняют локальным AI.
 
 **Решение.** Все клиенты — adapters. Memory, tools, credentials, provider selection — только Core.
 
-**Следствие.** [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md).
+**Следствие.** Web uses Laravel/Inertia. Versioned Client API is not a current milestone.
 
 ---
 
@@ -910,7 +914,9 @@
 
 ## ADR-090 — Same conversation continues across clients
 
-**Контекст.** Telegram / Web / Desktop / Mobile иначе плодят треды.
+**Status.** Core idea remains (one `conversation_id` per space). Desktop cancelled.
+
+**Контекст.** Telegram / Web / Mobile иначе плодят треды.
 
 **Решение.** Один `conversation_id` на все каналы одного space. New Chat — только явный выбор.
 
@@ -920,15 +926,19 @@
 
 ## ADR-091 — Desktop = Tauri 2 + React / TypeScript
 
+**Status.** CANCELLED / SUPERSEDED by ADR-235. File `Docs/CLIENTS/DESKTOP_APP.md` removed.
+
 **Контекст.** Нужен native desktop без второго Core.
 
-**Решение.** Tauri 2, React, TS, Vite, Three.js/WebGL для Orb. Thin client.
+**Решение (historical).** Tauri 2, React, TS, Vite, Three.js/WebGL для Orb. Thin client.
 
-**Следствие.** [CLIENTS/DESKTOP_APP.md](CLIENTS/DESKTOP_APP.md).
+**Следствие.** Do not plan Tauri, JARVIS-Desktop, tray, or global hotkey.
 
 ---
 
 ## ADR-092 — Mobile = Flutter
+
+**Status.** DEFERRED as product work (ADR-237). Flutter remains the sketched stack if Mobile is ever built; not a current milestone.
 
 **Контекст.** iOS и Android должны делить один client codebase.
 
@@ -940,11 +950,13 @@
 
 ## ADR-093 — Desktop and Mobile are separate repositories
 
+**Status.** SUPERSEDED for Desktop (ADR-235). Mobile repo remains a possible future if Mobile is built; not current work.
+
 **Контекст.** Rust/Tauri и Flutter внутри Laravel repo засоряют CI, deploy и Cursor context.
 
-**Решение.** `Owiiiii1/JARVIS` (Core + Admin + Cabinet + Workspace). `Owiiiii1/JARVIS-Desktop`. `Owiiiii1/JARVIS-Mobile`. Один логический продукт, разные toolchains и release cycles.
+**Решение (historical).** `Owiiiii1/JARVIS` (Core + Admin + Workspace). `Owiiiii1/JARVIS-Desktop`. `Owiiiii1/JARVIS-Mobile`.
 
-**Следствие.** Master protocol docs остаются в JARVIS. Production backend без Tauri/Flutter tree.
+**Следствие.** Production backend has no Tauri/Flutter tree. Desktop repo will not be created.
 
 ---
 
@@ -1144,7 +1156,7 @@
 
 **Решение.** Only the current inbound message’s image bytes are converted to `AiContentPart` image parts. Previous attachments stay as text placeholders (`[N images attached]`) plus whatever the assistant already said. No attachment-specific memory ingestion.
 
-**Следствие.** Explicit historical-image retrieval can be added later. Telegram/Desktop/Mobile can reuse `message_attachments` without changing this policy.
+**Следствие.** Explicit historical-image retrieval can be added later. Telegram/Web/Mobile can reuse `message_attachments` without changing this policy. Desktop cancelled.
 
 ---
 
@@ -1164,7 +1176,7 @@
 
 **Решение.** Store on the private `local` disk under `chat-attachments/`. Preview/full routes require auth + conversation/message/attachment ownership. Clients receive only route URLs, never filesystem paths. Limits live in `config/chat_attachments.php`.
 
-**Следствие.** Cabinet/Telegram/native clients can mount the same access service later.
+**Следствие.** Web Workspace and Telegram reuse the same access service. Future Mobile could mount it. Desktop cancelled.
 
 ---
 
@@ -1660,11 +1672,13 @@
 
 ## ADR-170 — Web / desktop / mobile share VoiceRuntimeService
 
+**Status.** SUPERSEDED in part by ADR-235/238. Shared `VoiceRuntimeService` remains. Desktop will not call it. Mobile may later; Client API deferred.
+
 **Контекст.** Web controller could become the Core.
 
-**Решение.** HTTP Workspace controller is an adapter. Desktop/Mobile later call the same runtime via Client API.
+**Решение.** HTTP Workspace controller is an adapter. Future non-Web clients would call the same runtime if/when they exist.
 
-**Следствие.** Do not duplicate STT/turn/TTS in clients.
+**Следствие.** Do not duplicate STT/turn/TTS in clients. Do not build Client API solely for cancelled Desktop.
 
 ---
 
@@ -1690,11 +1704,15 @@
 
 ## ADR-173 — Tests and live voice validation remain deferred
 
-**Контекст.** Production Owner policy: no `php artisan test`, no live STT/TTS/AI during this work.
+**Status.** SUPERSEDED as current Voice status by ADR-239. Automated tests still not claimed. Owner later confirmed Voice MANUAL PASS.
 
-**Решение.** Static/build/migrate/route/schedule verification only. Do not claim live voice PASS.
+**Контекст.** Production Owner policy: no `php artisan test`, no live STT/TTS/AI during M23/M24 implementation work.
 
-**Следствие.** Status is IMPLEMENTED / NOT VALIDATED until Owner exercises Voice.
+**Решение (historical for those milestones).** Static/build/migrate/route/schedule verification only during implementation.
+
+**Следствие.** Do not treat this ADR as current Voice validation status.
+
+---
 
 ---
 
@@ -1744,13 +1762,13 @@
 
 **Решение.** `VoiceSession` owns permission, tracks, session HTTP. The Orb only renders.
 
-**Следствие.** Desktop can reuse the engine with a different session client.
+**Следствие.** A future Mobile companion could reuse the engine with a different session client. Desktop cancelled.
 
 ---
 
 ## ADR-179 — Three.js visualization engine has no Laravel dependency
 
-**Контекст.** Desktop is Tauri + React, not Inertia.
+**Контекст.** Visualization must not depend on Inertia. (Historical: Desktop was Tauri + React.)
 
 **Решение.** Engine lives in `resources/js/voice/visualization` without Inertia, Ziggy, or Blade.
 
@@ -1976,11 +1994,13 @@
 
 ## ADR-208 — Live STT/TTS/AI validation remains deferred
 
-**Контекст.** Owner policy: no live provider smoke in this milestone.
+**Status.** SUPERSEDED as current Voice status by ADR-239. This ADR applied to M23.2 implementation milestone, not to later Owner E2E.
 
-**Решение.** Configured status is local (provider + credential connected + model). No Test Connection. No live Gemini transcription.
+**Контекст.** Owner policy: no live provider smoke in the Gemini STT implementation milestone.
 
-**Следствие.** Status is IMPLEMENTED / NOT VALIDATED until Owner exercises Voice.
+**Решение (historical).** Configured status is local (provider + credential connected + model). No Test Connection during that work.
+
+**Следствие.** Do not treat this ADR as current Voice validation status.
 
 ---
 
@@ -2244,10 +2264,120 @@
 
 ---
 
+## ADR-235 — Desktop client cancelled
+
+**Контекст.** A separate Desktop client (Tauri, JARVIS-Desktop, tray, global hotkey, native shell) was planned as a Phase 3 native client. The Personal Workspace already runs in the browser with text, voice, storage, web research, and reminders.
+
+**Решение.** Desktop client is **CANCELLED**. Do not plan Tauri, JARVIS-Desktop, system tray, global hotkey, desktop-specific native shell, or a Desktop auth/API lifecycle. Desktop is not a prerequisite for future features. `Docs/CLIENTS/DESKTOP_APP.md` is removed.
+
+**Следствие.** Supersedes ADR-091, ADR-093 (Desktop half), and Desktop parts of ADR-006/088/090/170. Web Personal Workspace is the primary interactive client (ADR-236).
+
+---
+
+## ADR-236 — Web Personal Workspace is the primary interactive client
+
+**Контекст.** Multiple clients were sketched (Cabinet, Desktop, Mobile, Telegram).
+
+**Решение.** Primary interactive application is **Web Personal Workspace**. Owner: `/jarvis`. User: `/chat`. `/cabinet` is compatibility redirects only. Telegram is a secondary messaging channel/adapter. Voice is a modality of Web Workspace, not a separate client.
+
+**Следствие.** Architecture diagrams have no Desktop node. Product docs use Workspace wording, not Cabinet-as-product.
+
+---
+
+## ADR-237 — Mobile is an optional future companion, not current priority
+
+**Контекст.** Mobile (Flutter, JARVIS-Mobile) was listed as a near-term native client alongside Desktop.
+
+**Решение.** Mobile remains a possible future companion to Web/Core. It is **not** a new Core and **not** the next required stage. Potential value: push, voice on the go, camera, share-to-Jarvis. Source of truth remains Jarvis backend. No dependency on cancelled Desktop.
+
+**Следствие.** [CLIENTS/MOBILE_APP.md](CLIENTS/MOBILE_APP.md). Do not block Core roadmap on Mobile.
+
+---
+
+## ADR-238 — Versioned Client API is deferred
+
+**Контекст.** Client API was motivated by Desktop/Mobile sharing a protocol.
+
+**Решение.** Do **not** build a versioned Client API merely because Desktop was planned. Keep it as a future requirement if/when Mobile development begins or an external first-party client genuinely needs it. Web uses existing Laravel/Inertia/session routes.
+
+**Следствие.** [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md) is DEFERRED / NOT CURRENT PRIORITY.
+
+---
+
+## ADR-239 — Basic hands-free Voice is production MANUAL PASS
+
+**Контекст.** M23–M24.1.1 implemented Voice Runtime, Gemini STT, Orb UI, local VAD, silence hotfix. Older ADRs deferred live validation.
+
+**Решение.** Owner confirmed in production: Voice starts; microphone/listening; hands-free turn ends after pause; Gemini STT; Jarvis reply; ElevenLabs TTS; post-VAD hotfix. Therefore M23, M23.2, M24, M24.1, M24.1.1 are **MANUAL PASS**. Basic VAD/hands-free is not future work.
+
+**Следствие.** Phase C (Natural Conversation) is latency, barge-in robustness, working memory — not “add VAD”. Wake word is optional research only, not mandatory. Supersedes ADR-173/208 as current Voice status.
+
+---
+
+## ADR-240 — Reminder existence is independent of Telegram (target)
+
+**Контекст.** ADR-039/046 made Telegram a create-and-delivery prerequisite. That blocks Web-only users and treats Telegram as the reminder domain.
+
+**Решение.** **Target:** Reminder is a Core domain object. Creating a reminder must not require Telegram. Telegram is an optional delivery adapter. Other future adapters: Web Workspace, Web Push, Mobile Push. **Current code still enforces Telegram** for create and delivery (ADR-046 still describes runtime).
+
+**Следствие.** Next executable milestone M25U.3.1. Do not document the target as implemented. Supersedes ADR-039/046 as product architecture.
+
+---
+
+## ADR-241 — Telegram is a reminder delivery adapter, not a prerequisite
+
+**Контекст.** Same as ADR-240.
+
+**Решение.** Delivery channels are adapters under Core scheduler/state. Missing Telegram must not prevent persisting a reminder. Web panel/center is a first-class surface. Web Push is a later transport (ADR-242).
+
+**Следствие.** [REMINDERS.md](REMINDERS.md) separates CURRENT vs TARGET.
+
+---
+
+## ADR-242 — Web Push is a future notification transport
+
+**Контекст.** After reminders work in Web without Telegram, users will need in-browser alerts.
+
+**Решение.** Web Push / browser notifications are **future** Phase B work. M25U.3.1 must not implement Web Push. Current delivery remains Telegram until that milestone plus later push work.
+
+**Следствие.** Do not add push subscriptions in the reminders-without-Telegram milestone unless explicitly scoped later.
+
+---
+
+## ADR-243 — Tasks are separate from Reminders
+
+**Контекст.** Time-aware Jarvis needs both “notify me when” and “what I need to accomplish.”
+
+**Решение.** Reminder = when Jarvis should notify. Task = what the user needs to accomplish (status, deadline, subtasks, related conversation/project/files, optional linked reminders). Do not collapse Tasks into reminders. No Task tables in M26D.
+
+**Следствие.** [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md). Phase B.
+
+---
+
+## ADR-244 — Proactivity is event/condition driven and bounded
+
+**Контекст.** “Proactive assistant” can be read as unsolicited chatter.
+
+**Решение.** Proactivity is driven by deadlines, reminders, tasks, calendar events, monitored external events, explicit opt-in, and meaningful detected changes. It requires anti-spam rules, user controls, auditability, permissions, and a clear trigger source. Not generic AI chatter.
+
+**Следствие.** Phase E. [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).
+
+---
+
+## ADR-245 — Personal Knowledge Graph is a future optional structured layer
+
+**Контекст.** Memory Engine already stores facts from conversations. A graph of Person/Company/Project/Event/Task/File/Conversation/Reminder is attractive but premature as a replacement.
+
+**Решение.** Knowledge Graph is a **future optional** structured layer over existing memory and raw sources. Provenance must trace to source data. Do not replace the Memory Engine prematurely. Not an immediate implementation commitment.
+
+**Следствие.** Phase E. People/Contacts intelligence is the same future direction, not current schema.
+
+---
+
 - Алфавит generated access_code (кроме зарезервированного 2000).
 - 403 vs redirect когда user открывает admin URL.
-- Auth схема Desktop/Mobile (token flavour).
-- Realtime native voice transport (WebRTC vs WebSocket streaming) beyond M23 HTTP utterance blobs.
+- Auth схема future Mobile (token flavour) — only if Mobile is built; Desktop auth cancelled.
+- Realtime native voice transport (WebRTC vs WebSocket streaming) beyond current HTTP utterance blobs.
 - Optional long-term audio recording retention.
 - Набор service updates (`my_chat_member`) beyond bot left/kicked/member/admin/restricted.
 - Retention raw messages по закону/желанию пользователя (отдельно от derived lifecycle).

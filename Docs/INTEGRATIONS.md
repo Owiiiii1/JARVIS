@@ -59,7 +59,7 @@ Owner-only (`/settings?tab=integrations`, also `/settings/integrations`). Subsec
 
 Cards: Google (Connect / Reconnect / Disconnect / Enable Calendar / Enable Gmail; Identity vs Calendar vs Gmail capability states; Not configured if env missing), GitHub (Connect / Reconnect / Disconnect; login; scopes; Not configured if env missing), ElevenLabs (configured status from Voice settings; no key on the overview card). Connected Google is not automatically Gmail-enabled. No Gmail inbox admin UI. No GitHub PAT field. GitHub card does not call GitHub on page load.
 
-Normal user: 403. No Cabinet Integrations section.
+Normal user: 403. No user-facing Integrations admin.
 
 ---
 
@@ -281,7 +281,7 @@ Safe errors: `google_not_connected`, `gmail_scope_required`, `gmail_message_not_
 
 ### GitHub (M21)
 
-Owner-only (`github` + `integrations_admin`). Integration Framework tools — не Telegram adapter, не локальный `git`, не Desktop/Mobile token store.
+Owner-only (`github` + `integrations_admin`). Integration Framework tools — не Telegram adapter, не локальный `git`, не client-side token store.
 
 **Status.** IMPLEMENTED, NOT LIVE-VALIDATED. Owner deferred all automated tests and live GitHub smoke. Cursor does not connect a real GitHub account or perform write operations.
 
@@ -343,7 +343,7 @@ Repository argument prefers `owner/name`. Short names resolve: exact full_name �
 
 Private repo content may enter Owner Conversation AI only through explicit tools. No automatic prompt injection, no default repo dump, no automatic memory ingestion. No M21 project↔repository DB relation; `get_project_context("JARVIS")` plus a GitHub tool in the same turn is allowed.
 
-Future Web/Desktop/Mobile/Voice use the same server-side tools. Clients must not store GitHub tokens.
+Future Web/Voice (and deferred Mobile) use the same server-side tools. Clients must not store GitHub tokens.
 
 Safe errors: `github_not_connected`, `github_scope_required`, `github_repository_not_found`, `github_ref_not_found`, `github_file_not_found`, `github_issue_not_found`, `github_pr_not_found`, `github_workflow_run_not_found`, `github_forbidden`, `github_rate_limited`, `github_validation_failed`, `github_conflict`, `github_unavailable`, `github_token_revoked`. Raw API bodies are not returned to AI/logs.
 

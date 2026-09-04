@@ -1,6 +1,6 @@
 # Personal Web Workspace
 
-**Status.** M25U.3 IMPLEMENTED / NOT VALIDATED (2026-09-04) for personalization + reminders panel. M25U.1/M25U.2 **core user workflow** is **MANUAL PASS** for Owner-confirmed production scenarios (create user, login, `/chat`, basic requests). Automated tests not run. No live AI / Web Search / Voice / onboarding / reminders in this documentation pass. Manual A/B isolation campaign is prepared, not executed.
+**Status.** PRIMARY product UI. Core user workflow **MANUAL PASS**. Voice **MANUAL PASS**. M25U.3 onboarding entry **MANUAL PARTIAL**. Reminders panel **LIVE BUG**. `/cabinet` is compatibility only.
 
 Owner and ordinary users share **one Personal Workspace product**. Role/capabilities change available features, not the chat implementation.
 
@@ -123,7 +123,7 @@ Shared application service: `PersonalChatSurfaceService` (Cabinet + Workspace). 
 - Right / mobile drawer: context (projects, reminders, integrations status including read-only **Web Search · Google / Tavily / Disabled**, memory counts, General Prompt)
 - Header: Jarvis, AI status dot, Text / Voice, conversation title, Admin, settings
 
-Desktop-first (1280–2560). Sidebar and context collapse on smaller widths. Composer stays usable on mobile web.
+Wide screens (1280–2560). Sidebar and context collapse on smaller widths. Composer stays usable on a phone browser.
 
 ---
 
@@ -131,7 +131,7 @@ Desktop-first (1280–2560). Sidebar and context collapse on smaller widths. Com
 
 Send path: Workspace → `PersonalChatSurfaceService` → `ConversationTurnService` → Conversation AI → tools → persisted assistant message.
 
-Composer: multiline, Enter send, Shift+Enter newline, UUID `client_message_id`, local draft, disabled while in flight. Paperclip accepts screenshots **and** persistent text files. Drag/drop, Ctrl/Cmd+V screenshot (text paste is not hijacked). One turn may include text + images + Storage files. Limits come from `chatAttachments` and `jarvisStorage` Inertia props. Desktop restores composer focus after send; mobile does not force the keyboard. See [STORAGE.md](../STORAGE.md).
+Composer: multiline, Enter send, Shift+Enter newline, UUID `client_message_id`, local draft, disabled while in flight. Paperclip accepts screenshots **and** persistent text files. Drag/drop, Ctrl/Cmd+V screenshot (text paste is not hijacked). One turn may include text + images + Storage files. Limits come from `chatAttachments` and `jarvisStorage` Inertia props. Wide-pointer browsers restore composer focus after send; touch/phone browsers do not force the keyboard. See [STORAGE.md](../STORAGE.md).
 
 Thinking state: `Jarvis is thinking...` (no token streaming in M22). Frontend message `status`: `pending` | `streaming` | `completed` | `failed` so streaming can replace the thinking row later.
 

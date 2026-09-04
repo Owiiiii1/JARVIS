@@ -1,99 +1,71 @@
-# API
+# HTTP surface (Web)
 
-API нужен User Workspace, Owner Workspace, Desktop, Mobile. Telegram ходит в Core in-process. Workspace может оставаться same-origin session; Desktop/Mobile требуют versioned Client API.
+**Status.** Actual Laravel/Inertia session routes. There is **no** public versioned Client API. That work is **DEFERRED** ([CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md)).
 
-Целевой контракт: [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md). Этот файл — инварианты. Окончательные URL **не фиксируются**. Клиенты не реализуют Memory/Tools/credentials локально.
+Telegram uses webhook in-process. Desktop is cancelled.
 
-Окончательные URL и форматы payload **не фиксируются**. Ниже — логические группы и инварианты.
-
----
-
-## Инварианты
-
-- Все клиентские операции идут в Jarvis Core, не в «mobile backend».
-- Личная история и personal memory — только **текущего** `user_id`. Те же данные, что у его Telegram DM / Cabinet.
-- Ownership: id в URL недостаточен. Policy проверяет, что conversation/message/topic принадлежит user. ADR-021.
-- Клиент не присылает platform prompt и не выбирает произвольный vendor. Ядро резолвит Owner Conversation AI или Default User Conversation AI. User General Prompt правит сам user в Personal Workspace.
-- GitHub/Google credentials never leave Core. Clients send conversation turns; Core may call GitHub tools.
-- Group administration — не user workspace API. `TBD` узкий read для owner.
-- Два web context: owner → `/jarvis` + admin; `role=user` → `/chat`. User на admin API/routes — deny. `/cabinet` is compatibility only.
-- No public registration. Owner creates users via `POST /settings/users`. User Card `GET /settings/users/{user}`. Impersonation start is Owner-only; `POST /impersonation/stop` restores Owner.
-- Access code не является API/web password.
-- Схема токенов (sanctum, JWT, cookies) — `TBD`.
-- Realtime и voice — отдельные группы.
+Do not expose secrets.
 
 ---
 
-## Логические группы
+## Auth
 
-### Authentication
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET/POST | `/` | Login |
+| POST | `/logout` | |
 
-- вход / выход / refresh: owner и user разные landing;
-- Telegram pairing не через этот API (webhook);
-- привязка device session;
-- кто я (`user` + доступные features/channels).
-
-Точные flows — `TBD`. Impersonation не является обычным login API.
-
-### Conversations
-
-- список **своих** разговоров;
-- создать новый (пустой raw, та же user memory);
-- открыть / переименовать;
-- метаданные (заголовок, последняя активность, статус);
-- архив/удаление — later (`TBD`).
-
-Не отдавать derived memory целиком в списке. Не отдавать чужие conversations.
-
-### Messages
-
-- история страницы/курсора;
-- отправить текстовое сообщение → тот же Conversation Engine;
-- статус доставки/генерации (`TBD`).
-
-Отправка сообщения — команда ядру, не «сохрани у себя и подумай локально».
-
-### Realtime / streaming
-
-- поток токенов ответа;
-- события typing / speaking / interrupted.
-
-Транспорт (SSE, WebSocket) — `TBD`.
-
-### Voice sessions
-
-- открыть/закрыть сессию на conversation;
-- слать аудио / получать аудио;
-- barge-in сигналы.
-
-Не отдельный AI namespace. См. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
-
-### Settings / status
-
-- публичный статус: модель подключена, бот подключен, «Jarvis доступен»;
-- **не** выставлять наружу секреты провайдеров и bot token;
-- пользовательские предпочтения профиля — узкий subset, не вся админка;
-- свой General Prompt — user правит в Personal Workspace; owner видит/может править с User Card;
-- assistant profile — Core data; header name; tools `get_assistant_profile` / `update_assistant_profile` (current user only);
-- timezone (IANA) своего профиля;
-- reminders: создание в чате; same-origin `GET /{jarvis|chat}/reminders` and `POST .../reminders/{id}/cancel` (auth, active, capability, ownership); доставка только Telegram.
-
-Админские CRUD провайдеров, Users, impersonation — admin surface, не cabinet/mobile API.
+Owner landing `/jarvis`. User landing `/chat`. No public registration.
 
 ---
 
-## Ошибки и идемпотентность
+## Personal Workspace
 
-Клиент может повторить send с idempotency key (`TBD`). Ядро уже планирует идемпотентность по channel_message_id; для API нужен свой ключ.
+Prefixes: `/jarvis` (owner) and `/chat` (user). Names: `jarvis.*` / `chat.*`.
+
+- `GET /{prefix}` workspace
+- chats store/show/update
+- messages store + older
+- attachments preview/show
+- confirmations confirm/cancel
+- settings: prompt, profile, password
+- `POST /{prefix}/onboarding/start`
+- `GET /{prefix}/reminders`
+- `POST /{prefix}/reminders/{reminder}/cancel`
+- voice: `sessions` store, show, listen, audio, interrupt, mute, resume, destroy
+
+Owner-only Storage: `/jarvis/storage` index/store/show/update/destroy/download.
 
 ---
 
-## Версионирование
+## `/cabinet`
 
-`TBD` (`/api/v1` или header). Не выбирать сейчас.
+Compatibility. Index and some show routes redirect to `/jarvis` or `/chat`. A few `cabinet.*` JSON routes still exist. Not the product name.
 
 ---
 
-## Связь с Phase 1
+## Admin (owner)
 
-Telegram-срез Phase 1 может обойтись без public HTTP. Cabinet и Phase 3 бьют в тот же engine и те же ownership-правила, чтобы не переписывать оркестрацию.
+- `/dashboard`
+- `/settings` (users, AI, integrations, web research, voice, telegram bot)
+- `POST /settings/users` create user
+- User Card `/settings/users/{user}` + status/password/prompt/destroy/telegram unlink/access-code/impersonate
+- User memory `/settings/users/{user}/memory`
+- Google/GitHub OAuth connect/disconnect/callback
+- `/projects`, `/telegram-groups`, `/calendar` placeholder
+- `POST /impersonation/stop`
+
+---
+
+## Telegram
+
+`POST /telegram/webhook` (CSRF exempt).
+
+---
+
+## Invariants
+
+- Ownership: URL id is not enough
+- Clients never send platform prompts or pick an arbitrary vendor
+- Access code is not a password
+- Voice and reminders are session-authenticated workspace routes

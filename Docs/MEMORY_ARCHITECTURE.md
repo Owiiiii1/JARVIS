@@ -271,7 +271,7 @@ Analysis jobs используют **Owner Analysis AI**, не conversation conf
 
 Personal memory принадлежит `user_id`, не conversation и не каналу.
 
-Telegram DM, Cabinet, mobile, desktop и voice этого user пишут в его messages (разные conversations) и читают **его** retrieval.
+Telegram DM, Web Workspace и Voice этого user пишут в его messages и читают **его** retrieval. Desktop cancelled. Mobile deferred.
 
 Голосовая реплика после STT — обычный inbound text для **его** памяти.
 

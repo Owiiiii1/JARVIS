@@ -10,17 +10,17 @@
 
 Channel adapter (или Voice layer) передаёт в Core структуру уровня:
 
-- `channel` (`telegram` / `web` / `mobile` / `desktop`, `TBD` точный enum);
+- `channel` (`telegram` / `web`; enum may still list unused `mobile` / `desktop` values);
 - `modality` (`text` / `voice`) — голос не отдельный ассистент, не отдельный канал-мозг и не новый `conversation_id`. M24.1 Voice is hands-free VAD over the same turn: blob STT → this engine → TTS. No push-to-talk.
 - `external_identity` (telegram user id, app user id, …);
-- `conversation_id` или hint: Telegram → `channel_identities.active_conversation_id`; Cabinet / Workspace / apps → открытый chat; тот же id на всех клиентах;
+- `conversation_id` или hint: Telegram → `channel_identities.active_conversation_id`; Web Workspace → открытый chat; тот же id на каналах одного space;
 - `payload` (текст и/или current-turn image attachments; медиа refs в `message_attachments`);
 - `occurred_at`;
 - `channel_message_id` для идемпотентности.
 
 Адаптер **не** вызывает LLM.
 
-Web Cabinet / Workspace: `JarvisWorkspaceController` + `PersonalChatSurfaceService` → `ConversationTurnService`. Owner uses `/jarvis`, user uses `/chat`. Same controller methods. Integer conversation id is authorized with `ConversationService::ensureOwned` (`user_id`). Cross-user id/URL access returns 404. Disabled users cannot enter a turn. Telegram handler нормализует inbound и вызывает тот же `ConversationTurnService`, затем send. User Conversation AI is `AiConfigurationResolver::resolveConversation` → Default User Conversation AI; never Owner Conversation AI.
+Web Workspace: `JarvisWorkspaceController` + `PersonalChatSurfaceService` → `ConversationTurnService`. Owner uses `/jarvis`, user uses `/chat`. Same controller methods. Integer conversation id is authorized with `ConversationService::ensureOwned` (`user_id`). Cross-user id/URL access returns 404. Disabled users cannot enter a turn. Telegram handler нормализует inbound и вызывает тот же `ConversationTurnService`, затем send. User Conversation AI is `AiConfigurationResolver::resolveConversation` → Default User Conversation AI; never Owner Conversation AI.
 
 Дополнительно для Telegram: `chat_kind` (`direct` / `group`), `telegram_chat_id`, sender fields. Group inbound **не** запускает personal reply path. См. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
 
@@ -52,9 +52,9 @@ normalize
 
 ---
 
-## Шаги (личный DM / mobile / desktop / voice)
+## Шаги (личный DM / Web / Voice)
 
-1. **Сообщение приходит через channel adapter или Cabinet API.**
+1. **Сообщение приходит через channel adapter или Web Workspace.**
 2. **Определяется пользователь** — session / `channel_identities` → `users`. Ownership проверяется здесь. Неизвестная Telegram identity **не** входит в этот AI path: pairing в адаптере ([USERS_AND_CABINET.md](USERS_AND_CABINET.md)). Нет auto-create User. Owner и user — один pipeline.
 3. **Сохраняется raw message** до вызова модели. Падение LLM не должно терять входящее. `user_id` + `conversation_id` обязательны для personal.
 4. **Conversation** — active / указанный id **этого** space. Чужой id отвергается.
@@ -64,7 +64,7 @@ normalize
 8. Hierarchy: platform prompt **Owner Conversation AI или Default User Conversation AI** → channel rules → User General Prompt → (7) → message.
 9. **Conversation AI этого space.** Owner Analysis AI на DM не вызывается. User никогда не получает Owner Conversation config.
 10. **Сохраняется ответ** как raw message роли assistant в ту же conversation.
-11. **Ответ отправляется** в исходный канал / cabinet stream.
+11. **Ответ отправляется** в исходный канал / workspace stream.
 12. **Post-processing** (после или параллельно с отправкой).
 13. **Извлекаются потенциальные personal memories** этого user (Phase 2; Owner Analysis AI или позже слот `memory_extraction`).
 14. **Обновляются topics / summaries / memory / revisions** в **его** personal scope.
@@ -165,7 +165,7 @@ Runtime: [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Orb UI: [CLIENTS/VOICE_
 
 Tool loop в одном turn: несколько последовательных calls. Не `one message = max one tool call`. Safety limit: **max 5 tool rounds**.
 
-Реализовано в Core (`ConversationAiService`): AI → tool call(s) → `ToolRegistry` → `ToolExecutionService` (capability + confirmation policy + `tool_execution_logs`) → tool result(s) → AI → возможно ещё tools → final answer. Telegram, Cabinet, Workspace и native clients не знают, какой tool сработал.
+Реализовано в Core (`ConversationAiService`): AI → tool call(s) → `ToolRegistry` → `ToolExecutionService` (capability + confirmation policy + `tool_execution_logs`) → tool result(s) → AI → возможно ещё tools → final answer. Telegram и Web Workspace не знают, какой tool сработал. Future Mobile would use the same Core; there is no Desktop client.
 
 Tools:
 

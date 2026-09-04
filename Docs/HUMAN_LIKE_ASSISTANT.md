@@ -1,94 +1,45 @@
-# Human-like assistant (Phase 4)
+# Natural conversation (Phase C)
 
-Phase 4 — не «улучшили prompt». Это отдельный **conversational intelligence layer** над уже существующими Core, Memory и Voice. ADR-010.
+**Status.** Basic Voice I/O is **MANUAL PASS**. This document is **future** conversational intelligence, not a redo of VAD / hands-free.
 
-Цель: общение максимально естественное. Jarvis постепенно переходит от модели `question → answer` к модели `continuous personal assistant`.
+ADR-010 still applies: this is a layer over Core, Memory, and Voice — not “a better prompt”.
 
----
-
-## Зависимости
-
-- Phase 1: стабильный цикл сообщения и raw history.
-- Phase 2: selective memory, иначе «естественность» упрётся в тупой recent-window.
-- Phase 3: клиенты и голосовой I/O, иначе barge-in и паузы не на чем отлаживать.
-
-Нельзя «наверстать» Phase 4 одним системным промптом, если retrieval тащит не те темы, а канал блокирует ответ на 10 секунд.
+Desktop is cancelled. Do not wait on a native shell.
 
 ---
 
-## Направления
+## Already done (do not plan again)
 
-### Latency
-
-Ощущение живого диалога. Бюджеты sync-пути, streaming текста/аудио, дешёвый classifier отдельно от дорогой conversation model. Конкретные SLO — `TBD`.
-
-### Conversational turn-taking
-
-Кто говорит; когда можно вставить реплику; когда подождать. Для голоса связано с turn detection. Для текста — индикатор «думает», возможность уточняющего вопроса вместо стены текста.
-
-### Interruptibility
-
-Пользователь перебивает — Jarvis прекращает речь и слушает. Текстовый аналог: новая реплика до завершения generation отменяет или корректирует ход (`TBD` политика).
-
-### Short-term conversational memory
-
-Working context: «это», «он», последняя уточнённая сущность. Живёт в **текущем** разговоре. Другие чаты того же space — через summaries / targeted raw, не авто-dump.
-
-### Long-term memory
-
-Тот же engine Phase 2. Естественность без релевантных фактов невозможна; естественность с простынёй всей истории тоже.
-
-### Context relevance
-
-Не вспоминать автомобиль, когда речь про Jarvis. Не забывать «тот проект» внутри темы.
-
-### Tone consistency и personality
-
-Личность задаётся централизованным prompt + profile, не копипастой в каждом канале. Правки — в админке. Эволюция личности — revisions profile, не разъезд текстов Telegram vs desktop.
-
-### Initiative
-
-Иногда спросить, напомнить, предложить следующий шаг — в рамках настроек (`TBD` границы, чтобы не спамить). Это поведение слоя, не отдельный бот.
-
-### Clarification behaviour
-
-Если реплика неполная — уточнить, а не галлюцинировать. Нужны сигналы от classifier/engine, не только «будь осторожен» в prompt.
-
-### Incomplete phrases и references
-
-«это», «тот проект», «как мы делали вчера» разрешаются через working context + topics + time-aware memories.
-
-### Смена темы и возврат
-
-Classifier и topic stack: новая тема не обязана стирать предыдущую. Возврат («вернёмся к Jarvis») поднимает старый topic, не создаёт чистый чат.
-
-### Голосовые особенности
-
-Темп, паузы, короткий первый звук ответа (filler vs сразу смысл — `TBD`, осторожно с дешёвой имитацией). Тот же conversation id.
-
-### Реакция на паузы
-
-Пауза ≠ конец мысли всегда. Turn detection + политика ожидания. Не фиксировать алгоритм сейчас.
-
-### Не требовать полный запрос каждый раз
-
-Пользователь не обязан формулировать самодостаточный ticket. Это и есть отличие от chatbot.
+- Local VAD / hands-free end-of-turn
+- Mute as the single mic control
+- Barge-in foundation during TTS
+- Gemini STT → ConversationTurnService → ElevenLabs TTS
+- Same conversation_id and ordinary messages
+- Spoken-style presentation hint
 
 ---
 
-## Чего Phase 4 не делает
+## Future improvements
 
-- Не переписывает messages/conversations.
-- Не вводит второй AI core «для голоса».
-- Не заменяет platform system prompt и User General Prompt скрытым hardcoded prompt в клиенте.
+- Lower latency
+- Streaming STT / TTS if valuable
+- More robust barge-in / overlap
+- Better short-pause policy (pause ≠ always end of thought — refine, do not invent from scratch)
+- Text generation cancellation when the user sends a new turn
+- Incomplete phrases / pronouns
+- Topic continuity and return-to-topic
+- Clarification policy
+- Stable personality (profile + General Prompt; not per-channel copies)
+- Better working memory
+- Natural conversational initiative (bounded; see [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md))
+
+**Wake word:** not mandatory. Limited value in a normal browser. Optional research for mobile/native or always-open environments.
 
 ---
 
-## Метрики готовности (черновик)
+## What this phase does not do
 
-Формальные метрики — `TBD`. Ориентиры:
-
-- пользователь может продолжить вчерашний разговор без пересказа;
-- смена канала не сбрасывает личность и факты;
-- перебивание голоса работает;
-- в prompt не уходит нерелевантная длинная история.
+- Rewrite `messages` / `conversations`
+- A second AI core “for voice”
+- Hide a hardcoded client prompt that replaces platform prompt / General Prompt
+- Unsolicited generic chatter

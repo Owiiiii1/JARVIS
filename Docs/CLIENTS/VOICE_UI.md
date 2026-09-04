@@ -1,8 +1,8 @@
 # Voice UI
 
-**Status.** M24 Orb + **M24.1 hands-free VAD** IMPLEMENTED; **M24.1.1 silence-detection hotfix** (2026-09-04) after Owner live test: Voice stayed Listening because ambient RMS sat above the bootstrap threshold. Automated tests not run. No live STT/TTS in this hotfix. Owner must live-test next.
+**Status.** MANUAL PASS with Voice Runtime (M24 Orb + M24.1 hands-free VAD + M24.1.1 silence hotfix). Owner confirmed listening, end-of-turn, STT, reply, TTS.
 
-Voice is hands-free turn-based conversation. No push-to-talk. Mic button = mute/unmute only. Local VAD decides end of turn. After TTS, listening resumes automatically.
+Voice is hands-free turn-based conversation. Mic button = mute/unmute only. Local VAD decides end of turn. After TTS, listening resumes automatically.
 
 Voice **UI** ≠ Voice **Runtime**.
 
@@ -17,7 +17,7 @@ A speech vendor can change without rewriting the Orb. The Orb never calls `Voice
 
 ## Place
 
-Voice Mode is a mode of the selected conversation on Web Workspace (and later Desktop / Mobile). Not a separate User Space. Not a human avatar.
+Voice Mode is a mode of the selected conversation on Web Workspace. Not a separate User Space. Not a human avatar. Desktop is cancelled. Mobile is a deferred companion.
 
 `/jarvis/chats/{id}` or `/chat/chats/{id}` Text/Voice toggle. Voice uses **that** `conversation_id`. Switching Voice → Text ends the voice session and keeps the same thread.
 
@@ -25,7 +25,7 @@ Voice Mode is a mode of the selected conversation on Web Workspace (and later De
 
 ## M24 Orb
 
-Module (Laravel/Inertia-free visualization engine, reusable by Desktop):
+Module (Laravel/Inertia-free visualization engine):
 
 ```
 resources/js/voice/
@@ -110,16 +110,14 @@ If Voice opens without a usable user gesture, a single **Enable microphone** CTA
 
 ---
 
-## Desktop / Mobile
+## Mobile (deferred)
 
-Desktop (Tauri + React) should import `resources/js/voice/visualization` (or a copy) — no Inertia inside the engine.
-
-Flutter Orb is a separate renderer. Keep the same `VoiceVisualizationState` semantics. Do not reuse Three.js in Flutter.
+If a Flutter companion is built later, keep the same `VoiceVisualizationState` semantics. Do not reuse Three.js in Flutter. Desktop is cancelled.
 
 ---
 
 ## Out of scope
 
 - Telephony UI
-- Live STT/TTS validation
 - Binding visualization to a vendor SDK
+- Desktop / Tauri shell

@@ -1,4 +1,10 @@
-# Users, spaces, Cabinet, Telegram pairing
+# Users, workspaces, and Telegram pairing
+
+«Cabinet» is **legacy wording**. Canonical:
+
+- Owner Personal Workspace = `/jarvis`
+- User Personal Workspace = `/chat`
+- `/cabinet` = compatibility redirects only
 
 Два **логических пространства** на общих engines. Role задаёт default **capability set**, не второй Conversation Engine и не второй chat frontend.
 
@@ -9,13 +15,9 @@ User A, User B и Owner personal context **никогда** не смешива�
 
 Связано: [CHANNELS.md](CHANNELS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [REMINDERS.md](REMINDERS.md), [PROJECTS.md](PROJECTS.md), [INTEGRATIONS.md](INTEGRATIONS.md), [USER_ADMINISTRATION.md](USER_ADMINISTRATION.md), ADR-016–045, ADR-184–200, ADR-209–219.
 
-Фактический код (M25U.3): Owner создаёт users; саморегистрации нет. Каталог Users + User Card (`/settings/users/{user}`), включая onboarding status / assistant name. Status `active`/`disabled`. Impersonation session-scoped. Один Shared Personal Workspace (`resources/js/personal-workspace`). Owner `/jarvis`, user `/chat`. `/cabinet` — compatibility redirect. User на admin route получает 403. Web chat и Telegram используют один catalog и `ConversationTurnService`. Owner login → `/jarvis`. User login → `/chat`. Owner `/chat` → `/jarvis`. User `/jarvis` → `/chat`. Assistant profile (`user_assistant_profiles`) задаёт имя/характер/стиль; General Prompt — workspace settings drawer (`user_ai_settings`); Memory — факты со временем. Reminders panel — GET/cancel, lazy. Onboarding не блокирует чат. Подробно: [USER_ADMINISTRATION.md](USER_ADMINISTRATION.md), [ASSISTANT_PERSONALIZATION.md](ASSISTANT_PERSONALIZATION.md).
+Фактический код (M25U.3): Owner создаёт users; саморегистрации нет. Каталог Users + User Card (`/settings/users/{user}`), включая onboarding status / assistant name. Status `active`/`disabled`. Impersonation session-scoped. Один Shared Personal Workspace (`resources/js/personal-workspace`). Owner `/jarvis`, user `/chat`. `/cabinet` — compatibility. User на admin route получает 403. Web chat и Telegram используют один catalog и `ConversationTurnService`. Owner login → `/jarvis`. User login → `/chat`. Owner `/chat` → `/jarvis`. User `/jarvis` → `/chat`. Assistant profile (`user_assistant_profiles`) задаёт имя/характер/стиль; General Prompt — workspace settings drawer (`user_ai_settings`); Memory — факты со временем. Reminders panel — GET/cancel (LIVE BUG: Owner не видит панель в user workspace). Onboarding не блокирует чат. Подробно: [USER_ADMINISTRATION.md](USER_ADMINISTRATION.md), [ASSISTANT_PERSONALIZATION.md](ASSISTANT_PERSONALIZATION.md).
 
-Owner подтвердил в production (M25U.2): создание пользователя, login, `/chat`, базовые запросы → **MANUAL PASS** только для этих сценариев. A/B IDOR, Voice, onboarding, reminders panel — не MANUAL PASS.
-
----
-
-## Roles
+Owner подтвердил: создание пользователя, login, `/chat`, базовые запросы → **MANUAL PASS**. Voice Web → **MANUAL PASS**. Onboarding entry → **MANUAL PARTIAL**. Reminders panel / create-without-Telegram — не PASS. A/B IDOR campaign не выполнен.
 
 ---
 
@@ -34,7 +36,7 @@ Owner подтвердил в production (M25U.2): создание пользо
 
 ### Owner Space
 
-conversations; conversation summaries; personal memories; **projects**; topics; General Prompt; **Owner Conversation AI** + **Owner Analysis AI**; reminders; Telegram DM; Telegram Groups + group knowledge; integrations; Gmail; Calendar; voice later; tools; proactive later.
+conversations; conversation summaries; personal memories; **projects**; topics; General Prompt; **Owner Conversation AI** + **Owner Analysis AI**; reminders (Telegram-gated today); Telegram DM; Telegram Groups + group knowledge; integrations; Gmail; Calendar; **Voice**; tools.
 
 ### User Space
 
@@ -96,7 +98,7 @@ Owner **также** обычный участник Conversation Core: своя
 
 - Web Personal Workspace `/chat`: login, chats, composer, images/files, Voice, General Prompt, profile name/timezone, own password change;
 - Telegram DM after pairing + Chat Selector;
-- reminders (delivery Telegram-only);
+- reminders (create currently Telegram-gated; target: Core independent of Telegram);
 - instance Web Research tools (`search_web`, `fetch_web_page`);
 - own Storage files via chat + read/search tools (no Storage page).
 
@@ -123,7 +125,7 @@ Owner **также** обычный участник Conversation Core: своя
 | Обычный user | генерируется при создании записи |
 | Видимость | owner видит код на User Card; может regenerate. Regenerating does **not** unlink the current Telegram identity |
 | После pairing | код для последующих Telegram-сообщений не спрашивается |
-| Web Cabinet | вход email/login + password. Access code **не** секрет кабинета |
+| Web Workspace | вход email/login + password. Access code **не** секрет workspace |
 
 Неверный / неизвестный код: не создавать User, не вызывать AI.
 
@@ -182,7 +184,7 @@ Disable is preferred over delete. Ordinary user эту страницу не в�
 
 ---
 
-## Personal Cabinet (`role=user`)
+## Personal Workspace (`role=user`)
 
 Минимум: **Chat**, плюс редактирование **своего General Prompt**. Timezone используется для отображения времени сообщений.
 
@@ -194,9 +196,9 @@ New Chat: title `Новый чат`, пустой raw. AI: **Default User Conver
 
 ## Telegram pairing
 
-Факт с аудита: webhook ACK `{ok:true}`, handlers нет, бот не отвечает. Целевая логика ниже. Транспорт: **webhook** + Nutgram. Long polling не нужен.
+Транспорт: **webhook** + Nutgram. Long polling не нужен. Pairing and DM reply path are implemented (M2+).
 
-Адаптер **не** вызывает LLM. Web Cabinet и Telegram DM вызывают `ConversationTurnService`. Неверный код и `/start` без pairing — системные ответы, не Conversation AI.
+Адаптер **не** вызывает LLM. Web Workspace и Telegram DM вызывают `ConversationTurnService`. Неверный код и `/start` без pairing — системные ответы, не Conversation AI.
 
 ### Один Telegram identity
 
@@ -247,7 +249,7 @@ Telegram update
 
 Дальше Telegram ID — авторизованный канал. Код не спрашивать.
 
-**Первый pairing UX:** создать conversation **`Основной`**, сделать active, записать AI greeting туда. Каталог тот же, что Cabinet.
+**Первый pairing UX:** создать conversation **`Основной`**, сделать active, записать AI greeting туда. Каталог тот же, что Web Workspace.
 
 Приветствие — Conversation AI **пространства** (Owner vs Default User config). Не только «Вы авторизованы».
 
@@ -262,7 +264,7 @@ Telegram ≠ один вечный conversation. Меню / commands / buttons *
 
 После выбора: `Выбран чат «<name>».` Дальнейшие DM → `channel_identities.active_conversation_id`.
 
-New Chat из Telegram = обычная `conversation`, видна в Cabinet.
+New Chat из Telegram = обычная `conversation`, видна в Web Workspace.
 
 Active conversation **обязана** принадлежать тому же `user_id`. Хранение: **`channel_identities.active_conversation_id`** (один Telegram identity = одно active). Чище, чем отдельная session, пока один бот-чат на identity.
 
@@ -299,7 +301,7 @@ Google Calendar / Gmail / ElevenLabs — **только owner**, через Inte
 - Telegram group knowledge (owner/analysis) — M14 runtime (`telegram_group_knowledge`, capability `group_analysis`); not personal memory;
 - system/global при необходимости.
 
-Cabinet не имеет отдельного Memory UI в M12: memory работает в фоне. Owner diagnostics: Settings → Users → Memory (read-only). Cross-user retrieval запрещён.
+Workspace не имеет отдельного Memory UI: memory работает в фоне. Owner diagnostics: Settings → Users → Memory (read-only). Cross-user retrieval запрещён.
 
 ---
 

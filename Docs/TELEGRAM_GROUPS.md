@@ -322,7 +322,7 @@ Group knowledge можно **показать** Conversation model, если з�
 | --- | --- |
 | 1 | Discovery, persist, админ-список и chat UI, outbound через adapter, passive, Owner Analysis AI в конфиге (может ещё не гоняться); group timezone |
 | 2 | IMPLEMENTED M14+M15: analysis jobs, group knowledge + provenance, project-context bounded derived retrieval, owner DM `search_group_knowledge` |
-| 3–4 | Те же данные; клиенты не обязаны дублировать group admin UI (`TBD`, админка остаётся основным просмотром групп) |
+| 3–5 | Same group data; Web/Admin remains the group UI. No Desktop client. Mobile not required. |
 
 ---
 

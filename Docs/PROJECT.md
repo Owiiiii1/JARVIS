@@ -2,64 +2,55 @@
 
 ## Назначение
 
-Jarvis — персональный AI-ассистент пользователя. Концептуально вдохновлён J.A.R.V.I.S. из Iron Man: один постоянный собеседник, который знает контекст жизни и работы пользователя и доступен там, где удобно в данный момент.
+Jarvis — персональный AI-ассистент. Один собеседник на пользователя, с долговременной памятью, общей между его чатами и каналами.
 
-Это **не** обычный chatbot с обнуляемым контекстом. У **каждого** пользователя формируется **своя** долговременная память Jarvis, общая между его чатами и каналами. Чужой context не подмешивается. Разговор, начатый в Telegram, доступен в кабинете, mobile и desktop **этого же** user. Голос — тот же ассистент, а не отдельный продукт.
+**Основной interactive client — Web Personal Workspace** (`/jarvis` Owner, `/chat` users). Telegram — вторичный адаптер. Voice — модальность Web, не отдельный продукт. Mobile — возможный будущий companion. **Desktop отменён.**
+
+Разговор, начатый в Telegram, доступен в Web **этого же** user.
 
 Jarvis должен:
 
-- общаться с пользователем текстом и, позднее, голосом;
-- помнить историю взаимодействия;
-- накапливать персональный контекст;
-- понимать, к какой теме относится текущий разговор;
-- извлекать только релевантный контекст, а не всю историю;
-- пассивно слушать Telegram-группы, сохранять их историю и позже анализировать её **отдельно** от личной памяти;
-- **Owner Space** и независимые **User Spaces** (общие engines, разные scopes и AI configs);
-- Owner Conversation AI ≠ Default User Conversation AI; Owner Analysis AI отдельно;
-- Telegram и Cabinet делят каталог chats + Chat Selector;
-- reminders (Telegram-only delivery) для owner и users; Projects и Google — owner;
-- стать постоянно доступным ассистентом через несколько клиентов.
+- общаться текстом и голосом (Voice **MANUAL PASS** на Web)
+- помнить историю
+- накапливать персональный контекст
+- выбирать релевантный контекст (Memory + Context Budget)
+- пассивно слушать Telegram-группы (Owner)
+- держать Owner Space и User Spaces изолированными
+- reminders как Core-объект (сегодня create/delivery ещё Telegram; target — без обязательного Telegram)
 
 ## Что Jarvis не является
 
 - Не набор изолированных чатов с обнуляемым контекстом.
 - Не Telegram-бот с AI-логикой внутри адаптера.
 - Не отдельный «голосовой ассистент» рядом с текстовым.
-- Не админка: Admin Panel — техническое управление, не основной интерфейс общения и не источник решений модели. Owner Personal Workspace — отдельная поверхность (planned).
-- Не один «мозг на весь инстанс» и не «только один человек в системе»: owner и users делят Core, не права.
-- Не админка для каждого залогиненного: `role=user` не получает Admin Panel.
+- Не Desktop/Tauri-приложение.
+- Не админка: Admin Panel — техника. Общение — Personal Workspace.
+- Не один «мозг на весь инстанс».
 
 ## Принцип одного ядра
 
-Существует один **Jarvis Core**. Все клиенты — адаптеры:
+Существует один **Jarvis Core**. Клиенты — адаптеры:
 
 - Telegram (implemented);
-- User Cabinet (implemented, `role=user`);
-- Owner Personal Workspace (planned, same repo);
-- Desktop App — Tauri 2, repo `Owiiiii1/JARVIS-Desktop` (planned);
-- Mobile App — Flutter, repo `Owiiiii1/JARVIS-Mobile` (planned);
-- Voice mode over Web/Desktop/Mobile (planned modality).
+- User Personal Workspace `/chat` (implemented);
+- Owner Personal Workspace `/jarvis` (PRIMARY);
+- Voice mode over Web (MANUAL PASS);
+- Mobile companion (DEFERRED);
+- Desktop — **CANCELLED**.
 
 Ядро владеет пользователями, разговорами, памятью, оркестрацией AI и сборкой контекста. Канал только доставляет нормализованное сообщение и возвращает ответ.
 
 Owner — запись `users` с `role=owner` (не hardcoded id). Telegram pairing: уникальный `access_code` (owner **`2000`**). Код не web-пароль и не создаёт User из чата. [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
 
-Telegram-группы — отдельный модуль поверх того же адаптера: discovery, raw history, админ-чат, исходящие от имени бота. Это не personal DM и не автоматическая личная память. См. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
+Telegram-группы — отдельный модуль. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
 
-AI-конфигурация: **Owner Conversation AI**, **Owner Analysis AI**, **Default User Conversation AI**. Не одна модель на owner и users.
+AI-конфигурация: **Owner Conversation AI**, **Owner Analysis AI**, **Default User Conversation AI**.
 
-Integrations (Google Calendar/Gmail, later GitHub, ElevenLabs) — **owner-only** через Tool Layer. [INTEGRATIONS.md](INTEGRATIONS.md). Исполнение: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Клиенты: [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md).
+Integrations (Google Calendar/Gmail, GitHub, ElevenLabs TTS, Web Research) — **owner-only** кроме user capabilities (voice/storage/research). [INTEGRATIONS.md](INTEGRATIONS.md). Start: [Docs/README.md](README.md).
 
-## Этапы в одном предложении
+## Этапы
 
-| Phase | Суть |
-| --- | --- |
-| 1 | Roles + pairing + owner DM + Chat Selector + Cabinet + User Telegram + Reminders (вехи 1–10) |
-| 2 | Структурированная долговременная память и выборочный контекст |
-| 3 | Owner Workspace, Client API, Voice, Desktop/Mobile repos к тому же ядру |
-| 4 | Естественный непрерывный ассистент, а не схема «вопрос → ответ» |
-
-Подробности: [DEVELOPMENT_PHASES.md](DEVELOPMENT_PHASES.md), [ROADMAP.md](ROADMAP.md).
+Исторические четыре фазы: [DEVELOPMENT_PHASES.md](DEVELOPMENT_PHASES.md). Актуальные: [ROADMAP.md](ROADMAP.md) A–E.
 
 ## Архитектурные принципы
 
@@ -78,35 +69,38 @@ Integrations (Google Calendar/Gmail, later GitHub, ElevenLabs) — **owner-only*
 13. Owner Conversation AI, Owner Analysis AI и Default User Conversation AI — разные configuration domains.
 14. User General Prompt правит сам user; не отменяет platform/security. Optional later: per-user model override поверх Default User Conversation AI.
 15. Cross-chat: summary-first / raw-on-demand. Telegram выбирает active conversation.
-16. Reminders — Core, не Calendar; delivery сейчас Telegram-only.
+16. Reminders — Core, не Calendar; **today** Telegram-gated create/delivery; **target** channel-independent.
 17. Projects ≠ Topics; group knowledge — только explicit owner tool.
 18. Capabilities поверх roles, не россыпь `if role === owner`.
 19. Сначала простая рабочая система, затем усложнение memory intelligence.
-20. Не over-engineer Phase 1 ради Phase 4, но не hardcode owner по `user_id` и не смешивать access_code с паролем.
+20. Не over-engineer текущий Core ради будущих фаз B–E, но не hardcode owner по `user_id` и не смешивать access_code с паролем.
 21. Исполняемый порядок — [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), не абстрактные фазы в одиночку.
 
 ## Текущее состояние репозитория
 
-В репозитории уже есть Laravel-приложение и Admin Kit (логин, settings, AI provider settings, Telegram settings). Это **операционная оболочка**, а не готовый Jarvis Core.
+Production Laravel app: Core, Admin, Web Personal Workspace, Telegram adapter, Voice, Memory, Storage, integrations. Snapshot: [CURRENT_STATE.md](CURRENT_STATE.md). Direction: [ROADMAP.md](ROADMAP.md).
 
-Документы в `Docs/` описывают **целевую** архитектуру. Реализация функционала по ним — отдельная работа. Сейчас документация не требует менять код приложения.
+Документы в `Docs/` описывают целевую архитектуру **и** текущий runtime. Начните с [README.md](README.md) и [CURRENT_STATE.md](CURRENT_STATE.md).
 
 ## Связанные документы
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — модули ядра, AI, каналов, админки
-- [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md) — долговременная память
-- [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md) — жизненный цикл сообщения
-- [CHANNELS.md](CHANNELS.md) — Telegram / Workspace / Desktop / Mobile / Voice mode
-- [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md) — owner Personal Workspace (planned)
-- [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md) — versioned client protocol (planned)
-- [DECISIONS.md](DECISIONS.md) — ADR-001–105
-- [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md) — группы, discovery, админ-чат, анализ
-- [AI_PROVIDER_ARCHITECTURE.md](AI_PROVIDER_ARCHITECTURE.md) — три AI configuration domains
-- [DATABASE.md](DATABASE.md) — концептуальная модель, включая telegram_groups
-- [ROADMAP.md](ROADMAP.md) — фазы
-- [USERS_AND_CABINET.md](USERS_AND_CABINET.md) — spaces, capabilities, pairing, Chat Selector
-- [REMINDERS.md](REMINDERS.md) — Core reminders ≠ Calendar
-- [PROJECTS.md](PROJECTS.md) — Owner Space контейнеры
-- [INTEGRATIONS.md](INTEGRATIONS.md) — tools, confirmation, multi-step
+- [README.md](README.md) — индекс
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md)
+- [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md)
+- [CHANNELS.md](CHANNELS.md)
+- [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md)
+- [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md) — deferred
+- [DECISIONS.md](DECISIONS.md)
+- [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md)
+- [AI_PROVIDER_ARCHITECTURE.md](AI_PROVIDER_ARCHITECTURE.md)
+- [DATABASE.md](DATABASE.md)
+- [ROADMAP.md](ROADMAP.md)
+- [USERS_AND_CABINET.md](USERS_AND_CABINET.md)
+- [REMINDERS.md](REMINDERS.md)
+- [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md)
+- [PROJECTS.md](PROJECTS.md)
+- [INTEGRATIONS.md](INTEGRATIONS.md)
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
+- [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md)
 - [CURRENT_STATE.md](CURRENT_STATE.md) — только факт кода
