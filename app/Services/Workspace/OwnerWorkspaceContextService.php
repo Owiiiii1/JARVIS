@@ -17,6 +17,7 @@ use App\Services\Projects\Exceptions\ProjectException;
 use App\Services\Projects\ProjectService;
 use App\Services\Reminders\ReminderService;
 use App\Services\Users\UserCapability;
+use App\Services\WebResearch\WebResearchSettingsService;
 
 final class OwnerWorkspaceContextService
 {
@@ -110,30 +111,41 @@ final class OwnerWorkspaceContextService
         try {
             $statuses = $this->integrations->listForOwner($user);
         } catch (IntegrationException) {
-            return [];
+            return [$this->webResearchSummary()];
         }
 
-        return array_map(static function ($status): array {
-            $capabilities = [];
+        return array_values(array_merge(
+            [$this->webResearchSummary()],
+            array_map(static function ($status): array {
+                $capabilities = [];
 
-            foreach ($status->capabilityStates as $capability) {
-                $capabilities[] = [
-                    'key' => (string) ($capability['key'] ?? ''),
-                    'label' => (string) ($capability['label'] ?? ''),
-                    'state' => (string) ($capability['state'] ?? ''),
+                foreach ($status->capabilityStates as $capability) {
+                    $capabilities[] = [
+                        'key' => (string) ($capability['key'] ?? ''),
+                        'label' => (string) ($capability['label'] ?? ''),
+                        'state' => (string) ($capability['state'] ?? ''),
+                    ];
+                }
+
+                return [
+                    'provider' => $status->provider,
+                    'display_name' => $status->displayName,
+                    'state' => $status->state->value,
+                    'label' => $status->label,
+                    'account_label' => $status->accountLabel,
+                    'configured' => $status->configured,
+                    'capabilities' => $capabilities,
                 ];
-            }
+            }, $statuses),
+        ));
+    }
 
-            return [
-                'provider' => $status->provider,
-                'display_name' => $status->displayName,
-                'state' => $status->state->value,
-                'label' => $status->label,
-                'account_label' => $status->accountLabel,
-                'configured' => $status->configured,
-                'capabilities' => $capabilities,
-            ];
-        }, $statuses);
+    /**
+     * @return array<string, mixed>
+     */
+    private function webResearchSummary(): array
+    {
+        return app(WebResearchSettingsService::class)->workspaceSummary();
     }
 
     /**

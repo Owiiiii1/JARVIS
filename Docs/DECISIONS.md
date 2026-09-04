@@ -1312,9 +1312,9 @@
 
 **Контекст.** Owner needs current public-web facts without dumping the internet into every prompt.
 
-**Решение.** `search_web` and `fetch_web_page` are Tool Layer tools behind `WebSearchProvider` / `WebPageFetchService`. Controllers and models do not call search APIs. Search does not auto-fetch pages.
+**Решение.** `search_web` and `fetch_web_page` are Tool Layer tools behind `WebSearchManager` / `WebSearchProvider` / `WebPageFetchService`. Providers: `gemini_google` (Gemini Google Search grounding, existing Gemini credentials), `tavily`, `null`. Controllers, Conversation Engine, and the `search_web` tool do not call search APIs or know the vendor. Search does not auto-fetch pages. Grounding metadata is normalized to `WebSourceReference` inside the Gemini adapter.
 
-**Следствие.** The model chooses which 2–5 URLs to read.
+**Следствие.** The model chooses which 2–5 URLs to read via `fetch_web_page`.
 
 ---
 
@@ -1455,6 +1455,106 @@
 **Решение.** Implement M22.3 without `php artisan test`, live search, live fetch, live AI conversation, Google, or GitHub.
 
 **Следствие.** Status: implemented, not validated.
+
+---
+
+## ADR-150 — Web Research provider is Admin-configurable infrastructure
+
+**Контекст.** `.env` alone is not operable for Owner. Workspace is a chat surface, not a technical console.
+
+**Решение.** Provider, enablement, fetch toggle, and bounded limits live in Admin → Settings → Integrations → Web Research (`web_research_settings`). Runtime reads `WebResearchSettingsService` only.
+
+**Следствие.** `/jarvis` is not the editor. Workspace may show read-only `Web Search · Google|Tavily|Disabled`.
+
+---
+
+## ADR-151 — Provider selection is not a per-conversation preference
+
+**Контекст.** Mixing Gemini grounding and Tavily per chat would fork tool semantics and credentials.
+
+**Решение.** One instance-level provider: `gemini_google` | `tavily` | `disabled`. No conversation-level override.
+
+**Следствие.** Changing provider in Admin applies to the next Owner Conversation turn.
+
+---
+
+## ADR-152 — Gemini Google Search is a WebSearchProvider, not Conversation Engine logic
+
+**Контекст.** Gemini Google Search grounding is vendor-specific (request shape, grounding metadata).
+
+**Решение.** `GeminiGoogleSearchProvider` implements `WebSearchProvider`. Conversation Engine, `SearchWebTool`, and Gemini chat `chat()` stay vendor-neutral. No Google payload in the conversation client.
+
+**Следствие.** Search discovery can switch to Tavily/disabled without rewriting the engine.
+
+---
+
+## ADR-153 — Gemini Search reuses the existing Gemini credential
+
+**Контекст.** Duplicating the Gemini API key into web research settings would split secret lifecycle.
+
+**Решение.** `GeminiGoogleSearchProvider` reads `ai_provider_settings` where `provider=gemini` (`is_connected` + encrypted `api_key`). Admin shows configured yes/no only. No Gemini key field on the Web Research card.
+
+**Следствие.** Disconnecting Gemini in AI settings makes Google Search “not configured”.
+
+---
+
+## ADR-154 — Tavily remains an independent fallback provider
+
+**Контекст.** Tavily is not Google Search and must remain selectable.
+
+**Решение.** Keep `TavilyWebSearchProvider`. Tavily key is a separate encrypted credential (`web_research_settings.tavily_api_key`) with env `WEB_SEARCH_API_KEY` fallback. Do not delete Tavily.
+
+**Следствие.** Admin can choose Tavily without using Gemini grounding.
+
+---
+
+## ADR-155 — fetch_web_page remains vendor-neutral server fetch
+
+**Контекст.** Gemini grounding is discovery, not a safe page reader. SSRF policy is ours.
+
+**Решение.** `fetch_web_page` always uses `WebPageFetchService` + `WebUrlGuard`, never Gemini grounding or Tavily extract.
+
+**Следствие.** Fetch limits/timeout come from effective Admin settings; SSRF rules stay immutable.
+
+---
+
+## ADR-156 — Admin-configurable limits are bounded by immutable safety ceilings
+
+**Контекст.** An Admin typo must not disable context or SSRF safety.
+
+**Решение.** `effective = min(admin_setting, hard_safety_ceiling)` with floors. Ceilings live in `config/web_research.php`. `TurnBudgetTracker` and fetch/search use effective values. `ContextBudgetManager` remains the final prompt safety layer.
+
+**Следствие.** Admin cannot raise searches/fetches/chars/timeout above code ceilings.
+
+---
+
+## ADR-157 — SSRF and security policy cannot be disabled in Admin
+
+**Контекст.** Server-side fetch is an SSRF surface. Prompt injection on pages is mandatory to treat as untrusted.
+
+**Решение.** No Admin switches for private IP, localhost, schemes, redirect validation, or prompt-injection protection.
+
+**Следствие.** Those controls stay code/config only.
+
+---
+
+## ADR-158 — Secrets never round-trip to the frontend
+
+**Контекст.** Inertia payloads are visible in the browser.
+
+**Решение.** Never return Gemini or Tavily plaintext keys. Tavily UI is set/replace + configured/not configured (+ optional clear). Gemini has no key input on this card.
+
+**Следствие.** Masked/configured status only.
+
+---
+
+## ADR-159 — Tests and live search remain deferred
+
+**Контекст.** M22.3.1 adds Admin settings and Gemini provider wiring on production.
+
+**Решение.** No `php artisan test`, no PHPUnit, no live Google Search, no live Tavily, no live fetch, no live AI. Status from configuration presence only. No Test Connection button.
+
+**Следствие.** Implemented / not validated. Later milestone may add live smoke.
 
 ---
 

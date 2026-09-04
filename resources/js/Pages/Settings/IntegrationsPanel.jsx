@@ -1,6 +1,7 @@
 import { router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import TelegramPanel from './TelegramPanel';
+import WebResearchPanel from './WebResearchPanel';
 
 function statusClass(state) {
     if (state === 'connected') {
@@ -28,7 +29,7 @@ export default function IntegrationsPanel() {
 
     const text = {
         en: {
-            hint: 'Owner integration cards. Telegram bot token and webhook are configured here. Google identity, Calendar, and Gmail permissions are granted separately. GitHub uses OAuth — no personal access token in Admin.',
+            hint: 'Owner integration cards. Web Research, Telegram bot token, Google, and GitHub are configured here. Workspace shows read-only web search status only.',
             recent: 'Recent Tool Executions',
             empty: 'No tool executions yet.',
             time: 'Time',
@@ -49,7 +50,7 @@ export default function IntegrationsPanel() {
             capabilities: 'Capabilities',
         },
         ru: {
-            hint: 'Карточки интеграций owner. Токен и webhook Telegram настраиваются здесь. Google identity, Calendar и Gmail выдаются отдельно. GitHub подключается через OAuth, без PAT в Admin.',
+            hint: 'Карточки интеграций owner. Web Research, токен Telegram, Google и GitHub настраиваются здесь. Workspace показывает только read-only статус web search.',
             recent: 'Recent Tool Executions',
             empty: 'Пока нет выполнений tools.',
             time: 'Time',
@@ -70,7 +71,7 @@ export default function IntegrationsPanel() {
             capabilities: 'Capabilities',
         },
         uk: {
-            hint: 'Картки інтеграцій owner. Токен і webhook Telegram налаштовуються тут. Google identity, Calendar і Gmail надаються окремо. GitHub підключається через OAuth, без PAT в Admin.',
+            hint: 'Картки інтеграцій owner. Web Research, токен Telegram, Google і GitHub налаштовуються тут. Workspace показує лише read-only статус web search.',
             recent: 'Recent Tool Executions',
             empty: 'Поки немає виконань tools.',
             time: 'Time',
@@ -122,6 +123,8 @@ export default function IntegrationsPanel() {
             {flash.error && (
                 <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{flash.error}</p>
             )}
+
+            <WebResearchPanel />
 
             <div className="grid gap-4 md:grid-cols-3">
                 {providers.map((provider) => (

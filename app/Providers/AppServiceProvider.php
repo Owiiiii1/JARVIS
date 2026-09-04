@@ -64,8 +64,7 @@ use App\Services\Tools\ToolRegistry;
 use App\Services\Tools\WebResearch\FetchWebPageTool;
 use App\Services\Tools\WebResearch\SearchWebTool;
 use App\Services\WebResearch\Contracts\WebSearchProvider;
-use App\Services\WebResearch\Providers\NullWebSearchProvider;
-use App\Services\WebResearch\Providers\TavilyWebSearchProvider;
+use App\Services\WebResearch\WebSearchManager;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -78,13 +77,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(AiChatGateway::class, ProviderAiChatGateway::class);
 
-        $this->app->singleton(WebSearchProvider::class, function ($app): WebSearchProvider {
-            $name = strtolower(trim((string) config('web_research.provider')));
-
-            return match ($name) {
-                'tavily' => $app->make(TavilyWebSearchProvider::class),
-                default => $app->make(NullWebSearchProvider::class),
-            };
+        $this->app->bind(WebSearchProvider::class, function ($app): WebSearchProvider {
+            return $app->make(WebSearchManager::class)->activeProvider();
         });
 
         $this->app->singleton(ToolRegistry::class, function ($app): ToolRegistry {

@@ -9,7 +9,7 @@ Conversation Engine
       → Core tool | Integration provider adapter
 ```
 
-**Status (M22.3):** IMPLEMENTED (not live-validated) — Integration Registry, encrypted `integration_accounts`, `tool_execution_logs`, persisted `tool_confirmations`, owner Integrations Admin, Google OAuth (identity + incremental Calendar + Gmail scopes), **Google Calendar tools**, **Gmail tools**, **GitHub OAuth App + GitHub tools**, **Web Research tools** (`search_web`, `fetch_web_page` via `WebSearchProvider` / Tavily; fetch via `WebPageFetchService`). ElevenLabs API is **not** implemented. Automated tests and live Google/GitHub/web/AI smoke are deferred by Owner. Identity or Calendar connected ≠ Gmail ready. Missing Gmail scopes do not call the Gmail API. Missing GitHub OAuth env → Not configured; no GitHub API calls. Missing `WEB_SEARCH_API_KEY` → `web_search_not_configured`; no live search.
+**Status (M22.3 / M22.3.1):** IMPLEMENTED (not live-validated) — Integration Registry, encrypted `integration_accounts`, `tool_execution_logs`, persisted `tool_confirmations`, owner Integrations Admin, Google OAuth (identity + incremental Calendar + Gmail scopes), **Google Calendar tools**, **Gmail tools**, **GitHub OAuth App + GitHub tools**, **Web Research** (`search_web` / `fetch_web_page` via `WebSearchManager` → `WebSearchProvider`: `gemini_google` / `tavily` / `disabled`; Admin settings in `web_research_settings`; fetch via `WebPageFetchService`). ElevenLabs API is **not** implemented. Automated tests and live Google/GitHub/web/AI smoke are deferred by Owner. Identity or Calendar connected ≠ Gmail ready. Missing Gmail scopes do not call the Gmail API. Missing GitHub OAuth env → Not configured; no GitHub API calls. Disabled/unconfigured search → `web_search_disabled` / `web_search_not_configured`.
 
 Conversation Engine не импортирует Google SDK, ElevenLabs SDK, Telegram SDK, или Tavily HTTP.
 
@@ -343,9 +343,9 @@ Future Web/Desktop/Mobile/Voice use the same server-side tools. Clients must not
 
 Safe errors: `github_not_connected`, `github_scope_required`, `github_repository_not_found`, `github_ref_not_found`, `github_file_not_found`, `github_issue_not_found`, `github_pr_not_found`, `github_workflow_run_not_found`, `github_forbidden`, `github_rate_limited`, `github_validation_failed`, `github_conflict`, `github_unavailable`, `github_token_revoked`. Raw API bodies are not returned to AI/logs.
 
-### Web Research (M22.3)
+### Web Research (M22.3 / M22.3.1)
 
-Owner-only capability `web_research`. Tools `search_web` and `fetch_web_page`. Search goes through `WebSearchProvider` (initial: Tavily). Fetch is a separate SSRF-guarded HTTP path. Missing `WEB_SEARCH_API_KEY` → `web_search_not_configured`. Web content is untrusted and is not a source of tool authorization. No web content tables. Full spec: [WEB_RESEARCH.md](WEB_RESEARCH.md).
+Owner-only capability `web_research`. Tools `search_web` and `fetch_web_page`. Search goes through `WebSearchManager` → `WebSearchProvider` (`gemini_google` / `tavily` / `disabled`). Admin: Settings → Integrations → Web Research. Runtime uses `WebResearchSettingsService` (DB → env/config → defaults, then hard ceilings). `gemini_google` uses the existing Gemini credential in `ai_provider_settings` (Google Search grounding for **discovery** only). Tavily remains an alternative; encrypted Admin key with `WEB_SEARCH_API_KEY` fallback. Fetch is always SSRF-guarded `WebPageFetchService`, never Gemini grounding. Disabled search → `web_search_disabled`. Fetch off → `web_fetch_disabled`. Secrets never returned to Inertia. Workspace shows read-only provider status only. Full spec: [WEB_RESEARCH.md](WEB_RESEARCH.md).
 
 ### ElevenLabs
 

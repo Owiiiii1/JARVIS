@@ -661,13 +661,13 @@ Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
 **Цель.** Owner web research tools (search then selective fetch) plus a global Context Budget Manager so one LLM request stays bounded regardless of DB size.
 
-**Реализовано.** `WebSearchProvider` (Tavily) + `WebPageFetchService` / SSRF guard; `search_web` / `fetch_web_page`; capability `web_research`; `ContextBudgetManager`, `AiModelContextPolicy`, `TokenEstimator`, `ToolResultBudgetManager`; budget-aware incremental summaries. See [WEB_RESEARCH.md](WEB_RESEARCH.md), [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md).
+**Реализовано.** `WebSearchProvider` (`gemini_google` / `tavily` / `disabled`) + `WebPageFetchService` / SSRF guard; `search_web` / `fetch_web_page`; capability `web_research`; Admin Web Research settings (`web_research_settings` + `WebResearchSettingsService`); `ContextBudgetManager`, `AiModelContextPolicy`, `TokenEstimator`, `ToolResultBudgetManager`; budget-aware incremental summaries. See [WEB_RESEARCH.md](WEB_RESEARCH.md), [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md).
 
-**Не входит:** live provider validation; PDF fetch; browser automation; web content DB; user-role web tools; tests.
+**Не входит:** live provider validation; PDF fetch; browser automation; web content DB; user-role web tools; Test Connection; tests.
 
 **Зависимости:** M22.2, M4.
 
-После M22.3 — M23 Voice Runtime Foundation.
+После M22.3 / M22.3.1 — M23 Voice Runtime Foundation.
 
 ---
 

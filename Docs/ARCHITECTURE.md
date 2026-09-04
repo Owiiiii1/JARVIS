@@ -123,7 +123,7 @@ Web Cabinet — User Space клиент. Owner Personal Workspace — `/jarvis`,
 - **Users**: каталог Jarvis (не «admin accounts»), User Card, access_code, Telegram link, Chats / Topics / AI Settings, impersonation;
 - три AI config: Owner Conversation / Owner Analysis / Default User Conversation;
 - Telegram bot settings и/или Integrations overview того же source of truth;
-- **Settings → Integrations**: Google, ElevenLabs;
+- Settings → Integrations: Google, GitHub, ElevenLabs placeholder, Telegram, **Web Research** (provider, enablement, bounded limits; no SSRF toggles);
 - **Telegram Groups** owner-only;
 - diagnostics / logs.
 

@@ -14,6 +14,7 @@ final class WebPageFetchService
     public function __construct(
         private readonly WebUrlGuard $urls,
         private readonly WebPageExtractor $extractor,
+        private readonly WebResearchSettingsService $settings,
     ) {}
 
     public function fetch(string $url, int $maxChars): WebPageDocument
@@ -76,8 +77,8 @@ final class WebPageFetchService
                 'allow_redirects' => false,
                 'http_errors' => false,
             ])
-            ->timeout((int) config('web_research.timeout', 12))
-            ->connectTimeout((int) config('web_research.connect_timeout', 5))
+            ->timeout($this->settings->effective()->timeoutSeconds)
+            ->connectTimeout($this->settings->effective()->connectTimeoutSeconds)
             ->get($url);
 
         $length = $response->header('Content-Length');

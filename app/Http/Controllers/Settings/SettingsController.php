@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Models\TelegramBotSetting;
 use App\Models\User;
+use App\Services\WebResearch\WebResearchSettingsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -56,6 +57,7 @@ class SettingsController extends Controller
             'providers' => $aiSettings->providersPayload(),
             'aiRoles' => $aiSettings->rolesPayload(),
             'telegram' => $this->telegramPayload(),
+            'webResearch' => app(WebResearchSettingsService::class)->adminPayload(),
             'integrations' => app(IntegrationsController::class)->payload($request),
             'tab' => $tab,
         ]);

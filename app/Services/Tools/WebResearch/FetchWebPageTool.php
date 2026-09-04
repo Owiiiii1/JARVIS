@@ -50,6 +50,22 @@ final class FetchWebPageTool extends WebResearchTool
             ]);
         }
 
+        $settings = $this->webResearch->effective();
+
+        if (! $settings->isRuntimeEnabled()) {
+            return ToolResult::failure($call->id, $this->name(), [
+                'success' => false,
+                'error' => 'web_research_disabled',
+            ]);
+        }
+
+        if (! $settings->fetchWebPageEnabled) {
+            return ToolResult::failure($call->id, $this->name(), [
+                'success' => false,
+                'error' => 'web_fetch_disabled',
+            ]);
+        }
+
         $budgets = $this->budgets($context);
 
         if (! $budgets->consumeFetch()) {
@@ -59,7 +75,7 @@ final class FetchWebPageTool extends WebResearchTool
             ]);
         }
 
-        $hardMax = max(500, (int) config('web_research.max_page_chars', 8000));
+        $hardMax = $settings->maxPageChars;
         $requested = isset($call->arguments['max_chars']) ? (int) $call->arguments['max_chars'] : $hardMax;
         $remaining = $budgets->remainingWebChars();
         $maxChars = max(0, min($hardMax, $requested, $remaining));

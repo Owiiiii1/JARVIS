@@ -2,8 +2,13 @@
 
 namespace App\Services\Context;
 
+use App\Services\WebResearch\DTO\WebResearchEffectiveSettings;
+use App\Services\WebResearch\WebResearchSettingsService;
+
 final class TurnBudgetTracker
 {
+    private ?WebResearchEffectiveSettings $webLimits = null;
+
     public int $searchCount = 0;
 
     public int $fetchCount = 0;
@@ -29,17 +34,22 @@ final class TurnBudgetTracker
 
     public function remainingSearches(): int
     {
-        return max(0, (int) config('web_research.max_searches_per_turn', 2) - $this->searchCount);
+        return max(0, $this->webLimits()->maxSearchesPerTurn - $this->searchCount);
     }
 
     public function remainingFetches(): int
     {
-        return max(0, (int) config('web_research.max_fetches_per_turn', 4) - $this->fetchCount);
+        return max(0, $this->webLimits()->maxFetchesPerTurn - $this->fetchCount);
     }
 
     public function remainingWebChars(): int
     {
-        return max(0, (int) config('web_research.max_total_web_chars', 18000) - $this->webChars);
+        return max(0, $this->webLimits()->maxTotalWebChars - $this->webChars);
+    }
+
+    private function webLimits(): WebResearchEffectiveSettings
+    {
+        return $this->webLimits ??= app(WebResearchSettingsService::class)->effective();
     }
 
     public function consumeSearch(): bool

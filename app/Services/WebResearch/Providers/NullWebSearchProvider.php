@@ -11,7 +11,7 @@ final class NullWebSearchProvider implements WebSearchProvider
 {
     public function name(): string
     {
-        return 'none';
+        return 'disabled';
     }
 
     public function isConfigured(): bool
@@ -21,6 +21,6 @@ final class NullWebSearchProvider implements WebSearchProvider
 
     public function search(WebSearchQuery $query): WebSearchResultSet
     {
-        throw new WebResearchException('web_search_not_configured', 'Web search is not configured.');
+        throw new WebResearchException('web_research_disabled', 'Web research is disabled.');
     }
 }

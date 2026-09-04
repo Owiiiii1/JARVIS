@@ -45,7 +45,7 @@ Workspace uses the existing Owner Space and engines:
 - Google Calendar / Gmail tools
 - GitHub tools (M21)
 - Storage tools (M22.2)
-- Web Research tools (M22.3: `search_web`, `fetch_web_page`)
+- Web Research tools (M22.3: `search_web`, `fetch_web_page`). Provider and limits are Admin-only (M22.3.1). Workspace shows read-only web search status; no technical limit editor.
 - `tool_confirmations`
 
 This is **not** a second chat engine and **not** a second owner memory.
@@ -90,7 +90,7 @@ Shared application service: `PersonalChatSurfaceService` (Cabinet + Workspace). 
 
 - Left: conversations (New Chat, **Storage**, local search, title, last activity, selected, rename)
 - Center: thread + sticky composer
-- Right / mobile drawer: context (projects, reminders, integrations status, memory counts, General Prompt)
+- Right / mobile drawer: context (projects, reminders, integrations status including read-only **Web Search · Google / Tavily / Disabled**, memory counts, General Prompt)
 - Header: Jarvis, AI status dot, Text / Voice, conversation title, Admin, settings
 
 Desktop-first (1280–2560). Sidebar and context collapse on smaller widths. Composer stays usable on mobile web.

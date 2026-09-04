@@ -376,6 +376,10 @@ Owner/user tool audit: tool_name, capability, provider, nullable `integration_ac
 
 Persisted pending tool confirmations for destructive Calendar delete, Gmail send (always), and model-proposed external writes (including Gmail drafts and GitHub issue/comment/branch/PR create). `public_id` UUID, `user_id`, `conversation_id`, `tool_name`, optional `tool_call_id`, `arguments_encrypted` (Laravel encrypted JSON, no OAuth tokens), status `pending|confirmed|cancelled|expired|executed`, `expires_at` (default 10 minutes), `confirmed_at`, `executed_at`. Bound to user+conversation. One-time execute is the send-idempotency guard. No local Google Calendar event mirror. No local Gmail mailbox tables. No local GitHub repository/commit/issue/PR tables.
 
+### web_research_settings (M22.3.1)
+
+Singleton instance settings for Web Research. Additive table. Non-secret fields: `enabled`, `provider` (`gemini_google|tavily|disabled`), search/fetch limits, `fetch_web_page_enabled`, `timeout_seconds`, nullable `default_recency_days`. Encrypted `tavily_api_key` (never plaintext in Admin JSON). Gemini key is **not** stored here — reuse `ai_provider_settings`. No `web_pages` / `search_results` tables. [WEB_RESEARCH.md](WEB_RESEARCH.md).
+
 ---
 
 ## Отношения (кратко)

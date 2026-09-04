@@ -7,12 +7,17 @@ use App\Services\WebResearch\DTO\WebSearchHit;
 use App\Services\WebResearch\DTO\WebSearchQuery;
 use App\Services\WebResearch\DTO\WebSearchResultSet;
 use App\Services\WebResearch\Exceptions\WebResearchException;
+use App\Services\WebResearch\WebResearchSettingsService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
 final class TavilyWebSearchProvider implements WebSearchProvider
 {
+    public function __construct(
+        private readonly WebResearchSettingsService $settings,
+    ) {}
+
     public function name(): string
     {
         return 'tavily';
@@ -20,18 +25,20 @@ final class TavilyWebSearchProvider implements WebSearchProvider
 
     public function isConfigured(): bool
     {
-        return trim((string) config('web_research.tavily.api_key')) !== '';
+        return $this->settings->tavilyApiKey() !== '';
     }
 
     public function search(WebSearchQuery $query): WebSearchResultSet
     {
-        if (! $this->isConfigured()) {
+        $key = $this->settings->tavilyApiKey();
+
+        if ($key === '') {
             throw new WebResearchException('web_search_not_configured', 'Web search is not configured.');
         }
 
-        $key = trim((string) config('web_research.tavily.api_key'));
+        $effective = $this->settings->effective();
         $base = rtrim((string) config('web_research.tavily.base_url'), '/');
-        $snippetMax = max(80, (int) config('web_research.max_snippet_chars', 280));
+        $snippetMax = $effective->maxSnippetChars;
 
         $payload = [
             'api_key' => $key,
@@ -56,8 +63,8 @@ final class TavilyWebSearchProvider implements WebSearchProvider
         }
 
         try {
-            $response = Http::timeout((int) config('web_research.timeout', 12))
-                ->connectTimeout((int) config('web_research.connect_timeout', 5))
+            $response = Http::timeout($effective->timeoutSeconds)
+                ->connectTimeout($effective->connectTimeoutSeconds)
                 ->acceptJson()
                 ->asJson()
                 ->post($base.'/search', $payload);

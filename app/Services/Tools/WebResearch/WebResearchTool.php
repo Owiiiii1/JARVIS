@@ -9,6 +9,7 @@ use App\Services\Tools\ToolExecutionContext;
 use App\Services\Tools\ToolMeta;
 use App\Services\Users\UserCapability;
 use App\Services\WebResearch\WebPageFetchService;
+use App\Services\WebResearch\WebResearchSettingsService;
 use App\Services\WebResearch\WebSearchManager;
 
 abstract class WebResearchTool implements JarvisTool
@@ -16,6 +17,7 @@ abstract class WebResearchTool implements JarvisTool
     public function __construct(
         protected readonly WebSearchManager $search,
         protected readonly WebPageFetchService $pages,
+        protected readonly WebResearchSettingsService $webResearch,
     ) {}
 
     public function isAvailable(ToolExecutionContext $context): bool

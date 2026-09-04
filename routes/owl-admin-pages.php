@@ -17,6 +17,7 @@ use App\Http\Controllers\Settings\SettingsController;
 use App\Http\Controllers\Settings\TelegramSettingsController;
 use App\Http\Controllers\Settings\UserController as SettingsUserController;
 use App\Http\Controllers\Settings\UserMemoryController;
+use App\Http\Controllers\Settings\WebResearchSettingsController;
 use App\Http\Controllers\TelegramGroupController;
 use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\UserAiSettingsController;
@@ -126,8 +127,12 @@ Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'ow
     Route::post('/settings/users/{user}/telegram/unlink', [SettingsUserController::class, 'unlinkTelegram'])->name('settings.users.telegram.unlink');
     Route::post('/settings/users/{user}/access-code/regenerate', [SettingsUserController::class, 'regenerateAccessCode'])->name('settings.users.access-code.regenerate');
 
-    Route::post('/settings/telegram/save-token', [TelegramSettingsController::class, 'saveToken'])
-        ->name('settings.telegram.save-token');
+    Route::post('/settings/web-research', [WebResearchSettingsController::class, 'update'])
+        ->name('settings.web-research.update');
+    Route::post('/settings/web-research/tavily-key', [WebResearchSettingsController::class, 'saveTavilyKey'])
+        ->name('settings.web-research.tavily-key');
+    Route::post('/settings/web-research/tavily-key/clear', [WebResearchSettingsController::class, 'clearTavilyKey'])
+        ->name('settings.web-research.tavily-key.clear');
     Route::post('/settings/telegram/check', [TelegramSettingsController::class, 'check'])
         ->name('settings.telegram.check');
     Route::post('/settings/telegram/set-webhook', [TelegramSettingsController::class, 'setWebhook'])

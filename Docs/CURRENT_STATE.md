@@ -9,7 +9,7 @@ This document describes **what exists on the server now**. Target architecture i
 
 ### Implemented vs planned (post-M22)
 
-**IMPLEMENTED (code/runtime, Google/GitHub/Workspace/vision/web not live-validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Owner Personal Workspace (`/jarvis`) including M22.1 image attachments + copyable artifacts, M22.2 persistent Storage + ephemeral screenshots, and M22.3 Web Research + Context Budget Manager; Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, Workspace conversational validation, live vision, and live web search/fetch are deferred by Owner.
+**IMPLEMENTED (code/runtime, Google/GitHub/Workspace/vision/web not live-validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Owner Personal Workspace (`/jarvis`) including M22.1 image attachments + copyable artifacts, M22.2 persistent Storage + ephemeral screenshots, and M22.3 Web Research + Context Budget Manager + M22.3.1 Admin Web Research settings; Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, Workspace conversational validation, live vision, and live web search/fetch are deferred by Owner.
 
 **PLANNED / DOCUMENTED ONLY (not implemented):** versioned Client API; realtime Voice Runtime; Orb Voice UI; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch. Do not treat these as shipped.
 
@@ -31,9 +31,9 @@ Status vocabulary:
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | (see latest `feat: add web research and context budgeting`) |
-| Previous origin/main | `342dd6d92210094acf45eaa5ce3e6599f5a3591e` |
-| Message | `feat: add web research and context budgeting` |
+| HEAD | (see latest `feat: add configurable web research providers`) |
+| Previous origin/main | `bd1e1a994135200d0f813e9c2367a9bbbe7ef811` |
+| Message | `feat: add configurable web research providers` |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 | Working tree (at audit start) | clean |
 | Uncommitted / untracked | none (before this file) |
@@ -740,7 +740,7 @@ See [STORAGE.md](STORAGE.md), [Development/Cursor_Work_Report.md](Development/Cu
 
 ### Milestone 22.3 — Web Research + Context Budget Manager — IMPLEMENTED, NOT VALIDATED (2026-09-04)
 
-Owner `search_web` / `fetch_web_page` behind `WebSearchProvider` (Tavily) and SSRF-guarded fetch. No web content tables. `ContextBudgetManager` + per-model policy + conservative `TokenEstimator` + global ToolResult budget + incremental summary refresh. No live web/AI. Automated tests not run. No new DB tables.
+Owner `search_web` / `fetch_web_page` behind `WebSearchManager` → `WebSearchProvider` (`gemini_google` / `tavily` / `disabled`) and SSRF-guarded fetch. M22.3.1: Admin Settings → Integrations → Web Research (`web_research_settings`, `WebResearchSettingsService`). `gemini_google` reuses existing Gemini credentials for Google Search grounding (discovery only). Tavily key encrypted separately with env fallback. No web content tables. `ContextBudgetManager` + per-model policy + conservative `TokenEstimator` + global ToolResult budget + incremental summary refresh. No live web/AI. Automated tests not run.
 
 See [WEB_RESEARCH.md](WEB_RESEARCH.md), [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md), [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
