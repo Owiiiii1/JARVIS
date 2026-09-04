@@ -707,11 +707,13 @@ Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
 ## Milestone 24 — Voice UI / Orb
 
+**Status.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live STT/TTS.
+
 **Цель.** Animated 3D Orb + transcript + controls. Provider-neutral `VoiceVisualizationState`.
 
-**Реализуем** [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md). Three.js/WebGL/GLSL on Web/Desktop. Reduced motion later.
+**Реализовано.** Three.js + custom GLSL in `resources/js/voice/visualization`. Local Web Audio analyser. Demo mode (`?voice_demo=1`). WebGL/CSS fallback. Reduced motion. [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
 
-**Не реализовывать сейчас.**
+**Не реализовывать в M24.** Telephony. Live speech providers. Conversation Engine changes.
 
 **Зависимости:** M23.
 

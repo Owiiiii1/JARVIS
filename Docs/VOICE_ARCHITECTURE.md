@@ -1,6 +1,6 @@
 # Голосовая архитектура
 
-**Status.** IMPLEMENTED / NOT VALIDATED (M23 Voice Runtime Foundation, 2026-09-04). Automated tests not run. No live STT/TTS/AI/microphone-to-provider validation in this milestone. Final Orb is M24. Telephony is out of scope.
+**Status.** IMPLEMENTED / NOT VALIDATED (M23 Voice Runtime Foundation + M24 Voice UI / Orb, 2026-09-04). Automated tests not run. No live STT/TTS/AI/microphone-to-provider validation. Telephony is out of scope.
 
 Voice is a **modality** over an existing conversation. It is not a second Jarvis, second memory, second User Space, or a special voice chat.
 
@@ -72,7 +72,7 @@ M23 generates full assistant text before TTS. Later: LLM streaming → sentence 
 
 **Voice Runtime** (this document): session, STT, TTS, turn pipeline, events, interrupt/mute.
 
-**Voice UI** ([CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md)): Orb, transcript, controls. M23 ships a CSS orb + state labels only. Three.js / GLSL is M24.
+**Voice UI** ([CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md)): Orb, transcript, controls. M24 ships a provider-neutral Three.js Orb driven by `VoiceVisualizationState`. Runtime is unchanged.
 
 ---
 

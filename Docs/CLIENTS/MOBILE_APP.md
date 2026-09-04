@@ -20,7 +20,7 @@ Recommended GitHub repo: **`Owiiiii1/JARVIS-Mobile`**
 
 Flutter, latest stable. Platforms: iOS, Android.
 
-Orb / voice visualization on mobile may use Flutter rendering equivalent to the WebGL Orb concept. Visual identity follows [VOICE_UI.md](VOICE_UI.md); it is not a human avatar.
+Orb / voice visualization on mobile uses a Flutter renderer equivalent to the WebGL Orb concept. Visual identity and `VoiceVisualizationState` follow [VOICE_UI.md](VOICE_UI.md). Do not reuse the Three.js module in Flutter.
 
 ---
 

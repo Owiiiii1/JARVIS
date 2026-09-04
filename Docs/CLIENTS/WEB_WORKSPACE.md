@@ -1,6 +1,6 @@
 # Owner Web Workspace
 
-**Status.** IMPLEMENTED / PARTIAL MANUAL PASS (M22 + M22.1 + M22.2 + M22.3). M23 Voice Runtime Foundation is IMPLEMENTED / NOT VALIDATED (no live STT/TTS). Owner production confirmation 2026-09-04 covers image upload, Gemini vision, text Storage upload/read, and Gemini Google Search only — not the whole Workspace milestone and not Voice.
+**Status.** IMPLEMENTED / PARTIAL MANUAL PASS (M22 + M22.1 + M22.2 + M22.3). M23 Voice Runtime and M24 Orb are IMPLEMENTED / NOT VALIDATED (no live STT/TTS). Owner production confirmation 2026-09-04 covers image upload, Gemini vision, text Storage upload/read, and Gemini Google Search only — not Voice.
 
 Owner-facing Personal Workspace. This is **not** the Admin Panel and **not** the User Cabinet (`/cabinet`).
 
@@ -157,13 +157,13 @@ Workspace does not reproduce OAuth forms or AI provider settings.
 
 ---
 
-## Voice (M23 runtime client)
+## Voice (M23 runtime + M24 Orb)
 
-Text / Voice toggle keeps the selected conversation. Voice Mode is `VoiceSession` (not a placeholder): Start Voice, End, Mute, session state, microphone after user gesture, transcript, assistant text, basic playback, CSS orb by state.
+Text / Voice toggle keeps the selected conversation. `VoiceSession` owns session HTTP. `JarvisVoiceOrb` renders a provider-neutral Three.js energy sphere from `VoiceVisualizationState`. Microphone after user gesture. Local Web Audio analyser drives listening deformation even when STT is not configured. Status **Speech providers not configured** is a clean notice, not a crash.
 
-Switching Voice → Text ends the active `voice_session` and shows the same message thread (STT/assistant rows are ordinary `messages`).
+Switching Voice → Text ends the active `voice_session` and shows the same message thread.
 
-**Not in M23:** Three.js/GLSL Orb (M24), telephony, live STT/TTS validation.
+Demo visualization: `?voice_demo=1` or `VITE_VOICE_DEMO_MODE`. Not live TTS.
 
 See [VOICE_ARCHITECTURE.md](../VOICE_ARCHITECTURE.md) and [CLIENTS/VOICE_UI.md](VOICE_UI.md).
 
@@ -180,7 +180,7 @@ No credentials, system prompts, tool logs, or raw group archive.
 ## Out of scope (still)
 
 - Public versioned Client API ([CLIENT_API.md](CLIENT_API.md))
-- Three.js Orb (M24)
+- Telephony / Twilio
 - Workspace-specific chat tables (attachments live in Core `message_attachments`; persistent files in `stored_files`)
 - Telegram photo ingestion (same attachment table later)
 - Streaming, delete-chat

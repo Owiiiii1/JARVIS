@@ -24,7 +24,7 @@ Desktop repo should have its own README, ARCHITECTURE, DEVELOPMENT, API contract
 | --- | --- |
 | Shell | Tauri 2 |
 | UI | React + TypeScript + Vite |
-| Voice viz | Three.js / WebGL / custom GLSL |
+| Voice viz | Three.js / WebGL / custom GLSL — reuse `resources/js/voice/visualization` (no Inertia). Same `VoiceVisualizationState`. |
 | Native | Tauri plugins where appropriate |
 
 ---
@@ -83,3 +83,5 @@ Desktop updater and GitHub Releases live in `JARVIS-Desktop`. CI/CD is separate 
 
 - Creating the Tauri project
 - Rust/node toolchain on the production server
+
+M24 Orb visualization lives in `Owiiiii1/JARVIS` at `resources/js/voice/visualization` so Desktop can copy/import the engine without Inertia.

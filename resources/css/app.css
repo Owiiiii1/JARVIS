@@ -80,8 +80,238 @@
     animation-duration: 2.2s;
 }
 
+.jarvis-orb--transcribing .jarvis-orb__glow {
+    animation-duration: 1.2s;
+}
+
+.jarvis-orb--interrupted .jarvis-orb__glow {
+    animation-duration: 0.7s;
+}
+
+.jarvis-orb--ended .jarvis-orb__core,
+.jarvis-orb--ended .jarvis-orb__glow {
+    opacity: 0.25;
+}
+
+.jarvis-orb__ring {
+    position: absolute;
+    inset: -12%;
+    border-radius: 9999px;
+    border: 1px solid rgba(125, 211, 252, 0.18);
+    pointer-events: none;
+}
+
+.jarvis-voice-mode {
+    position: relative;
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.jarvis-voice-mode__stage {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1rem 0;
+    background:
+        radial-gradient(ellipse at 50% 42%, rgba(34, 211, 238, 0.08), transparent 42%),
+        radial-gradient(ellipse at 50% 60%, rgba(8, 13, 24, 0.2), rgba(8, 13, 24, 0.85) 70%);
+}
+
+.jarvis-voice-orb-stage {
+    width: min(52vh, 26rem, 92vw);
+    height: min(52vh, 26rem, 92vw);
+    max-width: 100%;
+}
+
+.jarvis-voice-orb-canvas {
+    width: 100%;
+    height: 100%;
+}
+
+.jarvis-voice-orb-stage--fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.jarvis-voice-orb-stage--fallback .jarvis-orb {
+    width: min(14rem, 46vw);
+    height: min(14rem, 46vw);
+}
+
+.jarvis-voice-mode__state {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgb(186 230 253);
+}
+
+.jarvis-voice-mode__copy {
+    width: min(32rem, 100%);
+    margin-top: 0.75rem;
+    text-align: center;
+}
+
+.jarvis-voice-mode__user {
+    font-size: 0.95rem;
+    color: rgb(226 232 240);
+}
+
+.jarvis-voice-mode__assistant {
+    margin-top: 0.35rem;
+    font-size: 0.9rem;
+    color: rgb(125 211 252);
+}
+
+.jarvis-voice-mode__placeholder,
+.jarvis-voice-mode__notice,
+.jarvis-voice-mode__meta {
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: rgb(100 116 139);
+}
+
+.jarvis-voice-mode__notice {
+    margin-top: 0.45rem;
+    color: rgb(253 230 138);
+}
+
+.jarvis-voice-mode__bar {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.28);
+    padding: 0.9rem 1rem 1.1rem;
+}
+
+.jarvis-voice-mode__meta {
+    margin-bottom: 0.7rem;
+    text-align: center;
+}
+
+.jarvis-voice-mode__controls {
+    display: flex;
+    max-width: 28rem;
+    margin: 0 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+}
+
+.jarvis-voice-btn {
+    display: inline-flex;
+    height: 2.75rem;
+    min-width: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgb(226 232 240);
+}
+
+.jarvis-voice-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.jarvis-voice-btn:focus-visible {
+    outline: 2px solid rgb(125 211 252);
+    outline-offset: 2px;
+}
+
+.jarvis-voice-btn:disabled {
+    opacity: 0.38;
+}
+
+.jarvis-voice-btn--primary {
+    height: 3.1rem;
+    min-width: 3.1rem;
+}
+
+.jarvis-voice-btn--primary.is-live {
+    border-color: rgb(56 189 248);
+    background: rgba(56, 189, 248, 0.18);
+    color: rgb(224 242 254);
+}
+
+.jarvis-voice-btn--text {
+    padding: 0 1rem;
+    border-color: rgba(56, 189, 248, 0.3);
+    background: rgba(56, 189, 248, 0.1);
+    color: rgb(186 230 253);
+}
+
+.jarvis-voice-demo {
+    position: absolute;
+    left: 0.75rem;
+    bottom: 5.5rem;
+    z-index: 5;
+    width: min(16rem, calc(100% - 1.5rem));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.75rem;
+    background: rgba(8, 13, 24, 0.82);
+    padding: 0.45rem 0.6rem;
+    color: rgb(148 163 184);
+    font-size: 0.7rem;
+}
+
+.jarvis-voice-demo summary {
+    cursor: pointer;
+    color: rgb(186 230 253);
+}
+
+.jarvis-voice-demo__hint {
+    margin: 0.4rem 0 0.5rem;
+    line-height: 1.4;
+}
+
+.jarvis-voice-demo__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.3rem;
+}
+
+.jarvis-voice-demo__grid button,
+.jarvis-voice-demo__mic {
+    border-radius: 0.4rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: transparent;
+    padding: 0.25rem 0.35rem;
+    color: inherit;
+    text-align: left;
+}
+
+.jarvis-voice-demo__grid button.is-active {
+    border-color: rgb(56 189 248);
+    color: rgb(224 242 254);
+}
+
+.jarvis-voice-demo__mic {
+    margin-top: 0.45rem;
+    width: 100%;
+}
+
+@media (max-width: 767px) {
+    .jarvis-voice-orb-stage {
+        width: min(38vh, 18rem, 88vw);
+        height: min(38vh, 18rem, 88vw);
+    }
+
+    .jarvis-voice-demo {
+        bottom: 6.2rem;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .jarvis-orb__glow {
+    .jarvis-orb__glow,
+    .jarvis-orb__ring {
         animation: none;
         opacity: 0.55;
         transform: scale(1.18);

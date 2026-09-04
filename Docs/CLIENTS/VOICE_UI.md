@@ -1,96 +1,119 @@
 # Voice UI
 
-**Status.** M23: CSS state visualization + runtime controls in Owner Workspace. Final 3D Orb is **M24**. Voice **UI** ≠ Voice **Runtime**.
+**Status.** M24 IMPLEMENTED / NOT VALIDATED (2026-09-04). Three.js Orb in Owner Workspace. No live STT/TTS. Automated tests not run.
+
+Voice **UI** ≠ Voice **Runtime**.
 
 | Layer | Owns |
 | --- | --- |
 | Voice Runtime | sessions, STT, TTS, events — [VOICE_ARCHITECTURE.md](../VOICE_ARCHITECTURE.md) |
-| Voice UI | Orb, transcript, controls, visualization state |
+| Voice UI | Orb, transcript, controls, `VoiceVisualizationState` |
 
-A speech vendor can change without rewriting the Orb.
+A speech vendor can change without rewriting the Orb. The Orb never calls `VoiceRuntimeService`.
 
 ---
 
 ## Place
 
-Voice Mode is a mode of the selected conversation on Web Workspace, Desktop, and Mobile. Not a separate User Space. Not a human avatar.
+Voice Mode is a mode of the selected conversation on Web Workspace (and later Desktop / Mobile). Not a separate User Space. Not a human avatar.
 
-M23 Web: `/jarvis/chats/{id}` Text/Voice toggle. Voice uses **that** `conversation_id`. Switching Voice → Text ends the voice session and keeps the same thread (transcripts already persisted as ordinary messages).
-
----
-
-## M23 Workspace client
-
-Component: `VoiceSession`. Replaces the M22 placeholder.
-
-- Start Voice (user gesture → microphone permission; never on page load)
-- End
-- Mute / resume
-- session state
-- current/final transcript
-- assistant text
-- basic audio playback when TTS bytes are returned
-- dynamic MediaRecorder MIME detection; unsupported-browser state
-- simple CSS orb (`.jarvis-orb` + state class). Not Three.js.
-
-Microphone capture starts only after Start Voice.
+`/jarvis/chats/{id}` Text/Voice toggle. Voice uses **that** `conversation_id`. Switching Voice → Text ends the voice session and keeps the same thread.
 
 ---
 
-## Orb states (runtime + future Orb)
+## M24 Orb
 
-- idle
-- connecting
-- listening
-- transcribing
-- thinking
-- speaking
-- interrupted
-- error
-- muted
-- ended
+Module (Laravel/Inertia-free visualization engine, reusable by Desktop):
 
-M24 target motion (not implemented now):
+```
+resources/js/voice/
+  visualization/   VoiceVisualizationState, presets, GLSL, OrbEngine, JarvisVoiceOrb, CSS fallback
+  audio/           VoiceAudioAnalyzer, synthetic speaking demo
+  components/      VoiceDemoDrawer
+```
+
+Component: `JarvisVoiceOrb` receives only `VoiceVisualizationState` (or a ref the engine polls). No provider names, no ElevenLabs, no Conversation AI details.
+
+### VoiceVisualizationState
+
+```
+state
+inputAmplitude          // 0..1, smoothed
+outputAmplitude         // 0..1, smoothed
+frequencyBands          // sub, low, lowMid, mid, highMid, high (0..1)
+connectionState
+transitionProgress
+isMuted
+reducedMotion
+```
+
+Production `state` maps from `voice_sessions.status`. Amplitudes come from the local Web Audio analyser, not the backend.
+
+### Visual states
 
 | State | Motion |
 | --- | --- |
-| idle | slow breathing |
-| listening | geometry reacts to microphone amplitude / frequency bands |
-| thinking | inner lines / particles move independently of audio |
-| speaking | orb + many lines vibrate from **actual Jarvis output audio** |
-| barge-in | speaking snaps to listening |
-| connecting / error / muted | distinct, calm, readable |
+| idle | slow breath, low glow, subtle deformation |
+| connecting | tighter sphere, aligning/rotating lines |
+| listening | input amplitude + bands deform surface and filaments |
+| transcribing | contraction, directional inner rotation (not thinking) |
+| thinking | procedural filaments/particles; **no** fake waveform |
+| speaking | output amplitude (or demo synthetic energy); stronger than idle |
+| interrupted | fast smooth collapse toward listening-ready |
+| muted | alive but dampened glow/deform/particles |
+| error | unstable/frozen pulse, restrained warning accent; text shows the error |
+| ended | energy fades; does not vanish instantly |
 
-Reduced-motion fallback exists for the CSS orb; Three.js reduced-motion is later.
+Interpolation: visual presets ease toward the target. Interrupt/listening are faster; idle/thinking/ended are slower.
+
+### Layers
+
+1. Translucent icosphere (custom vertex/fragment GLSL: noise displacement, fresnel)
+2. Inner energy shell
+3. Thin flowing energy lines (not Saturn rings)
+4. Subtle orbiting particles
+5. Optional UnrealBloom on the high quality tier
+
+Identity: cyan/steel precision core. Not a Siri rainbow clone. No OrbitControls. Subtle camera drift only.
+
+### Audio (local, no providers)
+
+`VoiceAudioAnalyzer`: `connectInputStream`, `connectOutputAudio`, smoothed RMS, frequency bands. Microphone only after Start Voice. Tracks stop on End / Text / unmount. Analyser does **not** archive audio.
+
+Listening can visualize the mic even when STT is not configured. Speaking visualization uses playback analyser when TTS audio exists; otherwise demo synthetic output energy (marked as demo, not fake TTS).
+
+### Demo mode
+
+Enable with `?voice_demo=1` or `VITE_VOICE_DEMO_MODE=true`. Hidden drawer cycles all states. No speech providers required. Not shown in the normal Voice chrome.
+
+### Fallback / performance
+
+- No WebGL → CSS orb (`CssFallbackOrb`)
+- `prefers-reduced-motion` reduces deform, particles, camera, pulses; text state remains
+- DPR clamped (`min(devicePixelRatio, 2)`, lower on weak/mobile)
+- Quality tiers; repeated slow frames drop bloom/DPR
+- ResizeObserver; dispose geometries, materials, renderer, rAF, analyser
 
 ---
 
-## Visual identity (M24)
+## Workspace client
 
-Desired style: dark cinematic interface; translucent / glass / plasma sphere; waveform / energy lines; glow; audio-reactive movement. Do **not** copy Siri literally.
+`VoiceSession` still owns session lifecycle (M23 HTTP). Controls: Start Voice, Mute, Interrupt, End, Text. Readable state label. Latest user phrase + latest assistant line only (full history stays in Text mode).
 
-Web / Desktop tech for M24: Three.js / WebGL, custom GLSL, Web Audio analyser. Visualization is **not** bound to a voice provider.
-
----
-
-## Input contract (future Orb)
-
-```
-VoiceVisualizationState
-  state
-  inputAmplitude
-  outputAmplitude
-  frequencyBands
-  connectionState
-```
-
-M23 exposes `state` from `voice_sessions.status`. Amplitude/frequency are placeholders until M24.
+If STT/TTS are not configured: Orb keeps working; status **Speech providers not configured.** — not a crash.
 
 ---
 
-## Out of scope now
+## Desktop / Mobile
 
-- Implementing Three.js / Flutter Orb
-- Shipping shaders
-- Binding a live analyser to production
+Desktop (Tauri + React) should import `resources/js/voice/visualization` (or a copy) — no Inertia inside the engine.
+
+Flutter Orb is a separate renderer. Keep the same `VoiceVisualizationState` semantics. Do not reuse Three.js in Flutter.
+
+---
+
+## Out of scope
+
 - Telephony UI
+- Live STT/TTS validation
+- Binding visualization to a vendor SDK

@@ -1,6 +1,12 @@
-import OrbPlaceholder from '@/Components/Jarvis/OrbPlaceholder';
-import { Loader2, Mic, MicOff, PhoneOff, Type } from 'lucide-react';
+import { Loader2, Mic, MicOff, PhoneOff, Square, Type } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { VoiceAudioAnalyzer } from '@/voice/audio/VoiceAudioAnalyzer';
+import { quietBands, syntheticSpeaking } from '@/voice/audio/syntheticOutput';
+import VoiceDemoDrawer from '@/voice/components/VoiceDemoDrawer';
+import { isVoiceDemoEnabled } from '@/voice/demo';
+import { prefersReducedMotion } from '@/voice/visualization/capabilities';
+import JarvisVoiceOrb from '@/voice/visualization/JarvisVoiceOrb';
+import { createVoiceVisualizationState } from '@/voice/visualization/VoiceVisualizationState';
 
 const MIME_CANDIDATES = [
     'audio/webm;codecs=opus',
@@ -9,6 +15,21 @@ const MIME_CANDIDATES = [
     'audio/ogg',
     'audio/mp4',
 ];
+
+const PROVIDER_CODES = new Set(['voice_stt_not_configured', 'voice_tts_not_configured']);
+
+const STATE_LABELS = {
+    connecting: 'Connecting',
+    idle: 'Idle',
+    listening: 'Listening',
+    transcribing: 'Transcribing',
+    thinking: 'Thinking',
+    speaking: 'Speaking',
+    interrupted: 'Interrupted',
+    muted: 'Muted',
+    error: 'Error',
+    ended: 'Ended',
+};
 
 function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
@@ -76,18 +97,48 @@ function eventError(payload) {
     return failed?.payload?.code ?? null;
 }
 
+function connectionFrom(status, sessionId) {
+    if (status === 'error') {
+        return 'error';
+    }
+    if (status === 'connecting') {
+        return 'connecting';
+    }
+    if (status === 'ended' || ! sessionId) {
+        return 'disconnected';
+    }
+
+    return 'connected';
+}
+
+function friendlyError(code) {
+    if (PROVIDER_CODES.has(code)) {
+        return 'Speech providers not configured.';
+    }
+    if (code === 'voice_microphone_unavailable') {
+        return 'Microphone is unavailable.';
+    }
+    if (code === 'voice_audio_format_unsupported') {
+        return 'This audio format is not supported.';
+    }
+
+    return code || '';
+}
+
 /**
- * M23 Voice Runtime client boundary. Same conversation_id as Text mode.
- * Final Orb (Three.js) is M24. Microphone starts only after Start Voice.
+ * Workspace Voice client. Orb is visualization-only; session lifecycle stays here.
  */
 export default function VoiceSession({ conversationId, onSwitchToText, onTurn }) {
+    const demoEnabled = isVoiceDemoEnabled();
     const [status, setStatus] = useState('idle');
+    const [demoState, setDemoState] = useState(null);
     const [sessionId, setSessionId] = useState(null);
     const [busy, setBusy] = useState(false);
     const [recording, setRecording] = useState(false);
     const [muted, setMuted] = useState(false);
     const [unsupported, setUnsupported] = useState(false);
     const [error, setError] = useState('');
+    const [providerNotice, setProviderNotice] = useState('');
     const [transcript, setTranscript] = useState('');
     const [assistantText, setAssistantText] = useState('');
     const [permission, setPermission] = useState('prompt');
@@ -102,15 +153,82 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
     const mimeRef = useRef('');
     const endingRef = useRef(false);
     const skipSendRef = useRef(false);
+    const visualOnlyRef = useRef(false);
+    const analyserRef = useRef(null);
+    const statusRef = useRef('idle');
+    const demoStateRef = useRef(null);
+    const mutedRef = useRef(false);
+    const sessionPresentRef = useRef(false);
+    const vizRef = useRef(createVoiceVisualizationState({ state: 'idle' }));
+
+    const orbState = demoState ?? status;
 
     useEffect(() => {
-        setUnsupported(!browserSupported());
+        statusRef.current = status;
+    }, [status]);
+    useEffect(() => {
+        demoStateRef.current = demoState;
+    }, [demoState]);
+    useEffect(() => {
+        mutedRef.current = muted;
+    }, [muted]);
+    useEffect(() => {
+        sessionPresentRef.current = Boolean(sessionId);
+    }, [sessionId]);
+
+    useEffect(() => {
+        setUnsupported(! browserSupported());
         mimeRef.current = detectMime() ?? '';
+        analyserRef.current = new VoiceAudioAnalyzer();
+
+        let raf = 0;
+        const tick = (now) => {
+            const analysis = analyserRef.current?.tick() ?? {
+                inputAmplitude: 0,
+                outputAmplitude: 0,
+                frequencyBands: quietBands(),
+                outputBands: quietBands(),
+            };
+            const visualState = demoStateRef.current ?? statusRef.current;
+            const thinking = visualState === 'thinking';
+            const speaking = visualState === 'speaking';
+            const listening = visualState === 'listening';
+            let inputAmplitude = listening && ! thinking ? analysis.inputAmplitude : 0;
+            let outputAmplitude = speaking ? analysis.outputAmplitude : 0;
+            let frequencyBands = listening ? analysis.frequencyBands : speaking ? analysis.outputBands : quietBands();
+
+            if (speaking && outputAmplitude < 0.05) {
+                const syn = syntheticSpeaking(now / 1000);
+                outputAmplitude = syn.outputAmplitude;
+                frequencyBands = syn.frequencyBands;
+            }
+
+            if (thinking) {
+                inputAmplitude = 0;
+                outputAmplitude = 0;
+                frequencyBands = quietBands();
+            }
+
+            vizRef.current = createVoiceVisualizationState({
+                state: visualState,
+                inputAmplitude,
+                outputAmplitude,
+                frequencyBands,
+                connectionState: connectionFrom(statusRef.current, sessionPresentRef.current || demoEnabled),
+                isMuted: mutedRef.current || visualState === 'muted',
+                reducedMotion: prefersReducedMotion(),
+            });
+            raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
 
         return () => {
+            cancelAnimationFrame(raf);
             endingRef.current = true;
             stopPlayback();
             stopCapture();
+            analyserRef.current?.dispose();
+            analyserRef.current = null;
             const id = sessionIdRef.current;
             if (id) {
                 fetch(route('jarvis.voice.sessions.destroy', id), {
@@ -121,12 +239,26 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
                 }).catch(() => {});
             }
         };
-    }, [conversationId]);
+    }, [conversationId, demoEnabled]);
 
     const applySnapshot = (payload, clientMessageId = null) => {
-        if (payload?.status) {
+        const code = eventError(payload);
+
+        if (code && PROVIDER_CODES.has(code)) {
+            if (code === 'voice_stt_not_configured') {
+                visualOnlyRef.current = true;
+                skipSendRef.current = true;
+            }
+            setProviderNotice('Speech providers not configured.');
+        } else if (code) {
+            setError(friendlyError(code));
+        }
+
+        if (payload?.status && payload.status !== 'error') {
             setStatus(payload.status);
             setMuted(payload.status === 'muted');
+        } else if (payload?.status === 'error' && ! (code && PROVIDER_CODES.has(code))) {
+            setStatus('error');
         }
 
         const events = payload?.events ?? [];
@@ -138,11 +270,6 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
                 setAssistantText(item.payload.text);
             }
         });
-
-        const code = eventError(payload);
-        if (code) {
-            setError(code);
-        }
 
         if (payload?.turn && onTurn) {
             onTurn(payload.turn, null, clientMessageId);
@@ -160,7 +287,9 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
             const blob = new Blob([bytes], { type: mime || 'audio/mpeg' });
             const url = URL.createObjectURL(blob);
             const audio = new Audio(url);
+            audio.crossOrigin = 'anonymous';
             playbackRef.current = audio;
+            analyserRef.current?.connectOutputAudio(audio);
             audio.onended = () => {
                 URL.revokeObjectURL(url);
                 playbackRef.current = null;
@@ -169,7 +298,7 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
                 URL.revokeObjectURL(url);
             });
         } catch {
-            setError('voice_runtime_failed');
+            setError(friendlyError('voice_runtime_failed'));
         }
     };
 
@@ -180,6 +309,7 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
             audio.src = '';
             playbackRef.current = null;
         }
+        analyserRef.current?.disconnectOutput();
     };
 
     const stopCapture = () => {
@@ -194,7 +324,12 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
         recorderRef.current = null;
         streamRef.current?.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
+        analyserRef.current?.disconnectInput();
         setRecording(false);
+    };
+
+    const attachAnalyser = (stream) => {
+        analyserRef.current?.connectInputStream(stream);
     };
 
     const postJson = async (url, body = {}) => {
@@ -205,26 +340,34 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
             body: JSON.stringify(body),
         });
         const payload = await readJson(response);
-        if (!response.ok) {
+        if (! response.ok) {
             throw new Error(payload.error || payload.message || 'voice_runtime_failed');
         }
         return payload;
     };
 
+    const startMicOnly = async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        streamRef.current = stream;
+        setPermission('granted');
+        attachAnalyser(stream);
+        return stream;
+    };
+
     const startVoice = async () => {
-        if (busy || unsupported || !conversationId) {
+        if (busy || unsupported || ! conversationId) {
             return;
         }
 
         setBusy(true);
         setError('');
+        setProviderNotice('');
         setTranscript('');
         setAssistantText('');
+        visualOnlyRef.current = false;
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            streamRef.current = stream;
-            setPermission('granted');
+            const stream = await startMicOnly();
 
             const created = await postJson(route('jarvis.voice.sessions.store', conversationId), {
                 origin: 'web',
@@ -240,17 +383,28 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
             stopCapture();
             if (caught?.name === 'NotAllowedError' || caught?.name === 'NotFoundError') {
                 setPermission('denied');
-                setError('voice_microphone_unavailable');
+                setError(friendlyError('voice_microphone_unavailable'));
+            } else if (PROVIDER_CODES.has(caught.message)) {
+                visualOnlyRef.current = true;
+                setProviderNotice('Speech providers not configured.');
+                setStatus('listening');
             } else {
-                setError(caught.message || 'voice_runtime_failed');
+                setError(friendlyError(caught.message || 'voice_runtime_failed'));
+                setStatus('error');
             }
-            setStatus('error');
         } finally {
             setBusy(false);
         }
     };
 
     const beginRecording = (stream) => {
+        if (visualOnlyRef.current) {
+            attachAnalyser(stream);
+            setRecording(true);
+
+            return;
+        }
+
         const options = {};
         if (mimeRef.current) {
             options.mimeType = mimeRef.current;
@@ -276,7 +430,7 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
                 skipSendRef.current = false;
                 return;
             }
-            if (blob.size > 0 && sessionIdRef.current && !endingRef.current) {
+            if (blob.size > 0 && sessionIdRef.current && ! endingRef.current && ! visualOnlyRef.current) {
                 sendUtterance(blob, recorder.mimeType);
             }
         };
@@ -285,11 +439,12 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
         recordStartedAt.current = Date.now();
         recorder.start();
         setRecording(true);
+        attachAnalyser(stream);
     };
 
     const sendUtterance = async (blob, mimeType) => {
         const id = sessionIdRef.current;
-        if (!id) {
+        if (! id || visualOnlyRef.current) {
             return;
         }
 
@@ -322,15 +477,21 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
                 body: form,
             });
             const payload = await readJson(response);
-            if (!response.ok) {
+            if (! response.ok) {
                 throw new Error(payload.error || payload.message || 'voice_runtime_failed');
             }
             applySnapshot(payload, clientMessageId);
         } catch (caught) {
-            setError(caught.message || 'voice_runtime_failed');
+            if (PROVIDER_CODES.has(caught.message)) {
+                visualOnlyRef.current = true;
+                skipSendRef.current = true;
+                setProviderNotice('Speech providers not configured.');
+            } else {
+                setError(friendlyError(caught.message || 'voice_runtime_failed'));
+            }
         } finally {
             setBusy(false);
-            if (sessionIdRef.current && streamRef.current && !muted && !endingRef.current) {
+            if (sessionIdRef.current && streamRef.current && ! muted && ! endingRef.current && ! visualOnlyRef.current) {
                 beginRecording(streamRef.current);
             }
         }
@@ -345,7 +506,7 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
     };
 
     const handleMic = async () => {
-        if (!sessionId) {
+        if (! sessionId) {
             await startVoice();
             return;
         }
@@ -355,14 +516,30 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
             return;
         }
 
-        if (streamRef.current && !muted) {
+        if (streamRef.current && ! muted) {
             beginRecording(streamRef.current);
         }
     };
 
     const handleMute = async () => {
         const id = sessionIdRef.current;
-        if (!id || busy) {
+        if (demoEnabled && ! id) {
+            setMuted((current) => ! current);
+            setDemoState((current) => (current === 'muted' ? 'idle' : 'muted'));
+            if (! muted && streamRef.current) {
+                streamRef.current.getAudioTracks().forEach((track) => {
+                    track.enabled = false;
+                });
+            } else if (muted && streamRef.current) {
+                streamRef.current.getAudioTracks().forEach((track) => {
+                    track.enabled = true;
+                });
+            }
+
+            return;
+        }
+
+        if (! id || busy) {
             return;
         }
 
@@ -371,9 +548,8 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
             if (muted) {
                 const payload = await postJson(route('jarvis.voice.sessions.resume', id));
                 applySnapshot(payload);
-                if (!streamRef.current) {
-                    streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    setPermission('granted');
+                if (! streamRef.current) {
+                    await startMicOnly();
                 }
                 const listening = await postJson(route('jarvis.voice.sessions.listen', id));
                 applySnapshot(listening);
@@ -386,15 +562,21 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
                 applySnapshot(payload);
             }
         } catch (caught) {
-            setError(caught.message || 'voice_runtime_failed');
+            setError(friendlyError(caught.message || 'voice_runtime_failed'));
         } finally {
             setBusy(false);
         }
     };
 
     const handleInterrupt = async () => {
+        if (demoEnabled && demoState) {
+            setDemoState('interrupted');
+            stopPlayback();
+            return;
+        }
+
         const id = sessionIdRef.current;
-        if (!id) {
+        if (! id) {
             return;
         }
 
@@ -403,7 +585,7 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
             const payload = await postJson(route('jarvis.voice.sessions.interrupt', id));
             applySnapshot(payload);
         } catch (caught) {
-            setError(caught.message || 'voice_runtime_failed');
+            setError(friendlyError(caught.message || 'voice_runtime_failed'));
         }
     };
 
@@ -436,6 +618,7 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
         await endSession();
         endingRef.current = false;
         setStatus('idle');
+        setDemoState(null);
     };
 
     const handleText = async () => {
@@ -443,75 +626,93 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
         onSwitchToText?.();
     };
 
-    const orbLabel = unsupported
-        ? 'Browser not supported'
-        : sessionId
-            ? status
-            : 'Voice';
+    const handleDemoMic = async () => {
+        try {
+            await startMicOnly();
+            setDemoState((current) => current ?? 'listening');
+        } catch {
+            setPermission('denied');
+            setError(friendlyError('voice_microphone_unavailable'));
+        }
+    };
 
-    const hint = unsupported
+    const stateLabel = unsupported
+        ? 'Browser not supported'
+        : STATE_LABELS[orbState] ?? 'Voice';
+
+    const notice = unsupported
         ? 'This browser cannot capture microphone audio. Use a recent Chrome, Edge, or Firefox, or stay in Text mode.'
-        : error
-            ? error
-            : sessionId
-                ? 'Same conversation as Text. Transcripts are ordinary messages.'
-                : 'Start Voice requests the microphone. Switching to Text ends the voice session and keeps this chat.';
+        : providerNotice
+            ? providerNotice
+            : error
+                ? error
+                : sessionId
+                    ? 'Same conversation as Text. Transcripts stay in the thread.'
+                    : 'Start Voice requests the microphone. Switching to Text ends the session and keeps this chat.';
 
     return (
-        <div className="flex h-full min-h-0 flex-col">
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
-                <OrbPlaceholder label={orbLabel} state={status} hint={hint} />
-                <div className="mt-4 w-full max-w-lg space-y-2 text-center">
+        <div className="jarvis-voice-mode">
+            <div className="jarvis-voice-mode__stage">
+                <JarvisVoiceOrb visualizationRef={vizRef} fallbackState={orbState} />
+                <p className="jarvis-voice-mode__state" aria-live="polite">
+                    {stateLabel}
+                </p>
+                <div className="jarvis-voice-mode__copy">
                     {transcript ? (
-                        <p className="text-sm text-slate-200">{transcript}</p>
+                        <p className="jarvis-voice-mode__user">{transcript}</p>
                     ) : (
-                        <p className="text-sm text-slate-500">Current transcript appears here.</p>
+                        <p className="jarvis-voice-mode__placeholder">Latest phrase</p>
                     )}
                     {assistantText ? (
-                        <p className="text-sm text-sky-200">{assistantText}</p>
+                        <p className="jarvis-voice-mode__assistant">{assistantText}</p>
                     ) : null}
-                    {error ? (
-                        <p className="text-xs text-amber-300">{error}</p>
+                    {notice ? (
+                        <p className="jarvis-voice-mode__notice">{notice}</p>
                     ) : null}
                     {permission === 'denied' ? (
-                        <p className="text-xs text-amber-300">Microphone permission was denied.</p>
+                        <p className="jarvis-voice-mode__notice">Microphone permission was denied.</p>
                     ) : null}
                 </div>
             </div>
 
-            <div className="border-t border-white/10 bg-black/20 px-4 py-4">
-                <p className="mb-3 text-center text-xs text-slate-500">
+            <div className="jarvis-voice-mode__bar">
+                <p className="jarvis-voice-mode__meta">
                     Conversation {conversationId ? `#${conversationId}` : ''} stays selected.
                     {busy ? ' Working…' : ''}
                 </p>
-                <div className="mx-auto flex max-w-md items-center justify-center gap-3">
+                <div className="jarvis-voice-mode__controls">
                     <button
                         type="button"
-                        disabled={!sessionId || busy || unsupported}
+                        disabled={(! sessionId && ! demoEnabled) || busy || unsupported}
                         onClick={handleMute}
-                        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-slate-200 hover:bg-white/10 disabled:opacity-40"
-                        aria-label={muted ? 'Resume microphone' : 'Mute microphone'}
+                        className="jarvis-voice-btn"
+                        aria-label={muted ? 'Unmute microphone' : 'Mute microphone'}
                     >
                         {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4 opacity-70" />}
                     </button>
                     <button
                         type="button"
-                        disabled={busy || unsupported || !conversationId}
+                        disabled={busy || unsupported || ! conversationId}
                         onClick={handleMic}
-                        className={`inline-flex h-12 w-12 items-center justify-center rounded-full border ${
-                            recording
-                                ? 'border-sky-400 bg-sky-400/20 text-sky-100'
-                                : 'border-white/10 bg-white/5 text-white hover:bg-white/10'
-                        } disabled:opacity-40`}
+                        className={`jarvis-voice-btn jarvis-voice-btn--primary ${recording ? 'is-live' : ''}`}
                         aria-label={sessionId ? (recording ? 'Send utterance' : 'Start listening') : 'Start Voice'}
                     >
                         {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
                     </button>
                     <button
                         type="button"
-                        disabled={!sessionId || busy}
+                        disabled={(! sessionId && ! demoEnabled) || busy}
+                        onClick={handleInterrupt}
+                        className="jarvis-voice-btn"
+                        aria-label="Interrupt playback"
+                    >
+                        <Square className="h-4 w-4" />
+                    </button>
+                    <button
+                        type="button"
+                        disabled={! sessionId && ! demoEnabled}
                         onClick={handleEnd}
-                        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-slate-200 hover:bg-white/10 disabled:opacity-40"
+                        className="jarvis-voice-btn"
                         aria-label="End voice"
                     >
                         <PhoneOff className="h-4 w-4" />
@@ -519,25 +720,21 @@ export default function VoiceSession({ conversationId, onSwitchToText, onTurn })
                     <button
                         type="button"
                         onClick={handleText}
-                        className="inline-flex h-11 items-center gap-2 rounded-full border border-sky-400/30 bg-sky-400/10 px-4 text-sm font-medium text-sky-200 hover:bg-sky-400/20"
+                        className="jarvis-voice-btn jarvis-voice-btn--text"
                         aria-label="Switch to text"
                     >
                         <Type className="h-4 w-4" />
                         Text
                     </button>
                 </div>
-                {status === 'speaking' ? (
-                    <div className="mt-3 flex justify-center">
-                        <button
-                            type="button"
-                            onClick={handleInterrupt}
-                            className="text-xs text-slate-400 underline hover:text-white"
-                        >
-                            Interrupt playback
-                        </button>
-                    </div>
-                ) : null}
             </div>
+
+            <VoiceDemoDrawer
+                enabled={demoEnabled}
+                state={orbState}
+                onState={setDemoState}
+                onStartMic={handleDemoMic}
+            />
         </div>
     );
 }

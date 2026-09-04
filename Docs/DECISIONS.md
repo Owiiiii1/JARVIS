@@ -1708,6 +1708,96 @@
 
 ---
 
+## ADR-175 — Orb is provider-neutral
+
+**Контекст.** A vendor SDK in the renderer would lock Voice UI.
+
+**Решение.** `JarvisVoiceOrb` consumes only `VoiceVisualizationState`. No ElevenLabs/STT/Conversation AI fields.
+
+**Следствие.** Speech providers can change without rewriting shaders.
+
+---
+
+## ADR-176 — Runtime state and audio analysis are separate
+
+**Контекст.** Backend session status is not microphone energy.
+
+**Решение.** `voice_sessions.status` maps to visualization `state`. Amplitudes and bands come from local `VoiceAudioAnalyzer` (or demo synthetic output energy).
+
+**Следствие.** Listening can look alive without STT. Thinking does not fake a waveform.
+
+---
+
+## ADR-177 — Input analyser is local browser-only
+
+**Контекст.** Visualization needs mic energy before providers exist.
+
+**Решение.** Web Audio `AnalyserNode` after Start Voice. No upload, no archive, no backend requirement for demo visualization.
+
+**Следствие.** M23 temp-audio policy is unchanged.
+
+---
+
+## ADR-178 — Orb does not own microphone or session lifecycle
+
+**Контекст.** Putting getUserMedia inside the renderer couples UI to auth/HTTP.
+
+**Решение.** `VoiceSession` owns permission, tracks, session HTTP. The Orb only renders.
+
+**Следствие.** Desktop can reuse the engine with a different session client.
+
+---
+
+## ADR-179 — Three.js visualization engine has no Laravel dependency
+
+**Контекст.** Desktop is Tauri + React, not Inertia.
+
+**Решение.** Engine lives in `resources/js/voice/visualization` without Inertia, Ziggy, or Blade.
+
+**Следствие.** Flutter does not reuse Three.js; it keeps the same state contract.
+
+---
+
+## ADR-180 — Mock/demo mode exists until providers are connected
+
+**Контекст.** Owner needs to judge the Orb without live STT/TTS.
+
+**Решение.** `?voice_demo=1` or `VITE_VOICE_DEMO_MODE`. Hidden drawer cycles states. Synthetic speaking energy is labeled demo, not fake TTS.
+
+**Следствие.** Do not show the drawer in normal Voice chrome.
+
+---
+
+## ADR-181 — No OrbitControls in product Voice UI
+
+**Контекст.** Dragging the sphere turns it into a toy.
+
+**Решение.** Fixed cinematic framing. Subtle procedural camera drift only.
+
+**Следствие.** No user orbit/pan/zoom of the Orb.
+
+---
+
+## ADR-182 — WebGL fallback is required
+
+**Контекст.** Some browsers/devices have no WebGL.
+
+**Решение.** Polished CSS orb + readable state text. Controls still work.
+
+**Следствие.** Missing WebGL is not a Voice Mode crash.
+
+---
+
+## ADR-183 — M24 does not change voice memory or runtime semantics
+
+**Контекст.** A visual milestone could tempt a second voice history.
+
+**Решение.** No new tables. Same conversation. Same `VoiceRuntimeService`. Transcripts remain ordinary messages.
+
+**Следствие.** M24 is frontend visual/product layer only.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Алфавит generated access_code (кроме зарезервированного 2000).

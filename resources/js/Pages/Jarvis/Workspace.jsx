@@ -1,5 +1,4 @@
 import SafeMarkdown from '@/Components/Jarvis/SafeMarkdown';
-import VoiceSession from '@/Components/Jarvis/VoiceSession';
 import JarvisWorkspaceLayout from '@/Layouts/JarvisWorkspaceLayout';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -24,7 +23,7 @@ import {
     UserCircle2,
     X,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
 const SUGGESTIONS = [
     'Что у меня сегодня?',
@@ -33,6 +32,8 @@ const SUGGESTIONS = [
     'Что изменилось в JARVIS?',
     'Напомни...',
 ];
+
+const VoiceSession = lazy(() => import('@/Components/Jarvis/VoiceSession'));
 
 function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
@@ -1055,11 +1056,19 @@ export default function JarvisWorkspace() {
                 contextDrawer={contextDrawer}
             >
                 {mode === 'voice' ? (
-                    <VoiceSession
-                        conversationId={conversation?.id}
-                        onSwitchToText={() => setMode('text')}
-                        onTurn={(payload, optimisticId, clientMessageId) => applyTurnPayload(payload, optimisticId, clientMessageId)}
-                    />
+                    <Suspense
+                        fallback={
+                            <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                                Loading Voice…
+                            </div>
+                        }
+                    >
+                        <VoiceSession
+                            conversationId={conversation?.id}
+                            onSwitchToText={() => setMode('text')}
+                            onTurn={(payload, optimisticId, clientMessageId) => applyTurnPayload(payload, optimisticId, clientMessageId)}
+                        />
+                    </Suspense>
                 ) : (
                     <div className="flex h-full min-h-0 flex-col">
                         <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-8">

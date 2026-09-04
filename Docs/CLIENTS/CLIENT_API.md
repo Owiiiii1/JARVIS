@@ -76,6 +76,8 @@ Suggested v1 equivalents of current Owner Workspace session routes:
 
 Auth: ownership (`user_id` + conversation ownership), never UUID alone. Same safe error codes as [VOICE_ARCHITECTURE.md](../VOICE_ARCHITECTURE.md).
 
+Clients render Voice UI from `VoiceVisualizationState` (`state`, amplitudes, `frequencyBands`, `connectionState`). Runtime status comes from the session; amplitudes are local Web Audio. See [VOICE_UI.md](VOICE_UI.md).
+
 ---
 
 ## Errors

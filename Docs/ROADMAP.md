@@ -119,7 +119,7 @@
 - GitHub integration (M21 implemented, not live-validated)
 - Owner Web Workspace (`/jarvis`, M22 implemented / partial manual pass: image upload + Gemini vision, text Storage upload/read, Gemini Google Search; screenshot purge, artifact copy, `fetch_web_page`, Tavily, ContextBudgetManager, Google/GitHub live still not validated)
 - Versioned Client API
-- Voice Runtime Foundation (M23 implemented / not live-validated; Voice UI / Orb is M24)
+- Voice Runtime Foundation (M23) and Voice UI / Orb (M24) implemented / not live-validated
 - Desktop repo `Owiiiii1/JARVIS-Desktop`
 - Mobile repo `Owiiiii1/JARVIS-Mobile`
 - Те же accounts, `conversation_id`, **личная** memory
