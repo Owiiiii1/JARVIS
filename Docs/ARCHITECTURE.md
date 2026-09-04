@@ -32,6 +32,7 @@
 
 - Owner Space / User Spaces; capabilities поверх role;
 - users: role, access_code, timezone, status;
+- per-user assistant profile (`user_assistant_profiles`); onboarding optional;
 - channel identities (Telegram pairing кодом; без auto-create User);
 - привязку внешних identity;
 - conversations и messages (kind: `direct` | `group`; personal всегда с `user_id`);

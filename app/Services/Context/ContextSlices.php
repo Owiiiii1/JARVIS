@@ -13,6 +13,7 @@ final class ContextSlices
      */
     public function __construct(
         public string $platformPrompt,
+        public ?string $assistantIdentity,
         public ?string $generalPrompt,
         public ?string $applicationEvent,
         public ?string $currentSummary,

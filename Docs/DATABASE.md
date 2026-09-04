@@ -38,6 +38,10 @@ Account entity. Ядро работает с `user_id`, не с Telegram id. Р�
 
 Implemented (M4 / M25U.2): unique `user_id`, `general_prompt` nullable, `overrides` json nullable (unused). User edits from `/chat` settings; Owner may inspect/edit the same row from User Card. Self-only for ordinary `/chat`. No `user_id` from the browser to pick another user’s prompt.
 
+### user_assistant_profiles
+
+Implemented (M25U.3): unique `user_id`. `assistant_name`, `personality`, `interaction_style`, `about_user`, `onboarding_status` (`not_started` / `in_progress` / `completed`), `onboarding_step`, `onboarding_conversation_id`, timestamps. Owner row may default to name Jarvis + completed. Ordinary users lazy-create `not_started`. Separate from General Prompt and from memory `user_profiles.summary`. [ASSISTANT_PERSONALIZATION.md](ASSISTANT_PERSONALIZATION.md).
+
 Platform configs live in **`ai_role_settings`** (not `is_active`):
 
 | role_key | Purpose |

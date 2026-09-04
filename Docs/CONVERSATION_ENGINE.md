@@ -170,6 +170,7 @@ Tool loop в одном turn: несколько последовательны�
 Tools:
 
 - `create_reminder` — Reminder Engine. [REMINDERS.md](REMINDERS.md).
+- `get_assistant_profile` / `update_assistant_profile` / `complete_assistant_onboarding` — current user’s assistant profile only. Never `user_id` from the model. [ASSISTANT_PERSONALIZATION.md](ASSISTANT_PERSONALIZATION.md).
 - `search_conversation_history` — targeted raw-on-demand по **текущему** user.
 - `get_project_context` — owner-only (`projects` capability). Derived project context including bounded ACTIVE group knowledge for attached groups, не raw dump. Не подмешивается в обычный prompt.
 - `search_group_knowledge` — owner-only (`group_analysis`). Explicit group search only.
@@ -182,6 +183,6 @@ Gemini — production provider с function calling (`functionDeclarations` / `fu
 
 Current user local datetime и IANA timezone инжектятся в system context на каждом turn. Calendar naive times use the same owner timezone.
 
-Confirmation: read-only без confirm. Core `create_reminder` остаётся allowed. External write + explicit user command = allowed except tools with `alwaysConfirm` (`send_gmail_message`). Model-proposed = confirmation_required. Destructive = always confirmation_required and is persisted in `tool_confirmations`. Conservative yes/cancel parser plus Web/Telegram buttons. Модель не может self-authorize. [INTEGRATIONS.md](INTEGRATIONS.md).
+Confirmation: read-only без confirm. Core `create_reminder` and assistant profile writes remain allowed (provider null). External write + explicit user command = allowed except tools with `alwaysConfirm` (`send_gmail_message`). Model-proposed = confirmation_required. Destructive = always confirmation_required and is persisted in `tool_confirmations`. Conservative yes/cancel parser plus Web/Telegram buttons. Модель не может self-authorize. [INTEGRATIONS.md](INTEGRATIONS.md).
 
 Reminders: Reminder Tool → Reminder Engine, не Calendar. [REMINDERS.md](REMINDERS.md).

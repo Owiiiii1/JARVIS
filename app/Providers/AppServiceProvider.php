@@ -14,8 +14,10 @@ use App\Services\Integrations\Providers\GitHubIntegrationProvider;
 use App\Services\Integrations\Providers\GoogleIntegrationProvider;
 use App\Services\Integrations\Providers\TelegramIntegrationProvider;
 use App\Services\Tools\CancelToolActionTool;
+use App\Services\Tools\CompleteAssistantOnboardingTool;
 use App\Services\Tools\ConfirmToolActionTool;
 use App\Services\Tools\CreateReminderTool;
+use App\Services\Tools\GetAssistantProfileTool;
 use App\Services\Tools\GetProjectContextTool;
 use App\Services\Tools\GitHub\CommentGitHubIssueTool;
 use App\Services\Tools\GitHub\CompareGitHubRefsTool;
@@ -61,6 +63,7 @@ use App\Services\Tools\Storage\ReadStorageFileChunksTool;
 use App\Services\Tools\Storage\SearchStorageFileContentsTool;
 use App\Services\Tools\Storage\SearchStorageFilesTool;
 use App\Services\Tools\ToolRegistry;
+use App\Services\Tools\UpdateAssistantProfileTool;
 use App\Services\Tools\WebResearch\FetchWebPageTool;
 use App\Services\Tools\WebResearch\SearchWebTool;
 use App\Services\Voice\Contracts\SpeechToTextProvider;
@@ -96,6 +99,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ToolRegistry::class, function ($app): ToolRegistry {
             return new ToolRegistry([
                 $app->make(CreateReminderTool::class),
+                $app->make(GetAssistantProfileTool::class),
+                $app->make(UpdateAssistantProfileTool::class),
+                $app->make(CompleteAssistantOnboardingTool::class),
                 $app->make(SearchConversationHistoryTool::class),
                 $app->make(GetProjectContextTool::class),
                 $app->make(SearchGroupKnowledgeTool::class),

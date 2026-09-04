@@ -1,6 +1,7 @@
 import SafeMarkdown from '@/Components/Jarvis/SafeMarkdown';
 import JarvisWorkspaceLayout from '@/Layouts/JarvisWorkspaceLayout';
 import { workspaceRoute } from '@/personal-workspace/named';
+import RemindersPanel from '@/personal-workspace/RemindersPanel';
 import { primeVoiceMediaFromUserGesture } from '@/voice/audio/voiceMedia';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -219,6 +220,8 @@ export default function PersonalWorkspace() {
         surface: surfaceProp = 'jarvis',
         capabilities: capabilityProps = {},
         settings = {},
+        assistantProfile: assistantProfileProp = {},
+        activeReminderCount: activeReminderCountProp = 0,
     } = usePage().props;
     const surface = surfaceProp === 'chat' ? 'chat' : 'jarvis';
     const capabilities = {
@@ -249,7 +252,7 @@ export default function PersonalWorkspace() {
     const storageExtensions = jarvisStorage?.allowed_extensions || [];
     const allowedMimes = chatAttachments?.allowed_mime_types || [];
     const retentionHours = Number(chatAttachments?.retention_hours || 24);
-    const brandName = owlAdmin?.brand_name ?? 'Jarvis';
+    const productBrand = owlAdmin?.brand_name ?? 'Jarvis';
     const [mode, setMode] = useState('text');
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [contextCollapsed, setContextCollapsed] = useState(!capabilities.ownerContext);
@@ -268,6 +271,18 @@ export default function PersonalWorkspace() {
     const [titleDraft, setTitleDraft] = useState(conversation?.title ?? '');
     const [promptOpen, setPromptOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [remindersOpen, setRemindersOpen] = useState(false);
+    const [assistantProfile, setAssistantProfile] = useState(assistantProfileProp);
+    const [activeReminderCount, setActiveReminderCount] = useState(Number(activeReminderCountProp) || 0);
+    const workspaceTitle = assistantProfile?.presentation_name
+        || (user?.role === 'owner' ? productBrand : 'Assistant');
+    const onboardingStatus = assistantProfile?.onboarding_status || 'not_started';
+    const showOnboarding = Boolean(assistantProfile?.show_onboarding);
+    const onboardingLabel = {
+        not_started: 'Знакомство не пройдено',
+        in_progress: 'Знакомство в процессе',
+        completed: 'Знакомство завершено',
+    }[onboardingStatus] || 'Знакомство не пройдено';
     const scrollerRef = useRef(null);
     const fileInputRef = useRef(null);
     const composerRef = useRef(null);
@@ -319,6 +334,14 @@ export default function PersonalWorkspace() {
             timezone: settings.timezone ?? user.timezone ?? '',
         });
     }, [settings.general_prompt, settings.name, settings.timezone, context?.settings?.general_prompt, user.name, user.timezone]);
+
+    useEffect(() => {
+        setAssistantProfile(assistantProfileProp ?? {});
+    }, [assistantProfileProp]);
+
+    useEffect(() => {
+        setActiveReminderCount(Number(activeReminderCountProp) || 0);
+    }, [activeReminderCountProp]);
 
     useEffect(() => {
         if (!conversation?.id) {
@@ -406,6 +429,14 @@ export default function PersonalWorkspace() {
 
         if (payload.error) {
             setError(payload.error);
+        }
+
+        if (payload.assistant_profile) {
+            setAssistantProfile(payload.assistant_profile);
+        }
+
+        if (typeof payload.active_reminder_count === 'number') {
+            setActiveReminderCount(payload.active_reminder_count);
         }
     };
 
@@ -777,7 +808,7 @@ export default function PersonalWorkspace() {
                 </button>
                 <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold tracking-wide text-white">{brandName}</span>
+                        <span className="text-sm font-semibold tracking-wide text-white">{workspaceTitle}</span>
                         <span
                             className={`h-2 w-2 rounded-full ${connected ? 'bg-emerald-400' : 'bg-rose-400'}`}
                             title={connected ? 'AI connected' : 'AI not connected'}
@@ -857,6 +888,21 @@ export default function PersonalWorkspace() {
                         Admin
                     </Link>
                 ) : null}
+                {capabilities.reminders ? (
+                    <button
+                        type="button"
+                        onClick={() => setRemindersOpen(true)}
+                        className="relative rounded-lg p-2 text-slate-300 hover:bg-white/10"
+                        aria-label="Напоминания"
+                    >
+                        <Bell className="h-4 w-4" />
+                        {activeReminderCount > 0 ? (
+                            <span className="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-sky-500 px-1 text-[10px] font-semibold leading-4 text-white">
+                                {activeReminderCount > 99 ? '99+' : activeReminderCount}
+                            </span>
+                        ) : null}
+                    </button>
+                ) : null}
                 <button
                     type="button"
                     onClick={() => setSettingsOpen(true)}
@@ -890,7 +936,7 @@ export default function PersonalWorkspace() {
         <div className="flex h-full min-h-0 flex-col">
             <div className="flex items-center justify-between px-4 py-4">
                 <div>
-                    <p className="text-sm font-semibold text-white">{brandName}</p>
+                    <p className="text-sm font-semibold text-white">{workspaceTitle}</p>
                     <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Workspace</p>
                 </div>
                 <button
@@ -911,6 +957,29 @@ export default function PersonalWorkspace() {
                     <MessageSquarePlus className="h-4 w-4" />
                     New Chat
                 </button>
+                {showOnboarding ? (
+                    <div className="mt-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                        <p className="text-xs text-slate-400">Знакомство: {onboardingLabel.replace('Знакомство ', '')}</p>
+                        {onboardingStatus === 'not_started' ? (
+                            <button
+                                type="button"
+                                onClick={() => router.post(workspaceRoute(surface, 'onboarding.start'))}
+                                className="mt-2 w-full rounded-lg bg-white/10 px-2 py-1.5 text-xs font-medium text-white hover:bg-white/15"
+                            >
+                                Познакомиться
+                            </button>
+                        ) : null}
+                        {onboardingStatus === 'in_progress' ? (
+                            <button
+                                type="button"
+                                onClick={() => router.post(workspaceRoute(surface, 'onboarding.start'))}
+                                className="mt-2 w-full rounded-lg bg-white/10 px-2 py-1.5 text-xs font-medium text-white hover:bg-white/15"
+                            >
+                                Продолжить знакомство
+                            </button>
+                        ) : null}
+                    </div>
+                ) : null}
                 {capabilities.storagePage ? (
                     <Link
                         href={route('jarvis.storage.index')}
@@ -1019,6 +1088,13 @@ export default function PersonalWorkspace() {
                         <Bell className="h-3.5 w-3.5" />
                         Reminders
                     </h2>
+                    <button
+                        type="button"
+                        onClick={() => setRemindersOpen(true)}
+                        className="mb-2 text-[11px] text-sky-300 hover:text-sky-200"
+                    >
+                        Open panel{activeReminderCount ? ` (${activeReminderCount})` : ''}
+                    </button>
                     {reminders.length === 0 ? (
                         <p className="text-xs text-slate-500">Ask Jarvis to remind you.</p>
                     ) : (
@@ -1104,7 +1180,7 @@ export default function PersonalWorkspace() {
     return (
         <div onClick={closeOverlaysFromBackdrop}>
             <JarvisWorkspaceLayout
-                title={conversation?.title ?? 'Jarvis'}
+                title={conversation?.title ?? workspaceTitle}
                 header={header}
                 sidebar={sidebar}
                 context={capabilities.ownerContext ? contextPanel : null}
@@ -1149,6 +1225,18 @@ export default function PersonalWorkspace() {
                             {empty ? (
                                 <div className="flex h-full flex-col items-center justify-center gap-6">
                                     <p className="text-2xl font-medium tracking-tight text-white">Чем займёмся?</p>
+                                    {showOnboarding && onboardingStatus !== 'completed' ? (
+                                        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-center">
+                                            <p className="text-sm text-slate-300">{onboardingLabel}</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => router.post(workspaceRoute(surface, 'onboarding.start'))}
+                                                className="mt-2 rounded-lg bg-sky-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-400"
+                                            >
+                                                {onboardingStatus === 'in_progress' ? 'Продолжить знакомство' : 'Познакомиться'}
+                                            </button>
+                                        </div>
+                                    ) : null}
                                     <div className="flex max-w-xl flex-wrap justify-center gap-2">
                                         {(capabilities.ownerContext ? SUGGESTIONS : USER_SUGGESTIONS).map((chip) => (
                                             <button
@@ -1290,7 +1378,7 @@ export default function PersonalWorkspace() {
             {promptOpen ? (
                 <Modal title="General Prompt" onClose={() => setPromptOpen(false)}>
                     <p className="mb-3 text-sm text-slate-400">
-                        Personal assistant instruction for this account.
+                        Additional explicit instructions for this account. Separate from assistant name, personality, and Memory.
                     </p>
                     <form
                         onSubmit={(event) => {
@@ -1399,6 +1487,60 @@ export default function PersonalWorkspace() {
                                 </button>
                             </div>
                         </div>
+                        {showOnboarding ? (
+                            <div className="border-t border-white/10 pt-4">
+                                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Знакомство</p>
+                                <p className="mt-1 text-sm text-slate-200">{onboardingLabel}</p>
+                                {onboardingStatus === 'not_started' ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSettingsOpen(false);
+                                            router.post(workspaceRoute(surface, 'onboarding.start'));
+                                        }}
+                                        className="mt-2 rounded-lg bg-sky-500 px-3 py-2 text-sm font-medium text-white hover:bg-sky-400"
+                                    >
+                                        Познакомиться
+                                    </button>
+                                ) : null}
+                                {onboardingStatus === 'in_progress' ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSettingsOpen(false);
+                                            router.post(workspaceRoute(surface, 'onboarding.start'));
+                                        }}
+                                        className="mt-2 rounded-lg bg-sky-500 px-3 py-2 text-sm font-medium text-white hover:bg-sky-400"
+                                    >
+                                        Продолжить знакомство
+                                    </button>
+                                ) : null}
+                                {onboardingStatus === 'completed' ? (
+                                    <p className="mt-2 text-xs text-slate-500">Изменить имя или стиль можно в чате: «Теперь тебя зовут…», «Отвечай короче».</p>
+                                ) : null}
+                                <dl className="mt-3 space-y-2 text-xs text-slate-400">
+                                    <div>
+                                        <dt className="uppercase tracking-[0.12em] text-slate-500">Имя ассистента</dt>
+                                        <dd className="mt-0.5 text-sm text-slate-200">{assistantProfile?.assistant_name || '—'}</dd>
+                                    </div>
+                                    <div>
+                                        <dt className="uppercase tracking-[0.12em] text-slate-500">Характер</dt>
+                                        <dd className="mt-0.5 whitespace-pre-wrap text-sm text-slate-200">{assistantProfile?.personality || '—'}</dd>
+                                    </div>
+                                    <div>
+                                        <dt className="uppercase tracking-[0.12em] text-slate-500">Стиль взаимодействия</dt>
+                                        <dd className="mt-0.5 whitespace-pre-wrap text-sm text-slate-200">{assistantProfile?.interaction_style || '—'}</dd>
+                                    </div>
+                                    <div>
+                                        <dt className="uppercase tracking-[0.12em] text-slate-500">О пользователе</dt>
+                                        <dd className="mt-0.5 whitespace-pre-wrap text-sm text-slate-200">{assistantProfile?.about_user || '—'}</dd>
+                                    </div>
+                                </dl>
+                                <p className="mt-3 text-[11px] text-slate-600">
+                                    Профиль ассистента задаёт, кто он и как общается. General Prompt — отдельные явные инструкции. Memory — факты, накопленные со временем.
+                                </p>
+                            </div>
+                        ) : null}
                         <div className="flex flex-wrap gap-2">
                             <button
                                 type="submit"
@@ -1436,6 +1578,20 @@ export default function PersonalWorkspace() {
                     </form>
                 </Modal>
             ) : null}
+
+            <RemindersPanel
+                open={remindersOpen}
+                surface={surface}
+                timezone={timezone}
+                onClose={() => setRemindersOpen(false)}
+                onCountChange={setActiveReminderCount}
+                onCreateInChat={() => {
+                    setRemindersOpen(false);
+                    setMode('text');
+                    setDraft((current) => (current?.trim() ? current : 'Напомни мне '));
+                    requestAnimationFrame(() => focusComposer(composerRef.current, { forceDesktopOnly: false }));
+                }}
+            />
 
             {lightbox ? (
                 <div

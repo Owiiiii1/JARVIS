@@ -11,6 +11,7 @@ use App\Models\Conversation;
 use App\Models\Memory;
 use App\Models\User;
 use App\Models\UserAiSetting;
+use App\Services\Assistant\AssistantProfileService;
 use App\Support\Timezones;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -20,6 +21,7 @@ final class UserAdministrationService
     public function __construct(
         private readonly AccessCodeGenerator $accessCodes,
         private readonly UserSessionInvalidator $sessions,
+        private readonly AssistantProfileService $assistantProfiles,
     ) {}
 
     /**
@@ -38,7 +40,7 @@ final class UserAdministrationService
      */
     public function card(User $user): array
     {
-        $user->loadMissing('telegramIdentity', 'aiSettings');
+        $user->loadMissing('telegramIdentity', 'aiSettings', 'assistantProfile');
         $user->loadCount([
             'conversations',
             'messages',
@@ -72,6 +74,7 @@ final class UserAdministrationService
             'created_at' => optional($user->created_at)?->toIso8601String(),
             'last_activity_at' => $this->lastActivityIso($user),
             'general_prompt' => $user->aiSettings?->general_prompt,
+            'assistant_profile' => $this->assistantProfiles->workspacePayload($user),
             'is_owner' => $user->isOwner(),
             'can_disable' => ! $user->isOwner(),
             'can_regenerate_code' => ! $user->isOwner(),

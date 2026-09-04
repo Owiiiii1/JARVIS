@@ -775,6 +775,20 @@ Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
 ---
 
+## Milestone 25U.3 — User Personalization + Reminders Panel
+
+**Status.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live AI onboarding, reminders, Telegram, or Voice.
+
+**Цель.** Ordinary users set assistant name/personality/interaction/`about_user` via conversational onboarding in the same Personal Workspace. Reminders are visible and cancellable in a workspace panel. Chat is not blocked before onboarding.
+
+**Реализовано.** `user_assistant_profiles`; `AssistantProfileService`; tools `get_assistant_profile` / `update_assistant_profile` / `complete_assistant_onboarding`; compact identity in Context Builder; header name for users; Owner remains Jarvis; GET/cancel reminder endpoints; lazy reminders drawer on `/jarvis` and `/chat`. [ASSISTANT_PERSONALIZATION.md](ASSISTANT_PERSONALIZATION.md).
+
+**Не реализовывать.** Form wizard. Forced onboarding. Telegram bot rename. General Prompt replacement. Recurring reminder parser in the frontend. Live AI/reminder smoke. `php artisan test`.
+
+**Зависимости:** M25U.1, M25U.2.
+
+---
+
 ## Milestone 25 — Desktop Client Foundation
 
 **Цель.** Tauri 2 + React/TS client in `Owiiiii1/JARVIS-Desktop`. Thin client, Client API, same conversations.

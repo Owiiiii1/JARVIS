@@ -9,13 +9,13 @@ This document describes **what exists on the server now**. Target architecture i
 
 ### Implemented vs planned (post-M25U.2)
 
-**IMPLEMENTED (code/runtime; Google Calendar/Gmail combined smoke and GitHub live integration still not validated):** Admin Panel including User catalog + User Card + Owner impersonation (M25U.2); Telegram pairing/DM/Chat Selector; Shared Personal Workspace (`/jarvis` owner, `/chat` user; `/cabinet` redirect); Owner Workspace including M22.1 image attachments + copyable artifacts, M22.2 persistent Storage + ephemeral screenshots, and M22.3 Web Research + Context Budget Manager + M22.3.1 Admin Web Research settings; Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, reminders/groups deferred checks, `fetch_web_page`, Tavily, screenshot purge, and ContextBudgetManager remain not Owner-validated. Automated tests have not been run. Manual A/B user isolation campaign is prepared, not executed. No production test users were created in M25U.2.
-
-**PLANNED / DOCUMENTED ONLY (not implemented):** versioned Client API; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch; telephony. Do not treat these as shipped.
+**IMPLEMENTED (code/runtime; Google Calendar/Gmail combined smoke and GitHub live integration still not validated):** Admin Panel including User catalog + User Card + Owner impersonation (M25U.2); assistant personalization + reminders panel (M25U.3); Telegram pairing/DM/Chat Selector; Shared Personal Workspace (`/jarvis` owner, `/chat` user; `/cabinet` redirect); Owner Workspace including M22.1 image attachments + copyable artifacts, M22.2 persistent Storage + ephemeral screenshots, and M22.3 Web Research + Context Budget Manager + M22.3.1 Admin Web Research settings; Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, reminders/groups deferred checks, `fetch_web_page`, Tavily, screenshot purge, and ContextBudgetManager remain not Owner-validated. Automated tests have not been run. Manual A/B user isolation campaign is prepared, not executed. No production test users were created in M25U.2/M25U.3.
 
 **PLANNED / DOCUMENTED ONLY (not implemented):** versioned Client API; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch; telephony. Do not treat these as shipped.
 
 M23 Voice Runtime Foundation, M23.2 Gemini STT, M24 Voice UI / Orb, and M24.1 hands-free VAD are **IMPLEMENTED / NOT VALIDATED** (no live STT/TTS/AI).
+
+M25U.1/M25U.2 **core user workflow** is **MANUAL PASS** for Owner-confirmed production scenarios only: Admin-created ordinary user; login; `/chat`; basic requests. Not claimed: A/B IDOR campaign, Voice, reminders panel, onboarding (those last two are M25U.3, not live-validated).
 
 Status vocabulary:
 
@@ -36,13 +36,22 @@ Status vocabulary:
 
 Owner-only production confirmation. No automated tests. No new live test runs in this documentation pass.
 
-**PASS:**
+**PASS (Owner Workspace / storage / research, earlier 2026-09-04):**
 
 - Owner Workspace image upload
 - Gemini vision recognition
 - persistent text-file upload
 - persistent Storage retrieval/read
 - Gemini Google Search web research (current-information retrieval)
+
+**PASS (Owner, after M25U.2 — core User Space workflow):**
+
+- Owner created an ordinary user through Admin
+- ordinary user login works
+- `/chat` works
+- test requests / basic user flow work
+
+**Not claimed as MANUAL PASS:** hostile A/B IDOR campaign; Voice; reminders panel; onboarding (M25U.3 code exists, not Owner-validated in this pass).
 
 **Not included (Owner did not confirm):** `fetch_web_page` as a distinct tool, Tavily, ContextBudgetManager, SSRF, screenshot expiry/purge, screenshot summarization, Storage UI besides chat upload/read, destructive Storage delete, artifact rendering as a separate check, Google Calendar/Gmail combined smoke, GitHub runtime, reminders/groups deferred checks.
 
@@ -53,9 +62,9 @@ Owner-only production confirmation. No automated tests. No new live test runs in
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | (this commit: `feat: complete user administration and isolation controls`) |
-| Previous origin/main | `00b54e06ca2df474a6258546cd5d17221f154f77` |
-| Message | previous: `feat: add Gemini speech to text provider` (M23.2 already on main; not reverted) |
+| HEAD | (this commit: `feat: add assistant onboarding and reminders panel`) |
+| Previous origin/main | `7d9c83f990f95415b60d3fd8e7e33f27bd9b4f95` |
+| Message | previous: `feat: add hands free voice turn detection` (M24.1 already on main; not reverted) |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 | Working tree (at audit start) | clean |
 | Uncommitted / untracked | none (before this file) |
@@ -361,13 +370,15 @@ No `app/Services` conversation classes. No controllers for chats.
 | Feature | Status | Fact |
 | --- | --- | --- |
 | Users list (admin settings tab) | IMPLEMENTED / NOT VALIDATED | M25U.2 catalog: name, email, role, status, Telegram, access code, chats/messages counts, last activity, created |
-| User Card | IMPLEMENTED / NOT VALIDATED | `/settings/users/{user}` Overview/Access/Chats/Memory |
-| User profile (cabinet) | IMPLEMENTED / NOT VALIDATED | `/chat` settings: name, timezone, own password |
-| User General Prompt | IMPLEMENTED | Workspace settings drawer; `user_ai_settings`. Owner may edit same row from User Card |
+| User Card | IMPLEMENTED / NOT VALIDATED | `/settings/users/{user}` Overview/Access/Chats/Memory/Assistant (onboarding status, assistant name) |
+| User profile (cabinet) | MANUAL PASS (core) / IMPLEMENTED | `/chat` settings: name, timezone, own password. Owner confirmed login + `/chat` + basic requests after M25U.2 |
+| User General Prompt | IMPLEMENTED | Workspace settings drawer; `user_ai_settings`. Separate from assistant profile |
+| Assistant personalization | IMPLEMENTED / NOT VALIDATED | `user_assistant_profiles`; conversational onboarding; header name for ordinary users |
 | User AI override | DOCUMENTED ONLY | No per-user model override; Default User Conversation AI |
 | User conversations / topics | PARTIAL | Personal conversations exist; topics later |
 | Cabinet | COMPATIBILITY | Redirect `/cabinet` → `/chat` |
-| User Personal Workspace | IMPLEMENTED / NOT VALIDATED | `/chat` shared frontend (M25U.1) |
+| User Personal Workspace | MANUAL PASS (core) | `/chat` shared frontend (M25U.1). Confirmed: login, chat, basic requests. Not: Voice, onboarding, reminders panel |
+| Reminders panel | IMPLEMENTED / NOT VALIDATED | Header drawer on `/jarvis` and `/chat`; lazy GET; cancel own only |
 | Cabinet login | IMPLEMENTED | Owner → `/jarvis`; user → `/chat`; disabled → generic auth.failed |
 | Chat list / new chat / history | IMPLEMENTED / NOT VALIDATED | Shared Personal Workspace |
 | Impersonation | IMPLEMENTED / NOT VALIDATED | Owner-only session; banner; exit → `/jarvis` |
@@ -818,9 +829,13 @@ Owner and User share one Personal Workspace frontend. Canonical user route `/cha
 
 ### Milestone 25U.2 — User Administration + Isolation Hardening — IMPLEMENTED / NOT VALIDATED (2026-09-04)
 
-Owner-created users only. User Card, active/disabled, password reset + session invalidation, access code regenerate (does not unlink Telegram), Telegram unlink, session impersonation, isolation audit. No production test users. TESTS NOT RUN. NO LIVE AI/WEB/VOICE/TELEGRAM. Manual A/B checklist in [USER_ADMINISTRATION.md](USER_ADMINISTRATION.md) — not executed.
+Owner-created users only. User Card, active/disabled, password reset + session invalidation, access code regenerate (does not unlink Telegram), Telegram unlink, session impersonation, isolation audit. No production test users. TESTS NOT RUN. NO LIVE AI/WEB/VOICE/TELEGRAM. Owner later confirmed in production: create user, login, `/chat`, basic requests → **MANUAL PASS** for those scenarios only. Manual A/B checklist in [USER_ADMINISTRATION.md](USER_ADMINISTRATION.md) — not executed.
 
-### Planned after M25U.2 — DOCUMENTED ONLY
+### Milestone 25U.3 — User Personalization + Reminders Panel — IMPLEMENTED / NOT VALIDATED (2026-09-04)
+
+`user_assistant_profiles`; conversational onboarding in the same Personal Workspace; Core tools; compact identity in every turn; ordinary-user header uses chosen assistant name; Owner stays Jarvis; reminders GET/cancel + lazy panel. TESTS NOT RUN. NO LIVE AI/REMINDER/VOICE. [ASSISTANT_PERSONALIZATION.md](ASSISTANT_PERSONALIZATION.md).
+
+### Planned after M25U.3 — DOCUMENTED ONLY
 
 Manual User A/B isolation campaign (required before USER SPACE = MANUAL PASS); Desktop Tauri; Mobile Flutter; GitHub merge/file-write/webhooks; proactive assistant; telephony adapter. Do not treat as shipped.
 

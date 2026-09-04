@@ -9,7 +9,9 @@ User A, User B и Owner personal context **никогда** не смешива�
 
 Связано: [CHANNELS.md](CHANNELS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [REMINDERS.md](REMINDERS.md), [PROJECTS.md](PROJECTS.md), [INTEGRATIONS.md](INTEGRATIONS.md), [USER_ADMINISTRATION.md](USER_ADMINISTRATION.md), ADR-016–045, ADR-184–200, ADR-209–219.
 
-Фактический код (M25U.2): Owner создаёт users; саморегистрации нет. Каталог Users + User Card (`/settings/users/{user}`). Status `active`/`disabled`. Impersonation session-scoped. Один Shared Personal Workspace (`resources/js/personal-workspace`). Owner `/jarvis`, user `/chat`. `/cabinet` — compatibility redirect. User на admin route получает 403. Web chat и Telegram используют один catalog и `ConversationTurnService`. Owner login → `/jarvis`. User login → `/chat`. Owner `/chat` → `/jarvis`. User `/jarvis` → `/chat`. General Prompt — workspace settings drawer (`user_ai_settings`); Owner может править тот же ряд с User Card. System AI configs — только owner Settings → AI. Подробно: [USER_ADMINISTRATION.md](USER_ADMINISTRATION.md).
+Фактический код (M25U.3): Owner создаёт users; саморегистрации нет. Каталог Users + User Card (`/settings/users/{user}`), включая onboarding status / assistant name. Status `active`/`disabled`. Impersonation session-scoped. Один Shared Personal Workspace (`resources/js/personal-workspace`). Owner `/jarvis`, user `/chat`. `/cabinet` — compatibility redirect. User на admin route получает 403. Web chat и Telegram используют один catalog и `ConversationTurnService`. Owner login → `/jarvis`. User login → `/chat`. Owner `/chat` → `/jarvis`. User `/jarvis` → `/chat`. Assistant profile (`user_assistant_profiles`) задаёт имя/характер/стиль; General Prompt — workspace settings drawer (`user_ai_settings`); Memory — факты со временем. Reminders panel — GET/cancel, lazy. Onboarding не блокирует чат. Подробно: [USER_ADMINISTRATION.md](USER_ADMINISTRATION.md), [ASSISTANT_PERSONALIZATION.md](ASSISTANT_PERSONALIZATION.md).
+
+Owner подтвердил в production (M25U.2): создание пользователя, login, `/chat`, базовые запросы → **MANUAL PASS** только для этих сценариев. A/B IDOR, Voice, onboarding, reminders panel — не MANUAL PASS.
 
 ---
 
@@ -36,7 +38,7 @@ conversations; conversation summaries; personal memories; **projects**; topics; 
 
 ### User Space
 
-conversations; summaries; personal memory; General Prompt; **Default User Conversation AI**; Telegram DM; Web Personal Workspace (`/chat`); reminders; timezone; images/files in chat; instance Web Research; Voice Runtime/UI.
+conversations; summaries; personal memory; Assistant profile + optional conversational onboarding; General Prompt; **Default User Conversation AI**; Telegram DM; Web Personal Workspace (`/chat`); reminders (chat create + workspace panel); timezone; images/files in chat; instance Web Research; Voice Runtime/UI.
 
 Нет: Admin, Groups, Projects, Google, GitHub, owner AI config, Storage page, integration settings.
 

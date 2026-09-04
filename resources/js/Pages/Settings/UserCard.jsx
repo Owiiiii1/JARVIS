@@ -77,7 +77,7 @@ export default function UserCard() {
                 {errors.user_delete ? <p className="text-sm text-red-600">{errors.user_delete}</p> : null}
 
                 <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
-                    {['overview', 'access', 'chats', 'memory'].map((id) => (
+                    {['overview', 'access', 'chats', 'memory', 'assistant'].map((id) => (
                         <button
                             key={id}
                             type="button"
@@ -121,6 +121,8 @@ export default function UserCard() {
                                 <ReadOnly label="Status" value={managedUser.status} />
                                 <ReadOnly label="Created" value={formatWhen(managedUser.created_at)} />
                                 <ReadOnly label="Last activity" value={formatWhen(managedUser.last_activity_at)} />
+                                <ReadOnly label="Onboarding" value={managedUser.assistant_profile?.onboarding_status} />
+                                <ReadOnly label="Assistant name" value={managedUser.assistant_profile?.assistant_name || (managedUser.is_owner ? 'Jarvis' : '—')} />
                                 <button type="submit" disabled={profileForm.processing} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
                                     Save profile
                                 </button>
@@ -254,6 +256,19 @@ export default function UserCard() {
                                 Save General Prompt
                             </button>
                         </form>
+                    </section>
+                ) : null}
+
+                {tab === 'assistant' ? (
+                    <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+                        <h2 className="text-sm font-semibold text-slate-900">Assistant personalization</h2>
+                        <p className="text-xs text-slate-500">Read-only inspection. Users change this in chat. General Prompt remains separate.</p>
+                        <ReadOnly label="Onboarding status" value={managedUser.assistant_profile?.onboarding_status} />
+                        <ReadOnly label="Assistant name" value={managedUser.assistant_profile?.assistant_name} />
+                        <ReadOnly label="Completed at" value={formatWhen(managedUser.assistant_profile?.onboarding_completed_at)} />
+                        <ReadOnly label="Personality" value={managedUser.assistant_profile?.personality} />
+                        <ReadOnly label="Interaction style" value={managedUser.assistant_profile?.interaction_style} />
+                        <ReadOnly label="About user" value={managedUser.assistant_profile?.about_user} />
                     </section>
                 ) : null}
             </div>

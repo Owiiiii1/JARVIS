@@ -19,6 +19,8 @@ return [
 
     'general_prompt' => (int) env('CONTEXT_GENERAL_PROMPT_TOKENS', 800),
 
+    'assistant_identity' => (int) env('CONTEXT_ASSISTANT_IDENTITY_TOKENS', 600),
+
     'current_turn' => (int) env('CONTEXT_CURRENT_TURN_TOKENS', 4000),
 
     'recent_messages' => (int) env('CONTEXT_RECENT_MESSAGES_TOKENS', 6000),

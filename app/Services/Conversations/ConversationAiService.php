@@ -37,6 +37,8 @@ final class ConversationAiService
 {
     public const PAIRING_GREETING_EVENT = 'Пользователь только что подключил Jarvis. Поприветствуй его и коротко представься.';
 
+    public const ONBOARDING_GREETING_EVENT = 'Начни знакомство: поприветствуй пользователя и мягко спроси, как тебя называть. Не используй анкету. Не завершай знакомство в этом первом сообщении.';
+
     public const AI_FAILURE = 'Не удалось получить ответ от AI. Попробуйте ещё раз позже.';
 
     public const VISION_NOT_SUPPORTED = 'Этот AI-провайдер не принимает изображения. Смените модель в Admin или отправьте текст.';
@@ -114,6 +116,27 @@ final class ConversationAiService
             inbound: null,
             applicationEvent: self::PAIRING_GREETING_EVENT,
             eventName: 'pairing_greeting',
+        );
+    }
+
+    public function greetOnboarding(User $user, Conversation $conversation): ConversationAiTurnResult
+    {
+        $existing = Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('role', MessageRole::Assistant)
+            ->where('metadata->ai->event', 'onboarding_greeting')
+            ->first();
+
+        if ($existing !== null) {
+            return new ConversationAiTurnResult(skipped: true, assistantMessage: $existing);
+        }
+
+        return $this->runTurn(
+            user: $user,
+            conversation: $conversation,
+            inbound: null,
+            applicationEvent: self::ONBOARDING_GREETING_EVENT,
+            eventName: 'onboarding_greeting',
         );
     }
 

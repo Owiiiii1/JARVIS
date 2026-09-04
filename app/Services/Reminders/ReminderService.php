@@ -127,4 +127,109 @@ final class ReminderService
             throw new ReminderException('past_time', 'Reminder time is in the past.');
         }
     }
+
+    public function activeCount(User $user): int
+    {
+        if (! $user->canUseCapability(UserCapability::REMINDERS)) {
+            return 0;
+        }
+
+        return Reminder::query()
+            ->where('user_id', $user->id)
+            ->whereIn('status', [ReminderStatus::Scheduled, ReminderStatus::Processing])
+            ->count();
+    }
+
+    /**
+     * @return array{active: list<array<string, mixed>>, history: list<array<string, mixed>>, telegram_connected: bool}
+     */
+    public function panelFor(User $user): array
+    {
+        if (! $user->canUseCapability(UserCapability::REMINDERS)) {
+            throw new ReminderException('capability_denied', 'Reminders are not available.');
+        }
+
+        $timezone = (string) ($user->timezone ?: 'UTC');
+        $active = Reminder::query()
+            ->where('user_id', $user->id)
+            ->whereIn('status', [ReminderStatus::Scheduled, ReminderStatus::Processing])
+            ->orderBy('run_at')
+            ->limit(50)
+            ->get();
+
+        $history = Reminder::query()
+            ->where('user_id', $user->id)
+            ->whereIn('status', [ReminderStatus::Delivered, ReminderStatus::Cancelled, ReminderStatus::Failed])
+            ->orderByDesc('updated_at')
+            ->limit(30)
+            ->get();
+
+        return [
+            'telegram_connected' => ChannelIdentity::findTelegramForUser((int) $user->id) !== null,
+            'active_count' => $this->activeCount($user),
+            'active' => $active->map(fn (Reminder $reminder): array => $this->panelRow($reminder, $timezone))->values()->all(),
+            'history' => $history->map(fn (Reminder $reminder): array => $this->panelRow($reminder, $timezone))->values()->all(),
+        ];
+    }
+
+    public function cancelOwned(User $user, int $reminderId): Reminder
+    {
+        if (! $user->canUseCapability(UserCapability::REMINDERS)) {
+            throw new ReminderException('capability_denied', 'Reminders are not available.');
+        }
+
+        $reminder = Reminder::query()
+            ->where('user_id', $user->id)
+            ->whereKey($reminderId)
+            ->first();
+
+        if ($reminder === null) {
+            throw new ReminderException('not_found', 'Reminder not found.');
+        }
+
+        if (! in_array($reminder->status, [ReminderStatus::Scheduled, ReminderStatus::Processing], true)) {
+            throw new ReminderException('not_cancellable', 'This reminder cannot be cancelled.');
+        }
+
+        $reminder->forceFill([
+            'status' => ReminderStatus::Cancelled,
+            'cancelled_at' => CarbonImmutable::now('UTC'),
+        ])->save();
+
+        return $reminder->fresh() ?? $reminder;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function panelRow(Reminder $reminder, string $fallbackTimezone): array
+    {
+        $timezone = $reminder->timezone ?: $fallbackTimezone;
+
+        try {
+            $local = $reminder->run_at?->setTimezone($timezone);
+        } catch (Exception) {
+            $local = $reminder->run_at?->utc();
+            $timezone = 'UTC';
+        }
+
+        $recurrence = trim((string) ($reminder->recurrence_rule ?? ''));
+
+        return [
+            'id' => (int) $reminder->id,
+            'text' => $reminder->text,
+            'status' => $reminder->status->value,
+            'run_at' => optional($reminder->run_at)?->toIso8601String(),
+            'run_at_local' => $local?->format('Y-m-d\TH:i:sP'),
+            'timezone' => $timezone,
+            'original_local_time' => $reminder->original_local_time,
+            'recurrence' => $recurrence !== '' ? $recurrence : null,
+            'delivery_channel' => 'telegram',
+            'cancellable' => in_array($reminder->status, [ReminderStatus::Scheduled, ReminderStatus::Processing], true),
+            'created_at' => optional($reminder->created_at)?->toIso8601String(),
+            'delivered_at' => optional($reminder->delivered_at)?->toIso8601String(),
+            'cancelled_at' => optional($reminder->cancelled_at)?->toIso8601String(),
+            'last_error' => $reminder->last_error,
+        ];
+    }
 }

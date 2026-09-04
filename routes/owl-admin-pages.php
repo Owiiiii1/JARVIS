@@ -5,6 +5,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Jarvis\JarvisAttachmentController;
 use App\Http\Controllers\Jarvis\JarvisConfirmationController;
+use App\Http\Controllers\Jarvis\JarvisReminderController;
 use App\Http\Controllers\Jarvis\JarvisStorageController;
 use App\Http\Controllers\Jarvis\JarvisVoiceController;
 use App\Http\Controllers\Jarvis\JarvisWorkspaceController;
@@ -94,6 +95,14 @@ $registerPersonalWorkspace = static function (string $prefix, string $as, array 
             ->name('settings.profile.update');
         Route::put('/settings/password', [JarvisWorkspaceController::class, 'updatePassword'])
             ->name('settings.password.update');
+        Route::post('/onboarding', [JarvisWorkspaceController::class, 'startOnboarding'])
+            ->name('onboarding.start');
+        Route::get('/reminders', [JarvisReminderController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('reminders.index');
+        Route::post('/reminders/{reminder}/cancel', [JarvisReminderController::class, 'cancel'])
+            ->middleware('throttle:30,1')
+            ->name('reminders.cancel');
         Route::post('/chats/{conversation}/voice/sessions', [JarvisVoiceController::class, 'store'])
             ->middleware('throttle:20,1')
             ->name('voice.sessions.store');

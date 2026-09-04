@@ -5,7 +5,9 @@ namespace App\Services\Conversations;
 use App\Enums\MessageChannel;
 use App\Models\Conversation;
 use App\Models\User;
+use App\Services\Assistant\AssistantProfileService;
 use App\Services\ChatAttachments\Exceptions\ChatAttachmentException;
+use App\Services\Reminders\ReminderService;
 use App\Services\Storage\Exceptions\StoredFileException;
 use App\Services\Tools\ToolConfirmationService;
 use App\Services\Users\UserCapability;
@@ -22,6 +24,9 @@ final class PersonalChatSurfaceService
         private readonly ConversationTurnService $turns,
         private readonly MessageHistoryService $history,
         private readonly ToolConfirmationService $confirmations,
+        private readonly AssistantProfileService $assistantProfiles,
+        private readonly ConversationAiService $conversationAi,
+        private readonly ReminderService $reminders,
     ) {}
 
     /**
@@ -104,6 +109,18 @@ final class PersonalChatSurfaceService
     public function createChat(User $user): Conversation
     {
         return $this->conversations->createPersonal($user, ConversationService::NEW_CHAT_TITLE);
+    }
+
+    public function startOnboarding(User $user): Conversation
+    {
+        $conversation = $this->assistantProfiles->startOnboarding($user);
+
+        try {
+            $this->conversationAi->greetOnboarding($user, $conversation);
+        } catch (\Throwable) {
+        }
+
+        return $conversation->fresh() ?? $conversation;
     }
 
     public function rename(User $user, Conversation $conversation, string $title): Conversation
@@ -209,6 +226,8 @@ final class PersonalChatSurfaceService
     private function turnPayload(ConversationTurnResult $turn, Conversation $conversation): array
     {
         $fresh = $conversation->fresh() ?? $conversation;
+        $fresh->loadMissing('user');
+        $user = $fresh->user;
 
         return [
             'inbound' => $this->history->toArray($turn->inbound),
@@ -222,6 +241,8 @@ final class PersonalChatSurfaceService
                 'title' => $fresh->title,
                 'last_activity_at' => optional($fresh->last_activity_at)?->toIso8601String(),
             ],
+            'assistant_profile' => $this->assistantProfiles->workspacePayload($user),
+            'active_reminder_count' => $this->reminders->activeCount($user),
         ];
     }
 }

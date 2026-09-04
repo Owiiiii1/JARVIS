@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Jarvis;
 
 use App\Http\Controllers\Controller;
 use App\Models\UserAiSetting;
+use App\Services\Assistant\AssistantProfileService;
 use App\Services\ChatAttachments\ChatAttachmentConfig;
 use App\Services\Conversations\ConversationService;
 use App\Services\Conversations\PersonalChatSurfaceService;
+use App\Services\Reminders\ReminderService;
 use App\Services\Storage\StoredFileConfig;
 use App\Services\Voice\VoiceAudioMime;
 use App\Services\Voice\VoiceSettingsService;
@@ -26,6 +28,8 @@ class JarvisWorkspaceController extends Controller
     public function __construct(
         private readonly PersonalChatSurfaceService $chats,
         private readonly OwnerWorkspaceContextService $context,
+        private readonly AssistantProfileService $assistantProfiles,
+        private readonly ReminderService $reminders,
     ) {}
 
     public function index(Request $request): RedirectResponse
@@ -65,12 +69,27 @@ class JarvisWorkspaceController extends Controller
             'voiceClient' => VoiceAudioMime::workspacePayload(
                 app(VoiceSettingsService::class)->effective()->sttProvider->value,
             ),
+            'assistantProfile' => $this->assistantProfiles->workspacePayload($user),
+            'activeReminderCount' => $this->reminders->activeCount($user),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
         $conversation = $this->chats->createChat($request->user());
+
+        return redirect()->route($this->named($request, 'chats.show'), $conversation);
+    }
+
+    public function startOnboarding(Request $request): RedirectResponse
+    {
+        try {
+            $conversation = $this->chats->startOnboarding($request->user());
+        } catch (InvalidArgumentException $exception) {
+            throw ValidationException::withMessages([
+                'onboarding' => $exception->getMessage(),
+            ]);
+        }
 
         return redirect()->route($this->named($request, 'chats.show'), $conversation);
     }

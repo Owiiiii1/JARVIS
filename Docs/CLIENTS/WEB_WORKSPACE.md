@@ -1,6 +1,6 @@
 # Personal Web Workspace
 
-**Status.** M25U.2 IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live AI / Web Search / Voice provider calls. Manual A/B isolation campaign is prepared, not executed.
+**Status.** M25U.3 IMPLEMENTED / NOT VALIDATED (2026-09-04) for personalization + reminders panel. M25U.1/M25U.2 **core user workflow** is **MANUAL PASS** for Owner-confirmed production scenarios (create user, login, `/chat`, basic requests). Automated tests not run. No live AI / Web Search / Voice / onboarding / reminders in this documentation pass. Manual A/B isolation campaign is prepared, not executed.
 
 Owner and ordinary users share **one Personal Workspace product**. Role/capabilities change available features, not the chat implementation.
 
@@ -77,6 +77,8 @@ Workspace uses the existing Owner Space and engines:
 - `tool_confirmations`
 
 This is **not** a second chat engine and **not** a second owner memory.
+
+M25U.3: ordinary-user header shows the chosen assistant name (fallback **Assistant**). Owner header stays Jarvis. Onboarding is a normal **Знакомство** chat (optional, not a gate). Reminders: header **Напоминания** with active count; list is lazy-loaded; create remains conversational (`Создать в чате`). Same panel on `/jarvis` and `/chat`, scoped to the effective user. [ASSISTANT_PERSONALIZATION.md](../ASSISTANT_PERSONALIZATION.md).
 
 Telegram-created personal chats appear in `/jarvis`. New Chat creates a normal personal conversation (`kind=personal`). Default unused visit uses `ConversationService::latestOrDefault()` (existing recent chat, otherwise `Основной`).
 

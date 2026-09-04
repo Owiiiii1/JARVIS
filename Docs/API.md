@@ -73,9 +73,10 @@ API нужен User Workspace, Owner Workspace, Desktop, Mobile. Telegram ход
 - публичный статус: модель подключена, бот подключен, «Jarvis доступен»;
 - **не** выставлять наружу секреты провайдеров и bot token;
 - пользовательские предпочтения профиля — узкий subset, не вся админка;
-- свой General Prompt — user правит в Cabinet; owner видит/может править с User Card;
+- свой General Prompt — user правит в Personal Workspace; owner видит/может править с User Card;
+- assistant profile — Core data; header name; tools `get_assistant_profile` / `update_assistant_profile` (current user only);
 - timezone (IANA) своего профиля;
-- reminders не через отдельный push API: создание в чате, доставка только Telegram.
+- reminders: создание в чате; same-origin `GET /{jarvis|chat}/reminders` and `POST .../reminders/{id}/cancel` (auth, active, capability, ownership); доставка только Telegram.
 
 Админские CRUD провайдеров, Users, impersonation — admin surface, не cabinet/mobile API.
 

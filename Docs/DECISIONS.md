@@ -2164,6 +2164,76 @@
 
 ---
 
+## ADR-227 — Assistant personalization is separate from General Prompt
+
+**Контекст.** Concatenating onboarding into `general_prompt` loses structured identity, status, and header name.
+
+**Решение.** `user_assistant_profiles` holds name, personality, interaction style, `about_user`, and onboarding status. General Prompt stays independently editable.
+
+**Следствие.** Chat tools update profile fields; they do not rewrite General Prompt unless the user asked to change that separately.
+
+---
+
+## ADR-228 — Personalization profile is per-user
+
+**Контекст.** Owner, User A, and User B must not share assistant identity.
+
+**Решение.** Unique `user_id` on `user_assistant_profiles`. Tools resolve the conversation user only. No `user_id` argument from the LLM.
+
+**Следствие.** Impersonation shows/changes the impersonated user’s profile.
+
+---
+
+## ADR-229 — Onboarding is conversational in the normal Conversation Engine
+
+**Контекст.** A form wizard would be a second product surface.
+
+**Решение.** **Познакомиться** opens a normal **Знакомство** conversation. Chat is not blocked if onboarding is incomplete.
+
+**Следствие.** Telegram/Voice reuse the same profile; the Telegram bot username is not renamed.
+
+---
+
+## ADR-230 — Structured profile updates use scoped Core tools
+
+**Контекст.** The model must not invent preferences or complete onboarding from raw chat guesswork.
+
+**Решение.** `update_assistant_profile` writes only explicit user-provided fields. `complete_assistant_onboarding` requires name, personality, interaction style, and `about_user`. Writes do not need a confirmation modal.
+
+**Следствие.** `about_user` complements Memory; it does not replace Memory.
+
+---
+
+## ADR-231 — Assistant name is user-specific presentation identity
+
+**Контекст.** Ordinary users should see their chosen name, not the product brand.
+
+**Решение.** `/chat` header uses `assistant_name` (fallback Assistant). Owner `/jarvis` remains Jarvis.
+
+**Следствие.** Compact identity is injected every turn after platform/role config and before General Prompt.
+
+---
+
+## ADR-232 — Reminders panel is a view over the existing Reminder Engine
+
+**Контекст.** Users need to see and cancel reminders without a separate dashboard.
+
+**Решение.** Shared lazy-loaded drawer on `/jarvis` and `/chat`. GET list + cancel owned future reminders. Creation stays conversational. Active count is a cheap workspace prop.
+
+**Следствие.** Delivery remains Telegram-only. Recurrence is still unsupported. Foreign reminder ids are not accessible.
+
+---
+
+## ADR-233 — Users change personalization later through ordinary chat
+
+**Контекст.** After onboarding, name and style must remain editable.
+
+**Решение.** Ordinary chat keeps `get_assistant_profile` and `update_assistant_profile`. Settings drawer shows current values read-only.
+
+**Следствие.** No second settings product for personality.
+
+---
+
 - Алфавит generated access_code (кроме зарезервированного 2000).
 - 403 vs redirect когда user открывает admin URL.
 - Auth схема Desktop/Mobile (token flavour).

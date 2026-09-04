@@ -27,6 +27,7 @@ UI Orb is separate: [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
 - same selected `conversation_id` (already owned by the user);
 - same Conversation Engine (`ConversationTurnService` → `ConversationAiService`);
 - same AI configuration of that space (Owner Conversation AI is **not** changed by STT/TTS provider selection);
+- same assistant personalization profile (name, personality, interaction style). No separate voice personality. TTS Voice ID remains instance-level;
 - one memory; no `voice_memory` / `voice_messages`;
 - Text ↔ Voice must not create a new conversation;
 - final STT text and assistant text are ordinary `messages` rows;

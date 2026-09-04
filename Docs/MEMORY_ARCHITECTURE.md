@@ -176,17 +176,20 @@ Retrieval **сначала** фиксирует scope (`user_id` / group / globa
 
 Не отправлять всю БД. Не отправлять все summaries «на всякий случай».
 
-M12 пакет (порядок в `ConversationContextBuilder`):
+M12 пакет (порядок в `ConversationContextBuilder` / `ContextBudgetManager`):
 
 1. Platform prompt выбранного Conversation AI;
 2. current local time / timezone;
-3. tool context (`create_reminder`, `search_conversation_history`);
-4. User General Prompt;
-5. relevant personal memories (labelled system block);
-6. compact user profile, если есть;
-7. relevant summaries **других** chats того же user (не их raw);
-8. current conversation summary, если чат длиннее recent window;
-9. recent raw **текущего** conversation + current inbound.
+3. tool context (`create_reminder`, assistant profile tools, `search_conversation_history`, …);
+4. **Assistant identity** (`user_assistant_profiles`: name, personality, interaction style, `about_user`) — not Memory;
+5. User General Prompt;
+6. relevant personal memories (labelled system block);
+7. compact memory-derived user profile, если есть;
+8. relevant summaries **других** chats того же user (не их raw);
+9. current conversation summary, если чат длиннее recent window;
+10. recent raw **текущего** conversation + current inbound.
+
+`about_user` is a compact onboarding summary. Memory Engine still accumulates individual facts. Do not bulk-copy the onboarding transcript into `memories`. [ASSISTANT_PERSONALIZATION.md](ASSISTANT_PERSONALIZATION.md).
 
 Бюджеты: `config/memory.php` (`max_memories=10`, `max_cross_chat_summaries=5`, `min_confidence=0.65`). Retrieval всегда `WHERE user_id = current user` в SQL, затем ranking. Vector DB нет.
 

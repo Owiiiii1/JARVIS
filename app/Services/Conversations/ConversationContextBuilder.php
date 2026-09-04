@@ -11,19 +11,23 @@ use App\Models\User;
 use App\Models\UserAiSetting;
 use App\Services\Ai\DTO\AiChatMessage;
 use App\Services\Ai\DTO\ToolDefinition;
+use App\Services\Assistant\AssistantProfileService;
 use App\Services\ChatAttachments\ChatAttachmentVisionLoader;
 use App\Services\Context\ContextBudgetManager;
 use App\Services\Context\ContextSlices;
 use App\Services\Memory\DTO\MemoryContextPackage;
 use App\Services\Memory\PersonalMemoryRetriever;
 use App\Services\Storage\StoredFileService;
+use App\Services\Tools\CompleteAssistantOnboardingTool;
 use App\Services\Tools\CreateReminderTool;
+use App\Services\Tools\GetAssistantProfileTool;
 use App\Services\Tools\GetProjectContextTool;
 use App\Services\Tools\SearchConversationHistoryTool;
 use App\Services\Tools\SearchGroupKnowledgeTool;
 use App\Services\Tools\Storage\GetStorageFileTool;
 use App\Services\Tools\Storage\ListStorageFilesTool;
 use App\Services\Tools\Storage\SearchStorageFilesTool;
+use App\Services\Tools\UpdateAssistantProfileTool;
 use App\Services\Tools\WebResearch\FetchWebPageTool;
 use App\Services\Tools\WebResearch\SearchWebTool;
 use Carbon\CarbonImmutable;
@@ -43,6 +47,7 @@ final class ConversationContextBuilder
         private readonly ChatAttachmentVisionLoader $visionLoader,
         private readonly StoredFileService $storedFiles,
         private readonly ContextBudgetManager $budgets,
+        private readonly AssistantProfileService $assistantProfiles,
     ) {}
 
     /**
@@ -83,10 +88,23 @@ final class ConversationContextBuilder
             $lastIsCurrent = $last->role === 'user';
         }
 
+        $events = [];
+
+        if (filled($applicationEvent)) {
+            $events[] = trim($applicationEvent);
+        }
+
+        $onboarding = $this->assistantProfiles->onboardingEventFor($user, $conversation);
+
+        if ($onboarding !== null) {
+            $events[] = $onboarding;
+        }
+
         return $this->budgets->assemble($configuration, new ContextSlices(
             platformPrompt: trim(implode("\n\n", array_filter($platform))),
+            assistantIdentity: $this->assistantProfiles->identityContext($user),
             generalPrompt: $this->generalPromptFor($user),
-            applicationEvent: filled($applicationEvent) ? trim($applicationEvent) : null,
+            applicationEvent: $events === [] ? null : implode("\n\n", $events),
             currentSummary: $this->currentSummaryText($memory, $conversation, $configuration),
             profile: $this->profileText($memory),
             memoryLines: $this->memoryLines($memory),
@@ -150,6 +168,16 @@ final class ConversationContextBuilder
             $lines[] = 'Recurring reminders are not supported yet. If the user asks for a repeating reminder, say so and do not create a one-time reminder as a substitute.';
             $lines[] = 'If create_reminder returns error telegram_not_connected, tell the user: Для получения напоминаний сначала подключите Telegram.';
             $lines[] = 'After a successful create_reminder, confirm in natural language using the returned local time. Do not mention tool names.';
+        }
+
+        if (in_array(GetAssistantProfileTool::NAME, $names, true)
+            || in_array(UpdateAssistantProfileTool::NAME, $names, true)
+            || in_array(CompleteAssistantOnboardingTool::NAME, $names, true)) {
+            $lines[] = 'Assistant personalization is a structured profile, separate from User General Prompt and Memory.';
+            $lines[] = 'get_assistant_profile reads the current user’s name/personality/interaction_style/about_user. Never pass user_id.';
+            $lines[] = 'update_assistant_profile writes only fields the user explicitly stated. Do not invent or replace unspecified preferences.';
+            $lines[] = 'complete_assistant_onboarding only after assistant_name, personality, interaction_style, and about_user are set and you summarized them.';
+            $lines[] = 'These writes do not need a confirmation modal. Identify yourself using assistant_name. Telegram bot username is infrastructure.';
         }
 
         if (in_array(SearchConversationHistoryTool::NAME, $names, true)) {

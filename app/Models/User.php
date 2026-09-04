@@ -113,4 +113,9 @@ class User extends Authenticatable
     {
         return $this->hasOne(UserProfile::class);
     }
+
+    public function assistantProfile(): HasOne
+    {
+        return $this->hasOne(UserAssistantProfile::class);
+    }
 }

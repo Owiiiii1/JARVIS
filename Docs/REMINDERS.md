@@ -126,6 +126,8 @@ Daypart без точных часов («завтра утром») на это
 
 Cancel / list tools — later. Архитектура Tool Registry это позволяет.
 
+M25U.3: Workspace **Reminders panel** is a view/management surface over the same engine. `GET /jarvis/reminders` and `GET /chat/reminders` list the current user’s reminders. `POST .../reminders/{id}/cancel` cancels an owned scheduled/processing reminder. Ownership is `user_id`; foreign ids 404. Active count is a cheap workspace prop; the list is lazy-loaded when the drawer opens. Creation remains conversational (`create_reminder`). Recurrence is still not implemented. Delivery remains Telegram-only. No frontend natural-language scheduler.
+
 ---
 
 ## Delivery text
