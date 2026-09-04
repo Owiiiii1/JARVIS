@@ -12,6 +12,7 @@ final class ChatAttachmentConfig
      *     max_file_size_mb: int,
      *     max_total_upload_mb: int,
      *     allowed_mime_types: list<string>,
+     *     accept: string,
      *     thumbnail: array{max_width: int, max_height: int}
      * }
      */
@@ -26,6 +27,7 @@ final class ChatAttachmentConfig
             'allowed_mime_types' => is_array($types)
                 ? array_values(array_map(static fn ($type): string => (string) $type, $types))
                 : [],
+            'accept' => self::filePickerAccept(),
             'thumbnail' => [
                 'max_width' => (int) config('chat_attachments.thumbnail.max_width', 320),
                 'max_height' => (int) config('chat_attachments.thumbnail.max_height', 320),
@@ -90,6 +92,22 @@ final class ChatAttachmentConfig
         }
 
         return array_values(array_map(static fn ($type): string => (string) $type, $types));
+    }
+
+    public static function filePickerAccept(): string
+    {
+        $accept = self::allowedMimeTypes();
+
+        foreach (self::allowedMimeTypes() as $mime) {
+            $accept = array_merge($accept, match ($mime) {
+                'image/jpeg' => ['.jpg', '.jpeg'],
+                'image/png' => ['.png'],
+                'image/webp' => ['.webp'],
+                default => [],
+            });
+        }
+
+        return implode(',', array_values(array_unique($accept)));
     }
 
     public static function thumbnailMaxWidth(): int

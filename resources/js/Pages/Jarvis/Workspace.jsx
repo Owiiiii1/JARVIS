@@ -49,6 +49,28 @@ function newClientId() {
     });
 }
 
+const IMAGE_MIME_ALIASES = {
+    'image/jpg': 'image/jpeg',
+    'image/pjpeg': 'image/jpeg',
+};
+
+function normalizeImageMime(type) {
+    const raw = String(type || '').toLowerCase().trim();
+
+    return IMAGE_MIME_ALIASES[raw] || raw;
+}
+
+function isAllowedClientImage(file, allowedMimes) {
+    const mime = normalizeImageMime(file?.type);
+
+    if (allowedMimes.includes(mime)) {
+        return true;
+    }
+
+    // Windows often hides extensions; Chromium then reports an empty type.
+    return mime === '' || mime === 'application/octet-stream';
+}
+
 function withStatus(message, status = 'completed') {
     return {
         ...message,
@@ -122,7 +144,7 @@ export default function JarvisWorkspace() {
     } = usePage().props;
 
     const timezone = user.timezone || undefined;
-    const acceptTypes = (chatAttachments?.allowed_mime_types || []).join(',');
+    const acceptTypes = chatAttachments?.accept || (chatAttachments?.allowed_mime_types || []).join(',');
     const maxImages = Number(chatAttachments?.max_images_per_message || 0);
     const maxFileBytes = Number(chatAttachments?.max_file_size_mb || 0) * 1024 * 1024;
     const maxTotalBytes = Number(chatAttachments?.max_total_upload_mb || 0) * 1024 * 1024;
@@ -296,7 +318,7 @@ export default function JarvisWorkspace() {
                     return;
                 }
 
-                if (!allowedMimes.includes(file.type)) {
+                if (!isAllowedClientImage(file, allowedMimes)) {
                     message = 'Этот тип файла не принимается. Нужны PNG, JPEG или WebP.';
                     return;
                 }
@@ -318,7 +340,7 @@ export default function JarvisWorkspace() {
                     file,
                     url: URL.createObjectURL(file),
                     name: file.name || 'image',
-                    mime: file.type,
+                    mime: normalizeImageMime(file.type) || file.type,
                     size: file.size,
                 });
             });
@@ -346,7 +368,7 @@ export default function JarvisWorkspace() {
     const handleClipboardPaste = (event) => {
         const items = Array.from(event.clipboardData?.items || []);
         const imageFiles = items
-            .filter((item) => item.type && allowedMimes.includes(item.type))
+            .filter((item) => allowedMimes.includes(normalizeImageMime(item.type)))
             .map((item) => item.getAsFile())
             .filter(Boolean);
 
