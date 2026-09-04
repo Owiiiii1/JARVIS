@@ -72,7 +72,7 @@ User General Prompt редактирует **сам user** в Cabinet (owner —
 
 ## Tools
 
-Owner Conversation AI: multi-step tool loop в одном turn. [INTEGRATIONS.md](INTEGRATIONS.md). Tools: `create_reminder`, `search_conversation_history`, `get_project_context` (owner-only; may include bounded group-derived knowledge for attached groups). Dedicated `search_groups` is M15.
+Owner Conversation AI: multi-step tool loop в одном turn. [INTEGRATIONS.md](INTEGRATIONS.md). Tools: `create_reminder`, `search_conversation_history`, `get_project_context` (owner-only; may include bounded group-derived knowledge for attached groups), `search_group_knowledge` (owner-only, capability `group_analysis`; derived-first group search, no silent prompt injection).
 
 User Conversation AI: reminder + history search. Не Gmail/Calendar/groups/projects.
 

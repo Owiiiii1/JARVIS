@@ -669,6 +669,12 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
 ### Milestone 14 — Group Analysis — COMPLETED (2026-09-04)
 
-Async Owner Analysis AI over Telegram group raw history. Derived Summary / Decision / Task / Event-Fact live in `telegram_group_knowledge` with provenance and revisions. Never writes personal `memories`, `user_profiles`, or personal topics. Manual Admin/CLI runs (queue `analysis`); no auto analysis on inbound group messages. Date ranges use group timezone (fallback owner). Large ranges chunk/reduce. Empty ranges skip the LLM. `get_project_context` may return bounded ACTIVE derived group knowledge; `ConversationContextBuilder` does not. Dedicated Group Search tool is M15.
+Async Owner Analysis AI over Telegram group raw history. Derived Summary / Decision / Task / Event-Fact live in `telegram_group_knowledge` with provenance and revisions. Never writes personal `memories`, `user_profiles`, or personal topics. Manual Admin/CLI runs (queue `analysis`); no auto analysis on inbound group messages. Date ranges use group timezone (fallback owner). Large ranges chunk/reduce. Empty ranges skip the LLM. `get_project_context` may return bounded ACTIVE derived group knowledge; `ConversationContextBuilder` does not.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 15 — Group Knowledge Search — COMPLETED (2026-09-04)
+
+Owner-only `search_group_knowledge` (capability `group_analysis`) for Telegram/Web personal chat. Channel-neutral `GroupKnowledgeSearchService`: derived-first ACTIVE knowledge, bounded raw fallback, per-group timezone ranges, project filter via `project_groups`, participant display-name search. Missing/stale analysis may queue the existing M14 job without blocking the turn. Default personal prompt still contains zero group knowledge/raw. No migration. No Admin search UI. No Vector DB. Manual live smoke deferred by Owner.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).

@@ -1,6 +1,6 @@
 # Telegram Groups
 
-**Status (M14):** IMPLEMENTED for discovery, raw persist, participants, owner Admin messenger, outbound, timezone, `project_groups` attach, and **manual async Group Analysis** into a separate Group Knowledge layer. **Not implemented:** mention/auto-reply, dedicated Group Search tool in personal DM (M15), media blob download, automatic per-message analysis.
+**Status (M15):** IMPLEMENTED for discovery, raw persist, participants, owner Admin messenger, outbound, timezone, `project_groups` attach, **manual async Group Analysis**, and **owner-only `search_group_knowledge`** in personal Telegram/Web chat. **Not implemented:** mention/auto-reply, media blob download, automatic per-message analysis, proactive group alerts.
 
 Отдельный модуль Jarvis. Бот может состоять во многих Telegram-группах. Группы **не** создаются вручную в админке: факт подключения появляется из входящего Telegram update. ADR-011.
 
@@ -257,11 +257,15 @@ CLI (do not run unless asked): `php artisan jarvis:groups:analyze --group= --fro
 
 ### Owner personal chat → group knowledge
 
-`ConversationContextBuilder` **не** подмешивает group knowledge в обычный DM, даже owner.
+`ConversationContextBuilder` **не** подмешивает group knowledge или group raw в обычный DM, даже owner. Group data enters the turn only after an explicit tool call.
 
 M14 indirect path: if a Telegram Group is attached to a Project, `get_project_context` may return **bounded ACTIVE derived** group knowledge (latest summaries + decisions/tasks/events). **Never raw group history.**
 
-Dedicated Group Search tool (`search_groups`) is **M15**, not M14.
+M15 dedicated path: owner Conversation AI calls `search_group_knowledge` (capability `group_analysis`). Channel-neutral `GroupKnowledgeSearchService`. Normal users do not receive the tool definition; forged execution is denied server-side.
+
+Search is derived-first (ACTIVE `telegram_group_knowledge`), then bounded raw fallback. Missing or stale analysis may queue the existing M14 job; the tool does not wait. `today` / `yesterday` / custom dates are interpreted in each group's IANA timezone. Optional `project` limits the pool to attached groups. Participant name search uses `sender_name` / `sender_username` / `TelegramGroupParticipant.display_name` — never a Jarvis User map.
+
+Limits live in `config/group_search.php`. No Vector DB. No personal memory writes. No Admin search UI.
 
 ---
 
@@ -317,7 +321,7 @@ Group knowledge можно **показать** Conversation model, если з�
 | Phase | Groups |
 | --- | --- |
 | 1 | Discovery, persist, админ-список и chat UI, outbound через adapter, passive, Owner Analysis AI в конфиге (может ещё не гоняться); group timezone |
-| 2 | IMPLEMENTED M14: analysis jobs, group knowledge + provenance, project-context bounded derived retrieval. Owner DM Group Search tool = M15 |
+| 2 | IMPLEMENTED M14+M15: analysis jobs, group knowledge + provenance, project-context bounded derived retrieval, owner DM `search_group_knowledge` |
 | 3–4 | Те же данные; клиенты не обязаны дублировать group admin UI (`TBD`, админка остаётся основным просмотром групп) |
 
 ---

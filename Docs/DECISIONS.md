@@ -122,7 +122,7 @@
 
 **Решение.** Group history и group knowledge отделены от personal conversation history и personal memory. Memory Engine хранит scope и provenance. История группы не становится personal fact автоматически.
 
-**Следствие.** Analysis пишет в `telegram_group_knowledge` (M14), never into personal `memories`. Conversation package does not auto-mix group knowledge. M14 may surface bounded derived facts via `get_project_context` when a group is attached to a project. Dedicated Group Search in owner DM is M15.
+**Следствие.** Analysis пишет в `telegram_group_knowledge` (M14), never into personal `memories`. Conversation package does not auto-mix group knowledge. M14 may surface bounded derived facts via `get_project_context` when a group is attached to a project. M15 owner DM/Cabinet calls `search_group_knowledge` explicitly.
 
 ---
 
@@ -430,9 +430,9 @@
 
 **Контекст.** Auto-merge всех групп в owner prompt сломает личный контекст и окно модели.
 
-**Решение.** Group knowledge не personal memory. Owner Conversation AI ходит в stored raw/derived через Group Search/Analysis Tool по запросу.
+**Решение.** Group knowledge не personal memory. Owner Conversation AI ходит в stored derived, then bounded raw, через explicit `search_group_knowledge` (capability `group_analysis`). Access scope is `ToolExecutionContext.user`, never model arguments. Missing/stale analysis may queue M14; the personal turn does not wait.
 
-**Следствие.** «Что решили в группе 1?» — tool. Молчаливого подмешивания нет.
+**Следствие.** «Что решили в группе 1?» — tool. Молчаливого подмешивания нет. Normal user не видит definition и не может forged-execute.
 
 ---
 
@@ -612,9 +612,9 @@
 
 **Контекст.** Personal Memory Engine already uses `memories` with `scope=personal` + `user_id`. Reusing that table for Telegram groups would mix owner facts with group chat extract, including when the owner authored a group message.
 
-**Решение.** M14 stores derived group facts in `telegram_group_knowledge` keyed by `telegram_group_id`. Provenance is `telegram_group_knowledge_sources`. Runs are `telegram_group_analysis_runs`. Analysis is manual/async Owner Analysis AI (queue `analysis`). Hierarchical chunk/reduce; structured JSON validation; dedupe via `normalized_key`; supersede via status + revisions. Group tasks are not Reminders. `analysis_enabled` / `daily_summary_enabled` default false. No dedicated `search_groups` tool in M14.
+**Решение.** M14 stores derived group facts in `telegram_group_knowledge` keyed by `telegram_group_id`. Provenance is `telegram_group_knowledge_sources`. Runs are `telegram_group_analysis_runs`. Analysis is manual/async Owner Analysis AI (queue `analysis`). Hierarchical chunk/reduce; structured JSON validation; dedupe via `normalized_key`; supersede via status + revisions. Group tasks are not Reminders. `analysis_enabled` / `daily_summary_enabled` default false. M15 reads this layer via `search_group_knowledge`; it does not write personal `memories`.
 
-**Следствие.** PersonalMemoryRetriever and ConversationContextBuilder ignore group knowledge. Project context may include bounded ACTIVE derived rows only. Owner DM Group Search is M15.
+**Следствие.** PersonalMemoryRetriever and ConversationContextBuilder ignore group knowledge. Project context may include bounded ACTIVE derived rows only. Owner group questions use `search_group_knowledge`.
 
 ---
 

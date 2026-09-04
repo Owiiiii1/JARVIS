@@ -16,6 +16,7 @@ use App\Services\Memory\PersonalMemoryRetriever;
 use App\Services\Tools\CreateReminderTool;
 use App\Services\Tools\GetProjectContextTool;
 use App\Services\Tools\SearchConversationHistoryTool;
+use App\Services\Tools\SearchGroupKnowledgeTool;
 use Carbon\CarbonImmutable;
 use DateTimeZone;
 use Exception;
@@ -148,6 +149,13 @@ final class ConversationContextBuilder
             $lines[] = 'get_project_context loads compact derived context for one of the current user’s projects. Call it when the user asks about a named project.';
             $lines[] = 'Do not assume all projects are already in context. Do not invent project knowledge if the tool returns no attached topics, memories, or summaries.';
             $lines[] = 'Project context is summary-first. Use search_conversation_history only if a specific raw detail is needed after project context.';
+        }
+
+        if (in_array(SearchGroupKnowledgeTool::NAME, $names, true)) {
+            $lines[] = 'search_group_knowledge looks up Telegram group summaries, decisions, tasks, events, and bounded raw snippets. Call it when the user asks about groups, group decisions, group tasks, or what someone said in a group.';
+            $lines[] = 'Group data is never already in context. Do not invent group discussions if the tool returns no matches.';
+            $lines[] = 'If analysis_status is queued or partial, say that the current answer uses available data and a fuller analysis may still be running. Do not wait.';
+            $lines[] = 'Use get_project_context for overall project context. Use search_group_knowledge for group activity specifically.';
         }
 
         return implode("\n", $lines);

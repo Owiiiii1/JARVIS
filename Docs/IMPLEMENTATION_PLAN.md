@@ -463,31 +463,27 @@ Personal DM persist → recent context of the **current** conversation → Conve
 
 ## Milestone 15 — Group Knowledge Search
 
+**Статус.** COMPLETED (2026-09-04).
+
 **Цель.** Owner Conversation AI получает group knowledge только через explicit tool.
 
-**Реализуем**
+**Реализовано**
 
-- Group Search / Analysis Tool: «анализ за сегодня по всем группам», «что решили в группе 1?», «важное по JARVIS?».
-- Не auto-mix groups в owner personal prompt.
-- Может запускать hierarchical job (M14) и вернуть result в turn.
+- Owner-only tool `search_group_knowledge` (capability `group_analysis`). Same runtime for Telegram DM and Web Cabinet.
+- Channel-neutral `GroupKnowledgeSearchService`: group/project resolution, per-group timezone ranges, derived-first search, bounded raw fallback, participant name match, coverage/staleness.
+- Missing/stale analysis may queue existing M14 `GroupAnalysisRunService`; tool never waits for the job.
+- `ConversationContextBuilder` still injects zero group knowledge / raw. No personal memory writes.
+- Config: `config/group_search.php`. No migration. No Admin search UI. No Vector DB.
 
-**Migrations:** нет обязательных.
-
-**Backend:** tool + capability `group_analysis`.
+**Migrations:** none.
 
 **Frontend:** нет.
 
-**Tests:** user tool denied; default owner DM package без group dump; explicit query hits stored raw/derived.
+**Tests:** `tests/Feature/GroupKnowledgeSearchTest.php` (fake AI/provider; no live Telegram/Gemini). Existing M11–M14 suites remain green.
 
-**Deploy:** workers already.
+**Deploy:** workers already (`analysis,memory,default` + `telegram`). Manual live smoke deferred by Owner.
 
-**DoD**
-
-- Owner в личке спрашивает группы и получает ответ через tool, не через silent merge.
-
-**Зависимости:** M14, M5.
-
-**Не входит:** user access; proactive alerts.
+**Не входит:** user access; proactive alerts; tool execution logs (M16).
 
 ---
 

@@ -103,7 +103,7 @@ Sync retrieve: current recent + summaries + compact memory. Тяжёлый raw-o
 
 Ядро должно позволять подключить queue, не требуя её в Phase 1 (достаточно sync no-op или inline post-process).
 
-Групповой analysis — async **Owner Analysis AI** (M14). Results live in `telegram_group_knowledge`, not personal `memories`. Owner personal chat does **not** auto-mix group knowledge. M14 may expose bounded derived facts only through `get_project_context` when a group is attached to a project. Dedicated Group Search tool is M15.
+Групповой analysis — async **Owner Analysis AI** (M14). Results live in `telegram_group_knowledge`, not personal `memories`. Owner personal chat does **not** auto-mix group knowledge. M14 may expose bounded derived facts only through `get_project_context` when a group is attached to a project. M15 Owner Conversation AI calls `search_group_knowledge` explicitly; queued analysis never blocks the personal turn.
 
 ---
 

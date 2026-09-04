@@ -63,6 +63,7 @@ final class ToolRegistry
             'topics_count' => isset($result->payload['topics']) && is_array($result->payload['topics']) ? count($result->payload['topics']) : null,
             'memories_count' => isset($result->payload['memories']) && is_array($result->payload['memories']) ? count($result->payload['memories']) : null,
             'summaries_count' => isset($result->payload['conversation_summaries']) && is_array($result->payload['conversation_summaries']) ? count($result->payload['conversation_summaries']) : null,
+            'groups_searched' => isset($result->payload['groups']) && is_array($result->payload['groups']) ? count($result->payload['groups']) : null,
         ]);
 
         return $result;

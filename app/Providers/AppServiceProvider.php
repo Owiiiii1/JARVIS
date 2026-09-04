@@ -3,14 +3,15 @@
 namespace App\Providers;
 
 use App\Models\Project;
-use App\Policies\ProjectPolicy;
 use App\Models\TelegramGroup;
+use App\Policies\ProjectPolicy;
 use App\Policies\TelegramGroupPolicy;
 use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\ProviderAiChatGateway;
 use App\Services\Tools\CreateReminderTool;
 use App\Services\Tools\GetProjectContextTool;
 use App\Services\Tools\SearchConversationHistoryTool;
+use App\Services\Tools\SearchGroupKnowledgeTool;
 use App\Services\Tools\ToolRegistry;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -29,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(CreateReminderTool::class),
                 $app->make(SearchConversationHistoryTool::class),
                 $app->make(GetProjectContextTool::class),
+                $app->make(SearchGroupKnowledgeTool::class),
             ]);
         });
     }

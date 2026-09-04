@@ -43,7 +43,9 @@ Project ↔ group knowledge  M14 via `get_project_context` (bounded derived rows
 
 Owner Conversation AI **не** получает все projects в обычный prompt.
 
-Project context — tool `get_project_context` (capability `projects`). Summary-first: description, attached topics, attached memories, current conversation summaries, compact attached group titles, and bounded ACTIVE group knowledge (`config/projects.php`: `max_group_summaries`, `max_group_knowledge`). Raw других чатов — существующий `search_conversation_history`. Dedicated group search in DM is M15.
+Project context — tool `get_project_context` (capability `projects`). Summary-first: description, attached topics, attached memories, current conversation summaries, compact attached group titles, and bounded ACTIVE group knowledge (`config/projects.php`: `max_group_summaries`, `max_group_knowledge`). Raw других чатов — существующий `search_conversation_history`.
+
+Group-specific questions use `search_group_knowledge` (capability `group_analysis`). Optional `project` argument limits that search to attached groups via `project_groups`. The two tools do not replace each other: project context is whole-project derived context; group search is group knowledge and bounded raw.
 
 Archived projects не резолвятся как active.
 
