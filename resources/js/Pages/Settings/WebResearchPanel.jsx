@@ -331,7 +331,7 @@ export default function WebResearchPanel() {
                 </button>
             </form>
 
-            {synced.provider === 'gemini_google' || form.provider === 'gemini_google' ? (
+            {form.provider === 'gemini_google' || webResearch.provider === 'gemini_google' ? (
                 <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
                     <h3 className="text-sm font-semibold text-slate-900">{t.geminiSection}</h3>
                     <p className="mt-1 text-sm text-slate-600">{t.geminiUses}</p>
