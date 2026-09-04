@@ -46,7 +46,7 @@ Client does not send platform prompts or pick a vendor. Core resolves Owner Conv
 
 ## Versioning
 
-`TBD` (`/api/v1` or header). Choose when M22/M25 start, not now.
+`TBD` (`/api/v1` or header). Choose when Desktop/Mobile (M25) start. M22 Workspace stays same-origin Inertia session; it does not ship a public Client API.
 
 Idempotency: client send key + existing `channel_message_id` rules. `TBD`.
 
@@ -67,5 +67,5 @@ Safe codes only. No provider raw bodies, tokens, or email dumps in API errors.
 | Telegram | in-process adapter | stays adapter |
 | User Cabinet | Inertia session | stays User Space web |
 | Owner Admin | Inertia session | stays technical admin |
-| Owner Workspace | not built | Inertia and/or Client API |
+| Owner Workspace | Inertia session `/jarvis` (M22) | Inertia now; Client API later for native clients |
 | Desktop / Mobile | not built | Client API only |

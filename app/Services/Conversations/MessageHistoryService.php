@@ -102,8 +102,12 @@ final class MessageHistoryService
                     'tool_name' => (string) ($pending['tool_name'] ?? ''),
                     'summary' => (string) ($pending['summary'] ?? ''),
                     'preview' => is_array($pending['preview'] ?? null) ? $pending['preview'] : null,
+                    'expires_at' => filled($pending['expires_at'] ?? null)
+                        ? (string) $pending['expires_at']
+                        : null,
                 ]
                 : null,
+            'status' => 'completed',
         ];
     }
 }

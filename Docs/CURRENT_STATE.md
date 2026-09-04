@@ -1,17 +1,17 @@
 # Jarvis — current implementation snapshot
 
-**Date:** 2026-09-03  
+**Date:** 2026-09-04  
 **Host path:** `/var/www/jarvis`  
 **Public URL:** https://jarvis.owlsolutions.net  
 **GitHub:** https://github.com/Owiiiii1/JARVIS.git
 
 This document describes **what exists on the server now**. Target architecture in other `Docs/` files is **not** treated as implemented.
 
-### Implemented vs planned (post-M19)
+### Implemented vs planned (post-M22)
 
-**IMPLEMENTED (code/runtime, GitHub/Google not live-validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Owner currently reaches personal chat via Telegram and can use Admin surfaces; there is **no** Owner Personal Workspace route. Combined Google smoke and all GitHub live/automated tests are deferred by Owner.
+**IMPLEMENTED (code/runtime, Google/GitHub/Workspace not live-validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Owner Personal Workspace (`/jarvis`); Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, and Workspace conversational validation are deferred by Owner.
 
-**PLANNED / DOCUMENTED ONLY (not implemented):** Owner Personal Workspace redesign; versioned Client API; realtime Voice Runtime; Orb Voice UI; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch. Do not treat these as shipped.
+**PLANNED / DOCUMENTED ONLY (not implemented):** versioned Client API; realtime Voice Runtime; Orb Voice UI; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch. Do not treat these as shipped.
 
 Status vocabulary:
 
@@ -719,8 +719,14 @@ Owner GitHub OAuth App + tools over live GitHub API (no local repo mirror, no sh
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
-### Planned after M21 — DOCUMENTED ONLY
+### Milestone 22 — Owner Web Workspace — IMPLEMENTED, NOT VALIDATED (2026-09-04)
 
-Owner Personal Workspace (M22); Voice Runtime / Orb; Desktop Tauri; Mobile Flutter; GitHub merge/file-write/webhooks; proactive assistant. Do not treat as shipped.
+Owner Personal Workspace at `/jarvis`. Owner-only. Same `conversations`/`messages` and `ConversationTurnService` as Telegram/Cabinet. Channel remains `web`. Owner login → `/jarvis`. Owner `/cabinet` → `/jarvis`. Admin stays `/dashboard` with Open Jarvis. Voice Mode is a CSS placeholder only. No new tables. Automated tests not run. No live AI/Google/GitHub send.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Planned after M22 — DOCUMENTED ONLY
+
+Voice Runtime / Orb; Desktop Tauri; Mobile Flutter; GitHub merge/file-write/webhooks; proactive assistant. Do not treat as shipped.
 
 See [ROADMAP.md](ROADMAP.md), [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md).

@@ -1,132 +1,155 @@
 # Owner Web Workspace
 
-**Status.** DOCUMENTED ONLY. Not implemented.
+**Status.** IMPLEMENTED / NOT VALIDATED (M22). Voice runtime is still planned.
 
-Планируемый owner-facing Personal Workspace. Это **не** Admin Panel и **не** текущий User Cabinet (`/cabinet`).
+Owner-facing Personal Workspace. This is **not** the Admin Panel and **not** the User Cabinet (`/cabinet`).
 
-Workspace остаётся частью `Owiiiii1/JARVIS`: Laravel + Inertia/React, один deployment с backend.
+Workspace is part of `Owiiiii1/JARVIS`: Laravel + Inertia/React, one deployment with Core.
 
 ---
 
 ## Product role
 
-Jarvis Admin Panel и Jarvis Personal Workspace — разные интерфейсы.
+| Surface | Route | For |
+| --- | --- | --- |
+| Admin Panel | `/dashboard` | technical management: users, AI providers, integrations, Telegram groups, diagnostics |
+| Personal Workspace | `/jarvis` | Owner talking to Jarvis |
+| User Cabinet | `/cabinet` | `role=user` space |
 
-| Surface | Для чего |
-| --- | --- |
-| Admin Panel | техническое управление: users, AI providers, integrations, Telegram groups, diagnostics, tool logs, system settings |
-| Personal Workspace | общение владельца с Jarvis |
+Owner default landing after ordinary login is `/jarvis`. Admin remains one click from Workspace (`Admin`) and has a reciprocal **Open Jarvis**.
 
-Owner **не** должен использовать Admin Panel как основной интерфейс общения.
+---
 
-Центральная сущность Workspace = **conversation**. Text chat и voice chat. Остальные функции вторичны: контекст и настройки вокруг разговора.
+## Authorization
+
+`/jarvis` requires an authenticated active **owner**. Middleware: `auth`, `user.active`, `owner.workspace`.
+
+- Guest → login.
+- `role=user` → redirect to `/cabinet`.
+- Owner identity is enough. Workspace does **not** require `integrations_admin` just to open.
+
+No hardcoded owner id.
+
+Owner `/cabinet` redirects to `/jarvis` (conversation show maps to the same id). Normal user Cabinet is unchanged.
 
 ---
 
 ## Same Core
 
-Workspace использует тот же Owner Space и те же engines, что Telegram:
+Workspace uses the existing Owner Space and engines:
 
-- conversations / messages
-- Conversation Engine
+- `conversations` / `messages` (no `workspace_conversations`)
+- `ConversationTurnService` / Conversation AI
 - Memory Engine
-- projects
-- Telegram group knowledge (explicit tools)
-- Reminder Engine
+- projects, reminders, group knowledge tools
 - Google Calendar / Gmail tools
-- Tool Registry + confirmations
-- future GitHub tools
-- future Voice runtime
+- GitHub tools (M21)
+- `tool_confirmations`
 
-Это **не** новый AI assistant и **не** новая memory.
+This is **not** a second chat engine and **not** a second owner memory.
 
-Owner может начать чат в Telegram, продолжить тот же `conversation_id` в Workspace, затем голосом на Desktop/Mobile. New Chat только по явному выбору. Отдельная voice conversation автоматически не создаётся.
+Telegram-created personal chats appear in `/jarvis`. New Chat creates a normal personal conversation (`kind=personal`). Default unused visit uses `ConversationService::latestOrDefault()` (existing recent chat, otherwise `Основной`).
 
----
-
-## Route
-
-Рабочие имена:
-
-- `/workspace`
-- `/jarvis`
-
-Финальный route — `TBD`. Не путать с `/cabinet` (User Space) и admin routes.
-
-Auth: existing owner web session. User (`role=user`) — deny. Impersonation остаётся admin capability, не workspace product path.
+Web inbound stays `channel=web` + client UUID idempotency. Channel is transport, not UI branding. There is no `workspace` channel enum.
 
 ---
 
-## UI
+## Routes
 
-### Center
+| Method | Path | Name |
+| --- | --- | --- |
+| GET | `/jarvis` | `jarvis.index` → redirect to last/recent personal chat |
+| GET | `/jarvis/chats/{conversation}` | `jarvis.chats.show` |
+| POST | `/jarvis/chats` | `jarvis.chats.store` |
+| PATCH | `/jarvis/chats/{conversation}` | `jarvis.chats.update` |
+| POST | `/jarvis/chats/{conversation}/messages` | `jarvis.messages.store` |
+| GET | `/jarvis/chats/{conversation}/messages/older` | `jarvis.messages.older` |
+| POST | `/jarvis/confirmations/{confirmation}/confirm` | `jarvis.confirmations.confirm` |
+| POST | `/jarvis/confirmations/{confirmation}/cancel` | `jarvis.confirmations.cancel` |
+| PATCH | `/jarvis/settings/general-prompt` | `jarvis.settings.prompt.update` |
 
-Conversation.
+Controllers authorize owner, resolve owned conversations, render Inertia, validate, and call Core services. Logic is not duplicated in the controller.
 
-**Text mode**
+Shared application service: `PersonalChatSurfaceService` (Cabinet + Workspace). Turn execution remains `ConversationTurnService`.
 
-- messages
-- tool confirmations
-- attachments later
-- streaming later
+---
 
-**Voice mode**
+## Layout
 
-- realtime voice session
-- live transcript
-- same selected conversation
-- same tools / memory / context
-- interrupt / barge-in
-- Orb visualization — [VOICE_UI.md](VOICE_UI.md)
+`JarvisWorkspaceLayout` — not Admin, not Cabinet.
 
-### Secondary panels
+- Left: conversations (New Chat, local search, title, last activity, selected, rename)
+- Center: thread + sticky composer
+- Right / mobile drawer: context (projects, reminders, integrations status, memory counts, General Prompt)
+- Header: Jarvis, AI status dot, Text / Voice, conversation title, Admin, settings
 
-Не конкурируют визуально с conversation:
-
-- conversations
-- projects
-- reminders
-- integrations status
-- Gmail / Calendar connection status
-- memory / profile
-- personal General Prompt / settings
-- voice settings
-
-No Gmail inbox admin UI. No Calendar admin grid as the primary surface. Integrations connect/enable remain Admin (or a thin status + deep-link to Admin).
+Desktop-first (1280–2560). Sidebar and context collapse on smaller widths. Composer stays usable on mobile web.
 
 ---
 
 ## Text chat
 
-Same path as Cabinet/Telegram conceptually: persist inbound → `ConversationTurnService` / Conversation Engine → persist outbound.
+Send path: Workspace → `PersonalChatSurfaceService` → `ConversationTurnService` → Conversation AI → tools → persisted assistant message.
 
-Web inbound: `channel=web` (or a workspace-specific channel label `TBD`) + client idempotency key. Messages from Telegram and Workspace share one chronological history.
+Composer: multiline, Enter send, Shift+Enter newline, UUID `client_message_id`, local draft, disabled while in flight.
 
-Tool confirmations reuse `tool_confirmations` + Confirm / Cancel. Send-email preview stays recipients / subject / bounded body.
+Thinking state: `Jarvis is thinking...` (no token streaming in M22). Frontend message `status`: `pending` | `streaming` | `completed` | `failed` so streaming can replace the thinking row later.
 
----
+Assistant bodies render sanitized Markdown (lists, code blocks with copy, tables, http(s) links). No raw HTML execution. No internal system prompts. No raw tool JSON.
 
-## Voice
-
-Voice is a **mode** on the selected conversation. See [VOICE_ARCHITECTURE.md](../VOICE_ARCHITECTURE.md) and [VOICE_UI.md](VOICE_UI.md).
-
-Web Voice Runtime talks to Core voice sessions. Orb consumes `VoiceVisualizationState` only — not a vendor SDK.
+Empty chat: «Чем займёмся?» + suggestion chips that send ordinary user text.
 
 ---
 
-## API / realtime boundary
+## Confirmations
 
-M22 can ship Workspace on Inertia (same-origin session), same as Cabinet.
+Workspace Confirm / Cancel call `ToolConfirmationService` through the same turn path (`да` / `отмена`) so Gmail send, Calendar destructive, and GitHub writes keep existing confirmation policy.
 
-Public versioned client API ([CLIENT_API.md](CLIENT_API.md)) is required before Desktop/Mobile. Workspace must not invent a second engine. Streaming/voice transport `TBD` (SSE / WebSocket / WebRTC).
-
-Clients never hold Google/Gmail credentials, never run tools locally, never select the LLM vendor.
+Cards show action summary, provider/tool family, safe preview (Gmail recipients/subject/body; Calendar/GitHub bounded argument preview), expiry when present. Encrypted args are not exposed.
 
 ---
 
-## Out of scope now
+## Personal vs technical settings
 
-- Implementing `/workspace` or `/jarvis`
-- Three.js Orb
-- Voice provider
-- Changing production routes
+Workspace (personal):
+
+- General Prompt (`user_ai_settings`)
+- timezone display
+- voice preferences placeholder
+- integrations status + deep link to Admin
+
+Admin (technical):
+
+- provider API keys
+- model selection
+- OAuth connect/disconnect
+- workers / webhook / system integrations
+
+Workspace does not reproduce OAuth forms or AI provider settings.
+
+---
+
+## Voice (placeholder only)
+
+Text / Voice toggle exists. Voice opens a designed placeholder: CSS Orb (glow + idle breathing, reduced-motion safe), «Voice mode coming next», disabled mute/end/mic controls, text switch.
+
+Component boundary for M23: replace `VoiceModePlaceholder` with `<VoiceSession conversationId={id} />`. Keep the selected conversation. Do not start a new conversation for voice.
+
+**Not in M22:** microphone, STT, TTS, ElevenLabs, WebRTC, websocket voice, barge-in, Three.js/GLSL Orb.
+
+---
+
+## Payload
+
+Initial Inertia props are bounded: safe user profile, compact conversation list, selected chat, recent messages, compact projects/reminders/integrations/memory counts, General Prompt text.
+
+No credentials, system prompts, tool logs, or raw group archive.
+
+---
+
+## Out of scope (still)
+
+- Public versioned Client API ([CLIENT_API.md](CLIENT_API.md))
+- Three.js Orb / Voice runtime
+- Workspace-specific database tables
+- Attachments, streaming, delete-chat (unless Core adds it)

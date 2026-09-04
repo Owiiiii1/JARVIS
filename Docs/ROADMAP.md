@@ -117,7 +117,7 @@
 
 - Combined Google smoke / hardening (validation; deferred by Owner)
 - GitHub integration (M21 implemented, not live-validated)
-- Owner Web Workspace (`Owiiiii1/JARVIS`, Inertia/React)
+- Owner Web Workspace (`/jarvis`, M22 implemented / not validated)
 - Versioned Client API
 - Voice Runtime ≠ Voice UI
 - Desktop repo `Owiiiii1/JARVIS-Desktop`

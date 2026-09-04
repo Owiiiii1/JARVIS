@@ -6,7 +6,7 @@
 
 - Telegram
 - User Cabinet (web, `role=user`)
-- Owner Personal Workspace (web, planned — [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md))
+- Owner Personal Workspace (web, `/jarvis` — [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md))
 - Desktop (planned — [CLIENTS/DESKTOP_APP.md](CLIENTS/DESKTOP_APP.md))
 - Mobile (planned — [CLIENTS/MOBILE_APP.md](CLIENTS/MOBILE_APP.md))
 - Voice mode over Web / Desktop / Mobile (modality, not a User Space)
@@ -53,7 +53,7 @@ Telegram adapter один: и личные чаты, и группы. После
 
 Клиент того же Core и **того же каталога conversations**, что Telegram. `role=user` → cabinet chat UI (`/cabinet/chats/{id}`). Chat + свой General Prompt. Ownership на каждом запросе. Web inbound: `channel=web`, `channel_message_id` = client UUID. Telegram и Web messages в одном conversation смешиваются хронологически и входят в AI context. Access code не для web-login.
 
-Owner Personal Workspace — отдельная planned поверхность (`/workspace` или `/jarvis`, route `TBD`). Не Admin Panel. Не текущий `/cabinet`.
+Owner Personal Workspace (`/jarvis`) is the owner web messenger. Same catalog and `channel=web` inbound as Cabinet. Guest → login. `role=user` → `/cabinet`. Owner `/cabinet` → `/jarvis`. Admin Panel is not a conversation channel.
 
 ## Conversation continuity
 

@@ -9,6 +9,7 @@ import {
     Home,
     LogOut,
     MessagesSquare,
+    Sparkles,
     Settings,
     UserCircle2,
     Menu,
@@ -96,7 +97,8 @@ export default function AdminLayout({ title, children }) {
             logout: 'Logout',
             statistics: 'Statistics',
             logs: 'Logs',
-            adminPanel: 'Workspace',
+            adminPanel: 'Admin Panel',
+            openJarvis: 'Open Jarvis',
             profile: 'Profile',
             language: 'Language',
         },
@@ -109,7 +111,8 @@ export default function AdminLayout({ title, children }) {
             logout: 'Выход',
             statistics: 'Статистика',
             logs: 'Логи',
-            adminPanel: 'Рабочее пространство',
+            adminPanel: 'Админ-панель',
+            openJarvis: 'Open Jarvis',
             profile: 'Профиль',
             language: 'Язык',
         },
@@ -122,7 +125,8 @@ export default function AdminLayout({ title, children }) {
             logout: 'Вийти',
             statistics: 'Статистика',
             logs: 'Логи',
-            adminPanel: 'Робочий простір',
+            adminPanel: 'Адмін-панель',
+            openJarvis: 'Open Jarvis',
             profile: 'Профіль',
             language: 'Мова',
         },
@@ -234,9 +238,21 @@ export default function AdminLayout({ title, children }) {
         </Link>
     );
 
+    const renderJarvisLink = (mobile = false) => (
+        <Link
+            href={route('jarvis.index')}
+            onClick={() => mobile && setMobileMenuOpen(false)}
+            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-200 hover:bg-white/5 hover:text-white"
+        >
+            <Sparkles className="h-4 w-4" />
+            <span>{t.openJarvis}</span>
+        </Link>
+    );
+
     const renderBottomNav = (mobile = false) => (
         <div className="mt-auto space-y-1.5">
             <div className="my-3 border-t border-white/10" />
+            {renderJarvisLink(mobile)}
             {renderStatistics(mobile)}
             <div className="my-3 border-t border-white/10" />
             {renderSettingsLink(mobile)}
@@ -331,6 +347,12 @@ export default function AdminLayout({ title, children }) {
                             </div>
 
                             <div className="flex items-center gap-3">
+                                <Link
+                                    href={route('jarvis.index')}
+                                    className="hidden rounded-full border border-amber-300/70 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-50 sm:inline-flex"
+                                >
+                                    {t.openJarvis}
+                                </Link>
                                 <span
                                     className={`hidden max-w-[280px] truncate rounded-full px-3 py-1 text-xs font-semibold lg:inline-flex ${
                                         aiConnected

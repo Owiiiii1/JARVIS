@@ -613,11 +613,11 @@ Plan: [INTEGRATIONS.md](INTEGRATIONS.md), [Development/Cursor_Work_Report.md](De
 
 **Цель.** Полноценный owner-facing Personal Workspace. Conversation в центре. Admin Panel остаётся технической.
 
-**Реализуем** [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md). Same Core as Telegram. Route `/workspace` or `/jarvis` (`TBD`). Existing Laravel + Inertia/React in `Owiiiii1/JARVIS`.
+**Реализуем** [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md). Same Core as Telegram. Route `/jarvis`. Existing Laravel + Inertia/React in `Owiiiii1/JARVIS`.
 
-Versioned Client API ([CLIENT_API.md](CLIENTS/CLIENT_API.md), [API.md](API.md)) starts here if Desktop/Mobile need it; Inertia session is enough for first Workspace slice.
+Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
-**Не реализовывать сейчас.**
+**Status.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live AI/Google/GitHub send. Voice runtime not included.
 
 **Зависимости:** M4, M8, M19; желателен M20 smoke.
 

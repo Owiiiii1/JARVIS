@@ -80,6 +80,14 @@ final class ToolConfirmationService
         return $confirmation;
     }
 
+    public function findOwnedByPublicId(User $user, string $publicId): ?ToolConfirmation
+    {
+        return ToolConfirmation::query()
+            ->where('public_id', $publicId)
+            ->where('user_id', $user->id)
+            ->first();
+    }
+
     public function cancel(ToolConfirmation $confirmation): ToolConfirmation
     {
         if ($confirmation->status !== ToolConfirmationStatus::Pending) {
@@ -257,15 +265,15 @@ final class ToolConfirmationService
     }
 
     /**
-     * @return array{to: list<string>, cc: list<string>, subject: string, body_preview: string}|null
+     * @return array<string, mixed>|null
      */
     public function previewFor(ToolConfirmation $confirmation): ?array
     {
-        if ($confirmation->tool_name !== 'send_gmail_message') {
-            return null;
+        if ($confirmation->tool_name === 'send_gmail_message') {
+            return $this->gmailSendPreview($confirmation);
         }
 
-        return $this->gmailSendPreview($confirmation);
+        return $this->safeArgumentPreview($confirmation);
     }
 
     private function gmailSendSummary(ToolConfirmation $confirmation): string
@@ -298,6 +306,58 @@ final class ToolConfirmationService
             'subject' => $subject,
             'body_preview' => $body,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function safeArgumentPreview(ToolConfirmation $confirmation): ?array
+    {
+        $arguments = is_array($confirmation->arguments_encrypted) ? $confirmation->arguments_encrypted : [];
+        $keys = match ($confirmation->tool_name) {
+            'delete_calendar_event' => ['calendar_id', 'event_id', 'title', 'summary'],
+            'create_calendar_event' => ['calendar_id', 'title', 'start', 'end'],
+            'update_calendar_event' => ['calendar_id', 'event_id', 'title', 'start', 'end'],
+            'create_github_issue' => ['repository', 'title', 'body'],
+            'comment_github_issue' => ['repository', 'issue_number', 'body'],
+            'create_github_branch' => ['repository', 'branch_name', 'from_ref'],
+            'create_github_pull_request' => ['repository', 'title', 'head', 'base', 'body'],
+            default => [],
+        };
+
+        if ($keys === []) {
+            return null;
+        }
+
+        $preview = [];
+
+        foreach ($keys as $key) {
+            if (! array_key_exists($key, $arguments)) {
+                continue;
+            }
+
+            $value = $arguments[$key];
+
+            if (is_bool($value) || is_int($value) || is_float($value)) {
+                $preview[$key] = $value;
+
+                continue;
+            }
+
+            $text = trim((string) $value);
+
+            if ($text === '') {
+                continue;
+            }
+
+            if (mb_strlen($text) > 200) {
+                $text = mb_substr($text, 0, 200);
+            }
+
+            $preview[$key] = $text;
+        }
+
+        return $preview === [] ? null : $preview;
     }
 
     /**

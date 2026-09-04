@@ -40,7 +40,7 @@
 - context: summary-first, raw-on-demand; Telegram `active_conversation_id`;
 - configuration (platform + per-user);
 - channel abstraction;
-- APIs, User Cabinet и planned Owner Workspace / Desktop / Mobile для тех же accounts;
+- APIs, User Cabinet и Owner Workspace / Desktop / Mobile для тех же accounts;
 - authorization / ownership на user resources.
 
 Не отвечает за:
@@ -81,7 +81,7 @@ Classification и extraction **не обязаны** быть одним LLM-в�
 
 ## Channel Layer
 
-Адаптеры поверх одного ядра. Каналы: Telegram, User Cabinet, planned Owner Workspace, Desktop, Mobile. Voice — mode, не отдельный space. [CHANNELS.md](CHANNELS.md), [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md).
+Адаптеры поверх одного ядра. Каналы: Telegram, User Cabinet, Owner Workspace (`/jarvis`), Desktop, Mobile. Voice — mode, не отдельный space. [CHANNELS.md](CHANNELS.md), [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md).
 
 Каждый адаптер:
 
@@ -95,7 +95,7 @@ Classification и extraction **не обязаны** быть одним LLM-в�
 
 Разговор пользователя в Telegram DM / Cabinet виден в mobile/desktop как его же `conversations` / `messages`. Чужой user не видит этот набор.
 
-Web Cabinet — User Space клиент. Owner Personal Workspace — отдельная planned поверхность, не Admin. [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
+Web Cabinet — User Space клиент. Owner Personal Workspace — `/jarvis`, не Admin. [USERS_AND_CABINET.md](USERS_AND_CABINET.md).
 
 Тот же Telegram adapter принимает **group updates**. Они не идут в personal reply path: регистрация группы, persist, optional analysis. См. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
 
@@ -174,9 +174,7 @@ Web Cabinet — User Space клиент. Owner Personal Workspace — отдел
 - Конкретная очередь/worker runtime (Redis, database queue, иное).
 - Обязательная Vector DB.
 - Точный протокол realtime (WebSocket / WebRTC / HTTP streaming).
-- Механизм auth (admin vs cabinet vs workspace; token flavour для Desktop/Mobile).
-- Финальный Owner Workspace path (`/workspace` vs `/jarvis`).
-- Точный UX confirmation (политика концептуально в [INTEGRATIONS.md](INTEGRATIONS.md)).
+- Механизм auth token flavour для Desktop/Mobile.
 - Алфавит access_code кроме зарезервированного `2000`.
 - Multi-tenant «много независимых инстансов». На одном инстансе: один `owner` + много `user`.
 

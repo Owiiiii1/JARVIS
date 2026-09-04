@@ -20,7 +20,7 @@ Channel adapter (или Voice layer) передаёт в Core структуру
 
 Адаптер **не** вызывает LLM.
 
-Web Cabinet: `CabinetChatController` → `ConversationTurnService` (persist + AI). Telegram handler нормализует inbound и вызывает тот же service, затем send.
+Web Cabinet: `CabinetChatController` → `PersonalChatSurfaceService` → `ConversationTurnService`. Owner Workspace (`/jarvis`): `JarvisWorkspaceController` → тот же `PersonalChatSurfaceService`. Telegram handler нормализует inbound и вызывает тот же `ConversationTurnService`, затем send.
 
 Дополнительно для Telegram: `chat_kind` (`direct` / `group`), `telegram_chat_id`, sender fields. Group inbound **не** запускает personal reply path. См. [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md).
 

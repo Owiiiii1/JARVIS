@@ -73,6 +73,19 @@ final class ConversationService
         return $this->createPersonal($user, Conversation::DEFAULT_TITLE);
     }
 
+    public function latestOrDefault(User $user): Conversation
+    {
+        $latest = Conversation::query()
+            ->where('user_id', $user->id)
+            ->where('kind', ConversationKind::Personal)
+            ->orderByRaw('last_activity_at IS NULL')
+            ->orderByDesc('last_activity_at')
+            ->orderByDesc('updated_at')
+            ->first();
+
+        return $latest ?? $this->getOrCreateDefault($user);
+    }
+
     public function rename(User $user, Conversation $conversation, string $title): Conversation
     {
         $owned = $this->findOwned($user, (int) $conversation->id);

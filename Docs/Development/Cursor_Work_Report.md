@@ -1,131 +1,144 @@
-# Cursor Work Report — Milestone 21 GitHub Integration
+# Cursor Work Report — Milestone 22 Owner Web Workspace
 
 **Date:** 2026-09-04  
 **Host:** `/var/www/jarvis`  
-**GitHub:** `Owiiiii1/JARVIS`
+**GitHub:** `Owiiiii1/JARVIS` (`origin/main`)  
+**Public URL:** https://jarvis.owlsolutions.net
+
+Status: **IMPLEMENTED / NOT VALIDATED**. Owner deferred all automated tests and all live AI / Google / GitHub sends.
+
+---
 
 ## Before HEAD
 
-- `0223b09` `fix: keep Telegram settings only in Integrations` (unrelated UI cleanup immediately before M21)
-- Prior docs HEAD: `b3011f3` `docs: plan Jarvis clients voice workspace and GitHub`
+`ac1ada4d6f9ac9120f1eaea92f6579228c89a3a4` — `feat: add GitHub integration` (M21). Working tree was clean.
 
-## Migration
+No database migration in this milestone. Production schema unchanged: Workspace is a UI surface over existing `conversations` / `messages` / `tool_confirmations` / `user_ai_settings`.
 
-None. Reused `integration_accounts`, `tool_execution_logs`, `tool_confirmations`.
+---
 
-`php artisan migrate:status`: latest ran `2026_09_04_030000_create_tool_confirmations_table` (batch 14). No new migration executed.
+## Routes
 
-## GitHub OAuth routes
-
-| Method | URI | Name |
+| Method | Path | Name |
 | --- | --- | --- |
-| GET | `/settings/integrations/github/connect` | `integrations.github.connect` |
-| GET | `/integrations/github/callback` | `integrations.github.callback` |
-| POST | `/settings/integrations/github/disconnect` | `integrations.github.disconnect` |
+| GET | `/jarvis` | `jarvis.index` |
+| GET | `/jarvis/chats/{conversation}` | `jarvis.chats.show` |
+| POST | `/jarvis/chats` | `jarvis.chats.store` |
+| PATCH | `/jarvis/chats/{conversation}` | `jarvis.chats.update` |
+| POST | `/jarvis/chats/{conversation}/messages` | `jarvis.messages.store` |
+| GET | `/jarvis/chats/{conversation}/messages/older` | `jarvis.messages.older` |
+| POST | `/jarvis/confirmations/{confirmation}/confirm` | `jarvis.confirmations.confirm` |
+| POST | `/jarvis/confirmations/{confirmation}/cancel` | `jarvis.confirmations.cancel` |
+| PATCH | `/jarvis/settings/general-prompt` | `jarvis.settings.prompt.update` |
 
-Owner-only (`integrations_admin`). Throttle on connect. Default callback `{APP_URL}/integrations/github/callback`.
+`GET /jarvis` redirects to the owner’s latest personal conversation (`ConversationService::latestOrDefault`), otherwise creates the existing `Основной` default once.
 
-## Env names (no values written)
+---
 
-Placeholders added only in `.env.example`:
+## Authorization
 
-- `GITHUB_CLIENT_ID`
-- `GITHUB_CLIENT_SECRET`
-- `GITHUB_REDIRECT_URI`
+- Middleware: `auth`, `user.active`, `owner.workspace` (`EnsureOwnerWorkspace`).
+- Guest → login.
+- `role=user` → `/cabinet`.
+- Owner identity is enough; Workspace does not require `integrations_admin`.
+- No hardcoded owner id.
 
-Cursor did not create or write actual credentials. Runtime `GitHubOAuthService::isConfigured()` = no.
+Owner hitting `/cabinet*` is redirected by `RedirectOwnerCabinetToWorkspace` (`cabinet.chats.show` keeps the same conversation id). Normal user Cabinet routes are unchanged.
 
-## OAuth scopes
+---
 
-Requested: `repo`, `read:org`.
+## Owner login redirect
 
-Not requested: `admin:org`, `delete_repo`, `admin:repo_hook`, `admin:public_key`, `gist`, `user:email`, `workflow`.
+Ordinary owner login lands on `/jarvis`. `intended()` still honours an explicit Admin URL. Admin Panel remains at `/dashboard` with **Open Jarvis** in the header, sidebar, and dashboard cards. Workspace header has a secondary **Admin** link.
 
-`repo` is broad and required for private repository read/write through an OAuth App.
+---
 
-## Provider registration
+## Layout / components
 
-`IntegrationRegistry`: `google`, `telegram`, `elevenlabs`, `github`.
+- `JarvisWorkspaceLayout` — dark cinematic shell, not Admin, not Cabinet.
+- `Pages/Jarvis/Workspace.jsx` — sidebar, thread, composer, context panel, settings/prompt modals.
+- `SafeMarkdown` — lists, fenced code + copy, tables, http(s) links; no raw HTML.
+- `VoiceModePlaceholder` + `OrbPlaceholder` — CSS only; future `<VoiceSession conversationId>` boundary documented.
+- Admin `Open Jarvis`; Dashboard first card is Workspace.
 
-Capability: `UserCapability::GITHUB` (`github`). Owner defaults remain `*`. Regular users do not receive GitHub tools.
+---
 
-## Credential / API services
+## Conversation reuse
 
-- `GitHubOAuthService` — authorize URL, code exchange, user fetch, optional refresh, revoke
-- `GitHubOAuthState` — random state, PKCE verifier, owner-bound, TTL, one-time
-- `GitHubConnectionService` — connect/callback/disconnect
-- `GitHubCredentialService` — usable token only; supports non-expiring tokens and refresh-token envelope
-- `GitHubApiService` — all GitHub REST HTTP
-- `GitHubIntegrationProvider` — card status without live GitHub calls on page load
+Same `conversations` and `messages` as Telegram. No `workspace_conversations`. New Chat = `ConversationService::createPersonal`. Channel stays `web` + UUID `client_message_id`.
 
-Envelope stored only in `integration_accounts.credentials_encrypted`. Model remains hidden from array/JSON.
+---
 
-## Tools implemented
+## Shared services
 
-**Read:** `list_github_repositories`, `get_github_repository`, `list_github_branches`, `list_github_commits`, `get_github_commit`, `compare_github_refs`, `get_github_file`, `search_github_code`, `list_github_issues`, `get_github_issue`, `list_github_pull_requests`, `get_github_pull_request`, `get_github_pull_request_diff`, `list_github_workflow_runs`, `get_github_workflow_run`.
+`PersonalChatSurfaceService` is the shared application layer for Cabinet and Workspace: sidebar, page, create, rename, send turn, confirmation resolve. `ConversationTurnService` is not rewritten.
 
-**Write:** `create_github_issue`, `comment_github_issue`, `create_github_branch`, `create_github_pull_request`.
+`OwnerWorkspaceContextService` builds bounded secondary-panel summaries from `ProjectService`, `ReminderService`, `IntegrationRegistry`, and memory/topic counts. No Admin controllers.
 
-**Not registered:** merge, delete branch/repo, force push, file writes, workflow file edits, secrets, releases, admin ops.
+Cabinet `CabinetChatController` now calls the shared surface service. User-facing Cabinet behavior stays the same catalog/turn path.
 
-## Confirmation
+---
 
-Standard M16 external-write policy. GitHub writes are not `alwaysConfirm`. Explicit user command allowed; model-proposed requires persisted confirmation.
+## Sidebar / chat / context
 
-## Bounds / rate limit / revoke
+- Left: New Chat, local search, titles, last activity, selected state, rename.
+- Center: recent messages, load older, sticky composer (Enter send, Shift+Enter newline, thinking state, local draft).
+- Empty chat: «Чем займёмся?» + suggestion chips that send normal user text.
+- Right / mobile drawer: projects (list + attached + Admin deep link), upcoming reminders read-only, integrations compact status (Google identity/Calendar/Gmail, GitHub, Telegram, ElevenLabs placeholder), memory counts + General Prompt.
 
-Limits live in `config/github.php`. Truncated results set `truncated=true`. File/diff/comment/search caps applied.
+---
 
-GET may retry once on transient errors. Writes retry = 0. Existing branch → `github_conflict`. Existing open PR same head/base returned instead of duplicating.
+## Confirmations
 
-Rate limit → `github_rate_limited` plus `reset_at` / `remaining` when headers exist.
+Confirm / Cancel hit Workspace confirmation routes, then the same turn path (`да` / `отмена`) and `ToolConfirmationService`. Safe previews: Gmail recipients/subject/body; Calendar/GitHub bounded argument fields. Encrypted args are not sent to the client.
 
-401 / bad credentials → account revoked, credentials wiped, `github_token_revoked`.
+---
 
-## Integrations UI
+## General Prompt
 
-GitHub card: Not configured (Connect disabled) / Disconnected / Connected / Reconnect required. Shows login, scopes, connected_at, token health. Connect / Reconnect / Disconnect. Never shows token or client secret.
+Editable from Workspace modal/drawer via `user_ai_settings` (`jarvis.settings.prompt.update`). Provider/model stay Admin-only.
 
-Google and Telegram cards unchanged in behavior.
+---
 
-## Build / non-test verification
+## Voice placeholder
 
-- `npm run build` — succeeded
-- `php artisan migrate:status` — no pending M21 migration
-- `php artisan route:list --name=github` — 3 routes
-- `php artisan queue:failed` — none
-- `php artisan schedule:list` — reminders only
-- `php artisan config:clear` — ran (safe; new `config/github.php`)
-- `composer dump-autoload` — ran
-- `vendor/bin/pint --dirty` — passed
-- `php artisan test` — **NOT RUN** (Owner deferred)
+Text / Voice toggle. Voice panel: CSS sphere + glow + idle breathing (`prefers-reduced-motion` disables animation). No microphone, WebRTC, ElevenLabs, STT/TTS, or Three.js.
 
-## Production counts (safe)
+---
 
-- `integration_accounts` = 0
-- GitHub accounts = 0
-- owners = 1
+## Responsive
 
-No tokens, secrets, private file contents, issue bodies, or diffs inspected.
+Desktop: conversation-first, sidebar ~260–320px class width, context panel collapsible. Mobile web: conversation list overlay, context drawer, sticky composer.
 
-## TESTS NOT RUN — explicitly deferred by Owner
+---
 
-No PHPUnit. No live OAuth. No live repo reads. No live issue/branch/PR creation.
+## Verification (non-test)
 
-**LIVE GITHUB NOT TESTED.**
+Ran only:
 
-**Existing Google validation still deferred.**
+- `npm run build`
+- `php artisan route:list --name=jarvis`
+- `php artisan migrate:status`
+- `php artisan queue:failed`
+- `php artisan schedule:list`
+- `vendor/bin/pint --dirty`
 
-## Known issues / residual risk
+**TESTS NOT RUN — Owner deferred.**  
+**NO LIVE AI / Google / GitHub.**  
+No conversational send. Production DB tables unchanged.
 
-- GitHub OAuth env is unset; card is Not configured until Owner adds a GitHub OAuth App.
-- `repo` scope is broad relative to the implemented write subset.
-- Repeated distinct user requests can still create a second issue/comment (no blind HTTP retry; no cross-request issue fingerprint).
-- GitHub code search index lag is reported via `incomplete_results` / truncated, not hidden.
-- PKCE is sent on authorize/exchange (GitHub-supported); first live connect is the real check.
+---
 
-## Next milestone
+## Known issues
 
-M22 — Owner Web Workspace.
+- Workspace conversational UX is unvalidated (no live turn).
+- Google / GitHub integrations may still be disconnected in production; status panel will show that honestly.
+- Voice is a layout placeholder only (M23).
+- Public Client API is not implemented (still later).
+- Delete-chat is not offered (Core has no delete).
 
-M20 combined Google smoke remains deferred by Owner.
+---
+
+## Next
+
+**M23 Voice Runtime Foundation** — STT/TTS/realtime abstraction on the selected `conversation_id`. Replace `VoiceModePlaceholder` with `<VoiceSession />`. No Three.js Orb yet (M24).

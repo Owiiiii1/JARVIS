@@ -351,6 +351,9 @@ final class ConversationAiService
                 'tool_name' => $result->name,
                 'summary' => (string) ($result->payload['summary'] ?? ''),
                 'preview' => is_array($preview) ? $preview : null,
+                'expires_at' => isset($result->payload['expires_at'])
+                    ? (string) $result->payload['expires_at']
+                    : null,
             ];
         }
 

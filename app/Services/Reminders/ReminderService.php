@@ -12,6 +12,7 @@ use App\Services\Users\UserCapability;
 use Carbon\CarbonImmutable;
 use DateTimeZone;
 use Exception;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 final class ReminderService
@@ -71,6 +72,19 @@ final class ReminderService
         } catch (Exception $exception) {
             throw new ReminderException('invalid_time', 'run_at_local is invalid.');
         }
+    }
+
+    /**
+     * @return Collection<int, Reminder>
+     */
+    public function listUpcoming(User $user, int $limit = 8): Collection
+    {
+        return Reminder::query()
+            ->where('user_id', $user->id)
+            ->whereIn('status', [ReminderStatus::Scheduled, ReminderStatus::Processing])
+            ->orderBy('run_at')
+            ->limit(max(1, min(20, $limit)))
+            ->get();
     }
 
     public function isValidTimezone(string $timezone): bool

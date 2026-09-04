@@ -3,6 +3,8 @@
 use App\Http\Controllers\CabinetChatController;
 use App\Http\Controllers\CabinetController;
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\Jarvis\JarvisConfirmationController;
+use App\Http\Controllers\Jarvis\JarvisWorkspaceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\Settings\AiSettingsController;
@@ -35,7 +37,7 @@ Route::post('/telegram/webhook', TelegramWebhookController::class)
     ])
     ->name('telegram.webhook');
 
-Route::middleware(['web', 'auth', 'user.active'])->group(function () {
+Route::middleware(['web', 'auth', 'user.active', 'cabinet.owner.redirect'])->group(function () {
     Route::get('/cabinet', [CabinetController::class, 'index'])->name('cabinet.index');
     Route::get('/cabinet/ai-settings', [UserAiSettingsController::class, 'edit'])->name('cabinet.ai-settings.edit');
     Route::patch('/cabinet/ai-settings', [UserAiSettingsController::class, 'update'])->name('cabinet.ai-settings.update');
@@ -44,6 +46,18 @@ Route::middleware(['web', 'auth', 'user.active'])->group(function () {
     Route::patch('/cabinet/chats/{conversation}', [CabinetChatController::class, 'update'])->name('cabinet.chats.update');
     Route::get('/cabinet/chats/{conversation}/messages', [CabinetChatController::class, 'messages'])->name('cabinet.chats.messages.index');
     Route::post('/cabinet/chats/{conversation}/messages', [CabinetChatController::class, 'storeMessage'])->name('cabinet.chats.messages.store');
+});
+
+Route::middleware(['web', 'auth', 'user.active', 'owner.workspace'])->group(function () {
+    Route::get('/jarvis', [JarvisWorkspaceController::class, 'index'])->name('jarvis.index');
+    Route::post('/jarvis/chats', [JarvisWorkspaceController::class, 'store'])->name('jarvis.chats.store');
+    Route::get('/jarvis/chats/{conversation}', [JarvisWorkspaceController::class, 'show'])->name('jarvis.chats.show');
+    Route::patch('/jarvis/chats/{conversation}', [JarvisWorkspaceController::class, 'update'])->name('jarvis.chats.update');
+    Route::post('/jarvis/chats/{conversation}/messages', [JarvisWorkspaceController::class, 'storeMessage'])->name('jarvis.messages.store');
+    Route::get('/jarvis/chats/{conversation}/messages/older', [JarvisWorkspaceController::class, 'olderMessages'])->name('jarvis.messages.older');
+    Route::post('/jarvis/confirmations/{confirmation}/confirm', [JarvisConfirmationController::class, 'confirm'])->name('jarvis.confirmations.confirm');
+    Route::post('/jarvis/confirmations/{confirmation}/cancel', [JarvisConfirmationController::class, 'cancel'])->name('jarvis.confirmations.cancel');
+    Route::patch('/jarvis/settings/general-prompt', [JarvisWorkspaceController::class, 'updateGeneralPrompt'])->name('jarvis.settings.prompt.update');
 });
 
 Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'owner']))->group(function () {

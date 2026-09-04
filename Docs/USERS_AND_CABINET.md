@@ -9,7 +9,7 @@ User A, User B и Owner personal context **никогда** не смешива�
 
 Связано: [CHANNELS.md](CHANNELS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [REMINDERS.md](REMINDERS.md), [PROJECTS.md](PROJECTS.md), [INTEGRATIONS.md](INTEGRATIONS.md), ADR-016–045.
 
-Фактический код (M4/M8): user на admin route получает 403; `/cabinet` редирект на `/cabinet/chats/{id}`; web chat и Telegram используют один catalog и `ConversationTurnService`. Owner General Prompt — Admin Profile. User General Prompt — Cabinet AI Settings. System AI configs — только owner Settings → AI.
+Фактический код: user на admin route получает 403; `/cabinet` редирект на `/cabinet/chats/{id}`; web chat и Telegram используют один catalog и `ConversationTurnService`. Owner login → `/jarvis`. Owner `/cabinet` → `/jarvis`. Owner General Prompt — Workspace и Admin Profile (одна `user_ai_settings`). User General Prompt — Cabinet AI Settings. System AI configs — только owner Settings → AI.
 
 ---
 
@@ -19,7 +19,7 @@ User A, User B и Owner personal context **никогда** не смешива�
 
 | Role | Кто | Web после login | Telegram | Admin / integrations |
 | --- | --- | --- | --- | --- |
-| `owner` | один главный владелец инстанса | **Admin Panel** (техника) + planned **Personal Workspace** (общение) | тот же pairing, код `2000` | `*` |
+| `owner` | один главный владелец инстанса | **Personal Workspace** `/jarvis` (общение) + **Admin Panel** `/dashboard` (техника) | тот же pairing, код `2000` | `*` |
 | `user` | все остальные в каталоге Users | **Personal Cabinet** | pairing своим `access_code` | нет |
 
 Ровно один owner на инстанс. Не `if ($userId === 1)`.
@@ -77,7 +77,7 @@ Owner = все. Расширение permissions без нового engine.
 - impersonation;
 - все будущие tools/actions.
 
-Owner **также** обычный участник Conversation Core: своя history, topics, memories, Telegram DM, User General Prompt. Основной web-чат owner — planned Personal Workspace, не Admin. ADR-086.
+Owner **также** обычный участник Conversation Core: своя history, topics, memories, Telegram DM, User General Prompt. Основной web-чат owner — `/jarvis` (Personal Workspace). Admin остаётся технической панелью. ADR-086, ADR-110.
 
 ### User
 
@@ -121,11 +121,11 @@ Owner **также** обычный участник Conversation Core: своя
 Один `User` model, один guard допустим. После login:
 
 ```
-if role === owner → Admin Panel (technical) ; Personal Workspace later (`/workspace` or `/jarvis`)
+if role === owner → /jarvis (Personal Workspace); Admin at /dashboard
 if role === user  → Personal Cabinet
 ```
 
-User на admin route: **403** или redirect в cabinet по согласованной policy. Инвариант — user не видит admin data. Owner не должен использовать Admin как основной messenger. Текущий код: owner login → admin; Workspace ещё не реализован.
+User на admin route: **403** или redirect в cabinet по согласованной policy. Инвариант — user не видит admin data. Owner `/cabinet` → `/jarvis`. Owner login → `/jarvis` (`intended()` still honours an explicit Admin URL).
 
 Impersonation: только owner, без пароля жертвы. ADR-020.
 

@@ -874,7 +874,7 @@
 
 **Решение.** Admin = техническое управление (users, AI, integrations, groups, diagnostics, logs, settings). Personal Workspace = общение с Jarvis. Owner не использует Admin как основной chat UI.
 
-**Следствие.** Planned `/workspace` or `/jarvis`. Текущий `/cabinet` остаётся User Space.
+**Следствие.** Route is `/jarvis`. `/cabinet` remains User Space. Admin stays at `/dashboard`.
 
 ---
 
@@ -1068,11 +1068,90 @@
 
 ---
 
+## ADR-110 — `/jarvis` is Owner Personal Workspace
+
+**Контекст.** Docs allowed `/workspace` or `/jarvis`.
+
+**Решение.** Owner Personal Workspace route is `/jarvis`. Not `/workspace`. Not `/dashboard`. Not `/cabinet`.
+
+**Следствие.** Route names live under the `jarvis.*` namespace.
+
+---
+
+## ADR-111 — Owner default landing is Workspace
+
+**Контекст.** Owner login previously opened Admin.
+
+**Решение.** Ordinary owner login redirects to `/jarvis`. `intended()` still honours an explicit Admin URL. Admin stays reachable from Workspace and via **Open Jarvis** from Admin.
+
+**Следствие.** Admin is technical, not the default messenger.
+
+---
+
+## ADR-112 — Owner `/cabinet` redirects to `/jarvis`
+
+**Контекст.** Owner could open the User Cabinet messenger.
+
+**Решение.** Owner hitting `/cabinet` (and cabinet chat URLs) redirects to Workspace. `role=user` Cabinet is unchanged.
+
+**Следствие.** One owner web messenger. No dual owner UIs.
+
+---
+
+## ADR-113 — Workspace uses the same `conversations` / `messages`
+
+**Контекст.** Temptation to add `workspace_conversations`.
+
+**Решение.** Workspace reads and writes the existing personal catalog. Telegram chats of the owner appear in `/jarvis`. New Chat is a normal personal conversation.
+
+**Следствие.** No workspace-specific storage schema.
+
+---
+
+## ADR-114 — Workspace inbound channel remains `web`
+
+**Контекст.** Branding could invent `channel=workspace`.
+
+**Решение.** Channel names the transport. Workspace messages use `web` + `client_message_id` UUID, same as Cabinet.
+
+**Следствие.** No new channel enum for M22.
+
+---
+
+## ADR-115 — Personal settings vs technical admin settings
+
+**Контекст.** Owner needs General Prompt in the messenger without seeing API keys.
+
+**Решение.** Workspace: General Prompt, timezone display, voice prefs later, integrations status + Admin deep link. Admin: providers, models, OAuth, workers, webhooks.
+
+**Следствие.** Workspace must not reproduce OAuth forms or AI vendor config.
+
+---
+
+## ADR-116 — Voice Mode is a placeholder in M22
+
+**Контекст.** Voice UI docs describe Orb + runtime.
+
+**Решение.** M22 ships Text/Voice toggle, CSS Orb placeholder, and `VoiceModePlaceholder` / future `<VoiceSession conversationId>` boundary. No microphone, STT, TTS, WebRTC, ElevenLabs, or Three.js.
+
+**Следствие.** M23 replaces the placeholder without changing conversation identity.
+
+---
+
+## ADR-117 — M22 tests and live AI/Google/GitHub are deferred by Owner
+
+**Контекст.** Production DB tests and live turns are high-risk.
+
+**Решение.** Implement M22 without `php artisan test` and without conversational live send or live Google/GitHub.
+
+**Следствие.** Status: implemented, not validated.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Алфавит generated access_code (кроме зарезервированного 2000).
 - 403 vs redirect когда user открывает admin URL.
-- Финальный path Owner Workspace (`/workspace` vs `/jarvis`).
 - Auth схема Desktop/Mobile (token flavour).
 - Realtime транспорт voice/text streaming; STT/TTS/interruption — практические тесты.
 - Набор service updates (`my_chat_member`) beyond bot left/kicked/member/admin/restricted.

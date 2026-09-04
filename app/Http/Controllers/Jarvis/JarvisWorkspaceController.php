@@ -1,9 +1,12 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Jarvis;
 
+use App\Http\Controllers\Controller;
+use App\Models\UserAiSetting;
 use App\Services\Conversations\ConversationService;
 use App\Services\Conversations\PersonalChatSurfaceService;
+use App\Services\Workspace\OwnerWorkspaceContextService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,26 +15,28 @@ use Inertia\Inertia;
 use Inertia\Response;
 use InvalidArgumentException;
 
-class CabinetChatController extends Controller
+class JarvisWorkspaceController extends Controller
 {
     public function __construct(
         private readonly PersonalChatSurfaceService $chats,
+        private readonly OwnerWorkspaceContextService $context,
     ) {}
 
     public function index(Request $request): RedirectResponse
     {
         $conversation = $this->chats->latestOrDefault($request->user());
 
-        return redirect()->route('cabinet.chats.show', $conversation);
+        return redirect()->route('jarvis.chats.show', $conversation);
     }
 
     public function show(Request $request, int $conversation): Response
     {
         $user = $request->user();
+        $user->loadMissing('aiSettings');
         $current = $this->chats->ensureOwned($user, $conversation);
         $page = $this->chats->page($current);
 
-        return Inertia::render('Cabinet/Chat', [
+        return Inertia::render('Jarvis/Workspace', [
             'user' => $this->chats->userProfile($user),
             'conversations' => $this->chats->sidebar($user, (int) $current->id),
             'conversation' => [
@@ -41,6 +46,7 @@ class CabinetChatController extends Controller
             'messages' => $page['messages'],
             'hasMore' => $page['has_more'],
             'oldestId' => $page['oldest_id'],
+            'context' => $this->context->compact($user, $current),
         ]);
     }
 
@@ -48,7 +54,7 @@ class CabinetChatController extends Controller
     {
         $conversation = $this->chats->createChat($request->user());
 
-        return redirect()->route('cabinet.chats.show', $conversation);
+        return redirect()->route('jarvis.chats.show', $conversation);
     }
 
     public function update(Request $request, int $conversation): RedirectResponse
@@ -91,7 +97,7 @@ class CabinetChatController extends Controller
         );
     }
 
-    public function messages(Request $request, int $conversation): JsonResponse
+    public function olderMessages(Request $request, int $conversation): JsonResponse
     {
         $current = $this->chats->ensureOwned($request->user(), $conversation);
 
@@ -105,5 +111,23 @@ class CabinetChatController extends Controller
             isset($validated['before_id']) ? (int) $validated['before_id'] : null,
             isset($validated['limit']) ? (int) $validated['limit'] : null,
         ));
+    }
+
+    public function updateGeneralPrompt(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'general_prompt' => ['nullable', 'string', 'max:10000'],
+        ]);
+
+        $prompt = filled($validated['general_prompt'] ?? null)
+            ? trim((string) $validated['general_prompt'])
+            : null;
+
+        UserAiSetting::query()->updateOrCreate(
+            ['user_id' => $request->user()->id],
+            ['general_prompt' => $prompt === '' ? null : $prompt],
+        );
+
+        return back()->with('success', 'General Prompt saved.');
     }
 }

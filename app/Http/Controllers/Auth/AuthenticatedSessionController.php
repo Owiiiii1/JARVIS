@@ -30,7 +30,7 @@ class AuthenticatedSessionController extends Controller
         $user = $request->user();
 
         if ($user !== null && $user->isOwner()) {
-            return redirect()->intended(route('dashboard', absolute: false));
+            return redirect()->intended(route('jarvis.index', absolute: false));
         }
 
         return redirect()->intended(route('cabinet.index', absolute: false));

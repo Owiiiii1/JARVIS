@@ -8,7 +8,9 @@ export default function Dashboard() {
         en: {
             title: 'Home',
             hello: `Good to have you back in ${brandName}.`,
-            body: 'Open the calendar for your schedule, or settings for AI and Telegram.',
+            body: 'Open Jarvis to talk. Admin stays here for technical setup.',
+            jarvis: 'Open Jarvis',
+            jarvisHint: 'Personal workspace',
             calendar: 'Calendar',
             calendarHint: 'Your personal schedule',
             projects: 'Projects',
@@ -21,7 +23,9 @@ export default function Dashboard() {
         ru: {
             title: 'Главная',
             hello: `С возвращением в ${brandName}.`,
-            body: 'Календарь — ваше расписание. Настройки — ИИ и Telegram.',
+            body: 'Общение — в Jarvis. Здесь остаётся техническая админка.',
+            jarvis: 'Open Jarvis',
+            jarvisHint: 'Личный workspace',
             calendar: 'Календарь',
             calendarHint: 'Личное расписание',
             projects: 'Projects',
@@ -34,7 +38,9 @@ export default function Dashboard() {
         uk: {
             title: 'Головна',
             hello: `З поверненням у ${brandName}.`,
-            body: 'Календар — ваш розклад. Налаштування — ШІ та Telegram.',
+            body: 'Спілкування — у Jarvis. Тут залишається технічна адмінка.',
+            jarvis: 'Open Jarvis',
+            jarvisHint: 'Особистий workspace',
             calendar: 'Календар',
             calendarHint: 'Особистий розклад',
             projects: 'Projects',
@@ -48,6 +54,7 @@ export default function Dashboard() {
     const t = text[locale] ?? text.en;
 
     const cards = [
+        { href: route('jarvis.index'), title: t.jarvis, hint: t.jarvisHint },
         { href: route('projects.index'), title: t.projects, hint: t.projectsHint },
         { href: route('calendar.index'), title: t.calendar, hint: t.calendarHint },
         { href: route('statistics.logs'), title: t.logs, hint: t.logsHint },
