@@ -1,6 +1,6 @@
 # Personal Web Workspace
 
-**Status.** M25U.1 IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live AI / Web Search / Voice provider calls.
+**Status.** M25U.2 IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live AI / Web Search / Voice provider calls. Manual A/B isolation campaign is prepared, not executed.
 
 Owner and ordinary users share **one Personal Workspace product**. Role/capabilities change available features, not the chat implementation.
 
@@ -22,6 +22,8 @@ Workspace is part of `Owiiiii1/JARVIS`: Laravel + Inertia/React, one deployment 
 Owner default landing after ordinary login is `/jarvis`. User landing is `/chat`. Admin remains one click from Owner Workspace (`Admin`) and has a reciprocal **Open Jarvis**.
 
 Frontend: `resources/js/personal-workspace/PersonalWorkspace.jsx`. Inertia pages `Jarvis/Workspace` and `Chat/Workspace` re-export it. UI `capabilities` props are presentation-only; backend ownership/capability checks are authoritative.
+
+While Owner impersonates a user, `/chat` uses that user’s Auth identity. A persistent banner (“Viewing as … / Exit impersonation”) is required. Admin/settings/projects stay unavailable. Ordinary users change their own password and timezone in workspace settings. [USER_ADMINISTRATION.md](../USER_ADMINISTRATION.md).
 
 ---
 

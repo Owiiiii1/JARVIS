@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Users\ImpersonationService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,6 +18,18 @@ class EnsureUserIsActive
         $user = $request->user();
 
         if ($user !== null && ! $user->isActive()) {
+            $impersonation = app(ImpersonationService::class);
+
+            if ($impersonation->isActive($request)) {
+                $owner = $impersonation->stop($request);
+
+                if ($owner !== null) {
+                    return redirect()
+                        ->route('dashboard')
+                        ->with('warning', 'That account is not available.');
+                }
+            }
+
             Auth::guard('web')->logout();
 
             $request->session()->invalidate();
@@ -24,7 +37,7 @@ class EnsureUserIsActive
 
             return redirect()
                 ->route('login')
-                ->withErrors(['email' => 'This account has been disabled.']);
+                ->withErrors(['email' => trans('auth.failed')]);
         }
 
         return $next($request);

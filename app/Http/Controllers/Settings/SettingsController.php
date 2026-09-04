@@ -4,9 +4,10 @@ namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
 use App\Models\TelegramBotSetting;
-use App\Models\User;
+use App\Services\Users\UserAdministrationService;
 use App\Services\Voice\VoiceSettingsService;
 use App\Services\WebResearch\WebResearchSettingsService;
+use App\Support\Timezones;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -15,31 +16,9 @@ use Inertia\Response;
 
 class SettingsController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, UserAdministrationService $users): Response
     {
-        $users = User::query()
-            ->with('telegramIdentity')
-            ->withCount(['conversations', 'messages', 'reminders'])
-            ->orderBy('name')
-            ->get(['id', 'name', 'email', 'role', 'access_code', 'status', 'timezone', 'created_at'])
-            ->map(static fn (User $user): array => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->role->value,
-                'access_code' => $user->access_code,
-                'status' => $user->status->value,
-                'timezone' => $user->timezone,
-                'created_at' => optional($user->created_at)->toIso8601String(),
-                'chats_count' => (int) $user->conversations_count,
-                'messages_count' => (int) $user->messages_count,
-                'reminders_count' => (int) $user->reminders_count,
-                'telegram' => [
-                    'connected' => $user->telegramIdentity !== null,
-                    'username' => $user->telegramIdentity?->username,
-                ],
-            ])
-            ->all();
+        $catalog = $users->catalog();
 
         $allowedTabs = ['general', 'users', 'ai', 'app', 'integrations'];
         $allowedSections = ['overview', 'web-research', 'voice', 'telegram', 'activity'];
@@ -60,7 +39,8 @@ class SettingsController extends Controller
         $aiSettings = app(AiSettingsController::class);
 
         return Inertia::render('Settings/Index', [
-            'users' => $users,
+            'users' => $catalog,
+            'timezones' => Timezones::common(),
             'providers' => $aiSettings->providersPayload(),
             'aiRoles' => $aiSettings->rolesPayload(),
             'telegram' => $this->telegramPayload(),

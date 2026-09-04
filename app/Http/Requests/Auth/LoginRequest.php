@@ -49,7 +49,7 @@ class LoginRequest extends FormRequest
             Auth::logout();
 
             throw ValidationException::withMessages([
-                'email' => 'This account has been disabled.',
+                'email' => trans('auth.failed'),
             ]);
         }
 

@@ -15,7 +15,7 @@ export default function UserMemory() {
     const text = {
         en: {
             title: 'User memory',
-            back: 'Back to users',
+            back: 'Back to user',
             profile: 'Profile',
             topics: 'Topics',
             memories: 'Memories',
@@ -29,7 +29,7 @@ export default function UserMemory() {
         },
         ru: {
             title: 'User memory',
-            back: 'Back to users',
+            back: 'Back to user',
             profile: 'Profile',
             topics: 'Topics',
             memories: 'Memories',
@@ -43,7 +43,7 @@ export default function UserMemory() {
         },
         uk: {
             title: 'User memory',
-            back: 'Back to users',
+            back: 'Back to user',
             profile: 'Profile',
             topics: 'Topics',
             memories: 'Memories',
@@ -73,7 +73,7 @@ export default function UserMemory() {
                         </p>
                     </div>
                     <Link
-                        href={route('settings.index', { tab: 'users' })}
+                        href={route('settings.users.show', user.id)}
                         className="inline-flex h-10 items-center rounded-lg border border-slate-300 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
                     >
                         {t.back}

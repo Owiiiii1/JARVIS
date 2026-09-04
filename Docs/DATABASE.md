@@ -16,13 +16,13 @@ Account entity. Ядро работает с `user_id`, не с Telegram id. Р�
 - password hash (web cabinet / admin) — **не** access_code;
 - `role`: `owner` | `user`;
 - `access_code` unique (owner зарезервирован **`2000`**);
-- `status`;
+- `status`: `active` | `disabled`;
 - `timezone` IANA (например `Europe/Rome`);
-- last activity (`TBD`);
+- last activity: derived (conversation `last_activity_at` / Telegram `last_seen_at` / `updated_at`); no dedicated column in M25U.2;
 - timestamps.
 - capabilities: default из role; persisted overrides optional later.
 
-Пароль и access_code — разные поля. Access code виден owner на User Card; не секрет web-login. Plaintext password не хранить.
+Пароль и access_code — разные поля. Access code виден owner на User Card; не секрет web-login. Plaintext password не хранить. Impersonation is session-only (no table).
 
 ### user_profiles
 
@@ -36,7 +36,7 @@ Account entity. Ядро работает с `user_id`, не с Telegram id. Р�
 
 ### user_ai_settings
 
-Implemented (M4): unique `user_id`, `general_prompt` nullable, `overrides` json nullable (unused). Owner edits from Profile; user from Cabinet → AI Settings. Self-only.
+Implemented (M4 / M25U.2): unique `user_id`, `general_prompt` nullable, `overrides` json nullable (unused). User edits from `/chat` settings; Owner may inspect/edit the same row from User Card. Self-only for ordinary `/chat`. No `user_id` from the browser to pick another user’s prompt.
 
 Platform configs live in **`ai_role_settings`** (not `is_active`):
 
@@ -59,7 +59,7 @@ Fields: provider, model, system_prompt, parameters json, is_enabled. Credentials
 - `linked_at`, `last_seen_at`
 - `active_conversation_id` nullable FK → conversations того же `user_id`
 
-Unique `(channel, external_id)`. Создаётся только после верного access_code.
+Unique `(channel, external_user_id)`. One Jarvis user — one Telegram identity is enforced in `TelegramPairingService` (no extra unique on `(user_id, channel)` in M25U.2). Создаётся только после верного access_code. Unknown code does not create a User. Unlink deletes that user’s Telegram identity only.
 
 ---
 

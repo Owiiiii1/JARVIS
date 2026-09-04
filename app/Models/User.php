@@ -89,6 +89,16 @@ class User extends Authenticatable
         return $this->hasMany(Memory::class);
     }
 
+    public function storedFiles(): HasMany
+    {
+        return $this->hasMany(StoredFile::class);
+    }
+
+    public function voiceSessions(): HasMany
+    {
+        return $this->hasMany(VoiceSession::class);
+    }
+
     public function topics(): HasMany
     {
         return $this->hasMany(Topic::class);

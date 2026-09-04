@@ -30,10 +30,10 @@ class AuthenticatedSessionController extends Controller
         $user = $request->user();
 
         if ($user !== null && $user->isOwner()) {
-            return redirect()->intended(route('jarvis.index', absolute: false));
+            return redirect()->route('jarvis.index');
         }
 
-        return redirect()->intended(route('chat.index', absolute: false));
+        return redirect()->route('chat.index');
     }
 
     public function destroy(Request $request): RedirectResponse

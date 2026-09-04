@@ -40,6 +40,10 @@ final class ConversationTurnService
             throw new AuthorizationException('Conversation is not owned by this user.');
         }
 
+        if (! $user->isActive()) {
+            throw new AuthorizationException('Account is not active.');
+        }
+
         if ($conversation->kind !== ConversationKind::Personal) {
             throw new InvalidArgumentException('Group conversations cannot enter personal Conversation AI.');
         }

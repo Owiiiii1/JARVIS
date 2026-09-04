@@ -1984,6 +1984,116 @@
 
 ---
 
+## ADR-209 — Users are Owner-created only
+
+**Контекст.** Self-registration would create untrusted accounts on a production personal assistant.
+
+**Решение.** No `/register`, invite flow, or login “Create account”. Owner creates `role=user` from Admin. Unknown email cannot self-provision. Unknown Telegram access code cannot create a User.
+
+**Следствие.** User catalog is an Owner operations surface, not a public signup product.
+
+---
+
+## ADR-210 — Disable is preferred over hard delete
+
+**Контекст.** A user owns conversations, messages, memories, files, attachments, reminders, voice sessions, and channel identity.
+
+**Решение.** Canonical statuses `active` / `disabled`. Disable blocks login, sessions, `/chat`, Voice, Telegram AI, and reminder delivery. Data is kept. Hard delete is not a normal User Card action.
+
+**Следствие.** Accidental cascade destruction is out of ordinary user management.
+
+---
+
+## ADR-211 — Owner can reset a user password but cannot recover it
+
+**Контекст.** Support needs a reset path without storing recoverable secrets.
+
+**Решение.** Owner sets a new password (hash only). The value is never redisplayed after save. Ordinary users may change their own password with current + new + confirmation.
+
+**Следствие.** If Owner needs to tell the user a password, they use the value they just typed.
+
+---
+
+## ADR-212 — access_code is Telegram pairing only
+
+**Контекст.** Confusing pairing codes with web passwords would leak channel pairing into login.
+
+**Решение.** Web login is email + password. `access_code` is unique, human-readable, never `2000` for generated users, and is shown on the Owner User Card.
+
+**Следствие.** Regenerating a code changes future pairing, not the web password.
+
+---
+
+## ADR-213 — Regenerating access_code does not unlink Telegram
+
+**Контекст.** Support may rotate a leaked pairing code without kicking an already-linked Telegram.
+
+**Решение.** Regenerate writes a new unique code. Existing `channel_identities` row stays until Owner explicitly unlinks.
+
+**Следствие.** Unlink and regenerate are separate actions.
+
+---
+
+## ADR-214 — Impersonation is Owner-only and session-scoped
+
+**Контекст.** Owner must inspect `/chat` as a user without knowing that user’s password.
+
+**Решение.** Session keys store original Owner id, target id, and started_at. `Auth::login(target)` for the duration. No impersonation table. Structured logs record ids only.
+
+**Следствие.** Exit restores that Owner (or login if Owner context is invalid). Cannot exit into an arbitrary account.
+
+---
+
+## ADR-215 — Impersonation uses effective user permissions, no Admin bypass
+
+**Контекст.** Logging in as the user must not leak Owner Admin because the original identity is Owner.
+
+**Решение.** While impersonating, `isOwner()` is false. `/dashboard`, `/settings`, `/projects`, integrations remain Owner-gated. Banner is required. Writes mutate the target user’s data.
+
+**Следствие.** Diagnostics (User Card) and acting as the user (impersonation) stay distinct.
+
+---
+
+## ADR-216 — User Card diagnostics and impersonation are distinct
+
+**Контекст.** Injecting Owner into a user conversation would mix admin inspection with user history.
+
+**Решение.** User Card chat list is read-only metadata. Memory diagnostics remain Owner-only read. To use the workspace, Owner uses Open as User.
+
+**Следствие.** Owner is not silently added to user conversations.
+
+---
+
+## ADR-217 — Cross-user isolation is enforced backend-side
+
+**Контекст.** Hidden UI is not isolation.
+
+**Решение.** Conversation, attachment, file, memory, voice, reminder, Telegram, and General Prompt paths authorize the effective authenticated `user_id`. Integer id, public id, and Cabinet aliases cannot bypass scope.
+
+**Следствие.** IDOR checks are server-side even if a client crafts a URL.
+
+---
+
+## ADR-218 — Manual A/B isolation validation is required before USER SPACE = MANUAL PASS
+
+**Контекст.** Code review cannot replace two real users exercising chat, memory, files, Telegram, disable, and impersonation.
+
+**Решение.** Checklist exists in [USER_ADMINISTRATION.md](USER_ADMINISTRATION.md). This milestone does not create production test users and does not run the campaign.
+
+**Следствие.** Status remains IMPLEMENTED / NOT VALIDATED until Owner completes A/B.
+
+---
+
+## ADR-219 — Sole Owner cannot be disabled or demoted through ordinary user management
+
+**Контекст.** Accidental disable of the only Owner would lock the instance.
+
+**Решение.** User Card cannot disable, delete, demote, reset password, or regenerate the reserved Owner access code. Created accounts are always `role=user`. Role is not on the common edit form.
+
+**Следствие.** Owner protection is backend-enforced, not only hidden buttons.
+
+---
+
 - Алфавит generated access_code (кроме зарезервированного 2000).
 - 403 vs redirect когда user открывает admin URL.
 - Auth схема Desktop/Mobile (token flavour).

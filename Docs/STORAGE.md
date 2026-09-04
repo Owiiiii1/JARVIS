@@ -15,7 +15,7 @@ This document is the product and implementation source for:
 - Storage Workspace UI (`/jarvis/storage`) — **owner only**;
 - Storage tools (read/search for any user with `storage`; `delete_storage_file` owner-only).
 
-Ordinary users may attach supported files in `/chat`. Jarvis can retrieve those files via tools. There is **no** `/chat/storage` page. No per-user total quota in M25U.1 (future hardening).
+Ordinary users may attach supported files in `/chat`. Jarvis can retrieve those files via tools scoped to the authenticated `user_id` (`StoredFileService::findOwnedByPublicId`, `StoredFileSearchService`). UUID-only lookup is not an authorization path. User A cannot search, read, or download User B files. There is **no** `/chat/storage` page. Owner Admin Storage UI is a separate `/jarvis/storage` path. No per-user total quota in M25U.1 (future hardening).
 
 See also [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md), [DATABASE.md](DATABASE.md).
 

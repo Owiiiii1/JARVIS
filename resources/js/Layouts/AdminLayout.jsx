@@ -1,3 +1,4 @@
+import ImpersonationBanner from '@/Components/ImpersonationBanner';
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     ChevronDown,
@@ -274,6 +275,7 @@ export default function AdminLayout({ title, children }) {
 
     return (
         <div className="h-screen overflow-hidden bg-[#F4EFE4] text-slate-900">
+            <ImpersonationBanner />
             <div className="flex h-screen">
                 <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col bg-[#0B1220] text-white shadow-2xl lg:flex">
                     <div className="px-6 py-6">

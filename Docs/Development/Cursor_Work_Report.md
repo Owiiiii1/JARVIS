@@ -1,177 +1,150 @@
-# Cursor Work Report — M23.2 Gemini STT Provider
+# Cursor Work Report — M25U.2 User Administration + Isolation Hardening
 
 **Date:** 2026-09-04  
-**Host:** `/var/www/jarvis`  
-**Public URL:** https://jarvis.owlsolutions.net  
-**GitHub:** https://github.com/Owiiiii1/JARVIS.git  
-**Branch:** `main`
+**Repo:** `/var/www/jarvis` (`Owiiiii1/JARVIS`)  
+**Commit intent:** `feat: complete user administration and isolation controls`
 
 ---
 
-## Before
+## Starting git
 
-Origin/main HEAD before this work:
-
-`291e248693e93db04c8ff1f935ce27ad19535f79`  
-`feat: add shared personal workspace for users`
-
-Working tree was clean vs `origin/main`.
-
----
-
-## Official Gemini transcription API verified
-
-Checked current Gemini Developer API docs (ai.google.dev audio / generateContent) and the official Google Cloud `gemini_3_5_transcribe` notebook (Agent Platform, `generate_content`).
-
-| Item | Value used |
+| Item | Value |
 | --- | --- |
-| API family | Gemini API `models.generateContent` (`v1beta`) |
-| Endpoint shape | `POST {base}/models/{model}:generateContent` |
-| Default model id | `gemini-3.5-transcribe` |
-| Auth | existing Gemini `ai_provider_settings` key (`x-goog-api-key`) |
-| Request | `contents[].parts[].inlineData` + `generationConfig.audioTranscriptionConfig` |
-| Language | auto-detect by default; optional `languageCodes` hint only |
-| Not used | Live API / `gemini-3.5-transcribe-live`; Interactions API; `AiChatGateway`; chat prompts/tools |
+| `git fetch origin` | done |
+| Working tree at start | clean |
+| Local HEAD = `origin/main` | `00b54e06ca2df474a6258546cd5d17221f154f77` |
+| That commit | `feat: add Gemini speech to text provider` |
+| M23.2 Gemini STT already on main | **yes — not reverted, not overwritten** |
+| M25U.1 | `291e248693e93db04c8ff1f935ce27ad19535f79` `feat: add shared personal workspace for users` (ancestor of M23.2) |
+| Uncommitted leftover / other task | none |
 
-Google Cloud notebook uses `gemini-3.5-transcribe-preview` for synchronous `generate_content`. The Gemini Developer API / public model name used as the Jarvis default is `gemini-3.5-transcribe`. Admin STT model is editable so the preview id can be stored without a code change.
-
-Official audio-understanding MIME types: `audio/wav`, `audio/mp3`, `audio/aiff`, `audio/aac`, `audio/ogg`, `audio/flac`.
-
-Browser MediaRecorder (M23) also produces `audio/webm`, `audio/ogg`, `audio/mp4`. Those captured types are sent through the same `inlineData` mechanism (`Part.from_bytes` / REST `inlineData`). If Gemini rejects the MIME, the adapter maps to `voice_audio_format_unsupported`. `audio/3gpp` is allowed by Jarvis temp storage but is not in the Gemini STT allowlist.
-
-No auth examples or secrets are documented here.
+Production DB. No `migrate:fresh`. No truncate. No new migration (status, access_code, sessions already exist). Impersonation is session-only.
 
 ---
 
-## GeminiSpeechToTextProvider
+## Pre-existing user admin state
 
-Created `app/Services/Voice/Providers/GeminiSpeechToTextProvider.php`.
+Already present before this milestone and reused:
 
-- Implements `SpeechToTextProvider`.
-- Accepts `VoiceAudioChunk`.
-- Validates Jarvis + Gemini size/duration bounds (`effective = min`).
-- Maps MIME, calls official `generateContent`, normalizes `SpeechTranscript` (`text`, `is_final=true`, nullable language/confidence, bounded metadata).
-- Does not call Conversation AI / `AiChatGateway` / `GeminiClient::chat`.
-- Does not persist the raw Gemini body.
-
-`SpeechToTextManager` keys:
-
-- `gemini` → `GeminiSpeechToTextProvider`
-- `openai` → existing `OpenAiSpeechToTextProvider` (kept)
-- `none` → existing `NullSpeechToTextProvider` (kept)
-
-`VoiceRuntimeService` still calls `$this->stt->transcribe(...)`. No vendor `if`.
+- `users.role` (`owner`/`user`), `users.status` (`active`/`disabled`), unique `access_code`, `AccessCodeGenerator` (skips `2000`, collision retry)
+- Owner-only `UserController` create/update/unlink/regenerate
+- `EnsureUserIsActive`, `LoginRequest` disabled check
+- `UserCapabilities` for regular users (chat/memory/telegram_dm/reminders/workspace/profile/web_research/voice/storage)
+- Isolation via `ConversationService::ensureOwned`, attachment/file/voice/memory/reminder `user_id` scopes
+- No `/register` route; pairing does not create users from unknown codes
+- Hard **delete** existed in UI/controller — converted to refuse + UI removed
+- Double-hash on create (`Hash::make` + `'password' => 'hashed'` cast) — fixed by assigning plaintext to the cast
+- Impersonation and User Card page did **not** exist
+- Already-linked Telegram could still hit AI when the user was disabled — blocked
 
 ---
 
-## Credential reuse
+## What shipped
 
-`App\Services\Ai\GeminiCredentialResolver` reads `ai_provider_settings` where `provider = gemini`.
+### Users catalog + create
 
-Configured = row exists, `is_connected`, API key present (Laravel encrypted cast).
+Admin → Users is a Jarvis user catalog: name, email, role, status, Telegram yes/no, access code, chats/messages counts (`withCount`), last activity (derived), created at. Owner-only create: name, email, password+confirm, timezone; system `role=user`, `status=active`, generated access code. Redirect to User Card. Password never shown after save.
 
-No `GEMINI_STT_API_KEY`. No Voice-specific Gemini secret. No plaintext key in `voice_settings`. Admin Voice/Speech has no Gemini API key field.
+### User Card
 
-Web Research Gemini Google Search now uses the same resolver for credential lookup (still a separate search path, not STT).
+`GET /settings/users/{user}` — Overview / Access / Chats / Memory. Profile (role read-only), usage counts, General Prompt on the same `user_ai_settings` row, read-only chat metadata, memory diagnostics link. Actions: Disable/Enable, Set password, Regenerate Telegram Code, Unlink Telegram, Open as User. No prominent delete. Owner account cannot be disabled/demoted/password-reset/code-regenerated through these endpoints. `DELETE` still exists but returns an error: disable instead.
+
+### Active / disabled
+
+Disabled: generic login failure; sessions for that `user_id` deleted; `user.active` blocks the app; ConversationTurn and Voice start reject inactive users; Telegram already-linked sends system copy, no AI; reminders skip (`user_disabled`). Data kept. Reversible.
+
+### Password reset
+
+Owner: new + confirm, Laravel password rules, hashed cast only. Then `UserSessionInvalidator` deletes `sessions` rows for that `user_id` and clears remember token (database session driver). Other users untouched.
+
+Ordinary user: Personal Workspace settings current + new + confirm (`PUT /chat/settings/password`).
+
+### Access code + Telegram
+
+Regenerate: new unique non-`2000` code; old code cannot pair; **linked Telegram stays**. Unlink: delete that user’s Telegram `channel_identities` only; chats/history kept.
+
+### Impersonation
+
+`ImpersonationService` session keys: original owner id, target id, started_at. Start: Owner-only, target `role=user` and active. Auth becomes the target so `/chat` is that user; `EnsureOwner` blocks Admin. Banner on Admin/Workspace/Cabinet layouts. Exit: restore Owner, redirect `/jarvis`; if Owner missing/inactive → login. Logs: `impersonation_started` / `impersonation_ended` with internal ids only. Writes while impersonating mutate that user’s data (banner states this).
+
+If the impersonated user is disabled mid-session, `EnsureUserIsActive` restores Owner instead of wiping the Owner session.
+
+### Counts / last activity
+
+Catalog: `withCount` conversations/messages, `withMax` conversation `last_activity_at`, eager `telegramIdentity`. Card: additional `withCount` memories/files/reminders/voice. No new `last_activity_at` column.
+
+### Login routing
+
+Owner → `/jarvis`. User → `/chat`. No `intended()` to Admin for users. `/cabinet` still compatibility. No self-registration UI.
 
 ---
 
-## STT model
+## Ownership enforcement matrix (static IDOR review)
 
-Additive nullable column `voice_settings.stt_model` (default empty → `gemini-3.5-transcribe` for Gemini).
-
-Admin: Settings → Integrations → Voice/Speech → STT Provider `None` / `Gemini` / `OpenAI`, plus STT model text when Gemini is selected.
-
----
-
-## Error mapping
-
-| Code | When |
+| Surface | Enforcement class / point |
 | --- | --- |
-| `voice_stt_not_configured` | Missing/unusable Gemini credential or empty model |
-| `voice_stt_failed` | Provider/empty transcript/other failure |
-| `voice_audio_format_unsupported` | MIME not allowed or Gemini invalid-argument media |
-| `voice_audio_too_large` | Over Jarvis or Gemini inline bound / duration |
-| `voice_stt_rate_limited` | HTTP 429 (no aggressive retry) |
-| `voice_stt_timeout` | Connect/timeout after one transient retry |
+| Conversation routes (integer id, `/chat`, `/cabinet` aliases) | `ConversationService::findOwned` / `ensureOwned`; `PersonalChatSurfaceService::ensureOwned`; `JarvisWorkspaceController` / `CabinetChatController` |
+| Messages / history | owned conversation first; `ConversationTurnService` `conversation.user_id`; `MessageHistoryService` via that conversation |
+| Attachments preview/download | `JarvisAttachmentController` + `ChatAttachmentAccessService` (attachment → message → conversation → user_id) |
+| Stored files (search/metadata/chunks/download) | `StoredFileService::findOwnedByPublicId` / `owned`; `StoredFileSearchService` `where user_id`; no UUID-only auth |
+| Memory retrieval / summaries | `PersonalMemoryRetriever`, `MemoryWriter`, `ConversationSummaryService` `user_id`; Owner diagnostics `UserMemoryController` (owner middleware, scoped to that user) |
+| Voice session (public_id binding) | `JarvisVoiceController` + `VoiceRuntimeService::ownedSession` (`session.user_id` **and** `conversation.user_id`); `ensureOwned` on start |
+| User General Prompt | `JarvisWorkspaceController::updateGeneralPrompt` uses `$request->user()->id` only; admin `UserAdministrationService::updateGeneralPrompt` Owner-only for the bound user |
+| User management | `owner` middleware + `UserController::assertUsersAdmin` (`USERS_ADMIN` + `isOwner`) |
+| Impersonation start | `ImpersonationService::start` Owner + `IMPERSONATION` capability; target must be `role=user` and active |
+| Impersonation stop | restores session Owner only; cannot pick another account |
+| Telegram unlink / access code | Owner User Card endpoints; `TelegramPairingService::unlinkTelegram` scoped `user_id`; regenerate does not unlink |
+| Reminders | `ReminderService` `user_id`; delivery identity `findTelegramForUser` of that user; disabled skip |
+| Web research settings | Admin routes behind `owner`; users share instance provider, execution is their conversation turn |
 
-Retry: at most one retry for network/5xx. No retry on 4xx auth/validation. No raw provider body to the frontend. No secrets/audio/transcript in logs.
-
-Logs (safe): voice session public id, `provider=gemini`, model, mime, `audio_bytes`, duration if known, latency, result code.
-
----
-
-## VoiceSettings / Admin
-
-`VoiceSettingsService` remains the source of truth for STT provider/model/configured status.
-
-Gemini STT ready only if:
-
-- `stt_provider=gemini`
-- existing Gemini credential connected/usable
-- model non-empty
-
-No live Test Connection. ElevenLabs key was not overwritten or removed.
+Default User Conversation AI: `AiConfigurationResolver::resolveConversation` (not Owner Conversation AI).
 
 ---
 
-## Migration
+## Migrations / backups
 
-Additive only: `2026_09_04_230000_add_stt_model_to_voice_settings_table.php`.
-
-Pre-migrate backup of `voice_settings` and `ai_provider_settings` written under `storage/backups/` (gitignored). Not committed.
-
-No destructive change. ElevenLabs encrypted key column untouched.
+None. No table backups taken because no schema change. Existing unique `access_code`; `users.status`; database `sessions.user_id`.
 
 ---
 
-## Static verification
-
-Allowed checks only:
+## Static checks (allowed)
 
 - `composer dump-autoload`
 - `vendor/bin/pint --dirty`
-- `php artisan migrate:status`
-- `php artisan migrate` (additive `stt_model`)
 - `php artisan route:list`
+- `php artisan migrate:status`
+- `php artisan queue:failed`
 - `npm run build`
-- static inspection
+- static ownership audit (this report)
+
+## Not run (Owner policy)
+
+- `php artisan test` / PHPUnit
+- destructive feature tests
+- live AI / Gemini / Web Search / ElevenLabs / Telegram / Gmail / Calendar / GitHub
+- production User A / User B creation
 
 ---
 
-## TESTS NOT RUN
+## Manual validation checklist
 
-`php artisan test` / PHPUnit were **not** run.
-
----
-
-## NO LIVE STT/TTS/AI
-
-No live Gemini transcription. No live microphone-to-Gemini. No live ElevenLabs. No live Conversation AI. No live Google/GitHub/Web smoke.
-
----
-
-## Recommended config
-
-- **STT = Gemini**
-- **TTS = ElevenLabs**
-
-Conversation AI stays Default User / Owner role configs (unchanged; currently Gemini chat). Ordinary users do not configure STT.
+Prepared in [USER_ADMINISTRATION.md](../USER_ADMINISTRATION.md). **NOT RUN.**
 
 ---
 
 ## Known limitations
 
-- Live Voice smoke is still Owner-deferred; configured status is local, not a live probe.
-- Chrome MediaRecorder `audio/webm` is not on the official Gemini audio-understanding MIME list; it is forwarded via `inlineData` and safely rejected if Gemini refuses it.
-- Dedicated Live/streaming transcribe model is not wired (M23 remains HTTP utterance blobs).
-- OpenAI STT adapter remains unused unless Admin selects it and an OpenAI credential exists.
-- Admin must select Gemini in Voice/Speech if the stored provider is still `none`.
+- Hard user delete is refused, not implemented as a guarded cascade.
+- `(user_id, channel)` uniqueness for Telegram is application-level; DB unique is `(channel, external_user_id)`.
+- Last activity is derived, not a dedicated indexed column.
+- Session invalidation after password reset applies to the database session driver.
+- USER SPACE is not MANUAL PASS until Owner creates A/B and runs the isolation campaign.
+- Live Voice STT/TTS still deferred (M23.2 remains on main).
 
 ---
 
-## Docs / ADRs
+## Next recommended action
 
-Updated: `VOICE_ARCHITECTURE.md`, `AI_PROVIDER_ARCHITECTURE.md`, `INTEGRATIONS.md`, `CLIENTS/VOICE_UI.md`, `CLIENTS/WEB_WORKSPACE.md`, `CURRENT_STATE.md`, `IMPLEMENTATION_PLAN.md`, `ROADMAP.md`, `DECISIONS.md`, `DATABASE.md`.
+Owner manually creates User A and User B from Admin and performs the isolation campaign in USER_ADMINISTRATION.md.
 
-ADRs 201–208: Gemini STT ≠ Conversation AI; credential reuse; instance Admin STT; users do not configure STT; auto language; vendor-neutral runtime; OpenAI optional; live validation deferred.
+No passwords, access codes, Telegram external ids, private chat text, or API keys are recorded here.

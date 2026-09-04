@@ -45,6 +45,10 @@ final class VoiceRuntimeService
             throw VoiceException::forbidden();
         }
 
+        if (! $user->isActive()) {
+            throw VoiceException::forbidden();
+        }
+
         $this->assertOwnedConversation($user, $conversation);
         $this->assertNotGroup($conversation);
         $this->endExpiredForUser($user);

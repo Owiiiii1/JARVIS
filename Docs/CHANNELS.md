@@ -5,7 +5,7 @@
 Клиенты / каналы:
 
 - Telegram
-- User Cabinet (web, `role=user`)
+- User Cabinet (web, `role=user`, `/chat`)
 - Owner Personal Workspace (web, `/jarvis` — [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md))
 - Desktop (planned — [CLIENTS/DESKTOP_APP.md](CLIENTS/DESKTOP_APP.md))
 - Mobile (planned — [CLIENTS/MOBILE_APP.md](CLIENTS/MOBILE_APP.md))
@@ -106,7 +106,9 @@ Owner (и каждый user в своём space) может:
 
 Один каталог conversations на space. Telegram переключает active; Cabinet открывает любой. Группы — [TELEGRAM_GROUPS.md](TELEGRAM_GROUPS.md), owner-only.
 
-Доставка reminders — только этот adapter.
+Unknown access code does not create a User. Regenerating `access_code` does not unlink the current Telegram identity. Unlink removes only that user’s Telegram `channel_identities` row. A disabled user’s already-linked Telegram messages do not invoke Conversation AI.
+
+Доставка reminders — только этот adapter. Disabled users: `ReminderDeliveryService` skips new assistant/Telegram reminder delivery.
 
 ---
 

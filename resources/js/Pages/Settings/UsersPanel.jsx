@@ -1,209 +1,108 @@
-import { useForm, usePage, router } from '@inertiajs/react';
-import { Pencil, Plus, Trash2, X, Brain } from 'lucide-react';
+import { Link, useForm, usePage } from '@inertiajs/react';
+import { Plus, X } from 'lucide-react';
 import { useState } from 'react';
 
-const TIMEZONE_OPTIONS = ['Europe/Rome'];
-
 export default function UsersPanel() {
-    const { locale = 'en', users = [], auth } = usePage().props;
-    const me = auth?.user;
+    const { locale = 'en', users = [], timezones = [] } = usePage().props;
     const [showCreateModal, setShowCreateModal] = useState(false);
-    const [editingUser, setEditingUser] = useState(null);
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
+    const zones = timezones.length ? timezones : ['Europe/Rome', 'UTC'];
     const createForm = useForm({
         name: '',
         email: '',
         password: '',
         password_confirmation: '',
-    });
-    const editForm = useForm({
-        name: '',
-        email: '',
-        password: '',
-        password_confirmation: '',
-        status: 'active',
         timezone: 'Europe/Rome',
     });
-    const deleteForm = useForm({ confirm: '' });
 
     const text = {
         en: {
             usersTitle: 'Users',
-            usersDescription: 'Jarvis user accounts for admin and personal workspace access.',
+            usersDescription: 'Jarvis users created by Owner. No self-registration. Open a card to manage access.',
             addUser: 'Add user',
             colName: 'Name',
             colEmail: 'Email',
             colRole: 'Role',
             colAccessCode: 'Access code',
             colStatus: 'Status',
-            colTimezone: 'Timezone',
             colTelegram: 'Telegram',
             colChats: 'Chats',
             colMessages: 'Messages',
-            colReminders: 'Reminders',
+            colActivity: 'Last activity',
             colCreated: 'Created',
-            colActions: 'Actions',
             empty: 'No users yet.',
             modalTitle: 'Create user',
-            editModalTitle: 'Edit user',
             fieldName: 'Full name',
             fieldEmail: 'Email',
             fieldPassword: 'Password',
             fieldPasswordConfirm: 'Confirm password',
-            fieldStatus: 'Status',
             fieldTimezone: 'Timezone',
-            statusActive: 'Active',
-            statusDisabled: 'Disabled',
             cancel: 'Cancel',
             save: 'Create user',
-            update: 'Save changes',
-            deleting: 'Deleting...',
-            deleteUser: 'Delete user',
-            deleteConfirmTitle: 'Confirm deletion',
-            deleteConfirmHint: 'Type DELETE to confirm account removal.',
-            deleteConfirmLabel: 'Confirmation',
-            deleteConfirmPlaceholder: 'DELETE',
-            cannotDeleteSelf: 'You cannot delete your own account here.',
-            ownerLocked: 'Owner role and access code are managed by the system.',
-            telegramConnected: 'Connected',
-            telegramNotConnected: 'Not connected',
-            unlinkTelegram: 'Disconnect Telegram',
-            regenerateCode: 'Regenerate access code',
+            telegramYes: 'yes',
+            telegramNo: 'no',
         },
         ru: {
             usersTitle: 'Users',
-            usersDescription: 'Учётные записи Jarvis для админки и личного кабинета.',
+            usersDescription: 'Пользователей Jarvis создаёт только Owner. Саморегистрации нет.',
             addUser: 'Add user',
             colName: 'Name',
             colEmail: 'Email',
             colRole: 'Role',
             colAccessCode: 'Access code',
             colStatus: 'Status',
-            colTimezone: 'Timezone',
             colTelegram: 'Telegram',
             colChats: 'Chats',
             colMessages: 'Messages',
-            colReminders: 'Reminders',
+            colActivity: 'Last activity',
             colCreated: 'Created',
-            colActions: 'Actions',
             empty: 'No users yet.',
             modalTitle: 'Create user',
-            editModalTitle: 'Edit user',
             fieldName: 'Full name',
             fieldEmail: 'Email',
             fieldPassword: 'Password',
             fieldPasswordConfirm: 'Confirm password',
-            fieldStatus: 'Status',
             fieldTimezone: 'Timezone',
-            statusActive: 'Active',
-            statusDisabled: 'Disabled',
             cancel: 'Cancel',
             save: 'Create user',
-            update: 'Save changes',
-            deleting: 'Deleting...',
-            deleteUser: 'Delete user',
-            deleteConfirmTitle: 'Confirm deletion',
-            deleteConfirmHint: 'Type DELETE to confirm account removal.',
-            deleteConfirmLabel: 'Confirmation',
-            deleteConfirmPlaceholder: 'DELETE',
-            cannotDeleteSelf: 'You cannot delete your own account here.',
-            ownerLocked: 'Owner role and access code are managed by the system.',
-            telegramConnected: 'Connected',
-            telegramNotConnected: 'Not connected',
-            unlinkTelegram: 'Disconnect Telegram',
-            regenerateCode: 'Regenerate access code',
+            telegramYes: 'yes',
+            telegramNo: 'no',
         },
         uk: {
             usersTitle: 'Users',
-            usersDescription: 'Облікові записи Jarvis для адмінки та особистого кабінету.',
+            usersDescription: 'Користувачів Jarvis створює лише Owner. Самореєстрації немає.',
             addUser: 'Add user',
             colName: 'Name',
             colEmail: 'Email',
             colRole: 'Role',
             colAccessCode: 'Access code',
             colStatus: 'Status',
-            colTimezone: 'Timezone',
             colTelegram: 'Telegram',
             colChats: 'Chats',
             colMessages: 'Messages',
-            colReminders: 'Reminders',
+            colActivity: 'Last activity',
             colCreated: 'Created',
-            colActions: 'Actions',
             empty: 'No users yet.',
             modalTitle: 'Create user',
-            editModalTitle: 'Edit user',
             fieldName: 'Full name',
             fieldEmail: 'Email',
             fieldPassword: 'Password',
             fieldPasswordConfirm: 'Confirm password',
-            fieldStatus: 'Status',
             fieldTimezone: 'Timezone',
-            statusActive: 'Active',
-            statusDisabled: 'Disabled',
             cancel: 'Cancel',
             save: 'Create user',
-            update: 'Save changes',
-            deleting: 'Deleting...',
-            deleteUser: 'Delete user',
-            deleteConfirmTitle: 'Confirm deletion',
-            deleteConfirmHint: 'Type DELETE to confirm account removal.',
-            deleteConfirmLabel: 'Confirmation',
-            deleteConfirmPlaceholder: 'DELETE',
-            cannotDeleteSelf: 'You cannot delete your own account here.',
-            ownerLocked: 'Owner role and access code are managed by the system.',
-            telegramConnected: 'Connected',
-            telegramNotConnected: 'Not connected',
-            unlinkTelegram: 'Disconnect Telegram',
-            regenerateCode: 'Regenerate access code',
+            telegramYes: 'yes',
+            telegramNo: 'no',
         },
     };
     const t = text[locale] ?? text.en;
 
-    const formatCreated = (iso) => {
-        if (!iso) return '—';
+    const formatWhen = (iso) => {
+        if (! iso) return '—';
         try {
             return new Date(iso).toLocaleString();
         } catch {
             return iso;
         }
-    };
-
-    const formatTelegram = (user) => {
-        if (!user.telegram?.connected) {
-            return t.telegramNotConnected;
-        }
-
-        if (user.telegram.username) {
-            return `${t.telegramConnected} (@${user.telegram.username})`;
-        }
-
-        return t.telegramConnected;
-    };
-
-    const openEditModal = (user) => {
-        setEditingUser(user);
-        setShowDeleteConfirm(false);
-        editForm.setData({
-            name: user.name ?? '',
-            email: user.email ?? '',
-            password: '',
-            password_confirmation: '',
-            status: user.status ?? 'active',
-            timezone: user.timezone ?? 'Europe/Rome',
-        });
-        editForm.clearErrors();
-        deleteForm.reset();
-        deleteForm.clearErrors();
-    };
-
-    const closeEditModal = () => {
-        setEditingUser(null);
-        setShowDeleteConfirm(false);
-        editForm.reset();
-        editForm.clearErrors();
-        deleteForm.reset();
-        deleteForm.clearErrors();
     };
 
     return (
@@ -231,57 +130,37 @@ export default function UsersPanel() {
                                 <th className="px-4 py-3 text-left font-semibold">{t.colName}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colEmail}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colRole}</th>
-                                <th className="px-4 py-3 text-left font-semibold">{t.colAccessCode}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colStatus}</th>
-                                <th className="px-4 py-3 text-left font-semibold">{t.colTimezone}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colTelegram}</th>
+                                <th className="px-4 py-3 text-left font-semibold">{t.colAccessCode}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colChats}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colMessages}</th>
-                                <th className="px-4 py-3 text-left font-semibold">{t.colReminders}</th>
+                                <th className="px-4 py-3 text-left font-semibold">{t.colActivity}</th>
                                 <th className="px-4 py-3 text-left font-semibold">{t.colCreated}</th>
-                                <th className="px-4 py-3 text-left font-semibold">{t.colActions}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-700">
                             {users.length === 0 ? (
                                 <tr>
-                                    <td colSpan={12} className="px-4 py-6 text-center text-sm text-slate-400">
-                                        {t.empty}
-                                    </td>
+                                    <td colSpan={10} className="px-4 py-6 text-center text-sm text-slate-400">{t.empty}</td>
                                 </tr>
                             ) : (
-                                users.map((u) => (
-                                    <tr key={u.id} className="hover:bg-slate-50/60">
-                                        <td className="px-4 py-3 font-medium text-slate-900">{u.name}</td>
-                                        <td className="px-4 py-3">{u.email}</td>
-                                        <td className="px-4 py-3 capitalize">{u.role}</td>
-                                        <td className="px-4 py-3 font-mono text-xs">{u.access_code}</td>
-                                        <td className="px-4 py-3 capitalize">{u.status}</td>
-                                        <td className="px-4 py-3">{u.timezone}</td>
-                                        <td className="px-4 py-3">{formatTelegram(u)}</td>
-                                        <td className="px-4 py-3">{u.chats_count ?? 0}</td>
-                                        <td className="px-4 py-3">{u.messages_count ?? 0}</td>
-                                        <td className="px-4 py-3">{u.reminders_count ?? 0}</td>
-                                        <td className="px-4 py-3 text-slate-500">{formatCreated(u.created_at)}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex flex-wrap gap-2">
-                                                <a
-                                                    href={route('settings.users.memory.show', u.id)}
-                                                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
-                                                >
-                                                    <Brain className="h-3.5 w-3.5" />
-                                                    Memory
-                                                </a>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openEditModal(u)}
-                                                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
-                                                >
-                                                    <Pencil className="h-3.5 w-3.5" />
-                                                    Edit
-                                                </button>
-                                            </div>
+                                users.map((user) => (
+                                    <tr key={user.id} className="hover:bg-slate-50/60">
+                                        <td className="px-4 py-3 font-medium text-slate-900">
+                                            <Link href={route('settings.users.show', user.id)} className="text-indigo-700 hover:underline">
+                                                {user.name}
+                                            </Link>
                                         </td>
+                                        <td className="px-4 py-3">{user.email}</td>
+                                        <td className="px-4 py-3 capitalize">{user.role}</td>
+                                        <td className="px-4 py-3 capitalize">{user.status}</td>
+                                        <td className="px-4 py-3">{user.telegram?.connected ? t.telegramYes : t.telegramNo}</td>
+                                        <td className="px-4 py-3 font-mono text-xs">{user.access_code}</td>
+                                        <td className="px-4 py-3">{user.chats_count ?? 0}</td>
+                                        <td className="px-4 py-3">{user.messages_count ?? 0}</td>
+                                        <td className="px-4 py-3 text-slate-500">{formatWhen(user.last_activity_at)}</td>
+                                        <td className="px-4 py-3 text-slate-500">{formatWhen(user.created_at)}</td>
                                     </tr>
                                 ))
                             )}
@@ -290,7 +169,7 @@ export default function UsersPanel() {
                 </div>
             </div>
 
-            {showCreateModal && (
+            {showCreateModal ? (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
                     <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
                         <div className="flex items-start justify-between">
@@ -302,21 +181,16 @@ export default function UsersPanel() {
                                     createForm.reset();
                                     createForm.clearErrors();
                                 }}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100"
                             >
                                 <X className="h-4 w-4" />
                             </button>
                         </div>
-
                         <form
-                            onSubmit={(e) => {
-                                e.preventDefault();
+                            onSubmit={(event) => {
+                                event.preventDefault();
                                 createForm.post(route('settings.users.store'), {
                                     preserveScroll: true,
-                                    onSuccess: () => {
-                                        createForm.reset();
-                                        setShowCreateModal(false);
-                                    },
                                 });
                             }}
                             className="mt-4 space-y-4"
@@ -325,226 +199,33 @@ export default function UsersPanel() {
                                 <Field form={createForm} field="name" label={t.fieldName} />
                                 <Field form={createForm} field="email" label={t.fieldEmail} type="email" />
                                 <Field form={createForm} field="password" label={t.fieldPassword} type="password" />
-                                <Field
-                                    form={createForm}
-                                    field="password_confirmation"
-                                    label={t.fieldPasswordConfirm}
-                                    type="password"
-                                />
+                                <Field form={createForm} field="password_confirmation" label={t.fieldPasswordConfirm} type="password" />
+                                <div>
+                                    <label className="mb-1 block text-sm font-medium text-slate-600">{t.fieldTimezone}</label>
+                                    <select
+                                        value={createForm.data.timezone}
+                                        onChange={(event) => createForm.setData('timezone', event.target.value)}
+                                        className="block h-11 w-full rounded-lg border border-slate-300 px-3 text-sm"
+                                    >
+                                        {zones.map((zone) => (
+                                            <option key={zone} value={zone}>{zone}</option>
+                                        ))}
+                                    </select>
+                                    {createForm.errors.timezone ? <p className="mt-2 text-sm text-red-600">{createForm.errors.timezone}</p> : null}
+                                </div>
                             </div>
                             <div className="flex justify-end gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCreateModal(false)}
-                                    className="inline-flex h-10 items-center rounded-lg border border-slate-300 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                                >
+                                <button type="button" onClick={() => setShowCreateModal(false)} className="inline-flex h-10 items-center rounded-lg border border-slate-300 px-4 text-sm">
                                     {t.cancel}
                                 </button>
-                                <button
-                                    type="submit"
-                                    disabled={createForm.processing}
-                                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-                                >
-                                    <Plus className="h-4 w-4" />
+                                <button type="submit" disabled={createForm.processing} className="inline-flex h-10 items-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white disabled:opacity-60">
                                     {t.save}
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
-            )}
-
-            {editingUser && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-                    <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
-                        <div className="flex items-start justify-between">
-                            <h3 className="text-base font-semibold text-slate-900">{t.editModalTitle}</h3>
-                            <button
-                                type="button"
-                                onClick={closeEditModal}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                            >
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-
-                        <form
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                editForm.patch(route('settings.users.update', editingUser.id), {
-                                    preserveScroll: true,
-                                    onSuccess: closeEditModal,
-                                });
-                            }}
-                            className="mt-4 space-y-4"
-                        >
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                <Field form={editForm} field="name" label={t.fieldName} />
-                                <Field form={editForm} field="email" label={t.fieldEmail} type="email" />
-                                <Field form={editForm} field="password" label={t.fieldPassword} type="password" />
-                                <Field
-                                    form={editForm}
-                                    field="password_confirmation"
-                                    label={t.fieldPasswordConfirm}
-                                    type="password"
-                                />
-                                {editingUser.role === 'owner' ? (
-                                    <>
-                                        <ReadOnlyField label={t.colRole} value={editingUser.role} />
-                                        <ReadOnlyField label={t.colAccessCode} value={editingUser.access_code} />
-                                        <ReadOnlyField label={t.colStatus} value={editingUser.status} />
-                                        <ReadOnlyField label={t.colTimezone} value={editingUser.timezone} />
-                                    </>
-                                ) : (
-                                    <>
-                                        <ReadOnlyField label={t.colRole} value={editingUser.role} />
-                                        <ReadOnlyField label={t.colAccessCode} value={editingUser.access_code} />
-                                        <SelectField
-                                            form={editForm}
-                                            field="status"
-                                            label={t.fieldStatus}
-                                            options={[
-                                                { value: 'active', label: t.statusActive },
-                                                { value: 'disabled', label: t.statusDisabled },
-                                            ]}
-                                        />
-                                        <SelectField
-                                            form={editForm}
-                                            field="timezone"
-                                            label={t.fieldTimezone}
-                                            options={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
-                                        />
-                                    </>
-                                )}
-                            </div>
-                            {editingUser.role === 'owner' ? (
-                                <p className="text-sm text-slate-500">{t.ownerLocked}</p>
-                            ) : null}
-
-                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                                <p className="text-sm font-medium text-slate-700">{t.colTelegram}</p>
-                                <p className="mt-1 text-sm text-slate-600">{formatTelegram(editingUser)}</p>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                    {editingUser.telegram?.connected ? (
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                router.post(route('settings.users.telegram.unlink', editingUser.id), {}, { preserveScroll: true, onSuccess: closeEditModal })
-                                            }
-                                            className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                                        >
-                                            {t.unlinkTelegram}
-                                        </button>
-                                    ) : null}
-                                    {editingUser.role !== 'owner' ? (
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                router.post(route('settings.users.access-code.regenerate', editingUser.id), {}, { preserveScroll: true, onSuccess: closeEditModal })
-                                            }
-                                            className="inline-flex h-9 items-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
-                                        >
-                                            {t.regenerateCode}
-                                        </button>
-                                    ) : null}
-                                </div>
-                            </div>
-
-                            <div className="flex justify-end gap-2">
-                                <button
-                                    type="button"
-                                    onClick={closeEditModal}
-                                    className="inline-flex h-10 items-center rounded-lg border border-slate-300 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                                >
-                                    {t.cancel}
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={editForm.processing}
-                                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-                                >
-                                    <Pencil className="h-4 w-4" />
-                                    {t.update}
-                                </button>
-                            </div>
-                        </form>
-
-                        <div className="mt-5 border-t border-slate-200 pt-4">
-                            {Number(editingUser.id) === Number(me?.id) || editingUser.role === 'owner' ? (
-                                <p className="text-sm text-slate-500">
-                                    {Number(editingUser.id) === Number(me?.id)
-                                        ? t.cannotDeleteSelf
-                                        : 'The owner account cannot be deleted here.'}
-                                </p>
-                            ) : !showDeleteConfirm ? (
-                                <button
-                                    type="button"
-                                    onClick={() => setShowDeleteConfirm(true)}
-                                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-700 transition hover:bg-red-100"
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                    {t.deleteUser}
-                                </button>
-                            ) : (
-                                <form
-                                    onSubmit={(e) => {
-                                        e.preventDefault();
-                                        if (deleteForm.data.confirm !== 'DELETE') {
-                                            deleteForm.setError('confirm', 'Type DELETE to continue.');
-                                            return;
-                                        }
-                                        deleteForm.delete(route('settings.users.destroy', editingUser.id), {
-                                            preserveScroll: true,
-                                            onSuccess: closeEditModal,
-                                        });
-                                    }}
-                                    className="space-y-3"
-                                >
-                                    <div>
-                                        <p className="text-sm font-semibold text-red-700">{t.deleteConfirmTitle}</p>
-                                        <p className="mt-1 text-sm text-slate-600">{t.deleteConfirmHint}</p>
-                                    </div>
-                                    <div>
-                                        <label className="mb-1 block text-sm font-medium text-slate-600">
-                                            {t.deleteConfirmLabel}
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={deleteForm.data.confirm}
-                                            onChange={(e) => deleteForm.setData('confirm', e.target.value)}
-                                            placeholder={t.deleteConfirmPlaceholder}
-                                            className="block h-11 w-full rounded-lg border border-red-200 px-3 text-sm shadow-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
-                                        />
-                                        <ErrorText message={deleteForm.errors.confirm} />
-                                        <ErrorText message={deleteForm.errors.user_delete} />
-                                    </div>
-                                    <div className="flex justify-end gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setShowDeleteConfirm(false);
-                                                deleteForm.reset();
-                                                deleteForm.clearErrors();
-                                            }}
-                                            className="inline-flex h-10 items-center rounded-lg border border-slate-300 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                                        >
-                                            {t.cancel}
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            disabled={deleteForm.processing}
-                                            className="inline-flex h-10 items-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                            {deleteForm.processing ? t.deleting : t.deleteUser}
-                                        </button>
-                                    </div>
-                                </form>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
+            ) : null}
         </div>
     );
 }
@@ -556,49 +237,10 @@ function Field({ form, field, label, type = 'text' }) {
             <input
                 type={type}
                 value={form.data[field]}
-                onChange={(e) => form.setData(field, e.target.value)}
-                className="block h-11 w-full rounded-lg border border-slate-300 px-3 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                onChange={(event) => form.setData(field, event.target.value)}
+                className="block h-11 w-full rounded-lg border border-slate-300 px-3 text-sm"
             />
-            <ErrorText message={form.errors[field]} />
+            {form.errors[field] ? <p className="mt-2 text-sm text-red-600">{form.errors[field]}</p> : null}
         </div>
     );
-}
-
-function SelectField({ form, field, label, options }) {
-    return (
-        <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">{label}</label>
-            <select
-                value={form.data[field]}
-                onChange={(e) => form.setData(field, e.target.value)}
-                className="block h-11 w-full rounded-lg border border-slate-300 px-3 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-            >
-                {options.map((option) => (
-                    <option key={option.value} value={option.value}>
-                        {option.label}
-                    </option>
-                ))}
-            </select>
-            <ErrorText message={form.errors[field]} />
-        </div>
-    );
-}
-
-function ReadOnlyField({ label, value }) {
-    return (
-        <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">{label}</label>
-            <div className="flex h-11 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
-                {value ?? '—'}
-            </div>
-        </div>
-    );
-}
-
-function ErrorText({ message }) {
-    if (!message) {
-        return null;
-    }
-
-    return <p className="mt-2 text-sm text-red-600">{message}</p>;
 }

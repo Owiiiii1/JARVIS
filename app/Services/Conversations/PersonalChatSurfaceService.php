@@ -9,6 +9,7 @@ use App\Services\ChatAttachments\Exceptions\ChatAttachmentException;
 use App\Services\Storage\Exceptions\StoredFileException;
 use App\Services\Tools\ToolConfirmationService;
 use App\Services\Users\UserCapability;
+use App\Support\Timezones;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
@@ -86,6 +87,7 @@ final class PersonalChatSurfaceService
             'name' => $user->name,
             'timezone' => $user->timezone,
             'general_prompt' => $user->aiSettings?->general_prompt,
+            'timezones' => Timezones::options($user->timezone),
         ];
     }
 

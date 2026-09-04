@@ -74,6 +74,13 @@ final class TelegramUpdateHandler
 
         if ($identity !== null) {
             $this->pairingService->touchIdentity($identity, $context);
+
+            if (! $this->identityUserIsActive($identity)) {
+                $this->send($bot, TelegramPairingMessages::DISABLED_USER);
+
+                return;
+            }
+
             $this->handlePairedMessage($bot, $message, $identity);
 
             return;
@@ -125,7 +132,7 @@ final class TelegramUpdateHandler
 
         $identity = $this->pairingService->findTelegramIdentity((string) $query->from->id);
 
-        if ($identity === null) {
+        if ($identity === null || ! $this->identityUserIsActive($identity)) {
             $this->answerCallback($bot);
 
             return;
@@ -384,6 +391,13 @@ final class TelegramUpdateHandler
         } catch (Throwable) {
             // Ignore missing/invalid callback queries.
         }
+    }
+
+    private function identityUserIsActive(ChannelIdentity $identity): bool
+    {
+        $identity->loadMissing('user');
+
+        return $identity->user !== null && $identity->user->isActive();
     }
 
     private function isMenuAction(string $text, string $button, string $command): bool

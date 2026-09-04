@@ -279,6 +279,11 @@ export default function PersonalWorkspace() {
         name: settings.name ?? user.name ?? '',
         timezone: settings.timezone ?? user.timezone ?? '',
     });
+    const passwordForm = useForm({
+        current_password: '',
+        password: '',
+        password_confirmation: '',
+    });
 
     useEffect(() => {
         setMessages(initialMessages.map((item) => withStatus(item)));
@@ -1339,13 +1344,55 @@ export default function PersonalWorkspace() {
                             <label className="text-xs uppercase tracking-[0.14em] text-slate-500" htmlFor="workspace-timezone">
                                 Timezone
                             </label>
-                            <input
+                            <select
                                 id="workspace-timezone"
                                 value={profileForm.data.timezone}
                                 onChange={(event) => profileForm.setData('timezone', event.target.value)}
                                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100 outline-none focus:border-sky-400/40"
-                                placeholder="Europe/Rome"
-                            />
+                            >
+                                {(settings.timezones?.length ? settings.timezones : [profileForm.data.timezone || 'Europe/Rome']).map((zone) => (
+                                    <option key={zone} value={zone}>{zone}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="border-t border-white/10 pt-4">
+                            <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Change password</p>
+                            <div className="mt-2 space-y-2">
+                                <input
+                                    type="password"
+                                    placeholder="Current password"
+                                    value={passwordForm.data.current_password}
+                                    onChange={(event) => passwordForm.setData('current_password', event.target.value)}
+                                    className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100 outline-none"
+                                />
+                                <input
+                                    type="password"
+                                    placeholder="New password"
+                                    value={passwordForm.data.password}
+                                    onChange={(event) => passwordForm.setData('password', event.target.value)}
+                                    className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100 outline-none"
+                                />
+                                <input
+                                    type="password"
+                                    placeholder="Confirm new password"
+                                    value={passwordForm.data.password_confirmation}
+                                    onChange={(event) => passwordForm.setData('password_confirmation', event.target.value)}
+                                    className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100 outline-none"
+                                />
+                                {passwordForm.errors.current_password ? <p className="text-xs text-red-400">{passwordForm.errors.current_password}</p> : null}
+                                {passwordForm.errors.password ? <p className="text-xs text-red-400">{passwordForm.errors.password}</p> : null}
+                                <button
+                                    type="button"
+                                    disabled={passwordForm.processing}
+                                    onClick={() => passwordForm.put(workspaceRoute(surface, 'settings.password.update'), {
+                                        preserveScroll: true,
+                                        onSuccess: () => passwordForm.reset(),
+                                    })}
+                                    className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200 hover:bg-white/5"
+                                >
+                                    Update password
+                                </button>
+                            </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <button

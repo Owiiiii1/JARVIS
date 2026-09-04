@@ -122,14 +122,14 @@ Web Cabinet — User Space клиент. Owner Personal Workspace — `/jarvis`,
 Нужно прежде всего:
 
 - **только owner**;
-- **Users**: каталог Jarvis (не «admin accounts»), User Card, access_code, Telegram link, Chats / Topics / AI Settings, impersonation;
+- **Users**: каталог Jarvis (не «admin accounts»), User Card, access_code, Telegram link/unlink, status active/disabled, password reset, General Prompt, read-only chat metadata, impersonation ([USER_ADMINISTRATION.md](USER_ADMINISTRATION.md));
 - три AI config: Owner Conversation / Owner Analysis / Default User Conversation;
 - Telegram bot settings и/или Integrations overview того же source of truth;
 - Settings → Integrations: Google, GitHub, ElevenLabs status, Telegram, **Web Research**, **Voice/Speech** (STT/TTS provider + configured status; no secrets, no Test Connection);
 - **Telegram Groups** owner-only;
 - diagnostics / logs.
 
-Просмотр чатов user — privileged read/debug, не «писать как пользователь».
+Просмотр чатов user на User Card — privileged read/debug metadata, не «писать как пользователь». Чтобы увидеть `/chat` как user — impersonation.
 
 Не одна «глобальная модель на всё Jarvis». Исходящие в группу — не из UI в Bot API, а через Group Messaging Service → adapter. ADR-015.
 

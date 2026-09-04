@@ -747,6 +747,20 @@ Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
 ---
 
+## Milestone 25U.2 — User Administration + Isolation Hardening
+
+**Status.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live AI / Web Search / Voice / Telegram. No production test users created.
+
+**Цель.** Owner manages ordinary Jarvis users: create, User Card, active/disabled, password reset, Telegram code/unlink, impersonation. Harden backend isolation. No self-registration.
+
+**Реализовано.** Users catalog + User Card; `UserAdministrationService`; session impersonation; disable over hard delete; self password in `/chat` settings. Isolation remains `user_id` on conversations, attachments, files, memory, voice, reminders, Telegram, General Prompt. [USER_ADMINISTRATION.md](USER_ADMINISTRATION.md).
+
+**Не реализовывать.** Hard delete of users. Production User A/B. Live provider calls. `php artisan test`.
+
+**Зависимости:** M25U.1.
+
+---
+
 ## Milestone 25 — Desktop Client Foundation
 
 **Цель.** Tauri 2 + React/TS client in `Owiiiii1/JARVIS-Desktop`. Thin client, Client API, same conversations.

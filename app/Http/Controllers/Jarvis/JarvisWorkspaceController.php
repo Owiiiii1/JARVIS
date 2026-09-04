@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -181,7 +182,7 @@ class JarvisWorkspaceController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'timezone' => ['required', 'timezone'],
+            'timezone' => ['required', 'timezone:all'],
         ]);
 
         $request->user()->forceFill([
@@ -190,6 +191,20 @@ class JarvisWorkspaceController extends Controller
         ])->save();
 
         return back()->with('success', 'Profile saved.');
+    }
+
+    public function updatePassword(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'current_password' => ['required', 'current_password'],
+            'password' => ['required', 'confirmed', Password::defaults()],
+        ]);
+
+        $request->user()->forceFill([
+            'password' => $validated['password'],
+        ])->save();
+
+        return back()->with('success', 'Password updated.');
     }
 
     private function surface(Request $request): string

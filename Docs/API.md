@@ -17,6 +17,7 @@ API нужен User Workspace, Owner Workspace, Desktop, Mobile. Telegram ход
 - GitHub/Google credentials never leave Core. Clients send conversation turns; Core may call GitHub tools.
 - Group administration — не user workspace API. `TBD` узкий read для owner.
 - Два web context: owner → `/jarvis` + admin; `role=user` → `/chat`. User на admin API/routes — deny. `/cabinet` is compatibility only.
+- No public registration. Owner creates users via `POST /settings/users`. User Card `GET /settings/users/{user}`. Impersonation start is Owner-only; `POST /impersonation/stop` restores Owner.
 - Access code не является API/web password.
 - Схема токенов (sanctum, JWT, cookies) — `TBD`.
 - Realtime и voice — отдельные группы.

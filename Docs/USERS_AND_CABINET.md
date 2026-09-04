@@ -7,9 +7,9 @@
 
 User A, User B и Owner personal context **никогда** не смешиваются. Изоляция: `user_id` / scope / configuration domain / capabilities.
 
-Связано: [CHANNELS.md](CHANNELS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [REMINDERS.md](REMINDERS.md), [PROJECTS.md](PROJECTS.md), [INTEGRATIONS.md](INTEGRATIONS.md), ADR-016–045, ADR-184–200.
+Связано: [CHANNELS.md](CHANNELS.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [REMINDERS.md](REMINDERS.md), [PROJECTS.md](PROJECTS.md), [INTEGRATIONS.md](INTEGRATIONS.md), [USER_ADMINISTRATION.md](USER_ADMINISTRATION.md), ADR-016–045, ADR-184–200, ADR-209–219.
 
-Фактический код (M25U.1): один Shared Personal Workspace frontend (`resources/js/personal-workspace`). Owner `/jarvis`, user `/chat`. `/cabinet` — compatibility redirect. User на admin route получает 403. Web chat и Telegram используют один catalog и `ConversationTurnService`. Owner login → `/jarvis`. User login → `/chat`. Owner `/chat` → `/jarvis`. User `/jarvis` → `/chat`. General Prompt — workspace settings drawer (`user_ai_settings`). System AI configs — только owner Settings → AI. No self-registration.
+Фактический код (M25U.2): Owner создаёт users; саморегистрации нет. Каталог Users + User Card (`/settings/users/{user}`). Status `active`/`disabled`. Impersonation session-scoped. Один Shared Personal Workspace (`resources/js/personal-workspace`). Owner `/jarvis`, user `/chat`. `/cabinet` — compatibility redirect. User на admin route получает 403. Web chat и Telegram используют один catalog и `ConversationTurnService`. Owner login → `/jarvis`. User login → `/chat`. Owner `/chat` → `/jarvis`. User `/jarvis` → `/chat`. General Prompt — workspace settings drawer (`user_ai_settings`); Owner может править тот же ряд с User Card. System AI configs — только owner Settings → AI. Подробно: [USER_ADMINISTRATION.md](USER_ADMINISTRATION.md).
 
 ---
 
@@ -48,7 +48,7 @@ Engines общие: Conversation, Context Builder, Telegram Adapter, Reminder En
 
 Не размазывать `if role === owner` по всему коду. Role → default set. Проверка в Core.
 
-| Capability | owner | user (M25U.1) |
+| Capability | owner | user (M25U.1 / M25U.2) |
 | --- | --- | --- |
 | chat | да | да |
 | memory | да | да |
@@ -92,7 +92,7 @@ Owner **также** обычный участник Conversation Core: своя
 
 Пока **только**:
 
-- Web Personal Workspace `/chat`: login, chats, composer, images/files, Voice, General Prompt, profile name/timezone;
+- Web Personal Workspace `/chat`: login, chats, composer, images/files, Voice, General Prompt, profile name/timezone, own password change;
 - Telegram DM after pairing + Chat Selector;
 - reminders (delivery Telegram-only);
 - instance Web Research tools (`search_web`, `fetch_web_page`);
@@ -119,7 +119,7 @@ Owner **также** обычный участник Conversation Core: своя
 | Человекочитаемый | короткий набор символов; точный алфавит `TBD` (цифры допустимы) |
 | Owner | зарезервирован **`2000`**. Не переиспользовать. Не считать web password |
 | Обычный user | генерируется при создании записи |
-| Видимость | owner видит код на User Card; может regenerate |
+| Видимость | owner видит код на User Card; может regenerate. Regenerating does **not** unlink the current Telegram identity |
 | После pairing | код для последующих Telegram-сообщений не спрашивается |
 | Web Cabinet | вход email/login + password. Access code **не** секрет кабинета |
 
@@ -138,9 +138,9 @@ if role === user  → /chat (Personal Workspace)
 
 `/cabinet` and `/cabinet/chats/{id}` redirect to `/chat` (owner `/cabinet` → `/jarvis`).
 
-User на admin route: **403**. Owner `/chat` → `/jarvis`. User `/jarvis` → `/chat`. Owner login → `/jarvis` (`intended()` still honours an explicit Admin URL).
+User на admin route: **403**. Owner `/chat` → `/jarvis`. User `/jarvis` → `/chat`. Owner login → `/jarvis`. User login → `/chat` (no `intended()` to Admin). Disabled login uses generic `auth.failed`.
 
-Impersonation: только owner, без пароля жертвы. ADR-020.
+Impersonation: только owner, session-scoped, без пароля цели. Пока impersonation активен, Auth = target user (нет Admin). Exit → `/jarvis`. ADR-209–219. [USER_ADMINISTRATION.md](USER_ADMINISTRATION.md).
 
 ---
 
@@ -173,10 +173,10 @@ Impersonation: только owner, без пароля жертвы. ADR-020.
 - password set / reset (hash only; plaintext никогда);
 - Chats (read/debug);
 - Topics;
-- AI Settings (User General Prompt; optional future override поверх Default User Conversation AI);
-- Open Cabinet / impersonate.
+- AI Settings (User General Prompt on the same `user_ai_settings` row);
+- Open as User (impersonation). No prominent hard-delete control.
 
-Обычный user эту страницу не видит.
+Disable is preferred over delete. Ordinary user эту страницу не видит.
 
 ---
 
@@ -202,7 +202,7 @@ New Chat: title `Новый чат`, пустой raw. AI: **Default User Conver
 
 На MVP также действует обратное ограничение: **один Jarvis User — одна Telegram identity**. Второй Telegram account к тому же User не привязывается; переподключение только через owner unlink. ADR-046.
 
-Owner может unlink / later relink и regenerate access code.
+Owner может unlink и regenerate access code. **Regenerate не снимает текущую Telegram-привязку.** Unlink удаляет только identity этого user; чаты остаются. Disabled linked user: системный ответ, без Conversation AI.
 
 ### `/start` — identity нет
 
@@ -307,6 +307,7 @@ Cabinet не имеет отдельного Memory UI в M12: memory работ
 - Не создавать User из неизвестного Telegram.
 - Не пускать неверный код в AI.
 - Не давать `role=user` admin routes «потому что залогинен».
+- Не disable / demote sole Owner через ordinary User management.
 - Не hardcode owner по `id=1`.
 - Не строить второй Conversation Engine для owner.
 - Не резолвить Owner Conversation AI для `role=user`.

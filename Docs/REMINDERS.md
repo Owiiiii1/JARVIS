@@ -53,9 +53,10 @@ Tool result:
 
 Reminder принадлежит User, не Telegram identity.
 
-- Если User перепривязал Telegram — отправить на **текущую** linked identity этого User.
-- Если identity нет — retry, затем `failed` (`telegram_not_connected`).
-- Если User стал disabled — `cancelled`, metadata `reason=user_disabled`. Не доставлять.
+- If User is `disabled` — do not deliver; cancel with `user_disabled`. No new assistant interaction.
+- If User перепривязал Telegram — отправить на **текущую** linked identity этого User.
+- If identity нет — retry, затем `failed` (`telegram_not_connected`).
+- Delivery identity must belong to the same `user_id` as the reminder.
 
 ---
 

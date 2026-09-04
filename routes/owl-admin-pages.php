@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CabinetChatController;
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Jarvis\JarvisAttachmentController;
 use App\Http\Controllers\Jarvis\JarvisConfirmationController;
 use App\Http\Controllers\Jarvis\JarvisStorageController;
@@ -40,6 +41,9 @@ Route::post('/telegram/webhook', TelegramWebhookController::class)
         ValidateCsrfToken::class,
     ])
     ->name('telegram.webhook');
+
+Route::middleware(['web', 'auth'])->post('/impersonation/stop', [ImpersonationController::class, 'stop'])
+    ->name('impersonation.stop');
 
 Route::middleware(['web', 'auth', 'user.active'])->group(function () {
     Route::get('/cabinet', function () {
@@ -88,6 +92,8 @@ $registerPersonalWorkspace = static function (string $prefix, string $as, array 
             ->name('settings.prompt.update');
         Route::patch('/settings/profile', [JarvisWorkspaceController::class, 'updateProfile'])
             ->name('settings.profile.update');
+        Route::put('/settings/password', [JarvisWorkspaceController::class, 'updatePassword'])
+            ->name('settings.password.update');
         Route::post('/chats/{conversation}/voice/sessions', [JarvisVoiceController::class, 'store'])
             ->middleware('throttle:20,1')
             ->name('voice.sessions.store');
@@ -176,11 +182,18 @@ Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'ow
         ->name('integrations.github.callback');
     Route::post('/settings/language', [SettingsController::class, 'updateLanguage'])->name('settings.language.update');
     Route::post('/settings/users', [SettingsUserController::class, 'store'])->name('settings.users.store');
+    Route::get('/settings/users/{user}', [SettingsUserController::class, 'show'])->name('settings.users.show');
     Route::get('/settings/users/{user}/memory', [UserMemoryController::class, 'show'])->name('settings.users.memory.show');
     Route::patch('/settings/users/{user}', [SettingsUserController::class, 'update'])->name('settings.users.update');
+    Route::post('/settings/users/{user}/status', [SettingsUserController::class, 'setStatus'])->name('settings.users.status');
+    Route::post('/settings/users/{user}/password', [SettingsUserController::class, 'setPassword'])->name('settings.users.password');
+    Route::patch('/settings/users/{user}/general-prompt', [SettingsUserController::class, 'updateGeneralPrompt'])->name('settings.users.prompt');
     Route::delete('/settings/users/{user}', [SettingsUserController::class, 'destroy'])->name('settings.users.destroy');
     Route::post('/settings/users/{user}/telegram/unlink', [SettingsUserController::class, 'unlinkTelegram'])->name('settings.users.telegram.unlink');
     Route::post('/settings/users/{user}/access-code/regenerate', [SettingsUserController::class, 'regenerateAccessCode'])->name('settings.users.access-code.regenerate');
+    Route::post('/settings/users/{user}/impersonate', [SettingsUserController::class, 'impersonate'])
+        ->middleware('throttle:10,1')
+        ->name('settings.users.impersonate');
 
     Route::post('/settings/web-research', [WebResearchSettingsController::class, 'update'])
         ->name('settings.web-research.update');

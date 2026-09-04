@@ -1,6 +1,6 @@
 # Голосовая архитектура
 
-**Status.** IMPLEMENTED / NOT VALIDATED (M23 Voice Runtime Foundation + M23.2 Gemini STT + M24 Voice UI / Orb, 2026-09-04). M25U.1 exposes the same runtime to ordinary users with capability `voice` via `/chat/.../voice/sessions` (aliases of the same controller as `/jarvis/...`). Automated tests not run. No live STT/TTS/AI. Telephony is out of scope.
+**Status.** IMPLEMENTED / NOT VALIDATED (M23 Voice Runtime Foundation + M23.2 Gemini STT + M24 Voice UI / Orb, 2026-09-04). M25U.1/M25U.2 expose the same runtime to ordinary users with capability `voice` via `/chat/.../voice/sessions` (aliases of the same controller as `/jarvis/...`). Sessions are authorized by `session.user_id` **and** `conversation.user_id` (`VoiceRuntimeService::ownedSession`); public_id is not sufficient. Disabled users cannot start a session. Automated tests not run. No live STT/TTS/AI. Telephony is out of scope.
 
 Voice is a **modality** over an existing conversation. It is not a second Jarvis, second memory, second User Space, or a special voice chat.
 
