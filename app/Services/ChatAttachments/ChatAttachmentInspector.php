@@ -35,12 +35,6 @@ final class ChatAttachmentInspector
             throw new ChatAttachmentException('unreadable_file', 'Не удалось прочитать изображение.');
         }
 
-        $detected = $this->detectMime($file, $bytes);
-
-        if (! in_array($detected, ChatAttachmentConfig::allowedMimeTypes(), true)) {
-            throw new ChatAttachmentException('mime_not_allowed', 'Этот тип файла не принимается. Нужны PNG, JPEG или WebP.');
-        }
-
         $info = @getimagesizefromstring($bytes);
 
         if ($info === false || ! isset($info[0], $info[1], $info[2])) {
@@ -50,16 +44,13 @@ final class ChatAttachmentInspector
         $width = (int) $info[0];
         $height = (int) $info[1];
         $imageType = (int) $info[2];
+        $mime = $this->mimeFromImageType($imageType);
 
-        if ($width < 1 || $height < 1) {
-            throw new ChatAttachmentException('malformed_image', 'Файл не является корректным изображением.');
+        if ($mime === null || $width < 1 || $height < 1) {
+            throw new ChatAttachmentException('mime_not_allowed', 'Этот тип файла не принимается. Нужны PNG, JPEG или WebP.');
         }
 
-        $fromType = $this->mimeFromImageType($imageType);
-
-        if ($fromType === null || $fromType !== $detected) {
-            throw new ChatAttachmentException('mime_mismatch', 'Тип изображения не совпадает с содержимым файла.');
-        }
+        $this->assertNotForbidden($file, $bytes);
 
         $pixels = $width * $height;
 
@@ -70,22 +61,15 @@ final class ChatAttachmentInspector
         $this->assertDecodable($bytes, $imageType);
 
         return [
-            'mime' => $detected,
+            'mime' => $mime,
             'width' => $width,
             'height' => $height,
             'bytes' => $bytes,
         ];
     }
 
-    private function detectMime(UploadedFile $file, string $bytes): string
+    private function assertNotForbidden(UploadedFile $file, string $bytes): void
     {
-        $finfo = new \finfo(FILEINFO_MIME_TYPE);
-        $detected = strtolower((string) $finfo->buffer($bytes));
-
-        if ($detected === 'image/jpg') {
-            $detected = 'image/jpeg';
-        }
-
         $forbidden = [
             'image/svg+xml',
             'text/html',
@@ -97,13 +81,23 @@ final class ChatAttachmentInspector
             'application/x-executable',
         ];
 
-        $client = strtolower((string) $file->getMimeType());
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $detected = $this->normalizeMime((string) $finfo->buffer($bytes));
+        $client = $this->normalizeMime((string) $file->getClientMimeType());
 
         if (in_array($detected, $forbidden, true) || in_array($client, $forbidden, true)) {
             throw new ChatAttachmentException('mime_not_allowed', 'Этот тип файла не принимается. Нужны PNG, JPEG или WebP.');
         }
+    }
 
-        return $detected;
+    private function normalizeMime(string $mime): string
+    {
+        $mime = strtolower(trim(explode(';', $mime)[0]));
+
+        return match ($mime) {
+            'image/jpg', 'image/pjpeg', 'image/jfif', 'image/jpe', 'image/x-jpeg' => 'image/jpeg',
+            default => $mime,
+        };
     }
 
     private function mimeFromImageType(int $imageType): ?string

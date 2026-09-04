@@ -52,6 +52,9 @@ function newClientId() {
 const IMAGE_MIME_ALIASES = {
     'image/jpg': 'image/jpeg',
     'image/pjpeg': 'image/jpeg',
+    'image/jfif': 'image/jpeg',
+    'image/jpe': 'image/jpeg',
+    'image/x-jpeg': 'image/jpeg',
 };
 
 function normalizeImageMime(type) {
@@ -60,15 +63,26 @@ function normalizeImageMime(type) {
     return IMAGE_MIME_ALIASES[raw] || raw;
 }
 
-function isAllowedClientImage(file, allowedMimes) {
+const BLOCKED_CLIENT_MIMES = [
+    'image/svg+xml',
+    'text/html',
+    'text/xml',
+    'application/xml',
+    'application/pdf',
+    'application/javascript',
+    'application/x-php',
+    'application/x-executable',
+    'application/zip',
+];
+
+function isAllowedClientImage(file) {
     const mime = normalizeImageMime(file?.type);
 
-    if (allowedMimes.includes(mime)) {
-        return true;
+    if (BLOCKED_CLIENT_MIMES.includes(mime) || mime.includes('svg')) {
+        return false;
     }
 
-    // Windows often hides extensions; Chromium then reports an empty type.
-    return mime === '' || mime === 'application/octet-stream';
+    return true;
 }
 
 function withStatus(message, status = 'completed') {
@@ -144,7 +158,9 @@ export default function JarvisWorkspace() {
     } = usePage().props;
 
     const timezone = user.timezone || undefined;
-    const acceptTypes = chatAttachments?.accept || (chatAttachments?.allowed_mime_types || []).join(',');
+    const acceptTypes = chatAttachments?.accept
+        ? `${chatAttachments.accept},image/*`
+        : 'image/*,.jpg,.jpeg,.png,.webp';
     const maxImages = Number(chatAttachments?.max_images_per_message || 0);
     const maxFileBytes = Number(chatAttachments?.max_file_size_mb || 0) * 1024 * 1024;
     const maxTotalBytes = Number(chatAttachments?.max_total_upload_mb || 0) * 1024 * 1024;
@@ -318,7 +334,7 @@ export default function JarvisWorkspace() {
                     return;
                 }
 
-                if (!isAllowedClientImage(file, allowedMimes)) {
+                if (!isAllowedClientImage(file)) {
                     message = 'Этот тип файла не принимается. Нужны PNG, JPEG или WebP.';
                     return;
                 }
