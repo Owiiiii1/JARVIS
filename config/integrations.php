@@ -15,6 +15,11 @@ return [
         'calendar_scopes' => [
             'https://www.googleapis.com/auth/calendar',
         ],
+        'gmail_scopes' => [
+            'https://www.googleapis.com/auth/gmail.readonly',
+            'https://www.googleapis.com/auth/gmail.compose',
+            'https://www.googleapis.com/auth/gmail.modify',
+        ],
         'timeout' => (int) env('GOOGLE_HTTP_TIMEOUT', 10),
         'connect_timeout' => (int) env('GOOGLE_HTTP_CONNECT_TIMEOUT', 5),
         'refresh_skew_seconds' => (int) env('GOOGLE_REFRESH_SKEW', 120),

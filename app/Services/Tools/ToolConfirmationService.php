@@ -245,8 +245,70 @@ final class ToolConfirmationService
             'delete_calendar_event' => 'Delete the identified Google Calendar event.',
             'create_calendar_event' => 'Create a Google Calendar event.',
             'update_calendar_event' => 'Update the identified Google Calendar event.',
+            'create_gmail_draft' => 'Create a Gmail draft. It will not be sent.',
+            'modify_gmail_labels' => 'Change Gmail labels on the identified mail.',
+            'send_gmail_message' => $this->gmailSendSummary($confirmation),
             default => 'Run the pending tool action '.$confirmation->tool_name.'.',
         };
+    }
+
+    /**
+     * @return array{to: list<string>, cc: list<string>, subject: string, body_preview: string}|null
+     */
+    public function previewFor(ToolConfirmation $confirmation): ?array
+    {
+        if ($confirmation->tool_name !== 'send_gmail_message') {
+            return null;
+        }
+
+        return $this->gmailSendPreview($confirmation);
+    }
+
+    private function gmailSendSummary(ToolConfirmation $confirmation): string
+    {
+        $preview = $this->gmailSendPreview($confirmation);
+        $to = implode(', ', $preview['to']);
+        $subject = $preview['subject'] !== '' ? $preview['subject'] : '(no subject)';
+
+        return 'Send email to '.$to.' — '.$subject;
+    }
+
+    /**
+     * @return array{to: list<string>, cc: list<string>, subject: string, body_preview: string}
+     */
+    private function gmailSendPreview(ToolConfirmation $confirmation): array
+    {
+        $arguments = is_array($confirmation->arguments_encrypted) ? $confirmation->arguments_encrypted : [];
+        $to = $this->stringList($arguments['to'] ?? []);
+        $cc = $this->stringList($arguments['cc'] ?? []);
+        $subject = trim((string) ($arguments['subject'] ?? ''));
+        $body = trim((string) ($arguments['body'] ?? ''));
+        $max = max(40, (int) config('google_gmail.body_preview_chars', 200));
+        if (mb_strlen($body) > $max) {
+            $body = mb_substr($body, 0, $max);
+        }
+
+        return [
+            'to' => $to,
+            'cc' => $cc,
+            'subject' => $subject,
+            'body_preview' => $body,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringList(mixed $raw): array
+    {
+        if (! is_array($raw)) {
+            $raw = $raw === null || $raw === '' ? [] : [(string) $raw];
+        }
+
+        return array_values(array_filter(array_map(
+            static fn (mixed $item): string => trim((string) $item),
+            $raw,
+        )));
     }
 
     private function resultNote(ToolConfirmation $confirmation, ToolResult $result): string

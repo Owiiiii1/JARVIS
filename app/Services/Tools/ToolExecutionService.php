@@ -69,6 +69,30 @@ final class ToolExecutionService
         }
 
         if ($decision === ToolConfirmationDecision::ConfirmationRequired) {
+            if (method_exists($tool, 'assertReady')) {
+                try {
+                    $tool->assertReady($context);
+                } catch (IntegrationException $exception) {
+                    $result = ToolResult::failure($call->id, $tool->name(), [
+                        'success' => false,
+                        'error' => $exception->error,
+                        'retryable' => $exception->retryable,
+                    ]);
+                    $this->persistLog(
+                        $context,
+                        $call,
+                        $meta,
+                        $account,
+                        ToolExecutionLogStatus::Failed,
+                        $decision,
+                        $result,
+                        $startedAt,
+                    );
+
+                    return $result;
+                }
+            }
+
             $pending = $this->confirmations->createPending(
                 $context->user,
                 $context->conversation,
@@ -77,12 +101,14 @@ final class ToolExecutionService
                 $call->id,
             );
 
+            $preview = $this->confirmations->previewFor($pending);
             $result = ToolResult::failure($call->id, $tool->name(), [
                 'success' => false,
                 'error' => 'confirmation_required',
                 'message' => $meta?->confirmationHint ?? 'This action needs confirmation before it can run.',
                 'confirmation_id' => $pending->public_id,
                 'summary' => $this->confirmations->summaryFor($pending),
+                'preview' => $preview,
                 'expires_at' => optional($pending->expires_at)?->toIso8601String(),
             ]);
             $this->persistLog(
@@ -244,6 +270,14 @@ final class ToolExecutionService
 
         if (isset($payload['events']) && is_array($payload['events'])) {
             $metadata['result_count'] = count($payload['events']);
+        }
+
+        if (isset($payload['messages']) && is_array($payload['messages'])) {
+            $metadata['result_count'] = count($payload['messages']);
+        }
+
+        if (isset($payload['labels']) && is_array($payload['labels'])) {
+            $metadata['result_count'] = count($payload['labels']);
         }
 
         return $metadata;

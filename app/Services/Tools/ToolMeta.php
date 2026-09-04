@@ -11,5 +11,6 @@ final readonly class ToolMeta
         public ToolOperationClass $operation,
         public ?string $provider = null,
         public ?string $confirmationHint = null,
+        public bool $alwaysConfirm = false,
     ) {}
 }

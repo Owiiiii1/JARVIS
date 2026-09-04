@@ -331,6 +331,14 @@ class GoogleOAuthTest extends TestCase
                 'create_calendar_event',
                 'update_calendar_event',
                 'delete_calendar_event',
+                'search_gmail',
+                'list_gmail_messages',
+                'get_gmail_message',
+                'get_gmail_thread',
+                'list_gmail_labels',
+                'create_gmail_draft',
+                'send_gmail_message',
+                'modify_gmail_labels',
             ], $names);
         } finally {
             $this->deleteTemporaryUser($owner);

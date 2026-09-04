@@ -48,6 +48,11 @@ abstract class GoogleCalendarTool implements JarvisTool
         return null;
     }
 
+    public function assertReady(ToolExecutionContext $context): void
+    {
+        $this->resolveAccount($context);
+    }
+
     protected function resolveAccount(ToolExecutionContext $context): IntegrationAccount
     {
         try {

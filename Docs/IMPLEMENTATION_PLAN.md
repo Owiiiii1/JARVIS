@@ -561,25 +561,19 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
 ## Milestone 19 — Gmail
 
+**Статус.** COMPLETED (2026-09-04).
+
 **Цель.** Mail tools + confirmation на write.
 
-**Реализуем** search/read/thread/inbox/draft/reply/send/labels; confirmation policy.
+**Реализовано.** Incremental Gmail OAuth (readonly + compose + modify, not `mail.google.com`); `GoogleGmailService` + MIME parser/builder; owner Gmail tools; send always uses persisted `tool_confirmations`; no local mailbox; no polling/watch; no attachment download/send.
 
-**Backend:** Gmail adapter + tools.
+**Migrations:** none.
 
-**Tests:** mocks; send not in Telegram adapter; user denied; multi-step Gmail → Calendar.
+**Не входит:** user-level Gmail; live Google smoke (deferred).
 
-**Deploy:** gmail scopes.
+После M19 — combined live Google smoke (Owner): connect Google → enable Calendar → enable Gmail → read calendar → freebusy → create/update/delete test event → Gmail read/draft/send → token refresh → disconnect/reconnect. Do not run now.
 
-**DoD**
-
-- Owner читает/шлёт через tools.
-
-**Зависимости:** M17, M5.
-
-**Не входит:** user-level Gmail.
-
-После M19 — combined live Google smoke (Owner): connect Google → enable Calendar → enable Gmail → read calendar → freebusy → create/update/delete test event → Gmail read/draft/send → token refresh → disconnect/reconnect. Do not run before both milestones.
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
 ---
 

@@ -26,6 +26,8 @@ class GoogleOAuthController extends Controller
         $additionalScopes = [];
         if ($request->query('intent') === 'calendar') {
             $additionalScopes = $this->oauth->calendarScopes();
+        } elseif ($request->query('intent') === 'gmail') {
+            $additionalScopes = $this->oauth->gmailScopes();
         }
 
         try {

@@ -319,11 +319,11 @@ Owner-only connected-account state. Unique `(user_id, provider, external_account
 
 ### tool_execution_logs (M16)
 
-Owner/user tool audit: tool_name, capability, provider, nullable `integration_account_id`, status (`started|succeeded|failed|denied|confirmation_required`), duration, safe error_code, bounded metadata. No tokens, arguments, or result bodies. Calendar metadata may include `result_count` / `operation` / `truncated` / `confirmation_id` only. Indexes: user_id, tool_name, provider, status, started_at. Retention TBD.
+Owner/user tool audit: tool_name, capability, provider, nullable `integration_account_id`, status (`started|succeeded|failed|denied|confirmation_required`), duration, safe error_code, bounded metadata. No tokens, arguments, or result bodies. Calendar/Gmail metadata may include `result_count` / `operation` / `truncated` / `confirmation_id` only — never email bodies, subjects, addresses, event titles, or tokens. Indexes: user_id, tool_name, provider, status, started_at. Retention TBD.
 
-### tool_confirmations (M18)
+### tool_confirmations (M18 + M19)
 
-Persisted pending tool confirmations for destructive Calendar delete and model-proposed external writes. `public_id` UUID, `user_id`, `conversation_id`, `tool_name`, optional `tool_call_id`, `arguments_encrypted` (Laravel encrypted JSON, no OAuth tokens), status `pending|confirmed|cancelled|expired|executed`, `expires_at` (default 10 minutes), `confirmed_at`, `executed_at`. Bound to user+conversation. One-time execute. No local Google Calendar event mirror.
+Persisted pending tool confirmations for destructive Calendar delete, Gmail send (always), and model-proposed external writes (including Gmail drafts). `public_id` UUID, `user_id`, `conversation_id`, `tool_name`, optional `tool_call_id`, `arguments_encrypted` (Laravel encrypted JSON, no OAuth tokens), status `pending|confirmed|cancelled|expired|executed`, `expires_at` (default 10 minutes), `confirmed_at`, `executed_at`. Bound to user+conversation. One-time execute is the send-idempotency guard. No local Google Calendar event mirror. No local Gmail mailbox tables (`emails` / `gmail_messages` / `gmail_threads` are not created).
 
 ---
 

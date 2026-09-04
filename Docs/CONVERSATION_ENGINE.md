@@ -156,12 +156,13 @@ Tools:
 - `get_project_context` — owner-only (`projects` capability). Derived project context including bounded ACTIVE group knowledge for attached groups, не raw dump. Не подмешивается в обычный prompt.
 - `search_group_knowledge` — owner-only (`group_analysis`). Explicit group search only.
 - Google Calendar tools — owner-only (`google_calendar`). Live Google is the source of truth. [INTEGRATIONS.md](INTEGRATIONS.md).
+- Gmail tools — owner-only (`gmail`). Live Gmail is the source of truth; no local mailbox. Search/list/read/thread/labels/draft/send/modify. Send always requires persisted confirmation. [INTEGRATIONS.md](INTEGRATIONS.md).
 - `confirm_tool_action` / `cancel_tool_action` — only while a pending confirmation exists; require a server-side yes/cancel signal.
 
 Gemini — production provider с function calling (`functionDeclarations` / `functionCall` / `functionResponse`). OpenAI и Anthropic chat работают; tool-enabled request им **не** отправляется молча (`supportsTools=false`).
 
 Current user local datetime и IANA timezone инжектятся в system context на каждом turn. Calendar naive times use the same owner timezone.
 
-Confirmation: read-only без confirm. Core `create_reminder` остаётся allowed. External write + explicit user command = allowed; model-proposed = confirmation_required. Destructive = always confirmation_required and is persisted in `tool_confirmations`. Conservative yes/cancel parser plus Web/Telegram buttons. Модель не может self-authorize. [INTEGRATIONS.md](INTEGRATIONS.md).
+Confirmation: read-only без confirm. Core `create_reminder` остаётся allowed. External write + explicit user command = allowed except tools with `alwaysConfirm` (`send_gmail_message`). Model-proposed = confirmation_required. Destructive = always confirmation_required and is persisted in `tool_confirmations`. Conservative yes/cancel parser plus Web/Telegram buttons. Модель не может self-authorize. [INTEGRATIONS.md](INTEGRATIONS.md).
 
 Reminders: Reminder Tool → Reminder Engine, не Calendar. [REMINDERS.md](REMINDERS.md).

@@ -9,7 +9,7 @@ Conversation Engine
       → Core tool | Integration provider adapter
 ```
 
-**Status (M18):** IMPLEMENTED — Integration Registry, encrypted `integration_accounts`, `tool_execution_logs`, persisted `tool_confirmations`, owner Integrations Admin, Google OAuth (identity + incremental Calendar scopes), **Google Calendar tools**. Gmail / ElevenLabs API are **not** implemented. Identity connection without Calendar scope does not call Calendar API.
+**Status (M19):** IMPLEMENTED — Integration Registry, encrypted `integration_accounts`, `tool_execution_logs`, persisted `tool_confirmations`, owner Integrations Admin, Google OAuth (identity + incremental Calendar + Gmail scopes), **Google Calendar tools**, **Gmail tools**. ElevenLabs API is **not** implemented. Identity or Calendar connected ≠ Gmail ready. Missing Gmail scopes do not call the Gmail API.
 
 Conversation Engine не импортирует Google SDK, ElevenLabs SDK или Telegram SDK.
 
@@ -38,7 +38,7 @@ Google / ElevenLabs / Integrations admin — **owner only** (`integrations_admin
 
 | Provider | Status | Source of truth |
 | --- | --- | --- |
-| Google | OAuth identity + Calendar tools (M18) | `integration_accounts` encrypted credentials |
+| Google | OAuth identity + Calendar + Gmail tools (M19) | `integration_accounts` encrypted credentials |
 | ElevenLabs | placeholder Not configured | `integration_accounts` later |
 | Telegram | status bridge | existing `telegram_bot_settings` — **no token copy** |
 
@@ -50,7 +50,7 @@ Telegram integration card never writes `integration_accounts.credentials_encrypt
 
 Owner-only (`/settings?tab=integrations`, also `/settings/integrations`).
 
-Cards: Google (Connect / Reconnect / Disconnect / Enable Calendar; Identity vs Calendar vs Gmail capability states; Not configured if env missing), Telegram (current bot/webhook/groups status, no token), ElevenLabs (voice later, no API key form). Gmail is never shown as ready.
+Cards: Google (Connect / Reconnect / Disconnect / Enable Calendar / Enable Gmail; Identity vs Calendar vs Gmail capability states; Not configured if env missing), Telegram (current bot/webhook/groups status, no token), ElevenLabs (voice later, no API key form). Connected Google is not automatically Gmail-enabled. No Gmail inbox admin UI.
 
 Recent Tool Executions: time, tool, provider, status, duration, safe error code. No arguments/result bodies. Limit `config/integrations.php` `recent_executions_limit` (50). Retention TBD.
 
@@ -82,10 +82,18 @@ Core does not know Google token field names. Envelope is provider-specific insid
 | `create_calendar_event` | write | google |
 | `update_calendar_event` | write | google |
 | `delete_calendar_event` | destructive | google |
+| `search_gmail` | read | google |
+| `list_gmail_messages` | read | google |
+| `get_gmail_message` | read | google |
+| `get_gmail_thread` | read | google |
+| `list_gmail_labels` | read | google |
+| `create_gmail_draft` | write | google |
+| `send_gmail_message` | write (always confirm) | google |
+| `modify_gmail_labels` | write | google |
 | `confirm_tool_action` | write (core) | null (only when a pending confirmation exists) |
 | `cancel_tool_action` | write (core) | null (only when a pending confirmation exists) |
 
-Calendar tools require capability `google_calendar` (owner). Definitions stay available when disconnected; runtime returns `google_not_connected` or `calendar_scope_required`. Normal users do not receive Calendar tools. Gmail/voice tools are not registered.
+Calendar tools require capability `google_calendar` (owner). Gmail tools require capability `gmail` (owner). Definitions stay available when disconnected; runtime returns `google_not_connected` or `calendar_scope_required` / `gmail_scope_required`. Normal users do not receive Calendar or Gmail tools. Voice tools are not registered.
 
 `ToolExecutionService` wraps every execute: resolve → capability → confirmation policy → log → run → finalize. Multi-step loop is unchanged (max 5 rounds).
 
@@ -99,15 +107,16 @@ Model cannot pass `authorized`, `confirmation`, `user_id`, or `integration_accou
 | --- | --- |
 | Read | allowed |
 | Core write (`create_reminder`) | allowed (existing explicit-request UX) |
-| External write + `explicitUserCommand=true` | allowed |
+| External write + `explicitUserCommand=true` | allowed (except always-confirm tools) |
 | External write + model-proposed / unknown | confirmation_required |
+| `send_gmail_message` (`alwaysConfirm`) | confirmation_required even on an explicit «отправь» |
 | Destructive | confirmation_required |
 
 `ToolExecutionContext.explicitUserCommand` is set by the application layer. User-initiated conversation turns currently set `true`. Precise NLP intent detection can evolve later.
 
 Confirmation result: `error=confirmation_required` + human summary + `confirmation_id`. A `tool_confirmations` row is persisted (encrypted arguments, TTL 10 minutes, user+conversation bound).
 
-Destructive Calendar delete always requires confirmation, even when the user wrote «удали». Model cannot invent a token or self-confirm. Application layer accepts only conservative phrases (`да` / `yes` / `confirm` / `подтверждаю` / `удалить`) or Web/Telegram Confirm buttons (they send `да`). Cancel: `нет` / `no` / `cancel` / `отмена`. Expired or cancelled rows cannot execute. Confirmed execute is one-time.
+Destructive Calendar delete always requires confirmation, even when the user wrote «удали». Gmail send always requires confirmation, even when the user wrote «отправь». Pending send summary/preview shows recipients, subject, and a bounded body preview — no tokens. Draft create is allowed on an explicit command and confirmation-required when model-proposed. Draft ≠ send. Model cannot invent a token or self-confirm. Application layer accepts only conservative phrases (`да` / `yes` / `confirm` / `подтверждаю` / `удалить`) or Web/Telegram Confirm buttons (they send `да`). Cancel: `нет` / `no` / `cancel` / `отмена`. Expired or cancelled rows cannot execute. Confirmed execute is one-time (send idempotency).
 
 `confirm_tool_action` / `cancel_tool_action` are exposed only while a pending row exists and still require the server-side affirmative/cancel signal.
 
@@ -117,7 +126,7 @@ Destructive Calendar delete always requires confirmation, even when the user wro
 
 `tool_execution_logs`: started/succeeded/failed/denied/confirmation_required. Metadata only safe counts/error codes. No tokens, keys, email bodies, transcripts, or raw arguments.
 
-Calendar tool success/failure updates `last_used_at` / `last_success_at` / `last_error_*` on the Google account. Core tools leave `integration_account_id` null. Metadata may include `result_count`, `operation`, `truncated`, `confirmation_id` — never event titles, descriptions, attendees, or tokens.
+Calendar and Gmail tool success/failure updates `last_used_at` / `last_success_at` / `last_error_*` on the Google account. Core tools leave `integration_account_id` null. Metadata may include `result_count`, `operation`, `truncated`, `confirmation_id` — never event titles, descriptions, attendees, email bodies, subjects, addresses, or tokens.
 
 ---
 
@@ -147,9 +156,19 @@ If missing: card **Not configured**, Connect disabled, connect route safe error.
 
 Identity connect requests only: `openid`, `email`, `profile`.
 
-Calendar incremental connect (`?intent=calendar`) adds `https://www.googleapis.com/auth/calendar` (list + events + freebusy + write). Gmail scopes are **not** requested. `include_granted_scopes=true`. Stored scopes = union of previously granted + newly granted. Identity scopes are not dropped.
+Calendar incremental connect (`?intent=calendar`) adds `https://www.googleapis.com/auth/calendar` (list + events + freebusy + write).
 
-UI labels: Identity / Email identity / Profile / Calendar.
+Gmail incremental connect (`?intent=gmail`) adds, and does **not** request `mail.google.com`:
+
+- `https://www.googleapis.com/auth/gmail.readonly` — search / read / list / labels
+- `https://www.googleapis.com/auth/gmail.compose` — drafts and send
+- `https://www.googleapis.com/auth/gmail.modify` — labels, mark read/unread, archive
+
+Runtime checks: read = readonly or modify; draft = compose; send = compose or send; labels = modify. Card “Gmail enabled” requires all three requested Gmail scopes.
+
+`include_granted_scopes=true`. Stored scopes = union of previously granted identity + Calendar + Gmail. Refresh token is preserved. Identity or Calendar scopes are not dropped.
+
+UI labels: Identity / Email identity / Profile / Calendar / Gmail read / Gmail compose / Gmail modify / Gmail send.
 
 ### Flow
 
@@ -164,7 +183,7 @@ UI labels: Identity / Email identity / Profile / Calendar.
 
 ### Refresh
 
-`GoogleCalendarService` (and any later Gmail adapter) **must** call `GoogleCredentialService::getValidAccessToken($account)`. Do not read `credentials_encrypted` in Core or tools.
+`GoogleCalendarService` and `GoogleGmailService` **must** call `GoogleCredentialService::getValidAccessToken($account)`. Do not read `credentials_encrypted` in Core or tools.
 
 - Refresh when `expires_at` is within `refresh_skew_seconds` (default 120).
 - `lockForUpdate` prevents parallel refresh.
@@ -190,9 +209,9 @@ OAuth admin actions are **not** written to `tool_execution_logs`.
 6. `php artisan config:clear`.
 7. Owner: Settings → Integrations → Google → Connect → consent → card shows Connected + email → reload → Disconnect → Reconnect.
 
-Enable the Google Calendar API in Google Cloud before using Calendar tools. Do **not** enable Gmail for M18.
+Enable the Google Calendar API and the Gmail API in Google Cloud before live smoke. Owner does not have to enable them during M19 implementation.
 
-Manual production Google smoke is deferred until Google integration milestones are complete. Cursor does not connect real Google or mutate real events.
+Combined live Google smoke is still deferred. Cursor does not connect real Google, read a production inbox, send mail, create drafts, or change labels.
 
 ### Google Calendar (M18)
 
@@ -214,9 +233,31 @@ Search/list/freebusy are bounded (config max events, 31-day freebusy, default se
 
 Reminder Engine remains a separate subsystem. «Напомни» ≠ Calendar event.
 
-### Gmail / ElevenLabs
+### Gmail (M19)
 
-M19 Gmail tools. ElevenLabs later. Identity or Calendar connected ≠ Gmail ready.
+Live Gmail is the source of truth. No local `emails` / `gmail_messages` / `gmail_threads` tables, no inbox polling, no `historyId` / watch, no cron.
+
+Adapter: `GoogleGmailService` via Laravel HTTP client (`config/google_gmail.php` bounds and timeouts). `GmailMimeParser` (text/plain first, HTML→text fallback, nested multipart, attachment metadata only, body cap + `truncated`). `GmailMimeBuilder` (To/Cc/Bcc, RFC 2047 subject, text/plain UTF-8, reply headers, base64url). Tools never call Google HTTP.
+
+Account resolution: current owner → `IntegrationAccountService` → active Google account + granted Gmail scope. Model cannot pass `user_id` or `integration_account_id`. Remote Gmail message/thread ids may pass through the tool loop.
+
+Search/list are bounded. Default list is INBOX. `unread=true` adds `is:unread`. Pagination stops at the cap (`truncated`, `next_page_available`). Thread read is chronological and total-char capped. The service does not summarize; Conversation AI does.
+
+Writes: GET/search/read may retry once. `drafts.create`, `messages.send`, and label modify are **not** auto-retried (avoids duplicate send). Send always uses persisted `tool_confirmations` (one-time execute). Draft retries may create a second draft if the user asks again; Core does not retry the HTTP write.
+
+Reply threading: `threadId` + `In-Reply-To` + `References`. Not a new thread with only `Re:`. No separate reply tool — `create_gmail_draft` / `send_gmail_message` accept `reply_to_message_id` / `thread_id`. The service does not fuzzy-resolve human names.
+
+Labels: mark read = remove `UNREAD`; unread = add `UNREAD`; archive = remove `INBOX`. No trash / permanent delete. Label ids must match Gmail format / known system labels.
+
+Attachments: READ metadata only (filename, mime, size, attachment id). WRITE attachments out of scope. Outbound mail is plain text only.
+
+Gmail tool results are not copied into personal memory automatically. Email → Calendar is a multi-tool Conversation AI loop, not an extraction job.
+
+Safe errors: `google_not_connected`, `gmail_scope_required`, `gmail_message_not_found`, `gmail_thread_not_found`, `gmail_forbidden`, `gmail_rate_limited`, `gmail_send_failed`, `gmail_invalid_recipient`, `gmail_unavailable`, `gmail_conflict`. Raw Google bodies are not returned.
+
+### ElevenLabs
+
+Voice later. Identity or Calendar or Gmail connected ≠ voice ready.
 
 ---
 

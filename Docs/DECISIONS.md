@@ -754,7 +754,7 @@
 
 **Решение.** Default connect остаётся identity-only. Enable Calendar запрашивает Calendar scope incrementally (`include_granted_scopes`). Stored scopes = union existing + newly granted. Refresh token preservation из M17 сохраняется.
 
-**Следствие.** Gmail scopes не запрашиваются до M19.
+**Следствие.** Gmail scopes запрашиваются только через incremental `?intent=gmail` (M19).
 
 ---
 
@@ -795,6 +795,76 @@
 **Решение.** `create_reminder` остаётся Core Reminder Engine. Calendar tools не создают reminders и наоборот.
 
 **Следствие.** Delivery и Google Calendar не смешиваются.
+
+---
+
+## ADR-079 — Gmail is live source of truth
+
+**Контекст.** Локальный mailbox mirror расходится с Gmail.
+
+**Решение.** M19 читает/пишет Gmail live через tools. Нет таблиц `emails` / `gmail_messages` / `gmail_threads`.
+
+**Следствие.** Google остаётся source of truth. Jarvis не зеркалирует inbox.
+
+---
+
+## ADR-080 — Gmail access only through GoogleCredentialService
+
+**Контекст.** Tokens лежат в `credentials_encrypted`.
+
+**Решение.** `GoogleGmailService` получает access token только через `GoogleCredentialService::getValidAccessToken()`. Tools не делают Gmail HTTP и не читают credentials.
+
+**Следствие.** Refresh, revoke и lock остаются в одном месте для Calendar и Gmail.
+
+---
+
+## ADR-081 — Incremental Gmail scopes
+
+**Контекст.** Identity/Calendar scopes недостаточны для Gmail; полный `mail.google.com` избыточен.
+
+**Решение.** Enable Gmail запрашивает `gmail.readonly` + `gmail.compose` + `gmail.modify` incrementally (`include_granted_scopes`). Stored scopes = union existing identity + Calendar + Gmail. Refresh token preservation из M17 сохраняется.
+
+**Следствие.** Connected Google ≠ Gmail-enabled. Card показывает Identity / Calendar / Gmail отдельно.
+
+---
+
+## ADR-082 — Email send always requires persisted confirmation
+
+**Контекст.** Send имеет внешний side effect и Gmail `messages.send` не даёт generic idempotency.
+
+**Решение.** `send_gmail_message` всегда `confirmation_required` (`ToolMeta.alwaysConfirm`), даже при явной команде «отправь». One-time `tool_confirmations` execute блокирует повторную отправку. Preview: recipients + subject + bounded body.
+
+**Следствие.** Duplicate confirm/cancel/expire не шлёт письмо. Cross-user confirm denied.
+
+---
+
+## ADR-083 — Gmail write HTTP calls are not auto-retried
+
+**Контекст.** Retry `drafts.create` / `messages.send` / modify может дублировать действие.
+
+**Решение.** GET/search/read могут ограниченно retry. Write HTTP retry = 0. Отдельная idempotency-таблица не вводится: send закрыт confirmation one-time; draft retry risk документирован.
+
+**Следствие.** Нет слепого duplicate send из HTTP layer.
+
+---
+
+## ADR-084 — No Gmail mailbox mirror or polling
+
+**Контекст.** Proactive inbox monitoring потребует watch/historyId и локальный store.
+
+**Решение.** M19 = on-demand tools only. Нет cron, push, `users.watch`, History API.
+
+**Следствие.** «Есть новые письма?» идёт через `list_gmail_messages` / `search_gmail` в conversation turn.
+
+---
+
+## ADR-085 — Draft ≠ send
+
+**Контекст.** Черновик и отправка легко смешать в одном tool.
+
+**Решение.** `create_gmail_draft` только создаёт draft. `send_gmail_message` только шлёт (после confirm). Reply = те же tools с `reply_to_message_id` / `thread_id` и корректными MIME headers. Отдельный reply tool не нужен.
+
+**Следствие.** «Сделай черновик» не отправляет письмо. Attachments outbound и trash/delete отложены.
 
 ---
 

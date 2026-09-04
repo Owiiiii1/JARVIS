@@ -369,6 +369,19 @@ function Bubble({ message, time, sending = false, onConfirm, onCancel }) {
                 } ${message.pending ? 'opacity-70' : ''}`}
             >
                 <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.body}</p>
+                {pending?.summary && !mine ? (
+                    <p className="mt-2 text-xs leading-5 text-slate-600">{pending.summary}</p>
+                ) : null}
+                {pending?.preview && !mine ? (
+                    <div className="mt-2 space-y-1 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-700">
+                        {pending.preview.to?.length ? <p>To: {pending.preview.to.join(', ')}</p> : null}
+                        {pending.preview.cc?.length ? <p>Cc: {pending.preview.cc.join(', ')}</p> : null}
+                        {pending.preview.subject ? <p>Subject: {pending.preview.subject}</p> : null}
+                        {pending.preview.body_preview ? (
+                            <p className="whitespace-pre-wrap">{pending.preview.body_preview}</p>
+                        ) : null}
+                    </div>
+                ) : null}
                 {pending?.id && !mine ? (
                     <div className="mt-2 flex gap-2">
                         <button

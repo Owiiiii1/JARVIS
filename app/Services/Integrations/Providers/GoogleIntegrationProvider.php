@@ -101,7 +101,10 @@ final class GoogleIntegrationProvider implements IntegrationProvider
         ], true);
         $calendarEnabled = $state === IntegrationAccountStatus::Connected
             && $this->oauth->hasCalendarScope($scopes);
+        $gmailEnabled = $state === IntegrationAccountStatus::Connected
+            && $this->oauth->hasGmailScope($scopes);
         $canEnableCalendar = $state === IntegrationAccountStatus::Connected && ! $calendarEnabled;
+        $canEnableGmail = $state === IntegrationAccountStatus::Connected && ! $gmailEnabled;
 
         $actions = [
             [
@@ -115,10 +118,18 @@ final class GoogleIntegrationProvider implements IntegrationProvider
             $actions[] = ['key' => 'enable_calendar', 'available' => true, 'label' => 'Enable Calendar'];
         }
 
+        if ($canEnableGmail) {
+            $actions[] = ['key' => 'enable_gmail', 'available' => true, 'label' => 'Enable Gmail'];
+        }
+
         $actions[] = ['key' => 'disconnect', 'available' => $canDisconnect, 'label' => 'Disconnect'];
 
-        if ($state === IntegrationAccountStatus::Connected && ! $calendarEnabled) {
+        if ($state === IntegrationAccountStatus::Connected && ! $calendarEnabled && ! $gmailEnabled) {
+            $diagnostic = 'Calendar and Gmail permission required.';
+        } elseif ($state === IntegrationAccountStatus::Connected && ! $calendarEnabled) {
             $diagnostic = 'Calendar permission required.';
+        } elseif ($state === IntegrationAccountStatus::Connected && ! $gmailEnabled) {
+            $diagnostic = 'Gmail permission required.';
         }
 
         return new IntegrationStatus(
@@ -151,7 +162,7 @@ final class GoogleIntegrationProvider implements IntegrationProvider
                 [
                     'key' => 'gmail',
                     'label' => 'Gmail',
-                    'state' => 'not_enabled',
+                    'state' => $gmailEnabled ? 'enabled' : ($state === IntegrationAccountStatus::Connected ? 'permission_required' : 'not_enabled'),
                 ],
             ],
         );

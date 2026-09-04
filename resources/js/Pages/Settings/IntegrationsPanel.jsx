@@ -27,7 +27,7 @@ export default function IntegrationsPanel() {
 
     const text = {
         en: {
-            hint: 'Owner integration cards. Telegram uses the existing bot settings. Google identity is separate from Calendar permission. Gmail is not enabled yet.',
+            hint: 'Owner integration cards. Telegram uses the existing bot settings. Google identity, Calendar, and Gmail permissions are granted separately.',
             recent: 'Recent Tool Executions',
             empty: 'No tool executions yet.',
             time: 'Time',
@@ -44,10 +44,11 @@ export default function IntegrationsPanel() {
             scopes: 'Scopes',
             tokenHealth: 'Token health',
             enableCalendar: 'Enable Calendar',
+            enableGmail: 'Enable Gmail',
             capabilities: 'Capabilities',
         },
         ru: {
-            hint: 'Карточки интеграций owner. Telegram читает существующие настройки бота. Google identity отдельно от Calendar. Gmail ещё не включён.',
+            hint: 'Карточки интеграций owner. Telegram читает существующие настройки бота. Google identity, Calendar и Gmail выдаются отдельно.',
             recent: 'Recent Tool Executions',
             empty: 'Пока нет выполнений tools.',
             time: 'Time',
@@ -64,10 +65,11 @@ export default function IntegrationsPanel() {
             scopes: 'Scopes',
             tokenHealth: 'Token health',
             enableCalendar: 'Enable Calendar',
+            enableGmail: 'Enable Gmail',
             capabilities: 'Capabilities',
         },
         uk: {
-            hint: 'Картки інтеграцій owner. Telegram читає наявні налаштування бота. Google identity окремо від Calendar. Gmail ще не ввімкнено.',
+            hint: 'Картки інтеграцій owner. Telegram читає наявні налаштування бота. Google identity, Calendar і Gmail надаються окремо.',
             recent: 'Recent Tool Executions',
             empty: 'Поки немає виконань tools.',
             time: 'Time',
@@ -84,6 +86,7 @@ export default function IntegrationsPanel() {
             scopes: 'Scopes',
             tokenHealth: 'Token health',
             enableCalendar: 'Enable Calendar',
+            enableGmail: 'Enable Gmail',
             capabilities: 'Capabilities',
         },
     };
@@ -184,6 +187,14 @@ export default function IntegrationsPanel() {
                                     className="inline-flex h-9 items-center rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700"
                                 >
                                     {t.enableCalendar}
+                                </a>
+                            )}
+                            {provider.provider === 'google' && actionAvailable(provider, 'enable_gmail') && (
+                                <a
+                                    href={route('integrations.google.connect', { intent: 'gmail' })}
+                                    className="inline-flex h-9 items-center rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700"
+                                >
+                                    {t.enableGmail}
                                 </a>
                             )}
                             {provider.provider === 'google' && !provider.configured && (

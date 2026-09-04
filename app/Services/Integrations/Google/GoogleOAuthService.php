@@ -66,6 +66,74 @@ final class GoogleOAuthService
     }
 
     /**
+     * @return list<string>
+     */
+    public function gmailScopes(): array
+    {
+        $scopes = config('integrations.google.gmail_scopes', [
+            'https://www.googleapis.com/auth/gmail.readonly',
+            'https://www.googleapis.com/auth/gmail.compose',
+            'https://www.googleapis.com/auth/gmail.modify',
+        ]);
+
+        return $this->normalizeScopes(is_array($scopes) ? $scopes : []);
+    }
+
+    /**
+     * @param  list<string>  $scopes
+     */
+    public function hasGmailScope(array $scopes): bool
+    {
+        $granted = $this->normalizeScopes($scopes);
+
+        foreach ($this->gmailScopes() as $needed) {
+            if (! in_array($needed, $granted, true)) {
+                return false;
+            }
+        }
+
+        return $this->gmailScopes() !== [];
+    }
+
+    /**
+     * @param  list<string>  $scopes
+     */
+    public function hasGmailReadScope(array $scopes): bool
+    {
+        $granted = $this->normalizeScopes($scopes);
+
+        return in_array('https://www.googleapis.com/auth/gmail.readonly', $granted, true)
+            || in_array('https://www.googleapis.com/auth/gmail.modify', $granted, true);
+    }
+
+    /**
+     * @param  list<string>  $scopes
+     */
+    public function hasGmailComposeScope(array $scopes): bool
+    {
+        return in_array('https://www.googleapis.com/auth/gmail.compose', $this->normalizeScopes($scopes), true);
+    }
+
+    /**
+     * @param  list<string>  $scopes
+     */
+    public function hasGmailSendScope(array $scopes): bool
+    {
+        $granted = $this->normalizeScopes($scopes);
+
+        return in_array('https://www.googleapis.com/auth/gmail.compose', $granted, true)
+            || in_array('https://www.googleapis.com/auth/gmail.send', $granted, true);
+    }
+
+    /**
+     * @param  list<string>  $scopes
+     */
+    public function hasGmailModifyScope(array $scopes): bool
+    {
+        return in_array('https://www.googleapis.com/auth/gmail.modify', $this->normalizeScopes($scopes), true);
+    }
+
+    /**
      * @param  list<string>  $additionalScopes
      * @return array{url: string, state: string, verifier: string}
      */
@@ -249,6 +317,10 @@ final class GoogleOAuthService
                 'email' => 'Email identity',
                 'profile' => 'Profile',
                 'https://www.googleapis.com/auth/calendar' => 'Calendar',
+                'https://www.googleapis.com/auth/gmail.readonly' => 'Gmail read',
+                'https://www.googleapis.com/auth/gmail.compose' => 'Gmail compose',
+                'https://www.googleapis.com/auth/gmail.modify' => 'Gmail modify',
+                'https://www.googleapis.com/auth/gmail.send' => 'Gmail send',
                 default => basename(parse_url($scope, PHP_URL_PATH) ?: $scope),
             };
         }

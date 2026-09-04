@@ -25,6 +25,10 @@ final class ToolConfirmationPolicy
             return ToolConfirmationDecision::Allowed;
         }
 
+        if ($tool->meta()->alwaysConfirm === true) {
+            return ToolConfirmationDecision::ConfirmationRequired;
+        }
+
         if ($operation === ToolOperationClass::Destructive) {
             return ToolConfirmationDecision::ConfirmationRequired;
         }

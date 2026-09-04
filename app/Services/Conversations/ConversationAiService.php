@@ -330,7 +330,7 @@ final class ConversationAiService
 
     /**
      * @param  list<ToolResult>  $results
-     * @return array{id: string, tool_name: string, summary: string}|null
+     * @return array{id: string, tool_name: string, summary: string, preview: array<string, mixed>|null}|null
      */
     private function pendingConfirmationFromResults(array $results): ?array
     {
@@ -344,10 +344,13 @@ final class ConversationAiService
                 continue;
             }
 
+            $preview = $result->payload['preview'] ?? null;
+
             return [
                 'id' => $id,
                 'tool_name' => $result->name,
                 'summary' => (string) ($result->payload['summary'] ?? ''),
+                'preview' => is_array($preview) ? $preview : null,
             ];
         }
 

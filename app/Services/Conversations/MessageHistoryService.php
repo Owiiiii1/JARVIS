@@ -101,6 +101,7 @@ final class MessageHistoryService
                     'id' => (string) $pending['id'],
                     'tool_name' => (string) ($pending['tool_name'] ?? ''),
                     'summary' => (string) ($pending['summary'] ?? ''),
+                    'preview' => is_array($pending['preview'] ?? null) ? $pending['preview'] : null,
                 ]
                 : null,
         ];

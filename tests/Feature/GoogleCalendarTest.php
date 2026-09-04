@@ -153,7 +153,7 @@ class GoogleCalendarTest extends TestCase
             $this->assertStringContainsString('Enable Calendar', $before->getContent());
             $this->assertStringContainsString('permission_required', $before->getContent());
             $this->assertStringContainsString('"key":"gmail"', $before->getContent());
-            $this->assertStringContainsString('not_enabled', $before->getContent());
+            $this->assertStringContainsString('permission_required', $before->getContent());
 
             Http::fake([
                 'https://oauth2.googleapis.com/token' => Http::response([
@@ -186,7 +186,7 @@ class GoogleCalendarTest extends TestCase
             $this->assertStringContainsString('"key":"calendar"', $page->getContent());
             $this->assertStringContainsString('"state":"enabled"', $page->getContent());
             $this->assertStringContainsString('"key":"gmail"', $page->getContent());
-            $this->assertStringContainsString('not_enabled', $page->getContent());
+            $this->assertStringContainsString('permission_required', $page->getContent());
             $this->assertStringNotContainsString('Enable Calendar', $page->getContent());
         } finally {
             $this->deleteTemporaryUser($owner);
