@@ -722,9 +722,79 @@
 
 **Контекст.** Connected Google может выглядеть как Calendar/Gmail ready.
 
-**Решение.** Tool registry остаётся reminder / history / project / group search. Calendar/Gmail tools — M18/M19.
+**Решение.** M17 connection does not register Calendar/Gmail tools. M18 registers Calendar tools by capability; runtime still requires a connected account and Calendar scope.
 
-**Следствие.** Connected ≠ capability exposed to Conversation AI.
+**Следствие.** Identity connected ≠ Calendar ready ≠ Gmail ready.
+
+---
+
+## ADR-072 — Google Calendar is live external source, no local event mirror
+
+**Контекст.** Локальный cache календарных событий расходится с Google.
+
+**Решение.** M18 читает/пишет Google Calendar live через tools. Нет таблицы `calendar_events`, нет sync cron, нет webhook.
+
+**Следствие.** Google остаётся source of truth. Jarvis не зеркалирует встречи.
+
+---
+
+## ADR-073 — Calendar access only through GoogleCredentialService
+
+**Контекст.** Tokens лежат в `credentials_encrypted`.
+
+**Решение.** `GoogleCalendarService` получает access token только через `GoogleCredentialService::getValidAccessToken()`. Tools не делают Google HTTP и не читают credentials.
+
+**Следствие.** Refresh, revoke и lock остаются в одном месте.
+
+---
+
+## ADR-074 — Incremental Google scopes
+
+**Контекст.** M17 identity scopes недостаточны для Calendar; будущий Gmail не должен попасть в M17/M18 connect.
+
+**Решение.** Default connect остаётся identity-only. Enable Calendar запрашивает Calendar scope incrementally (`include_granted_scopes`). Stored scopes = union existing + newly granted. Refresh token preservation из M17 сохраняется.
+
+**Следствие.** Gmail scopes не запрашиваются до M19.
+
+---
+
+## ADR-075 — External writes use ToolConfirmationPolicy
+
+**Контекст.** Model может предложить создать/изменить встречу без явной команды.
+
+**Решение.** External write + `explicitUserCommand=true` → allowed. Model-proposed / unknown → `confirmation_required`. Сигнал команды задаёт application layer, не model args.
+
+**Следствие.** `authorized=true` в arguments игнорируется.
+
+---
+
+## ADR-076 — Destructive Calendar delete requires persisted confirmation
+
+**Контекст.** M16 skeleton возвращал `confirmation_required` без возможности подтвердить позже.
+
+**Решение.** `tool_confirmations` в DB (encrypted arguments, user+conversation, TTL, one-time). Conservative yes/cancel parser + Web/Telegram buttons. Model cannot invent the token or self-confirm.
+
+**Следствие.** Delete usable across Telegram/Web/restart. Expired/cancelled cannot execute.
+
+---
+
+## ADR-077 — Client-generated Google event id for create idempotency
+
+**Контекст.** Calendar `events.insert` не имеет generic idempotency key.
+
+**Решение.** Core генерирует Google-compatible event id из user/conversation/tool-call id (`[a-v0-9]`). Retry того же ToolCall повторяет id. Model не задаёт ключ.
+
+**Следствие.** AI/tool retry не создаёт duplicate meeting.
+
+---
+
+## ADR-078 — Reminder remains a separate subsystem
+
+**Контекст.** «Напомни» легко спутать с Calendar event.
+
+**Решение.** `create_reminder` остаётся Core Reminder Engine. Calendar tools не создают reminders и наоборот.
+
+**Следствие.** Delivery и Google Calendar не смешиваются.
 
 ---
 

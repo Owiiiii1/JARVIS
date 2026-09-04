@@ -99,6 +99,27 @@ final class GoogleIntegrationProvider implements IntegrationProvider
             IntegrationAccountStatus::Error,
             IntegrationAccountStatus::Revoked,
         ], true);
+        $calendarEnabled = $state === IntegrationAccountStatus::Connected
+            && $this->oauth->hasCalendarScope($scopes);
+        $canEnableCalendar = $state === IntegrationAccountStatus::Connected && ! $calendarEnabled;
+
+        $actions = [
+            [
+                'key' => $state === IntegrationAccountStatus::Disconnected ? 'connect' : 'reconnect',
+                'available' => $canConnect,
+                'label' => $state === IntegrationAccountStatus::Disconnected ? 'Connect Google' : 'Reconnect',
+            ],
+        ];
+
+        if ($canEnableCalendar) {
+            $actions[] = ['key' => 'enable_calendar', 'available' => true, 'label' => 'Enable Calendar'];
+        }
+
+        $actions[] = ['key' => 'disconnect', 'available' => $canDisconnect, 'label' => 'Disconnect'];
+
+        if ($state === IntegrationAccountStatus::Connected && ! $calendarEnabled) {
+            $diagnostic = 'Calendar permission required.';
+        }
 
         return new IntegrationStatus(
             provider: $this->key(),
@@ -110,19 +131,29 @@ final class GoogleIntegrationProvider implements IntegrationProvider
             lastSuccessAt: optional($account?->last_success_at)?->toIso8601String(),
             lastErrorAt: optional($account?->last_error_at)?->toIso8601String(),
             diagnosticMessage: $diagnostic,
-            actions: [
-                [
-                    'key' => $state === IntegrationAccountStatus::Disconnected ? 'connect' : 'reconnect',
-                    'available' => $canConnect,
-                    'label' => $state === IntegrationAccountStatus::Disconnected ? 'Connect Google' : 'Reconnect',
-                ],
-                ['key' => 'disconnect', 'available' => $canDisconnect, 'label' => 'Disconnect'],
-            ],
+            actions: $actions,
             configured: true,
             connectedAt: optional($account?->connected_at)?->toIso8601String(),
             tokenHealth: $account !== null ? $tokenHealth : null,
             scopeLabels: $this->oauth->scopeLabels($scopes),
             lastErrorCode: $account?->last_error_code,
+            capabilityStates: [
+                [
+                    'key' => 'identity',
+                    'label' => 'Identity',
+                    'state' => $state === IntegrationAccountStatus::Connected ? 'connected' : 'disconnected',
+                ],
+                [
+                    'key' => 'calendar',
+                    'label' => 'Calendar',
+                    'state' => $calendarEnabled ? 'enabled' : ($state === IntegrationAccountStatus::Connected ? 'permission_required' : 'not_enabled'),
+                ],
+                [
+                    'key' => 'gmail',
+                    'label' => 'Gmail',
+                    'state' => 'not_enabled',
+                ],
+            ],
         );
     }
 

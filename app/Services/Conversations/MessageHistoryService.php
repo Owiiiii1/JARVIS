@@ -87,6 +87,8 @@ final class MessageHistoryService
             default => 'user',
         };
 
+        $pending = $message->metadata['pending_confirmation'] ?? null;
+
         return [
             'id' => $message->id,
             'kind' => $kind,
@@ -94,6 +96,13 @@ final class MessageHistoryService
             'channel' => $message->channel->value,
             'body' => $message->body,
             'occurred_at' => optional($message->occurred_at)?->toIso8601String(),
+            'pending_confirmation' => is_array($pending) && filled($pending['id'] ?? null)
+                ? [
+                    'id' => (string) $pending['id'],
+                    'tool_name' => (string) ($pending['tool_name'] ?? ''),
+                    'summary' => (string) ($pending['summary'] ?? ''),
+                ]
+                : null,
         ];
     }
 }

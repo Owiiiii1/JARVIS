@@ -12,8 +12,18 @@ use App\Services\Integrations\IntegrationRegistry;
 use App\Services\Integrations\Providers\ElevenLabsIntegrationProvider;
 use App\Services\Integrations\Providers\GoogleIntegrationProvider;
 use App\Services\Integrations\Providers\TelegramIntegrationProvider;
+use App\Services\Tools\CancelToolActionTool;
+use App\Services\Tools\ConfirmToolActionTool;
 use App\Services\Tools\CreateReminderTool;
 use App\Services\Tools\GetProjectContextTool;
+use App\Services\Tools\Google\CreateCalendarEventTool;
+use App\Services\Tools\Google\DeleteCalendarEventTool;
+use App\Services\Tools\Google\GetCalendarEventTool;
+use App\Services\Tools\Google\GoogleCalendarFreebusyTool;
+use App\Services\Tools\Google\ListCalendarEventsTool;
+use App\Services\Tools\Google\ListGoogleCalendarsTool;
+use App\Services\Tools\Google\SearchCalendarEventsTool;
+use App\Services\Tools\Google\UpdateCalendarEventTool;
 use App\Services\Tools\SearchConversationHistoryTool;
 use App\Services\Tools\SearchGroupKnowledgeTool;
 use App\Services\Tools\ToolRegistry;
@@ -35,6 +45,16 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(SearchConversationHistoryTool::class),
                 $app->make(GetProjectContextTool::class),
                 $app->make(SearchGroupKnowledgeTool::class),
+                $app->make(ListGoogleCalendarsTool::class),
+                $app->make(ListCalendarEventsTool::class),
+                $app->make(GetCalendarEventTool::class),
+                $app->make(SearchCalendarEventsTool::class),
+                $app->make(GoogleCalendarFreebusyTool::class),
+                $app->make(CreateCalendarEventTool::class),
+                $app->make(UpdateCalendarEventTool::class),
+                $app->make(DeleteCalendarEventTool::class),
+                $app->make(ConfirmToolActionTool::class),
+                $app->make(CancelToolActionTool::class),
             ]);
         });
 

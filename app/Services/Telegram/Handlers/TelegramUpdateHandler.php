@@ -131,6 +131,14 @@ final class TelegramUpdateHandler
             return;
         }
 
+        $confirmation = $this->keyboard->parseConfirmationCallback($query->data);
+
+        if ($confirmation !== null) {
+            $this->handleConfirmationCallback($bot, $identity, $confirmation);
+
+            return;
+        }
+
         $conversationId = $this->keyboard->parseSelectCallback($query->data);
 
         if ($conversationId === null) {
@@ -302,7 +310,49 @@ final class TelegramUpdateHandler
 
         $reply = $turn->replyText() ?? ConversationAiService::AI_FAILURE;
 
-        $this->reply($bot, $reply, $identity);
+        $this->replyWithOptionalConfirmation($bot, $reply, $identity, $turn->assistantMessage);
+    }
+
+    /**
+     * @param  array{intent: string, id: string}  $confirmation
+     */
+    private function handleConfirmationCallback(Nutgram $bot, ChannelIdentity $identity, array $confirmation): void
+    {
+        $conversation = $identity->activeConversation
+            ?? $this->conversationService->getOrCreateDefault($identity->user);
+
+        $text = $confirmation['intent'] === 'cancel' ? 'отмена' : 'да';
+
+        $turn = $this->conversationTurns->handleUserMessage(
+            $identity->user,
+            $conversation,
+            $text,
+            new ChannelContext(
+                channel: MessageChannel::Telegram,
+                channelMessageId: 'tc-'.$confirmation['id'].'-'.$confirmation['intent'],
+            ),
+        );
+
+        $this->answerCallback($bot);
+        $reply = $turn->replyText() ?? ConversationAiService::AI_FAILURE;
+        $this->replyWithOptionalConfirmation($bot, $reply, $identity, $turn->assistantMessage);
+    }
+
+    private function replyWithOptionalConfirmation(
+        Nutgram $bot,
+        string $text,
+        ChannelIdentity $identity,
+        ?\App\Models\Message $assistant,
+    ): void {
+        $pendingId = $assistant?->metadata['pending_confirmation']['id'] ?? null;
+
+        if (is_string($pendingId) && $pendingId !== '') {
+            $this->send($bot, $text, replyMarkup: $this->keyboard->confirmation($pendingId));
+
+            return;
+        }
+
+        $this->reply($bot, $text, $identity);
     }
 
     private function reply(Nutgram $bot, string $text, ChannelIdentity $identity, bool $awaitingTitle = false): void

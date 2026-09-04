@@ -72,7 +72,7 @@ User General Prompt редактирует **сам user** в Cabinet (owner —
 
 ## Tools
 
-Owner Conversation AI: multi-step tool loop в одном turn. [INTEGRATIONS.md](INTEGRATIONS.md). Tools: `create_reminder`, `search_conversation_history`, `get_project_context` (owner-only; may include bounded group-derived knowledge for attached groups), `search_group_knowledge` (owner-only, capability `group_analysis`; derived-first group search, no silent prompt injection). Google/Gmail/voice tools are not registered yet. Integration providers in Admin UI ≠ enabled tools.
+Owner Conversation AI: multi-step tool loop в одном turn. [INTEGRATIONS.md](INTEGRATIONS.md). Tools: `create_reminder`, `search_conversation_history`, `get_project_context` (owner-only; may include bounded group-derived knowledge for attached groups), `search_group_knowledge` (owner-only, capability `group_analysis`; derived-first group search, no silent prompt injection), Google Calendar tools (`list_google_calendars`, `list_calendar_events`, `get_calendar_event`, `search_calendar_events`, `google_calendar_freebusy`, `create_calendar_event`, `update_calendar_event`, `delete_calendar_event`; capability `google_calendar`), plus `confirm_tool_action` / `cancel_tool_action` when a pending confirmation exists. Gmail/voice tools are not registered. Disconnected or identity-only Google still exposes Calendar definitions; execution returns a safe connect/scope error.
 
 User Conversation AI: reminder + history search. Не Gmail/Calendar/groups/projects.
 

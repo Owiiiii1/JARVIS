@@ -1,0 +1,258 @@
+<?php
+
+namespace App\Services\Tools;
+
+use App\Enums\ToolConfirmationStatus;
+use App\Models\Conversation;
+use App\Models\ToolConfirmation;
+use App\Models\User;
+use App\Services\Ai\DTO\ToolCall;
+use App\Services\Ai\DTO\ToolResult;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+final class ToolConfirmationService
+{
+    public function __construct(
+        private readonly ConfirmationIntentParser $parser,
+    ) {}
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    public function createPending(
+        User $user,
+        Conversation $conversation,
+        string $toolName,
+        array $arguments,
+        ?string $toolCallId = null,
+    ): ToolConfirmation {
+        $ttl = max(60, (int) config('google_calendar.confirmation_ttl_seconds', 600));
+
+        return ToolConfirmation::query()->create([
+            'public_id' => (string) Str::uuid(),
+            'user_id' => $user->id,
+            'conversation_id' => $conversation->id,
+            'tool_name' => $toolName,
+            'tool_call_id' => $toolCallId,
+            'arguments_encrypted' => $arguments,
+            'status' => ToolConfirmationStatus::Pending,
+            'expires_at' => now()->addSeconds($ttl),
+        ]);
+    }
+
+    public function hasPending(User $user, Conversation $conversation): bool
+    {
+        return $this->latestPending($user, $conversation) !== null;
+    }
+
+    public function latestPending(User $user, Conversation $conversation): ?ToolConfirmation
+    {
+        $this->expireStale($user, $conversation);
+
+        return ToolConfirmation::query()
+            ->where('user_id', $user->id)
+            ->where('conversation_id', $conversation->id)
+            ->where('status', ToolConfirmationStatus::Pending)
+            ->where('expires_at', '>', now())
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    public function findOwnedPending(User $user, Conversation $conversation, string $publicId): ?ToolConfirmation
+    {
+        $this->expireStale($user, $conversation);
+
+        $confirmation = ToolConfirmation::query()
+            ->where('public_id', $publicId)
+            ->where('user_id', $user->id)
+            ->where('conversation_id', $conversation->id)
+            ->first();
+
+        if ($confirmation === null) {
+            return null;
+        }
+
+        if ($confirmation->status === ToolConfirmationStatus::Pending && $confirmation->isExpired()) {
+            $confirmation->forceFill(['status' => ToolConfirmationStatus::Expired])->save();
+        }
+
+        return $confirmation;
+    }
+
+    public function cancel(ToolConfirmation $confirmation): ToolConfirmation
+    {
+        if ($confirmation->status !== ToolConfirmationStatus::Pending) {
+            return $confirmation;
+        }
+
+        $confirmation->forceFill([
+            'status' => ToolConfirmationStatus::Cancelled,
+        ])->save();
+
+        return $confirmation->fresh() ?? $confirmation;
+    }
+
+    /**
+     * @return array{handled: bool, note: string|null, result: ToolResult|null}
+     */
+    public function applyInboundIntent(
+        User $user,
+        Conversation $conversation,
+        ToolExecutionContext $context,
+        ToolRegistry $registry,
+    ): array {
+        $intent = $context->confirmationIntent;
+        if ($intent === null) {
+            $intent = $this->parser->parse($context->inbound?->body);
+        }
+
+        if ($intent === null) {
+            return ['handled' => false, 'note' => null, 'result' => null];
+        }
+
+        $pending = $this->latestPending($user, $conversation);
+        if ($pending === null) {
+            return ['handled' => false, 'note' => null, 'result' => null];
+        }
+
+        if ($intent === ConfirmationIntentParser::CANCEL) {
+            $this->cancel($pending);
+
+            return [
+                'handled' => true,
+                'note' => 'The user cancelled the pending tool action.',
+                'result' => null,
+            ];
+        }
+
+        $result = $this->executeConfirmed($pending, $context, $registry);
+
+        return [
+            'handled' => true,
+            'note' => $this->resultNote($pending, $result),
+            'result' => $result,
+        ];
+    }
+
+    public function executeConfirmed(
+        ToolConfirmation $confirmation,
+        ToolExecutionContext $context,
+        ToolRegistry $registry,
+    ): ToolResult {
+        $locked = DB::transaction(function () use ($confirmation): ?ToolConfirmation {
+            /** @var ToolConfirmation|null $row */
+            $row = ToolConfirmation::query()->whereKey($confirmation->id)->lockForUpdate()->first();
+
+            if ($row === null) {
+                return null;
+            }
+
+            if ($row->status === ToolConfirmationStatus::Executed) {
+                return $row;
+            }
+
+            if ($row->status === ToolConfirmationStatus::Cancelled) {
+                return $row;
+            }
+
+            if ($row->isExpired() || $row->status === ToolConfirmationStatus::Expired) {
+                $row->forceFill(['status' => ToolConfirmationStatus::Expired])->save();
+
+                return $row->fresh() ?? $row;
+            }
+
+            if ($row->status !== ToolConfirmationStatus::Pending && $row->status !== ToolConfirmationStatus::Confirmed) {
+                return $row;
+            }
+
+            $row->forceFill([
+                'status' => ToolConfirmationStatus::Confirmed,
+                'confirmed_at' => now(),
+            ])->save();
+
+            return $row->fresh() ?? $row;
+        });
+
+        if ($locked === null) {
+            return ToolResult::failure('confirm', $confirmation->tool_name, [
+                'success' => false,
+                'error' => 'confirmation_not_found',
+            ]);
+        }
+
+        if ($locked->status === ToolConfirmationStatus::Executed) {
+            return ToolResult::failure($locked->tool_call_id ?? 'confirm', $locked->tool_name, [
+                'success' => false,
+                'error' => 'confirmation_already_executed',
+            ]);
+        }
+
+        if ($locked->status === ToolConfirmationStatus::Cancelled) {
+            return ToolResult::failure($locked->tool_call_id ?? 'confirm', $locked->tool_name, [
+                'success' => false,
+                'error' => 'confirmation_cancelled',
+            ]);
+        }
+
+        if ($locked->status === ToolConfirmationStatus::Expired) {
+            return ToolResult::failure($locked->tool_call_id ?? 'confirm', $locked->tool_name, [
+                'success' => false,
+                'error' => 'confirmation_expired',
+            ]);
+        }
+
+        $arguments = is_array($locked->arguments_encrypted) ? $locked->arguments_encrypted : [];
+        $call = new ToolCall(
+            $locked->tool_call_id ?: ('confirm-'.$locked->public_id),
+            $locked->tool_name,
+            $arguments,
+        );
+
+        $bypass = new ToolExecutionContext(
+            user: $context->user,
+            conversation: $context->conversation,
+            inbound: $context->inbound,
+            channel: $context->channel,
+            explicitUserCommand: $context->explicitUserCommand,
+            confirmationIntent: ConfirmationIntentParser::CONFIRM,
+            bypassConfirmation: true,
+        );
+
+        $result = $registry->execute($call, $bypass);
+
+        $locked->forceFill([
+            'status' => ToolConfirmationStatus::Executed,
+            'executed_at' => now(),
+        ])->save();
+
+        return $result;
+    }
+
+    public function expireStale(User $user, Conversation $conversation): void
+    {
+        ToolConfirmation::query()
+            ->where('user_id', $user->id)
+            ->where('conversation_id', $conversation->id)
+            ->where('status', ToolConfirmationStatus::Pending)
+            ->where('expires_at', '<=', now())
+            ->update(['status' => ToolConfirmationStatus::Expired]);
+    }
+
+    public function summaryFor(ToolConfirmation $confirmation): string
+    {
+        return match ($confirmation->tool_name) {
+            'delete_calendar_event' => 'Delete the identified Google Calendar event.',
+            'create_calendar_event' => 'Create a Google Calendar event.',
+            'update_calendar_event' => 'Update the identified Google Calendar event.',
+            default => 'Run the pending tool action '.$confirmation->tool_name.'.',
+        };
+    }
+
+    private function resultNote(ToolConfirmation $confirmation, ToolResult $result): string
+    {
+        $status = $result->success ? 'succeeded' : 'failed';
+
+        return 'Pending tool action '.$confirmation->tool_name.' was confirmed and '.$status.'.';
+    }
+}

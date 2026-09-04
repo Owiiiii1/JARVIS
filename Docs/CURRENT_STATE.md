@@ -690,3 +690,9 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 Owner Google Authorization Code + PKCE. Callback path `/integrations/google/callback`. Tokens encrypted on `integration_accounts`. Identity scopes only (`openid email profile`). Refresh via `GoogleCredentialService` (no page-load Google calls). Connected ≠ Calendar/Gmail tools. Env client id/secret were not set by Cursor; Integrations card is Not configured until Owner adds Google Cloud credentials. Production `integration_accounts` remains 0.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 18 — Google Calendar — COMPLETED (2026-09-04)
+
+Owner Calendar tools over live Google (no local event mirror, no sync cron/webhook). Incremental OAuth adds `https://www.googleapis.com/auth/calendar` without dropping identity scopes. Tokens still only via `GoogleCredentialService`. Destructive delete uses persisted `tool_confirmations`. Reminder Engine remains separate. Gmail is not implemented. Live Google Calendar smoke deferred by Owner until Google integration milestones are complete. Production `integration_accounts` remains 0.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).

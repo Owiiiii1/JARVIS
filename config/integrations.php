@@ -12,6 +12,9 @@ return [
         'userinfo_url' => env('GOOGLE_USERINFO_URL', 'https://openidconnect.googleapis.com/v1/userinfo'),
         'revoke_url' => env('GOOGLE_REVOKE_URL', 'https://oauth2.googleapis.com/revoke'),
         'scopes' => ['openid', 'email', 'profile'],
+        'calendar_scopes' => [
+            'https://www.googleapis.com/auth/calendar',
+        ],
         'timeout' => (int) env('GOOGLE_HTTP_TIMEOUT', 10),
         'connect_timeout' => (int) env('GOOGLE_HTTP_CONNECT_TIMEOUT', 5),
         'refresh_skew_seconds' => (int) env('GOOGLE_REFRESH_SKEW', 120),

@@ -20,7 +20,9 @@ use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\DTO\ToolResult;
 use App\Services\Ai\Exceptions\AiConfigurationException;
 use App\Services\Memory\MemoryTurnDispatcher;
+use App\Services\Tools\ConfirmationIntentParser;
 use App\Services\Tools\CreateReminderTool;
+use App\Services\Tools\ToolConfirmationService;
 use App\Services\Tools\ToolExecutionContext;
 use App\Services\Tools\ToolRegistry;
 use Illuminate\Support\Facades\Log;
@@ -43,6 +45,8 @@ final class ConversationAiService
         private readonly AiChatGateway $gateway,
         private readonly ToolRegistry $tools,
         private readonly MemoryTurnDispatcher $memoryTurns,
+        private readonly ToolConfirmationService $confirmations,
+        private readonly ConfirmationIntentParser $confirmationIntent,
     ) {}
 
     public function completeUserTurn(Message $inbound): ConversationAiTurnResult
@@ -119,13 +123,25 @@ final class ConversationAiService
         try {
             $this->assertReady($configuration);
 
+            $intent = $this->confirmationIntent->parse($inbound?->body);
             $toolContext = new ToolExecutionContext(
                 user: $user,
                 conversation: $conversation,
                 inbound: $inbound,
                 channel: $inbound?->channel?->value,
                 explicitUserCommand: true,
+                confirmationIntent: $intent,
             );
+
+            if ($inbound !== null && $intent !== null) {
+                $applied = $this->confirmations->applyInboundIntent($user, $conversation, $toolContext, $this->tools);
+                if ($applied['handled'] && is_string($applied['note']) && $applied['note'] !== '') {
+                    $applicationEvent = $applicationEvent === null
+                        ? $applied['note']
+                        : $applicationEvent."\n\n".$applied['note'];
+                }
+            }
+
             $toolDefinitions = $this->gateway->supportsTools($configuration)
                 ? $this->tools->definitionsFor($toolContext)
                 : [];
@@ -175,6 +191,7 @@ final class ConversationAiService
             $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
             $roleKey = $configuration->roleKey()->value;
 
+            $pendingConfirmation = $this->pendingConfirmationFromResults($toolResults);
             $assistant = $this->messages->persistOutbound(new PersistMessageData(
                 conversation: $conversation,
                 role: MessageRole::Assistant,
@@ -195,6 +212,7 @@ final class ConversationAiService
                         'finish_reason' => $response->finishReason,
                         'event' => $eventName,
                     ],
+                    'pending_confirmation' => $pendingConfirmation,
                 ],
             ))->message;
 
@@ -308,6 +326,32 @@ final class ConversationAiService
 
             $rounds++;
         }
+    }
+
+    /**
+     * @param  list<ToolResult>  $results
+     * @return array{id: string, tool_name: string, summary: string}|null
+     */
+    private function pendingConfirmationFromResults(array $results): ?array
+    {
+        foreach (array_reverse($results) as $result) {
+            if (($result->payload['error'] ?? null) !== 'confirmation_required') {
+                continue;
+            }
+
+            $id = (string) ($result->payload['confirmation_id'] ?? '');
+            if ($id === '') {
+                continue;
+            }
+
+            return [
+                'id' => $id,
+                'tool_name' => $result->name,
+                'summary' => (string) ($result->payload['summary'] ?? ''),
+            ];
+        }
+
+        return null;
     }
 
     /**

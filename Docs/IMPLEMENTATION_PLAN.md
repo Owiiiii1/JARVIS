@@ -545,28 +545,17 @@ Personal DM persist → recent context of the **current** conversation → Conve
 
 ## Milestone 18 — Google Calendar
 
+**Статус.** COMPLETED (2026-09-04).
+
 **Цель.** Tools read/write calendar. Не reminder engine.
 
-**Реализуем** list/read/search/free-busy/create/update/delete + Owner Conversation AI tool defs + confirmation policy.
+**Реализовано.** Incremental Calendar OAuth; `GoogleCalendarService`; owner Calendar tools; persisted `tool_confirmations`; create idempotency; no local event mirror.
 
-**Migrations:** нет обязательных.
+**Migrations:** `tool_confirmations` only.
 
-**Backend:** Calendar adapter; tools registered.
+**Не входит:** Gmail; live Google smoke (deferred).
 
-**Frontend:** last successful use on Integrations.
-
-**Tests:** mocked Google; user tools denied; write через tools; reminder tool не создаёт Calendar event.
-
-**Deploy:** scopes include calendar.
-
-**DoD**
-
-- Owner может создать событие через Conversation AI.
-- «Напомни» по-прежнему Reminder Engine (M10).
-
-**Зависимости:** M17, M5, M10.
-
-**Не входит:** Gmail.
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
 ---
 
@@ -589,6 +578,8 @@ Personal DM persist → recent context of the **current** conversation → Conve
 **Зависимости:** M17, M5.
 
 **Не входит:** user-level Gmail.
+
+После M19 — combined live Google smoke (Owner): connect Google → enable Calendar → enable Gmail → read calendar → freebusy → create/update/delete test event → Gmail read/draft/send → token refresh → disconnect/reconnect. Do not run before both milestones.
 
 ---
 

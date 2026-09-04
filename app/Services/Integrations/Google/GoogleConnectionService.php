@@ -18,10 +18,13 @@ final class GoogleConnectionService
         private readonly IntegrationAccountService $accounts,
     ) {}
 
-    public function authorizationUrl(User $owner): string
+    /**
+     * @param  list<string>  $additionalScopes
+     */
+    public function authorizationUrl(User $owner, array $additionalScopes = []): string
     {
         $forceConsent = ! $this->hasRefreshToken($owner);
-        $authorization = $this->oauth->buildAuthorizationUrl($forceConsent);
+        $authorization = $this->oauth->buildAuthorizationUrl($forceConsent, $additionalScopes);
         $this->state->start($owner, $authorization['state'], $authorization['verifier']);
 
         Log::info('google oauth', [
@@ -50,7 +53,7 @@ final class GoogleConnectionService
         $startedAt = microtime(true);
         $tokenResponse = $this->oauth->exchangeCode((string) $code, $consumed['verifier']);
         $identity = $this->oauth->fetchUserInfo((string) $tokenResponse['access_token']);
-        $scopes = $this->grantedScopes($tokenResponse);
+        $scopes = $this->mergeGrantedScopes($owner, $identity['sub'], $this->grantedScopes($tokenResponse));
 
         if (! $this->hasIdentityScopes($scopes)) {
             throw new IntegrationException('token_exchange_failed', 'Google did not grant required identity scopes.');
@@ -150,6 +153,23 @@ final class GoogleConnectionService
         $envelope = $this->accounts->getCredentials($account);
 
         return filled($envelope['refresh_token'] ?? null);
+    }
+
+    /**
+     * @param  list<string>  $granted
+     * @return list<string>
+     */
+    private function mergeGrantedScopes(User $owner, string $sub, array $granted): array
+    {
+        $existing = IntegrationAccount::query()
+            ->where('user_id', $owner->id)
+            ->where('provider', 'google')
+            ->where('external_account_id', $sub)
+            ->first();
+
+        $existingScopes = is_array($existing?->scopes) ? $existing->scopes : [];
+
+        return $this->oauth->normalizeScopes(array_merge($existingScopes, $granted));
     }
 
     /**

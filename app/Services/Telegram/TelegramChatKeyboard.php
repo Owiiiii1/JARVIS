@@ -21,6 +21,10 @@ final class TelegramChatKeyboard
 
     public const CALLBACK_SELECT_PREFIX = 'c:';
 
+    public const CALLBACK_CONFIRM_PREFIX = 'tc:ok:';
+
+    public const CALLBACK_CANCEL_PREFIX = 'tc:no:';
+
     /**
      * @var list<string>
      */
@@ -64,6 +68,45 @@ final class TelegramChatKeyboard
         }
 
         return $markup;
+    }
+
+    public function confirmation(string $publicId): InlineKeyboardMarkup
+    {
+        return InlineKeyboardMarkup::make()
+            ->addRow(
+                InlineKeyboardButton::make(
+                    text: 'Confirm',
+                    callback_data: self::CALLBACK_CONFIRM_PREFIX.$publicId,
+                ),
+                InlineKeyboardButton::make(
+                    text: 'Cancel',
+                    callback_data: self::CALLBACK_CANCEL_PREFIX.$publicId,
+                ),
+            );
+    }
+
+    /**
+     * @return array{intent: string, id: string}|null
+     */
+    public function parseConfirmationCallback(?string $data): ?array
+    {
+        if ($data === null) {
+            return null;
+        }
+
+        if (str_starts_with($data, self::CALLBACK_CONFIRM_PREFIX)) {
+            $id = substr($data, strlen(self::CALLBACK_CONFIRM_PREFIX));
+
+            return $id !== '' ? ['intent' => 'confirm', 'id' => $id] : null;
+        }
+
+        if (str_starts_with($data, self::CALLBACK_CANCEL_PREFIX)) {
+            $id = substr($data, strlen(self::CALLBACK_CANCEL_PREFIX));
+
+            return $id !== '' ? ['intent' => 'cancel', 'id' => $id] : null;
+        }
+
+        return null;
     }
 
     public function parseSelectCallback(?string $data): ?int

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\IntegrationAccount;
 use App\Services\Integrations\Exceptions\IntegrationException;
 use App\Services\Integrations\Google\GoogleConnectionService;
+use App\Services\Integrations\Google\GoogleOAuthService;
 use App\Services\Users\UserCapability;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,14 +16,20 @@ class GoogleOAuthController extends Controller
 {
     public function __construct(
         private readonly GoogleConnectionService $connections,
+        private readonly GoogleOAuthService $oauth,
     ) {}
 
     public function connect(Request $request): RedirectResponse
     {
         $this->assertAdmin($request);
 
+        $additionalScopes = [];
+        if ($request->query('intent') === 'calendar') {
+            $additionalScopes = $this->oauth->calendarScopes();
+        }
+
         try {
-            return redirect()->away($this->connections->authorizationUrl($request->user()));
+            return redirect()->away($this->connections->authorizationUrl($request->user(), $additionalScopes));
         } catch (IntegrationException $exception) {
             return $this->backToIntegrations($exception);
         }

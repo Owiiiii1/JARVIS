@@ -48,6 +48,7 @@ class GoogleOAuthTest extends TestCase
             $this->assertSame('S256', $query['code_challenge_method'] ?? null);
             $this->assertNotEmpty($query['state'] ?? null);
             $this->assertStringContainsString('openid', (string) ($query['scope'] ?? ''));
+            $this->assertStringNotContainsString('calendar', (string) ($query['scope'] ?? ''));
             $this->assertStringNotContainsString('test-google-client-secret', $location);
             $this->assertNotEmpty(session('google_oauth_state')['state'] ?? null);
 
@@ -322,6 +323,14 @@ class GoogleOAuthTest extends TestCase
                 SearchConversationHistoryTool::NAME,
                 GetProjectContextTool::NAME,
                 SearchGroupKnowledgeTool::NAME,
+                'list_google_calendars',
+                'list_calendar_events',
+                'get_calendar_event',
+                'search_calendar_events',
+                'google_calendar_freebusy',
+                'create_calendar_event',
+                'update_calendar_event',
+                'delete_calendar_event',
             ], $names);
         } finally {
             $this->deleteTemporaryUser($owner);

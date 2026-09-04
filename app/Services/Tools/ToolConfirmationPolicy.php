@@ -17,6 +17,10 @@ final class ToolConfirmationPolicy
 
         $operation = $tool->meta()->operation;
 
+        if ($context->bypassConfirmation === true) {
+            return ToolConfirmationDecision::Allowed;
+        }
+
         if ($operation === ToolOperationClass::Read) {
             return ToolConfirmationDecision::Allowed;
         }

@@ -76,10 +76,10 @@ export default function CabinetChat() {
         }
     };
 
-    const send = async () => {
-        const body = draft.trim();
+    const sendBody = async (body) => {
+        const text = body.trim();
 
-        if (!body || sending) {
+        if (!text || sending) {
             return;
         }
 
@@ -89,7 +89,7 @@ export default function CabinetChat() {
             kind: 'user',
             role: 'user',
             channel: 'web',
-            body,
+            body: text,
             occurred_at: new Date().toISOString(),
             pending: true,
         };
@@ -111,7 +111,7 @@ export default function CabinetChat() {
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 body: JSON.stringify({
-                    body,
+                    body: text,
                     client_message_id: clientMessageId,
                 }),
             });
@@ -154,10 +154,14 @@ export default function CabinetChat() {
         } catch (caught) {
             setError(caught.message || 'Не удалось получить ответ от AI. Попробуйте ещё раз позже.');
             setMessages((current) => current.filter((item) => item.id !== optimistic.id));
-            setDraft(body);
+            setDraft(text);
         } finally {
             setSending(false);
         }
+    };
+
+    const send = async () => {
+        await sendBody(draft);
     };
 
     const loadOlder = async () => {
@@ -288,7 +292,14 @@ export default function CabinetChat() {
                     ) : (
                         <div className="mx-auto flex max-w-3xl flex-col gap-3">
                             {messages.map((message) => (
-                                <Bubble key={message.id} message={message} time={formatTime(message.occurred_at)} />
+                                <Bubble
+                                    key={message.id}
+                                    message={message}
+                                    time={formatTime(message.occurred_at)}
+                                    sending={sending}
+                                    onConfirm={() => sendBody('да')}
+                                    onCancel={() => sendBody('отмена')}
+                                />
                             ))}
                             {sending ? (
                                 <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -338,7 +349,7 @@ export default function CabinetChat() {
     );
 }
 
-function Bubble({ message, time }) {
+function Bubble({ message, time, sending = false, onConfirm, onCancel }) {
     if (message.kind === 'error') {
         return (
             <div className="mx-auto max-w-xl rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-center text-sm text-red-700">
@@ -348,6 +359,7 @@ function Bubble({ message, time }) {
     }
 
     const mine = message.kind === 'user';
+    const pending = message.pending_confirmation;
 
     return (
         <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
@@ -357,6 +369,26 @@ function Bubble({ message, time }) {
                 } ${message.pending ? 'opacity-70' : ''}`}
             >
                 <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.body}</p>
+                {pending?.id && !mine ? (
+                    <div className="mt-2 flex gap-2">
+                        <button
+                            type="button"
+                            disabled={sending}
+                            onClick={onConfirm}
+                            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                        >
+                            Confirm
+                        </button>
+                        <button
+                            type="button"
+                            disabled={sending}
+                            onClick={onCancel}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                ) : null}
                 <p className={`mt-1 text-[11px] ${mine ? 'text-indigo-100' : 'text-slate-400'}`}>{time}</p>
             </div>
         </div>

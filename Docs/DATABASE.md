@@ -319,7 +319,11 @@ Owner-only connected-account state. Unique `(user_id, provider, external_account
 
 ### tool_execution_logs (M16)
 
-Owner/user tool audit: tool_name, capability, provider, nullable `integration_account_id`, status (`started|succeeded|failed|denied|confirmation_required`), duration, safe error_code, bounded metadata. No tokens, arguments, or result bodies. Indexes: user_id, tool_name, provider, status, started_at. Retention TBD.
+Owner/user tool audit: tool_name, capability, provider, nullable `integration_account_id`, status (`started|succeeded|failed|denied|confirmation_required`), duration, safe error_code, bounded metadata. No tokens, arguments, or result bodies. Calendar metadata may include `result_count` / `operation` / `truncated` / `confirmation_id` only. Indexes: user_id, tool_name, provider, status, started_at. Retention TBD.
+
+### tool_confirmations (M18)
+
+Persisted pending tool confirmations for destructive Calendar delete and model-proposed external writes. `public_id` UUID, `user_id`, `conversation_id`, `tool_name`, optional `tool_call_id`, `arguments_encrypted` (Laravel encrypted JSON, no OAuth tokens), status `pending|confirmed|cancelled|expired|executed`, `expires_at` (default 10 minutes), `confirmed_at`, `executed_at`. Bound to user+conversation. One-time execute. No local Google Calendar event mirror.
 
 ---
 
@@ -352,6 +356,8 @@ projects N—N conversations / topics / memories / telegram_groups
 project_groups implemented M11; group knowledge via `get_project_context` (M14 derived rows, no extra pivot)
 users 1—N integration_accounts
 users 1—N tool_execution_logs
+users 1—N tool_confirmations
+conversations 1—N tool_confirmations
 integration_accounts 1—N tool_execution_logs
 ```
 

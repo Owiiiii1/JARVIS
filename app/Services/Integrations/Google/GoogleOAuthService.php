@@ -38,10 +38,38 @@ final class GoogleOAuthService
     }
 
     /**
+     * @return list<string>
+     */
+    public function calendarScopes(): array
+    {
+        $scopes = config('integrations.google.calendar_scopes', [
+            'https://www.googleapis.com/auth/calendar',
+        ]);
+
+        return $this->normalizeScopes(is_array($scopes) ? $scopes : []);
+    }
+
+    /**
      * @param  list<string>  $scopes
+     */
+    public function hasCalendarScope(array $scopes): bool
+    {
+        $granted = $this->normalizeScopes($scopes);
+
+        foreach ($this->calendarScopes() as $needed) {
+            if (in_array($needed, $granted, true)) {
+                return true;
+            }
+        }
+
+        return in_array('https://www.googleapis.com/auth/calendar', $granted, true);
+    }
+
+    /**
+     * @param  list<string>  $additionalScopes
      * @return array{url: string, state: string, verifier: string}
      */
-    public function buildAuthorizationUrl(bool $forceConsent): array
+    public function buildAuthorizationUrl(bool $forceConsent, array $additionalScopes = []): array
     {
         $this->assertConfigured();
 
@@ -53,7 +81,7 @@ final class GoogleOAuthService
             'client_id' => $this->clientId(),
             'redirect_uri' => $this->redirectUri(),
             'response_type' => 'code',
-            'scope' => implode(' ', $this->requestedScopes()),
+            'scope' => implode(' ', $this->normalizeScopes(array_merge($this->requestedScopes(), $additionalScopes))),
             'state' => $state,
             'access_type' => 'offline',
             'include_granted_scopes' => 'true',
@@ -220,6 +248,7 @@ final class GoogleOAuthService
                 'openid' => 'Identity',
                 'email' => 'Email identity',
                 'profile' => 'Profile',
+                'https://www.googleapis.com/auth/calendar' => 'Calendar',
                 default => basename(parse_url($scope, PHP_URL_PATH) ?: $scope),
             };
         }

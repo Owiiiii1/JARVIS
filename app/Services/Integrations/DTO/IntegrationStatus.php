@@ -10,6 +10,7 @@ final readonly class IntegrationStatus
      * @param  list<string>  $scopes
      * @param  list<array{key: string, available: bool, label: string}>  $actions
      * @param  list<string>  $scopeLabels
+     * @param  list<array{key: string, label: string, state: string}>  $capabilityStates
      */
     public function __construct(
         public string $provider,
@@ -27,6 +28,7 @@ final readonly class IntegrationStatus
         public ?string $tokenHealth = null,
         public array $scopeLabels = [],
         public ?string $lastErrorCode = null,
+        public array $capabilityStates = [],
     ) {}
 
     /**
@@ -50,6 +52,7 @@ final readonly class IntegrationStatus
             'token_health' => $this->tokenHealth,
             'scope_labels' => $this->scopeLabels,
             'last_error_code' => $this->lastErrorCode,
+            'capability_states' => $this->capabilityStates,
         ];
     }
 }

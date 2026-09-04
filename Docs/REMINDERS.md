@@ -21,7 +21,7 @@ Conversation AI
   → текущая linked Telegram identity этого User
 ```
 
-Google Calendar — другой tool (owner-only, ещё не реализован). «Поставь встречу» ≠ «напомни».
+Google Calendar — отдельный owner-only tool layer (M18). «Поставь встречу» ≠ «напомни». Reminder Engine не читает и не пишет Google Calendar.
 
 Natural-language время **не** парсится regex в Core. Модель передаёт structured `run_at_local`; Core валидирует и переводит в UTC.
 

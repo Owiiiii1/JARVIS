@@ -1,123 +1,223 @@
-# Cursor work report — Google OAuth (Milestone 17)
+# Cursor Work Report — Milestone 18 Google Calendar
 
-Date: 2026-09-04  
-Repo: `Owiiiii1/JARVIS`  
-Host: `/var/www/jarvis`
+**Date:** 2026-09-04  
+**Host:** `/var/www/jarvis`  
+**GitHub:** `Owiiiii1/JARVIS`  
+**Branch:** `main`
 
-## Git
+Live Google Calendar smoke deferred by Owner until Google integration milestones are complete.
 
-| Item | Value |
+---
+
+## Before HEAD
+
+`0e02f91` — `feat: add Google OAuth integration` (M17)
+
+---
+
+## What changed
+
+Owner Conversation AI can list calendars, list/read/search events, check free/busy, and create/update/delete Google Calendar events through tools. Google remains the live source of truth. Reminder Engine is unchanged and separate.
+
+---
+
+## Migrations
+
+`2026_09_04_030000_create_tool_confirmations_table`
+
+- `public_id` UUID
+- `user_id`, `conversation_id`
+- `tool_name`, optional `tool_call_id`
+- `arguments_encrypted`
+- status `pending|confirmed|cancelled|expired|executed`
+- `expires_at`, `confirmed_at`, `executed_at`
+
+No local Calendar event cache table. Existing production tables were not altered.
+
+Backup of users / conversations / integration_accounts / tool_execution_logs / AI settings / reminders was taken before migrate. Production counts after migrate: users 1, conversations 7, integration_accounts 0, tool_execution_logs 0, tool_confirmations 0, reminders 11.
+
+---
+
+## Calendar scopes
+
+Least-privilege Calendar scope: `https://www.googleapis.com/auth/calendar`  
+Covers calendar list, event read/write, and freebusy.
+
+Identity connect still requests only `openid email profile`.  
+Gmail scopes are not requested.
+
+---
+
+## Incremental OAuth
+
+`GET /settings/integrations/google/connect?intent=calendar` adds Calendar scopes to the identity set. `include_granted_scopes=true`. Stored scopes = union of existing granted + newly granted. Missing refresh token in the incremental response does not overwrite the existing refresh token (M17 merge kept).
+
+Identity-only connected card: Calendar permission required + Enable Calendar. Gmail stays not enabled.
+
+---
+
+## Adapter / service
+
+`GoogleCalendarService` is the only Calendar HTTP client.
+
+- `listCalendars`, `listEvents`, `getEvent`, `searchEvents`, `freeBusy`, `createEvent`, `updateEvent`, `deleteEvent`
+- Access token only via `GoogleCredentialService::getValidAccessToken()`
+- Laravel HTTP client, JSON, timeouts from `config/google_calendar.php`
+- GET/list/search/freebusy may retry once; POST/PATCH/DELETE do not retry
+- Errors normalized: `google_not_connected`, `calendar_scope_required`, `google_calendar_not_connected`, `google_calendar_scope_missing`, `calendar_not_found`, `event_not_found`, `calendar_forbidden`, `calendar_conflict`, `google_rate_limited`, `google_unavailable`
+
+Tools contain no Google HTTP.
+
+---
+
+## Tool list
+
+Owner (`google_calendar` capability):
+
+| Tool | Operation |
 | --- | --- |
-| Branch | `main` |
-| Before HEAD | `1cd9bf5` (`feat: add integration framework`) |
-| Commit message | `feat: add Google OAuth integration` |
-| Working tree before start | clean on `origin/main` |
+| `list_google_calendars` | read |
+| `list_calendar_events` | read |
+| `get_calendar_event` | read |
+| `search_calendar_events` | read |
+| `google_calendar_freebusy` | read |
+| `create_calendar_event` | write |
+| `update_calendar_event` | write |
+| `delete_calendar_event` | destructive |
 
-## Schema / migration
+Confirmation helpers (any active user, only while a pending row exists):
 
-No migration. M16 `integration_accounts.credentials_encrypted` holds the token envelope (`access_token`, `refresh_token`, `expires_at`, `token_type`). `id_token` is not stored. OAuth state is session-based, not a table.
+- `confirm_tool_action`
+- `cancel_tool_action`
 
-## Routes
+Normal user unchanged: `create_reminder`, `search_conversation_history`.
 
-| Method | Path | Name |
-| --- | --- | --- |
-| GET | `/settings/integrations/google/connect` | `integrations.google.connect` |
-| GET | `/integrations/google/callback` | `integrations.google.callback` |
-| POST | `/settings/integrations/google/disconnect` | `integrations.google.disconnect` |
+Definitions stay capability-based even if Google is disconnected. Runtime: `google_not_connected` / `calendar_scope_required` without Calendar HTTP.
 
-Canonical callback: `{APP_URL}/integrations/google/callback` (override `GOOGLE_REDIRECT_URI`). Must match Google Cloud Console.
+---
 
-Owner + `integrations_admin` only. Guest → login. Normal user → 403. Connect is throttled. Disconnect is POST + CSRF. Callback is GET (OAuth).
+## Tool metadata
 
-## Google OAuth service
+All Calendar tools: capability `google_calendar`, provider `google`.  
+Account resolution: current user → `IntegrationAccountService` → active Google account. Model cannot pass `integration_account_id`.
 
-`GoogleOAuthService`: authorization URL, code exchange, refresh, userinfo, revoke. Laravel HTTP client with connect/timeout, no token-endpoint retry. Errors mapped to safe codes (`configuration_missing`, `oauth_access_denied`, `oauth_invalid_state`, `token_exchange_failed`, `refresh_revoked`, `google_unavailable`). No response bodies in logs.
+Successful Calendar calls update `last_used_at` / `last_success_at`. Failures update `last_used_at` / `last_error_*`.
 
-PKCE S256 is implemented for the confidential web client.
+---
 
-## State
+## Timezones
 
-Session payload: random state, PKCE verifier, owner user id, created_at. TTL 10 minutes. Consumed once. Bound to the authenticated owner. Return path is always Settings → Integrations.
+Owner `users.timezone` is the authoritative fallback. Naive ISO datetimes are interpreted in that IANA zone and sent to Google as wall time + `timeZone`. All-day events stay dates (`all_day=true`). DST transitions use Carbon/DateTimeZone; create around Europe/Rome spring-forward keeps 01:30 and 03:30 wall times.
 
-## Scopes
+---
 
-Requested: `openid email profile`. Calendar/Gmail not requested. Granted scopes stored unique/sorted. UI labels: Identity, Email identity, Profile.
+## Freebusy
 
-`access_type=offline`. `prompt=consent` only when no usable refresh token.
+Default calendar `primary`. Optional `calendar_ids` capped. Max range 31 days. Returns busy intervals + `has_busy`. Conversation AI decides “свободен / не свободен”.
 
-## Token storage
+---
 
-Encrypted envelope via existing Laravel cast. Client id/secret stay in env (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`). Identity is Google `sub`; email is a label.
+## Create idempotency
 
-## Refresh lifecycle
+Server-derived Google-compatible event id: `jvs` + sha256 hex of `user_id|conversation_id|tool_call_id`. Model cannot set the key. Same ToolCall retry reuses the id. Insert 409 fetches the existing event.
 
-`GoogleCredentialService::getValidAccessToken()` is the only future adapter entry. Refresh when expiry is within `refresh_skew_seconds` (120). Successful OAuth/refresh updates `last_success_at` only. `last_used_at` stays for later API/tool use. Expired access + refresh token = still Connected.
+---
 
-## Race protection
+## Confirmation subsystem
 
-Refresh runs inside a DB transaction with `lockForUpdate`, then re-reads credentials so a second caller uses the new token.
+`tool_confirmations` persists pending destructive / model-proposed writes. Encrypted arguments. TTL 10 minutes. Bound to user + conversation. One-time execute.
 
-## Reconnect
+Conservative inbound phrases: `да`, `yes`, `confirm`, `подтверждаю`, `удалить` / `удали`; cancel `нет`, `no`, `cancel`, `отмена`. Web Confirm/Cancel and Telegram inline buttons send those phrases. Model cannot self-confirm (`confirmation_not_affirmed` without the server signal). Cross-user confirm is denied.
 
-Same `sub` updates the existing row and merges tokens (preserves refresh if Google omits it). A different `sub` disconnects the previous active account. One active Google account for MVP. Rows are not silently deleted.
+---
 
-## Disconnect / revoke
+## Delete flow
 
-Try Google revoke, then always wipe local credentials. Revoke failure still disconnects locally and flashes a warning. Email/`sub` remain on the disconnected row.
+1. `delete_calendar_event` → no Google DELETE, pending row, `confirmation_required`
+2. Assistant asks for confirmation; Web/Telegram buttons available
+3. User `да` → Core executes exactly one DELETE
+4. Repeat confirm → `confirmation_already_executed`, no second DELETE
+5. Expired / cancelled cannot execute
 
-`invalid_grant` → status `revoked`, credentials cleared, Reconnect required.
+---
 
-## Google provider status
+## Update / conflict
 
-`GoogleIntegrationProvider` is no longer a placeholder. Status is local only (no Google call on Integrations page load): Not configured / Disconnected / Connected / Error / Revoked, plus token health (`healthy` / `refreshable` / `needs_reconnect` / `missing`).
+PATCH only supplied fields. `etag` sent as If-Match when present. Google 409/412 → `calendar_conflict`. Recurring series authoring is out of MVP; instance ids only.
 
-## Admin UI
+---
 
-Settings → Integrations Google card: Connect, Reconnect, Disconnect, email, scope labels, connected date, token health. No tokens, secrets, or client secret field.
+## Pagination / bounds
 
-## Env / manual setup
+Config: max calendars 20, events 25, search 15, freebusy 31 days, attendees 20, description 2000 chars, default search −90 / +365 days. Pages are followed only until the cap. `truncated` is returned when more remain.
 
-Cursor did not write production Google credentials. Card is **Not configured** until Owner adds env values and runs `php artisan config:clear`.
-
-Google Cloud checklist is in `Docs/INTEGRATIONS.md`. Testing-mode refresh-token limits are Google policy; Jarvis does not work around them.
-
-OAuth admin actions are not written to `tool_execution_logs`.
+---
 
 ## Tests
 
-`tests/Feature/GoogleOAuthTest.php` uses `Http::fake` only. Existing M16 and Core suites remain green.
+`tests/Feature/GoogleCalendarTest.php` plus updated owner tool lists in Integration Framework / Google OAuth tests.
 
-Full suite: 169 tests, 168 passed, 1 skipped.
+`Http::fake` / local services only. No real Google connect, no real Calendar scope grant, no real events.
+
+188 passed, 1 skipped.
+
+---
 
 ## Build
 
-`npm run build` succeeded.
+`npm run build` succeeded after Integrations + Cabinet confirmation UI changes.
+
+---
 
 ## Production counts
 
-| Table | Count | Change |
-| --- | --- | --- |
-| integration_accounts | 0 | unchanged |
-| tool_execution_logs | 0 | unchanged |
-| users | 1 | unchanged |
+| Table | Count |
+| --- | --- |
+| users | 1 |
+| conversations | 7 |
+| integration_accounts | 0 |
+| tool_execution_logs | 0 |
+| tool_confirmations | 0 |
+| reminders | 11 |
 
-No real Google account was connected.
+---
 
 ## Worker status
 
-Unchanged: `analysis,memory,default` worker, telegram worker, reminder scheduler. `queue:failed` empty.
+- `queue:work database --queue=analysis,memory,default` running
+- Telegram queue worker running
+- Scheduler: `jarvis:reminders:dispatch` every minute
+- `queue:failed` empty
 
-## Manual smoke
+---
 
-Not run. Env is unset; live Google consent requires Owner Google Cloud setup. Automated coverage is complete. This report does not claim a live Connect/consent turn.
+## Live smoke deferred
+
+Live Google Calendar smoke deferred by Owner until Google integration milestones are complete.
+
+Future combined smoke after M19 (do not run now):
+
+- connect Google
+- enable Calendar
+- enable Gmail
+- read calendar
+- freebusy
+- create/update/delete test event
+- Gmail read/draft/send test
+- token refresh
+- disconnect/reconnect
+
+---
 
 ## Known issues
 
-- Integrations Google card stays Not configured until env is set.
-- Calendar/Gmail scopes and tools are not requested or registered.
-- Google Testing OAuth clients may issue limited refresh tokens.
-- One active Google account only; switching accounts disconnects the previous one.
+- Production Google client id/secret still unset; Integrations Google card remains Not configured until Owner adds credentials and enables the Calendar API.
+- Confirmation parser is conservative exact phrases only.
+- Recurring rule authoring is out of scope.
+- Google Meet links are not created.
+
+---
 
 ## Next milestone
 
-Milestone 18 — Google Calendar tools (read/write via Tool Registry + confirmation policy). Reminder Engine stays separate.
+M19 — Gmail.

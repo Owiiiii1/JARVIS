@@ -18,6 +18,7 @@ final class ToolExecutionService
     public function __construct(
         private readonly ToolConfirmationPolicy $policy,
         private readonly IntegrationAccountService $accounts,
+        private readonly ToolConfirmationService $confirmations,
     ) {}
 
     public function run(ToolRegistry $registry, ToolCall $call, ToolExecutionContext $context): ToolResult
@@ -68,10 +69,21 @@ final class ToolExecutionService
         }
 
         if ($decision === ToolConfirmationDecision::ConfirmationRequired) {
+            $pending = $this->confirmations->createPending(
+                $context->user,
+                $context->conversation,
+                $tool->name(),
+                $call->arguments,
+                $call->id,
+            );
+
             $result = ToolResult::failure($call->id, $tool->name(), [
                 'success' => false,
                 'error' => 'confirmation_required',
                 'message' => $meta?->confirmationHint ?? 'This action needs confirmation before it can run.',
+                'confirmation_id' => $pending->public_id,
+                'summary' => $this->confirmations->summaryFor($pending),
+                'expires_at' => optional($pending->expires_at)?->toIso8601String(),
             ]);
             $this->persistLog(
                 $context,
@@ -171,7 +183,7 @@ final class ToolExecutionService
             'confirmation_state' => $decision,
             'duration_ms' => $duration,
             'error_code' => $result->success ? null : (string) ($result->payload['error'] ?? 'tool_failed'),
-            'metadata' => $this->safeMetadata($result),
+            'metadata' => $this->safeMetadata($result, $meta),
             'started_at' => now()->subMilliseconds(max(0, $duration)),
             'finished_at' => $finishedAt,
         ]);
@@ -190,19 +202,32 @@ final class ToolExecutionService
     /**
      * @return array<string, mixed>
      */
-    private function safeMetadata(ToolResult $result): array
+    private function safeMetadata(ToolResult $result, ?ToolMeta $meta): array
     {
         $payload = $result->payload;
         $metadata = [];
+
+        if ($meta?->provider !== null) {
+            $metadata['provider'] = $meta->provider;
+            $metadata['operation'] = $meta->operation->value;
+        }
 
         if (isset($payload['error']) && is_string($payload['error'])) {
             $metadata['error'] = $payload['error'];
         }
 
-        foreach (['count', 'result_count', 'groups_searched', 'topics_count', 'memories_count', 'summaries_count'] as $key) {
+        foreach (['count', 'result_count', 'groups_searched', 'topics_count', 'memories_count', 'summaries_count', 'calendars_count'] as $key) {
             if (isset($payload[$key]) && is_numeric($payload[$key])) {
                 $metadata[$key] = (int) $payload[$key];
             }
+        }
+
+        if (isset($payload['truncated'])) {
+            $metadata['truncated'] = (bool) $payload['truncated'];
+        }
+
+        if (isset($payload['confirmation_id']) && is_string($payload['confirmation_id'])) {
+            $metadata['confirmation_id'] = $payload['confirmation_id'];
         }
 
         if (isset($payload['groups']) && is_array($payload['groups'])) {
@@ -211,6 +236,14 @@ final class ToolExecutionService
 
         if (isset($payload['snippets']) && is_array($payload['snippets'])) {
             $metadata['result_count'] = count($payload['snippets']);
+        }
+
+        if (isset($payload['calendars']) && is_array($payload['calendars'])) {
+            $metadata['result_count'] = count($payload['calendars']);
+        }
+
+        if (isset($payload['events']) && is_array($payload['events'])) {
+            $metadata['result_count'] = count($payload['events']);
         }
 
         return $metadata;

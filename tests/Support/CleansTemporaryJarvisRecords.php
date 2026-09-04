@@ -23,6 +23,7 @@ use App\Models\TelegramGroupKnowledge;
 use App\Models\TelegramGroupKnowledgeRevision;
 use App\Models\TelegramGroupKnowledgeSource;
 use App\Models\TelegramGroupParticipant;
+use App\Models\ToolConfirmation;
 use App\Models\ToolExecutionLog;
 use App\Models\Topic;
 use App\Models\User;
@@ -79,6 +80,9 @@ trait CleansTemporaryJarvisRecords
             $user->forceFill(['role' => UserRole::User])->save();
         }
 
+        if (Schema::hasTable('tool_confirmations')) {
+            ToolConfirmation::query()->where('user_id', $user->id)->delete();
+        }
         if (Schema::hasTable('tool_execution_logs')) {
             ToolExecutionLog::query()->where('user_id', $user->id)->delete();
         }
