@@ -16,6 +16,10 @@ Schedule::command('jarvis:attachments:purge-ephemeral')
     ->hourly()
     ->withoutOverlapping(55);
 
+Schedule::command('jarvis:voice:cleanup-temp')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(4);
+
 Schedule::command('queue:work database --queue=memory,default --stop-when-empty --max-time=50 --tries=3')
     ->everyMinute()
     ->withoutOverlapping(1);

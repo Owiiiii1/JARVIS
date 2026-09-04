@@ -33,6 +33,8 @@ After the conversation-summary threshold, adding more raw messages to MySQL must
 
 Hard guarantee: before each provider call, `estimated_input_tokens <= input_budget`. The builder/manager trim until that is true. Do not rely on provider HTTP 400 “context too long”.
 
+Voice transcripts are ordinary `messages`. A long voice session uses the same manager; it cannot build an unbounded prompt. There is no separate voice context window.
+
 Input budget = model max context − reserved output − safety margin.
 
 ---

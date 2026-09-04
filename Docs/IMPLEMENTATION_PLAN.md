@@ -693,11 +693,13 @@ Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
 ## Milestone 23 — Voice Runtime Foundation
 
-**Цель.** STT/TTS/realtime abstraction. Тот же space, selected `conversation_id`, Conversation Engine, одна memory.
+**Status.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live STT/TTS/AI/microphone-to-provider.
 
-**Реализуем** [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Provider `TBD` практикой. Не Orb.
+**Цель.** STT/TTS abstraction + `VoiceRuntimeService` over the existing conversation. Same space, selected `conversation_id`, Conversation Engine, one memory.
 
-**Не реализовывать сейчас.**
+**Реализовано.** `voice_sessions`, state machine, provider ports + Null + ElevenLabs TTS adapter + optional OpenAI Whisper STT port, HTTP Workspace Voice client, Admin Voice/Speech settings, ephemeral audio + cleanup. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
+
+**Не реализовывать в M23.** Telephony/Twilio. Final Three.js Orb (M24). Live provider calls during implementation. `php artisan test`.
 
 **Зависимости:** M16, M22, M4.
 

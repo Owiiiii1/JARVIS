@@ -57,6 +57,29 @@
     }
 }
 
+.jarvis-orb--listening .jarvis-orb__glow {
+    animation-duration: 1.6s;
+    background: radial-gradient(circle, rgba(56, 189, 248, 0.38), transparent 68%);
+}
+
+.jarvis-orb--thinking .jarvis-orb__glow {
+    animation-duration: 1.1s;
+}
+
+.jarvis-orb--speaking .jarvis-orb__glow {
+    animation-duration: 0.9s;
+    background: radial-gradient(circle, rgba(125, 211, 252, 0.42), transparent 68%);
+}
+
+.jarvis-orb--muted .jarvis-orb__core,
+.jarvis-orb--error .jarvis-orb__core {
+    filter: grayscale(0.35);
+}
+
+.jarvis-orb--connecting .jarvis-orb__glow {
+    animation-duration: 2.2s;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .jarvis-orb__glow {
         animation: none;

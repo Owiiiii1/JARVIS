@@ -1,6 +1,6 @@
 # Owner Web Workspace
 
-**Status.** IMPLEMENTED / PARTIAL MANUAL PASS (M22 + M22.1 + M22.2 + M22.3). Voice runtime is still planned. Owner production confirmation 2026-09-04 covers image upload, Gemini vision, text Storage upload/read, and Gemini Google Search only — not the whole Workspace milestone.
+**Status.** IMPLEMENTED / PARTIAL MANUAL PASS (M22 + M22.1 + M22.2 + M22.3). M23 Voice Runtime Foundation is IMPLEMENTED / NOT VALIDATED (no live STT/TTS). Owner production confirmation 2026-09-04 covers image upload, Gemini vision, text Storage upload/read, and Gemini Google Search only — not the whole Workspace milestone and not Voice.
 
 Owner-facing Personal Workspace. This is **not** the Admin Panel and **not** the User Cabinet (`/cabinet`).
 
@@ -157,13 +157,15 @@ Workspace does not reproduce OAuth forms or AI provider settings.
 
 ---
 
-## Voice (placeholder only)
+## Voice (M23 runtime client)
 
-Text / Voice toggle exists. Voice opens a designed placeholder: CSS Orb (glow + idle breathing, reduced-motion safe), «Voice mode coming next», disabled mute/end/mic controls, text switch.
+Text / Voice toggle keeps the selected conversation. Voice Mode is `VoiceSession` (not a placeholder): Start Voice, End, Mute, session state, microphone after user gesture, transcript, assistant text, basic playback, CSS orb by state.
 
-Component boundary for M23: replace `VoiceModePlaceholder` with `<VoiceSession conversationId={id} />`. Keep the selected conversation. Do not start a new conversation for voice.
+Switching Voice → Text ends the active `voice_session` and shows the same message thread (STT/assistant rows are ordinary `messages`).
 
-**Not in M22:** microphone, STT, TTS, ElevenLabs, WebRTC, websocket voice, barge-in, Three.js/GLSL Orb.
+**Not in M23:** Three.js/GLSL Orb (M24), telephony, live STT/TTS validation.
+
+See [VOICE_ARCHITECTURE.md](../VOICE_ARCHITECTURE.md) and [CLIENTS/VOICE_UI.md](VOICE_UI.md).
 
 ---
 
@@ -178,7 +180,7 @@ No credentials, system prompts, tool logs, or raw group archive.
 ## Out of scope (still)
 
 - Public versioned Client API ([CLIENT_API.md](CLIENT_API.md))
-- Three.js Orb / Voice runtime
+- Three.js Orb (M24)
 - Workspace-specific chat tables (attachments live in Core `message_attachments`; persistent files in `stored_files`)
 - Telegram photo ingestion (same attachment table later)
 - Streaming, delete-chat

@@ -8,9 +8,14 @@ use App\Models\User;
 use App\Services\Integrations\Contracts\IntegrationProvider;
 use App\Services\Integrations\DTO\IntegrationStatus;
 use App\Services\Users\UserCapability;
+use App\Services\Voice\VoiceSettingsService;
 
 final class ElevenLabsIntegrationProvider implements IntegrationProvider
 {
+    public function __construct(
+        private readonly VoiceSettingsService $voiceSettings,
+    ) {}
+
     public function key(): string
     {
         return 'elevenlabs';
@@ -40,27 +45,25 @@ final class ElevenLabsIntegrationProvider implements IntegrationProvider
 
     public function status(User $owner): IntegrationStatus
     {
-        $account = IntegrationAccount::query()
-            ->where('user_id', $owner->id)
-            ->where('provider', $this->key())
-            ->orderByDesc('id')
-            ->first();
-
-        $state = $account?->status ?? IntegrationAccountStatus::Disconnected;
+        $configured = $this->voiceSettings->elevenLabsApiKey() !== '';
+        $state = $configured
+            ? IntegrationAccountStatus::Connected
+            : IntegrationAccountStatus::Disconnected;
 
         return new IntegrationStatus(
             provider: $this->key(),
             displayName: $this->displayName(),
             state: $state,
-            label: $state === IntegrationAccountStatus::Connected
-                ? 'Connected'
-                : 'Not configured',
+            label: $configured ? 'Configured' : 'Not configured',
             accountLabel: null,
             scopes: [],
-            lastSuccessAt: optional($account?->last_success_at)?->toIso8601String(),
-            lastErrorAt: optional($account?->last_error_at)?->toIso8601String(),
-            diagnosticMessage: 'Voice integration later.',
+            lastSuccessAt: null,
+            lastErrorAt: null,
+            diagnosticMessage: $configured
+                ? 'TTS adapter ready. Voice Runtime uses Admin Voice/Speech settings. No live Test Connection.'
+                : 'Not configured. Add an ElevenLabs key under Integrations → Voice/Speech.',
             actions: [],
+            configured: $configured,
         );
     }
 

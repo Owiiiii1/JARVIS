@@ -36,6 +36,7 @@
 - conversations и messages (kind: `direct` | `group`; personal всегда с `user_id`);
 - message_attachments (private, owned, ephemeral screenshots by default);
 - stored_files / stored_file_chunks (owner persistent Storage; retrieval, not auto-context);
+- voice_sessions (modality over an existing conversation; no voice_messages / voice_memory);
 - Web Research tools (`search_web`, `fetch_web_page`) via provider abstraction; no web content mirror tables;
 - ContextBudgetManager: one LLM request is token-bounded regardless of DB size;
 - Telegram Groups: авторегистрация, group conversations; **owner-only** admin;
@@ -123,7 +124,7 @@ Web Cabinet — User Space клиент. Owner Personal Workspace — `/jarvis`,
 - **Users**: каталог Jarvis (не «admin accounts»), User Card, access_code, Telegram link, Chats / Topics / AI Settings, impersonation;
 - три AI config: Owner Conversation / Owner Analysis / Default User Conversation;
 - Telegram bot settings и/или Integrations overview того же source of truth;
-- Settings → Integrations: Google, GitHub, ElevenLabs placeholder, Telegram, **Web Research** (provider, enablement, bounded limits; no SSRF toggles);
+- Settings → Integrations: Google, GitHub, ElevenLabs status, Telegram, **Web Research**, **Voice/Speech** (STT/TTS provider + configured status; no secrets, no Test Connection);
 - **Telegram Groups** owner-only;
 - diagnostics / logs.
 
@@ -171,7 +172,7 @@ Web Cabinet — User Space клиент. Owner Personal Workspace — `/jarvis`,
 
 ### Cabinet / Workspace / клиенты
 
-`Cabinet | Workspace | Desktop | Mobile` → auth → ownership check → `Core` (тот же engine, тот же `conversation_id`)
+`Cabinet | Workspace | Desktop | Mobile | Voice mode` → auth → ownership check → `Core` (тот же engine, тот же `conversation_id`). Voice is a modality: STT text enters `ConversationTurnService`.
 
 ---
 

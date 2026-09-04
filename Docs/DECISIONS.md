@@ -1134,7 +1134,7 @@
 
 **Решение.** M22 ships Text/Voice toggle, CSS Orb placeholder, and `VoiceModePlaceholder` / future `<VoiceSession conversationId>` boundary. No microphone, STT, TTS, WebRTC, ElevenLabs, or Three.js.
 
-**Следствие.** M23 replaces the placeholder without changing conversation identity.
+**Следствие.** M23 replaced the placeholder with `VoiceSession` without changing conversation identity. Historical for M22.
 
 ---
 
@@ -1568,12 +1568,154 @@
 
 ---
 
+## ADR-161 — Voice is a modality over an existing conversation
+
+**Контекст.** Voice легко оформить как второго ассистента.
+
+**Решение.** Audio → STT → ordinary user turn → `ConversationTurnService` → TTS. Session always has `user_id` + existing `conversation_id`. Text ↔ Voice must not create a new conversation.
+
+**Следствие.** No second Jarvis / User Space / voice chat.
+
+---
+
+## ADR-162 — Voice transcripts are ordinary messages
+
+**Контекст.** Temptation to store `voice_messages`.
+
+**Решение.** Final STT text and assistant text are normal `messages` rows. Modality lives in metadata (`modality=voice`, `voice_session_public_id`). Channel `web` vs modality `voice` stay distinct. `MessageType::Voice` remains Telegram inbound voice notes.
+
+**Следствие.** No `voice_messages` / `voice_history` tables.
+
+---
+
+## ADR-163 — No voice-specific memory
+
+**Контекст.** Long spoken sessions look like a separate memory problem.
+
+**Решение.** One Memory Engine. No `voice_memory`.
+
+**Следствие.** Voice cannot fork Owner/User memory.
+
+---
+
+## ADR-164 — STT/TTS are provider-neutral ports
+
+**Контекст.** Vendor SDKs leak into Core.
+
+**Решение.** `SpeechToTextProvider` / `TextToSpeechProvider` + managers. Runtime does not instantiate vendor clients. Null providers return `voice_stt_not_configured` / `voice_tts_not_configured`. Optional `RealtimeDuplexSpeechProvider` is future-only; STT and TTS remain canonical.
+
+**Следствие.** ElevenLabs/Whisper can change without rewriting Conversation Engine.
+
+---
+
+## ADR-165 — Voice Runtime and Voice UI are separate
+
+**Контекст.** Orb work can swallow the runtime.
+
+**Решение.** M23 = runtime + CSS client boundary. M24 = final Orb. UI consumes session state/events; it does not own STT/TTS.
+
+**Следствие.** Three.js is not required to ship Voice Runtime.
+
+---
+
+## ADR-166 — Conversation AI config is unchanged by Voice providers
+
+**Контекст.** Selecting ElevenLabs or Whisper could silently retarget Owner Conversation AI.
+
+**Решение.** Voice STT/TTS settings are Integrations technical settings. Owner Conversation AI stays `ai_role_settings` / `ai_provider_settings` for chat.
+
+**Следствие.** Whisper may reuse an OpenAI key only for `/audio/transcriptions`, never `chat()`.
+
+---
+
+## ADR-167 — Interrupting playback does not delete the persisted assistant message
+
+**Контекст.** Barge-in might tempt a delete of “unspoken” text.
+
+**Решение.** If assistant text is already persisted, keep it. Optional `voice_playback_interrupted=true`.
+
+**Следствие.** History is what Jarvis intended to say, not only what was heard.
+
+---
+
+## ADR-168 — Raw audio is ephemeral by default
+
+**Контекст.** Storing recordings forever is a privacy/storage trap.
+
+**Решение.** Temp private files → STT → delete on success; short retry window on failure; `jarvis:voice:cleanup-temp`. Source of truth is the transcript. Optional archive is a later product decision. No `raw_audio_archive` table.
+
+**Следствие.** Cleanup never deletes messages.
+
+---
+
+## ADR-169 — Long voice sessions use the same ContextBudgetManager
+
+**Контекст.** Hours of transcripts could dump into one prompt.
+
+**Решение.** Voice messages are ordinary messages, so summary-first budget applies. No separate voice context window.
+
+**Следствие.** A 5-hour session must not create a 5-hour prompt.
+
+---
+
+## ADR-170 — Web / desktop / mobile share VoiceRuntimeService
+
+**Контекст.** Web controller could become the Core.
+
+**Решение.** HTTP Workspace controller is an adapter. Desktop/Mobile later call the same runtime via Client API.
+
+**Следствие.** Do not duplicate STT/turn/TTS in clients.
+
+---
+
+## ADR-171 — Telephony is a future adapter, not M23
+
+**Контекст.** Twilio/SIP looks like “voice”.
+
+**Решение.** No Twilio Voice, SIP, PSTN, phone routing, or call recording in M23. Phone is a later adapter over Voice Runtime.
+
+**Следствие.** M23 is Workspace/session voice, not a call center.
+
+---
+
+## ADR-172 — Final Orb is M24
+
+**Контекст.** Visual Orb can consume the milestone.
+
+**Решение.** M23: state/event contract + CSS orb. M24: Three.js/WebGL Orb.
+
+**Следствие.** Do not ship shaders to claim Voice Runtime.
+
+---
+
+## ADR-173 — Tests and live voice validation remain deferred
+
+**Контекст.** Production Owner policy: no `php artisan test`, no live STT/TTS/AI during this work.
+
+**Решение.** Static/build/migrate/route/schedule verification only. Do not claim live voice PASS.
+
+**Следствие.** Status is IMPLEMENTED / NOT VALIDATED until Owner exercises Voice.
+
+---
+
+## ADR-174 — Initial STT is Whisper-or-Null; Gemini STT is M23.1
+
+**Контекст.** Gemini `generateContent` with audio would contaminate Conversation AI.
+
+**Решение.** M23 ships the STT port, Null, and an OpenAI Whisper adapter on the dedicated transcriptions API. Default STT is `none`. Do not hack Gemini chat for transcription. A dedicated Gemini STT adapter, if needed, is M23.1.
+
+**Следствие.** Unconfigured STT is a safe `voice_stt_not_configured`, not a fatal crash.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Алфавит generated access_code (кроме зарезервированного 2000).
 - 403 vs redirect когда user открывает admin URL.
 - Auth схема Desktop/Mobile (token flavour).
-- Realtime транспорт voice/text streaming; STT/TTS/interruption — практические тесты.
+- Realtime native voice transport (WebRTC vs WebSocket streaming) beyond M23 HTTP utterance blobs.
+- Concrete production STT beyond Whisper-or-Null (M23.1 if Gemini/other).
+- Optional long-term audio recording retention.
 - Набор service updates (`my_chat_member`) beyond bot left/kicked/member/admin/restricted.
 - Retention raw messages по закону/желанию пользователя (отдельно от derived lifecycle).
 - UX явного переноса group knowledge → personal fact.

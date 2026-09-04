@@ -1,5 +1,5 @@
 import SafeMarkdown from '@/Components/Jarvis/SafeMarkdown';
-import VoiceModePlaceholder from '@/Components/Jarvis/VoiceModePlaceholder';
+import VoiceSession from '@/Components/Jarvis/VoiceSession';
 import JarvisWorkspaceLayout from '@/Layouts/JarvisWorkspaceLayout';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -1055,7 +1055,11 @@ export default function JarvisWorkspace() {
                 contextDrawer={contextDrawer}
             >
                 {mode === 'voice' ? (
-                    <VoiceModePlaceholder conversationId={conversation?.id} onSwitchToText={() => setMode('text')} />
+                    <VoiceSession
+                        conversationId={conversation?.id}
+                        onSwitchToText={() => setMode('text')}
+                        onTurn={(payload, optimisticId, clientMessageId) => applyTurnPayload(payload, optimisticId, clientMessageId)}
+                    />
                 ) : (
                     <div className="flex h-full min-h-0 flex-col">
                         <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-8">

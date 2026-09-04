@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Models\TelegramBotSetting;
 use App\Models\User;
+use App\Services\Voice\VoiceSettingsService;
 use App\Services\WebResearch\WebResearchSettingsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -41,7 +42,7 @@ class SettingsController extends Controller
             ->all();
 
         $allowedTabs = ['general', 'users', 'ai', 'app', 'integrations'];
-        $allowedSections = ['overview', 'web-research', 'telegram', 'activity'];
+        $allowedSections = ['overview', 'web-research', 'voice', 'telegram', 'activity'];
         $tab = (string) $request->query('tab', 'general');
         $section = (string) $request->query('section', 'overview');
         if ($tab === 'telegram') {
@@ -64,6 +65,7 @@ class SettingsController extends Controller
             'aiRoles' => $aiSettings->rolesPayload(),
             'telegram' => $this->telegramPayload(),
             'webResearch' => app(WebResearchSettingsService::class)->adminPayload(),
+            'voice' => app(VoiceSettingsService::class)->adminPayload(),
             'integrations' => app(IntegrationsController::class)->payload($request),
             'tab' => $tab,
             'section' => $section,

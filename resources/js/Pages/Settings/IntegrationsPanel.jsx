@@ -3,15 +3,16 @@ import { useEffect, useState } from 'react';
 import IntegrationActivityPanel from './IntegrationActivityPanel';
 import IntegrationProviderCard from './IntegrationProviderCard';
 import TelegramPanel from './TelegramPanel';
+import VoicePanel from './VoicePanel';
 import WebResearchPanel from './WebResearchPanel';
 
-const SECTIONS = ['overview', 'web-research', 'telegram', 'activity'];
+const SECTIONS = ['overview', 'web-research', 'voice', 'telegram', 'activity'];
 
 function tileStatusClass(state) {
     if (state === 'ready' || state === 'connected' || state === 'enabled') {
         return 'bg-emerald-100 text-emerald-700';
     }
-    if (state === 'not_configured' || state === 'incomplete' || state === 'connecting') {
+    if (state === 'not_configured' || state === 'incomplete' || state === 'connecting' || state === 'partial') {
         return 'bg-amber-100 text-amber-800';
     }
     if (state === 'error' || state === 'revoked') {
@@ -25,6 +26,7 @@ export default function IntegrationsPanel() {
     const {
         integrations = {},
         webResearch = {},
+        voice = {},
         telegram = {},
         locale = 'en',
         flash = {},
@@ -41,9 +43,10 @@ export default function IntegrationsPanel() {
 
     const text = {
         en: {
-            hint: 'Connected accounts stay here. Telegram, Web Research, and the execution log have their own subsections.',
+            hint: 'Connected accounts stay here. Telegram, Web Research, Voice/Speech, and the execution log have their own subsections.',
             overview: 'Overview',
             webResearch: 'Web Research',
+            voice: 'Voice / Speech',
             telegram: 'Telegram',
             activity: 'Activity',
             open: 'Open',
@@ -58,13 +61,15 @@ export default function IntegrationsPanel() {
             enableGmail: 'Enable Gmail',
             telegramHint: 'Bot token, webhook, and connection status.',
             webResearchHint: 'Search provider, credentials status, and research limits.',
+            voiceHint: 'STT/TTS providers and ElevenLabs configured status. Not Conversation AI.',
             activityHint: `${executions.length} recent tool executions`,
             telegramTitle: 'Telegram',
         },
         ru: {
-            hint: 'Подключённые аккаунты остаются здесь. Telegram, Web Research и журнал выполнений вынесены в подразделы.',
+            hint: 'Подключённые аккаунты остаются здесь. Telegram, Web Research, Voice/Speech и журнал выполнений вынесены в подразделы.',
             overview: 'Overview',
             webResearch: 'Web Research',
+            voice: 'Voice / Speech',
             telegram: 'Telegram',
             activity: 'Activity',
             open: 'Open',
@@ -79,13 +84,15 @@ export default function IntegrationsPanel() {
             enableGmail: 'Enable Gmail',
             telegramHint: 'Токен бота, webhook и статус подключения.',
             webResearchHint: 'Провайдер поиска, статус credentials и лимиты research.',
+            voiceHint: 'STT/TTS провайдеры и статус ElevenLabs. Не Conversation AI.',
             activityHint: `${executions.length} recent tool executions`,
             telegramTitle: 'Telegram',
         },
         uk: {
-            hint: 'Підключені акаунти залишаються тут. Telegram, Web Research і журнал виконань винесені в підрозділи.',
+            hint: 'Підключені акаунти залишаються тут. Telegram, Web Research, Voice/Speech і журнал виконань винесені в підрозділи.',
             overview: 'Overview',
             webResearch: 'Web Research',
+            voice: 'Voice / Speech',
             telegram: 'Telegram',
             activity: 'Activity',
             open: 'Open',
@@ -100,6 +107,7 @@ export default function IntegrationsPanel() {
             enableGmail: 'Enable Gmail',
             telegramHint: 'Токен бота, webhook і статус підключення.',
             webResearchHint: 'Провайдер пошуку, статус credentials і ліміти research.',
+            voiceHint: 'STT/TTS провайдери і статус ElevenLabs. Не Conversation AI.',
             activityHint: `${executions.length} recent tool executions`,
             telegramTitle: 'Telegram',
         },
@@ -162,6 +170,7 @@ export default function IntegrationsPanel() {
     const sections = [
         { id: 'overview', label: t.overview },
         { id: 'web-research', label: t.webResearch },
+        { id: 'voice', label: t.voice },
         { id: 'telegram', label: t.telegram },
         { id: 'activity', label: t.activity },
     ];
@@ -236,6 +245,24 @@ export default function IntegrationsPanel() {
 
                         <button
                             type="button"
+                            onClick={() => switchSection('voice')}
+                            className="rounded-xl border border-[#E6DCC8] bg-[#FBF8F1] p-4 text-left hover:border-slate-300"
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <h2 className="text-base font-semibold text-slate-900">{t.voice}</h2>
+                                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tileStatusClass(voice.status)}`}>
+                                    {voice.status_label ?? 'Not configured'}
+                                </span>
+                            </div>
+                            <p className="mt-2 text-sm text-slate-600">{t.voiceHint}</p>
+                            <p className="mt-2 text-sm text-slate-700">
+                                {voice.stt_provider_label ?? 'STT'} · {voice.tts_provider_label ?? 'TTS'}
+                            </p>
+                            <p className="mt-3 text-sm font-medium text-indigo-700">{t.open}</p>
+                        </button>
+
+                        <button
+                            type="button"
                             onClick={() => switchSection('telegram')}
                             className="rounded-xl border border-[#E6DCC8] bg-[#FBF8F1] p-4 text-left hover:border-slate-300"
                         >
@@ -271,6 +298,8 @@ export default function IntegrationsPanel() {
             )}
 
             {section === 'web-research' && <WebResearchPanel />}
+
+            {section === 'voice' && <VoicePanel />}
 
             {section === 'telegram' && (
                 <section className="rounded-xl border border-[#E6DCC8] bg-[#FBF8F1] p-4">

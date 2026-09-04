@@ -1,138 +1,223 @@
 # Голосовая архитектура
 
-Целевые фазы: **Phase 3** (подключение голоса к тому же ядру), **Phase 4** (естественный realtime). В Phase 1–2 голос не реализуется, но текстовой pipeline не должен мешать появлению STT/TTS.
+**Status.** IMPLEMENTED / NOT VALIDATED (M23 Voice Runtime Foundation, 2026-09-04). Automated tests not run. No live STT/TTS/AI/microphone-to-provider validation in this milestone. Final Orb is M24. Telephony is out of scope.
 
-Voice — experimental / future. Другой интерфейс к **тому же** Jarvis, не отдельный ассистент и не отдельный User Space. После распознавания реплика идёт в [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md). UI Orb отделён от runtime: [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
+Voice is a **modality** over an existing conversation. It is not a second Jarvis, second memory, second User Space, or a special voice chat.
 
-### Invariants (фиксированы)
+```
+audio input
+  → STT
+  → ordinary user text turn
+  → ConversationTurnService
+  → tools / memory / web / storage
+  → persisted assistant message
+  → TTS
+  → audio output
+```
 
-- тот же User Space;
-- тот же selected conversation (`active_conversation_id` / открытый chat);
-- тот же Conversation Engine;
-- тот же AI configuration соответствующего space (Owner Conversation AI или Default User Conversation AI);
-- одна memory;
-- никаких отдельных voice memories.
+`VoiceRuntimeService` must not call Gemini / Conversation AI directly.
 
-Transport / STT / TTS / realtime / interruption — `TBD` практическими тестами. Не закрывать эти решения в docs как будто уже выбраны.
+UI Orb is separate: [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
+
+### Invariants
+
+- same User Space;
+- same selected `conversation_id` (already owned by the user);
+- same Conversation Engine (`ConversationTurnService` → `ConversationAiService`);
+- same AI configuration of that space (Owner Conversation AI is **not** changed by STT/TTS provider selection);
+- one memory; no `voice_memory` / `voice_messages`;
+- Text ↔ Voice must not create a new conversation;
+- final STT text and assistant text are ordinary `messages` rows;
+- transport (`web`) and modality (`voice`) are distinct: `messages.channel` stays `web` for Workspace; `messages.metadata.modality = voice`.
 
 ---
 
-## Не целевая схема
+## Same conversation
+
+Every voice session stores `user_id` + `conversation_id`. The conversation must already belong to the user.
+
+If Owner opens Voice inside `/jarvis/chats/{id}`, the session uses that conversation.
+
+M23 Web policy: switching Voice → Text **ends** the active session cleanly. The thread already contains transcripts and replies.
+
+---
+
+## Runtime path (M23)
 
 ```
-записал файл → долго обработали целиком → получили mp3
+Browser MediaRecorder (short utterance blob)
+        ↓
+POST /jarvis/voice/sessions/{id}/audio
+        ↓
+VoiceTempAudioStore (ephemeral private disk)
+        ↓
+SpeechToTextManager → SpeechToTextProvider
+        ↓
+ConversationTurnService.handleUserMessage
+        ↓
+ConversationAiService + ContextBudgetManager + tools
+        ↓
+TextToSpeechManager → TextToSpeechProvider
+        ↓
+JSON events + optional audio bytes (HTTP)
 ```
 
-Допустима как временный технический костыль на самом старте Phase 3 (`TBD`), но не как архитектура продукта.
+Domain layer is transport-neutral. M23 Web uses authenticated session + CSRF HTTP JSON. No WebRTC/websocket infra was added. Desktop/Mobile later call the same `VoiceRuntimeService` via Client API.
 
-## Целевая схема
-
-Максимально realtime разговор:
-
-- понять начало и конец реплики;
-- быстро ответить;
-- позволить перебить;
-- остановить собственную речь при перебивании;
-- сохранить тот же conversation/memory context, что у текста.
+M23 generates full assistant text before TTS. Later: LLM streaming → sentence chunks → TTS streaming. Interfaces do not require one giant recording for the whole conversation.
 
 ---
 
 ## Voice Runtime vs Voice UI
 
-**Voice Runtime** (этот документ): audio transport, STT, TTS, turn detection, realtime provider, `voice_sessions`.
+**Voice Runtime** (this document): session, STT, TTS, turn pipeline, events, interrupt/mute.
 
-**Voice UI** ([CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md)): Orb, transcript, controls. Consumes `VoiceVisualizationState` (`state`, input/output amplitude, frequency bands, connection state). Not bound to ElevenLabs or any vendor.
-
-Provider can change without rewriting the Orb. UI can change without rewriting Core.
-
-## Слои (Runtime)
-
-```
-Audio I/O (mic / speaker)
-        ↓
-Speech-to-Text          ← provider abstraction
-        ↓
-Turn detection          ← конец реплики / пауза / barge-in
-        ↓
-Conversation orchestration  ← тот же Core engine
-        ↓
-LLM                     ← AI Layer
-        ↓
-Text-to-Speech          ← provider abstraction
-        ↓
-Streaming playback
-        ↓
-VoiceVisualizationState → Voice UI (Orb)
-```
-
-### Speech-to-Text
-
-Поток или чанки аудио → текст (частичный и финальный). Частичные гипотезы можно показывать в UI; в raw messages писать **финальный** текст реплики (политика промежуточных — `TBD`).
-
-### Turn detection
-
-Когда пользователь закончил говорить; когда начал перебивать Jarvis. Не путать с LLM. Может быть VAD, time-based, серверный endpointing. Конкретный алгоритм — `TBD`.
-
-### Conversation orchestration
-
-Тот же engine: persist, retrieve, generate, persist. Voice session ссылается на `conversation_id`.
-
-### LLM
-
-Без специального «голосового мозга». Допустимы другие decoding-параметры (короче ответы) через настройки, не через отдельную память.
-
-### Text-to-Speech
-
-Текст ответа → аудио. Предпочтительный provider на старте Phase 3: **ElevenLabs**. Обязателен abstraction layer: смена vendor не меняет Core. ADR-008.
-
-### Streaming
-
-Частичный LLM-текст может уходить в TTS до конца полного ответа (`TBD` protocol). Клиент играет поток.
-
-### Interruption / barge-in
-
-Пользователь заговорил — клиент/сервер:
-
-1. останавливает playback;
-2. помечает незавершённый assistant turn (`TBD`: сохранить обрезанный текст или discarded flag);
-3. запускает новый inbound.
-
-Не создавать второго пользователя и второй memory store.
+**Voice UI** ([CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md)): Orb, transcript, controls. M23 ships a CSS orb + state labels only. Three.js / GLSL is M24.
 
 ---
 
-## Provider abstraction
+## Provider ports
 
-Логические порты:
+Canonical independent ports:
 
-- `SpeechToTextProvider`
-- `TextToSpeechProvider`
-- опционально `RealtimeDuplexProvider`, если vendor даёт один сокет на оба направления (`TBD`)
+- `SpeechToTextProvider` — transcribe a complete audio chunk/file → `SpeechTranscript` (text, is_final, optional language/confidence, bounded provider metadata)
+- `TextToSpeechProvider` — synthesize text → `SynthesizedSpeech` (bytes, mime, voice id, optional sample rate/duration, bounded metadata)
 
-ElevenLabs — дефолтная реализация TTS (и возможно больше, `TBD`), не часть доменной модели.
+Managers: `SpeechToTextManager`, `TextToSpeechManager`. Runtime never instantiates vendor HTTP clients.
 
-Другие кандидаты не фиксируются.
+Null providers return safe errors: `voice_stt_not_configured` / `voice_tts_not_configured`. Not fatal exceptions for the PHP process.
+
+Optional future: `RealtimeDuplexSpeechProvider` (telephony / vendor duplex). Not the Core. STT and TTS remain the canonical ports.
+
+### M23 adapters
+
+| Port | Implemented | Notes |
+| --- | --- | --- |
+| TTS | `ElevenLabsTextToSpeechProvider` + Null | Structural HTTP adapter. Configured status only in Admin. No live Test Connection. |
+| STT | `OpenAiSpeechToTextProvider` (Whisper endpoint) + Null | Dedicated `/audio/transcriptions` API. Reuses OpenAI key from `ai_provider_settings` **without** going through Conversation AI `chat()`. Default provider is `none`. |
+
+Gemini generateContent-as-STT is **not** wired (would contaminate Conversation AI). Concrete Gemini/other STT = **M23.1** if Whisper is not the production STT.
+
+Selecting STT/TTS does **not** change Owner Conversation AI provider/model.
 
 ---
 
-## Сессии
+## Sessions
 
-Концепт `voice_sessions`:
+Table `voice_sessions`: `public_id` UUID, `user_id`, `conversation_id`, `origin` (`web|desktop|mobile`), `status`, nullable `stt_provider` / `tts_provider`, `started_at`, `last_activity_at`, `ended_at`, `error_code`, bounded `metadata` JSON.
 
-- принадлежит user + conversation;
-- канал-origin: web workspace / desktop / mobile;
-- состояние: idle / connecting / listening / thinking / speaking / interrupted / error / muted;
-- ссылки на messages, порождённые за сессию.
+Admin technical settings: singleton `voice_settings` (STT/TTS provider, spoken-style toggle, encrypted ElevenLabs key). Not Owner personal prefs. `user_voice_settings` is not created in M23.
 
-Точный realtime транспорт (WebRTC vs WebSocket audio) — `TBD`.
+### State machine (`VoiceSessionStatus`)
+
+`connecting`, `idle`, `listening`, `transcribing`, `thinking`, `speaking`, `interrupted`, `muted`, `error`, `ended`.
+
+Allowed transitions (`VoiceSessionStateMachine`; same-state is a no-op):
+
+| From | To |
+| --- | --- |
+| connecting | idle, listening, error |
+| idle | listening, muted, ended |
+| listening | transcribing, interrupted, muted, ended, error |
+| transcribing | thinking, listening, error, ended |
+| thinking | speaking, interrupted, error, ended |
+| speaking | listening, interrupted, muted, ended, error |
+| interrupted | listening, thinking, ended |
+| muted | idle, listening, ended |
+| error | ended |
+| ended | — |
+
+Invalid transitions → `voice_session_invalid_state`.
 
 ---
 
-## Что не делать
+## Events (`VoiceSessionEvent`)
 
-- Не хранить «голосовую память» отдельно от текстовой.
-- Не вызывать ElevenLabs из Telegram adapter или из Orb shaders.
-- Не требовать Vector DB ради голоса.
-- Не блокировать Phase 1 выбором speech vendor.
-- Не создавать отдельную voice conversation, если пользователь не выбрал New Chat.
-- Не делать Voice Mode отдельным ассистентом.
+Transport-neutral, client-safe:
+
+`session.started`, `state.changed`, `listening.started`, `transcript.partial`, `transcript.final`, `assistant.thinking`, `assistant.text`, `audio.started`, `audio.chunk`, `audio.ended`, `interrupted`, `muted`, `resumed`, `error`, `session.ended`.
+
+No provider keys, raw tool JSON, system prompts, hidden reasoning, or stack traces.
+
+M23 Web returns events in the HTTP JSON body. GET session polls last bounded events.
+
+---
+
+## Audio
+
+DTO `VoiceAudioChunk`: session public id, sequence, temp file path, mime, sample rate, channels, `is_final`, optional duration/captured_at.
+
+`config/voice.php` hard bounds: chunk bytes, utterance seconds, allowed mimes, max sessions/user, inactivity timeout, session TTL, TTS text cap, provider timeouts.
+
+**Ephemeral audio policy:** private temp disk → STT → delete after success. On STT failure retain only a short retry window. `jarvis:voice:cleanup-temp` every five minutes. Transcripts/messages are never deleted by this job.
+
+Long-term source of truth is the final transcript. Optional future audio-recording retention is a separate product decision.
+
+---
+
+## Interruption / mute
+
+`VoiceRuntimeService::interrupt`: stop/mark TTS playback cancelled, state `interrupted`, emit event, accept the next utterance.
+
+If assistant text was already persisted before TTS, **do not delete it**. Set `messages.metadata.voice_playback_interrupted=true`. History stays what Jarvis intended to say.
+
+Mute = microphone/input off. Not session end, not AI disable, not memory disable. `speaking|idle → muted → idle|listening`.
+
+---
+
+## Presentation hint
+
+Voice uses the same User General Prompt. Optional bounded runtime instruction (configurable, Admin toggle `spoken_style_enabled`):
+
+> Response will be spoken aloud; prefer concise natural spoken sentences unless detail is requested.
+
+This is modality presentation context, not a second personality.
+
+---
+
+## Tools and confirmations
+
+Voice uses the same Owner tools (reminders, Storage, Web Research, Google, GitHub, group knowledge). Confirmation policy is unchanged. Voice must not bypass confirmation because speech was used. Workspace can still show the confirmation card. M23 does not ship spoken confirmation UX.
+
+---
+
+## Context budget
+
+Voice uses the same `ContextBudgetManager` / `ToolResultBudgetManager`. Transcripts are ordinary messages, so summary-first budget applies automatically. A 5-hour voice session must not create a 5-hour prompt.
+
+---
+
+## Security
+
+Every endpoint: authenticated user, `session.user_id === user.id`, conversation owned by the same user. UUID alone is not authorization. Web Workspace uses session + CSRF. No public audio endpoints.
+
+Rate bounds: Laravel throttle on voice routes + config session/chunk/utterance/inactivity limits.
+
+---
+
+## Observability
+
+Log: session id / public id, state transition, provider name, audio **byte length** / duration, STT/AI/TTS latency, interrupt count, safe error code.
+
+Do **not** log: audio bytes, transcript/assistant contents, secrets.
+
+Latency timestamps in session metadata: capture complete, STT final, AI start/complete, TTS start/complete.
+
+---
+
+## Errors
+
+`voice_session_not_found`, `voice_session_invalid_state`, `voice_session_limit_reached`, `voice_audio_too_large`, `voice_audio_format_unsupported`, `voice_stt_not_configured`, `voice_stt_failed`, `voice_tts_not_configured`, `voice_tts_failed`, `voice_session_expired`, `voice_microphone_unavailable`, `voice_runtime_failed`.
+
+No raw provider body.
+
+---
+
+## Out of scope (explicit)
+
+- Twilio Voice, SIP, PSTN, phone numbers, call recording, ElevenLabs phone agent
+- Final Three.js Orb (M24)
+- Live STT/TTS/AI validation in this milestone
+- Automated tests (`php artisan test`)
+
+Telephony is a future **adapter** over Voice Runtime, not a second engine.

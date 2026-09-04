@@ -11,7 +11,9 @@ This document describes **what exists on the server now**. Target architecture i
 
 **IMPLEMENTED (code/runtime; Google Calendar/Gmail combined smoke and GitHub live integration still not validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Owner Personal Workspace (`/jarvis`) including M22.1 image attachments + copyable artifacts, M22.2 persistent Storage + ephemeral screenshots, and M22.3 Web Research + Context Budget Manager + M22.3.1 Admin Web Research settings; Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, reminders/groups deferred checks, `fetch_web_page`, Tavily, screenshot purge, and ContextBudgetManager remain not Owner-validated. Automated tests have not been run.
 
-**PLANNED / DOCUMENTED ONLY (not implemented):** versioned Client API; realtime Voice Runtime; Orb Voice UI; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch. Do not treat these as shipped.
+**PLANNED / DOCUMENTED ONLY (not implemented):** versioned Client API; final Orb Voice UI (M24); Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch; telephony. Do not treat these as shipped.
+
+M23 Voice Runtime Foundation is **IMPLEMENTED / NOT VALIDATED** (no live STT/TTS/AI).
 
 Status vocabulary:
 
@@ -385,7 +387,7 @@ There is **no** `routes/api.php`. `bootstrap/app.php` registers `web` + `console
 | Auth API (Sanctum/JWT) | DOCUMENTED ONLY |
 | conversations / messages | DOCUMENTED ONLY |
 | users (public) | DOCUMENTED ONLY |
-| voice / mobile / desktop | DOCUMENTED ONLY |
+| voice / mobile / desktop | Voice runtime HTTP: IMPLEMENTED / NOT VALIDATED. Versioned Client API + mobile/desktop: DOCUMENTED ONLY |
 
 Kit `composer.json` *suggests* Sanctum; it is **not** installed.
 
@@ -541,7 +543,7 @@ New providers without changing Jarvis Core.
 | User Cabinet | IMPLEMENTED |
 | Impersonation / ownership policies | DOCUMENTED ONLY |
 | Public/mobile API | DOCUMENTED ONLY |
-| Voice / ElevenLabs | DOCUMENTED ONLY |
+| Voice / ElevenLabs | IMPLEMENTED / NOT VALIDATED (M23 runtime + ElevenLabs TTS adapter; no live TTS) |
 | Google Calendar / Gmail | DOCUMENTED ONLY / MISSING FROM DOCS |
 | Integrations registry | DOCUMENTED ONLY / MISSING FROM DOCS |
 | Queue workers / scheduler | IMPLEMENTED (Telegram queue worker + analysis/memory/default systemd worker + reminder scheduler) |
@@ -740,7 +742,7 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
 ### Milestone 22 — Owner Web Workspace — IMPLEMENTED / PARTIAL MANUAL PASS (2026-09-04)
 
-Owner Personal Workspace at `/jarvis`. Owner-only. Same `conversations`/`messages` and `ConversationTurnService` as Telegram/Cabinet. Channel remains `web`. Owner login → `/jarvis`. Owner `/cabinet` → `/jarvis`. Admin stays `/dashboard` with Open Jarvis. Voice Mode is a CSS placeholder only. No new tables. Automated tests not run. Workspace as a whole is not fully validated; see M22.1–M22.3 granular PASS below. Google/GitHub send still not Owner-validated.
+Owner Personal Workspace at `/jarvis`. Owner-only. Same `conversations`/`messages` and `ConversationTurnService` as Telegram/Cabinet. Channel remains `web`. Owner login → `/jarvis`. Owner `/cabinet` → `/jarvis`. Admin stays `/dashboard` with Open Jarvis. Voice Mode placeholder was M22; M23 replaces it with `VoiceSession`. Automated tests not run. Workspace as a whole is not fully validated; see M22.1–M22.3 granular PASS below. Google/GitHub send still not Owner-validated.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
@@ -780,8 +782,14 @@ Owner `search_web` / `fetch_web_page` behind `WebSearchManager` → `WebSearchPr
 
 See [WEB_RESEARCH.md](WEB_RESEARCH.md), [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md), [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
-### Planned after M22.3 — DOCUMENTED ONLY
+### Milestone 23 — Voice Runtime Foundation — IMPLEMENTED / NOT VALIDATED (2026-09-04)
 
-Voice Runtime / Orb; Desktop Tauri; Mobile Flutter; GitHub merge/file-write/webhooks; proactive assistant. Do not treat as shipped.
+`voice_sessions` + `voice_settings`. `VoiceRuntimeService` over existing `ConversationTurnService`. STT/TTS ports, Null providers, ElevenLabs TTS adapter, optional OpenAI Whisper STT port. Workspace `VoiceSession` (mic after user gesture, CSS orb). Admin Integrations → Voice/Speech. No telephony. No Three.js Orb. Automated tests not run. No live STT/TTS/AI.
+
+See [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md), [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Planned after M23 — DOCUMENTED ONLY
+
+Voice UI / Orb (M24); Desktop Tauri; Mobile Flutter; GitHub merge/file-write/webhooks; proactive assistant; telephony adapter. Do not treat as shipped.
 
 See [ROADMAP.md](ROADMAP.md), [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md).

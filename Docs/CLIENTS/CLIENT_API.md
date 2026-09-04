@@ -34,7 +34,7 @@ All of that stays in Jarvis Core.
 | attachments | private preview/view of owned ephemeral `message_attachments`; Desktop/Mobile reuse the same entity |
 | storage | owner persistent `stored_files`; upload / list / preview / download / rename / delete; not Admin |
 | streaming | token / typing / speaking events (`TBD` transport) |
-| voice sessions | open/close on a `conversation_id`; audio in/out; barge-in |
+| voice sessions | open/close on a `conversation_id`; audio in/out; barge-in; same `VoiceRuntimeService` as Web |
 | tool confirmation | pending summary/preview; confirm / cancel |
 | reminders | list/status if needed; create remains a conversation tool |
 | projects | list / context via Core (owner) |
@@ -53,7 +53,28 @@ Client does not send platform prompts or pick a vendor. Core resolves Owner Conv
 
 Idempotency: client send key + existing `channel_message_id` rules. `TBD`.
 
-Realtime transport: SSE / WebSocket / WebRTC — `TBD` by practical test. See [VOICE_ARCHITECTURE.md](../VOICE_ARCHITECTURE.md).
+Realtime transport: SSE / WebSocket / WebRTC — still `TBD` for native streaming. M23 Web Voice uses HTTP JSON (create session, POST utterance blob, poll/GET events). Domain events are transport-neutral. See [VOICE_ARCHITECTURE.md](../VOICE_ARCHITECTURE.md).
+
+---
+
+## Voice sessions (future versioned Client API)
+
+Desktop/Mobile must reuse `VoiceRuntimeService`. Do not put runtime logic in a Web controller.
+
+Suggested v1 equivalents of current Owner Workspace session routes:
+
+| Method | Web (M23, session auth) | Client API (later) |
+| --- | --- | --- |
+| POST | `/jarvis/chats/{conversation}/voice/sessions` | `/api/v1/conversations/{id}/voice/sessions` |
+| GET | `/jarvis/voice/sessions/{session}` | `/api/v1/voice/sessions/{public_id}` |
+| POST | `/jarvis/voice/sessions/{session}/listen` | `/api/v1/voice/sessions/{public_id}/listen` |
+| POST | `/jarvis/voice/sessions/{session}/audio` | `/api/v1/voice/sessions/{public_id}/audio` |
+| POST | `/jarvis/voice/sessions/{session}/interrupt` | `/api/v1/voice/sessions/{public_id}/interrupt` |
+| POST | `/jarvis/voice/sessions/{session}/mute` | `/api/v1/voice/sessions/{public_id}/mute` |
+| POST | `/jarvis/voice/sessions/{session}/resume` | `/api/v1/voice/sessions/{public_id}/resume` |
+| DELETE | `/jarvis/voice/sessions/{session}` | `/api/v1/voice/sessions/{public_id}` |
+
+Auth: ownership (`user_id` + conversation ownership), never UUID alone. Same safe error codes as [VOICE_ARCHITECTURE.md](../VOICE_ARCHITECTURE.md).
 
 ---
 

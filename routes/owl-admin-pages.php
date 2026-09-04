@@ -6,6 +6,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\Jarvis\JarvisAttachmentController;
 use App\Http\Controllers\Jarvis\JarvisConfirmationController;
 use App\Http\Controllers\Jarvis\JarvisStorageController;
+use App\Http\Controllers\Jarvis\JarvisVoiceController;
 use App\Http\Controllers\Jarvis\JarvisWorkspaceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\Settings\SettingsController;
 use App\Http\Controllers\Settings\TelegramSettingsController;
 use App\Http\Controllers\Settings\UserController as SettingsUserController;
 use App\Http\Controllers\Settings\UserMemoryController;
+use App\Http\Controllers\Settings\VoiceSettingsController;
 use App\Http\Controllers\Settings\WebResearchSettingsController;
 use App\Http\Controllers\TelegramGroupController;
 use App\Http\Controllers\TelegramWebhookController;
@@ -69,6 +71,29 @@ Route::middleware(['web', 'auth', 'user.active', 'owner.workspace'])->group(func
     Route::delete('/jarvis/storage/{file}', [JarvisStorageController::class, 'destroy'])->name('jarvis.storage.destroy');
     Route::get('/jarvis/storage/{file}/download', [JarvisStorageController::class, 'download'])->name('jarvis.storage.download');
     Route::patch('/jarvis/settings/general-prompt', [JarvisWorkspaceController::class, 'updateGeneralPrompt'])->name('jarvis.settings.prompt.update');
+    Route::post('/jarvis/chats/{conversation}/voice/sessions', [JarvisVoiceController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('jarvis.voice.sessions.store');
+    Route::get('/jarvis/voice/sessions/{session}', [JarvisVoiceController::class, 'show'])
+        ->name('jarvis.voice.sessions.show');
+    Route::post('/jarvis/voice/sessions/{session}/listen', [JarvisVoiceController::class, 'listen'])
+        ->middleware('throttle:60,1')
+        ->name('jarvis.voice.sessions.listen');
+    Route::post('/jarvis/voice/sessions/{session}/audio', [JarvisVoiceController::class, 'audio'])
+        ->middleware('throttle:30,1')
+        ->name('jarvis.voice.sessions.audio');
+    Route::post('/jarvis/voice/sessions/{session}/interrupt', [JarvisVoiceController::class, 'interrupt'])
+        ->middleware('throttle:60,1')
+        ->name('jarvis.voice.sessions.interrupt');
+    Route::post('/jarvis/voice/sessions/{session}/mute', [JarvisVoiceController::class, 'mute'])
+        ->middleware('throttle:60,1')
+        ->name('jarvis.voice.sessions.mute');
+    Route::post('/jarvis/voice/sessions/{session}/resume', [JarvisVoiceController::class, 'resume'])
+        ->middleware('throttle:60,1')
+        ->name('jarvis.voice.sessions.resume');
+    Route::delete('/jarvis/voice/sessions/{session}', [JarvisVoiceController::class, 'destroy'])
+        ->middleware('throttle:20,1')
+        ->name('jarvis.voice.sessions.destroy');
 });
 
 Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'owner']))->group(function () {
@@ -133,6 +158,12 @@ Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'ow
         ->name('settings.web-research.tavily-key');
     Route::post('/settings/web-research/tavily-key/clear', [WebResearchSettingsController::class, 'clearTavilyKey'])
         ->name('settings.web-research.tavily-key.clear');
+    Route::post('/settings/voice', [VoiceSettingsController::class, 'update'])
+        ->name('settings.voice.update');
+    Route::post('/settings/voice/elevenlabs-key', [VoiceSettingsController::class, 'saveElevenLabsKey'])
+        ->name('settings.voice.elevenlabs-key');
+    Route::post('/settings/voice/elevenlabs-key/clear', [VoiceSettingsController::class, 'clearElevenLabsKey'])
+        ->name('settings.voice.elevenlabs-key.clear');
     Route::post('/settings/telegram/check', [TelegramSettingsController::class, 'check'])
         ->name('settings.telegram.check');
     Route::post('/settings/telegram/set-webhook', [TelegramSettingsController::class, 'setWebhook'])

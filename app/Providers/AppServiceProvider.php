@@ -63,6 +63,10 @@ use App\Services\Tools\Storage\SearchStorageFilesTool;
 use App\Services\Tools\ToolRegistry;
 use App\Services\Tools\WebResearch\FetchWebPageTool;
 use App\Services\Tools\WebResearch\SearchWebTool;
+use App\Services\Voice\Contracts\SpeechToTextProvider;
+use App\Services\Voice\Contracts\TextToSpeechProvider;
+use App\Services\Voice\SpeechToTextManager;
+use App\Services\Voice\TextToSpeechManager;
 use App\Services\WebResearch\Contracts\WebSearchProvider;
 use App\Services\WebResearch\WebSearchManager;
 use Illuminate\Support\Facades\Gate;
@@ -79,6 +83,14 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->bind(WebSearchProvider::class, function ($app): WebSearchProvider {
             return $app->make(WebSearchManager::class)->activeProvider();
+        });
+
+        $this->app->bind(SpeechToTextProvider::class, function ($app): SpeechToTextProvider {
+            return $app->make(SpeechToTextManager::class)->activeProvider();
+        });
+
+        $this->app->bind(TextToSpeechProvider::class, function ($app): TextToSpeechProvider {
+            return $app->make(TextToSpeechManager::class)->activeProvider();
         });
 
         $this->app->singleton(ToolRegistry::class, function ($app): ToolRegistry {

@@ -103,7 +103,7 @@ Internal content is provider-neutral: `AiChatMessage` + `AiContentPart` (`text` 
 - usage/latency;
 - ошибки.
 
-Speech: [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Voice использует **тот же** conversation config своего space.
+Speech: [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Voice uses **the same** conversation AI config of that space. STT/TTS provider selection does not change Owner Conversation AI. OpenAI Whisper STT, if enabled, uses the OpenAI credential only for `/audio/transcriptions`, never `ConversationAiService` / `chat()`.
 
 ---
 
@@ -119,3 +119,5 @@ Owner Settings → AI:
 Runtime **не** читает `is_active`.
 
 Gemini Google Search (Web Research) reuses the same Gemini `ai_provider_settings` credential. It is **not** a second AI role and **not** Conversation Engine `chat()`. See [WEB_RESEARCH.md](WEB_RESEARCH.md).
+
+Voice STT/TTS are separate ports (`SpeechToTextProvider` / `TextToSpeechProvider`). They must not be folded into `AiChatGateway`.

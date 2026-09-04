@@ -352,9 +352,11 @@ Privileged действия: просмотр user/chats, impersonation, сме�
 
 Сессии кабинета и приложений: auth token/device, last seen. Отдельный permission context от admin session. Impersonation — отдельная сессия/флаг, не пароль user. Не хранят копию памяти.
 
-### voice_sessions
+### voice_sessions / voice_settings (M23)
 
-Phase 3: связь с conversation, состояние listening/speaking, provider refs. Аудиофайлы как blob — `TBD` (лучше объектное хранилище, не обязательно в Phase 3 MVP).
+IMPLEMENTED. Additive. `voice_sessions`: `public_id` UUID unique, `user_id`, `conversation_id`, `origin` (`web|desktop|mobile`), `status` (connecting/idle/listening/transcribing/thinking/speaking/interrupted/muted/error/ended), nullable `stt_provider` / `tts_provider`, `started_at`, `last_activity_at`, `ended_at`, `error_code`, bounded `metadata` JSON. Indexes: user_id, conversation_id, status, started_at.
+
+`voice_settings`: singleton Admin STT/TTS selection, spoken-style toggle, encrypted `elevenlabs_api_key`, optional voice id. No `voice_messages`, `voice_memories`, or `raw_audio_archive`. Raw audio is ephemeral on the private disk. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
 
 ### reminders
 

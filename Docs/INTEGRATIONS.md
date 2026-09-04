@@ -51,12 +51,13 @@ Telegram integration card never writes `integration_accounts.credentials_encrypt
 
 Owner-only (`/settings?tab=integrations`, also `/settings/integrations`). Subsections:
 
-- **Overview** — Google / GitHub / ElevenLabs account cards; compact tiles that open Telegram, Web Research, and Activity.
+- **Overview** — Google / GitHub / ElevenLabs status cards; compact tiles that open Telegram, Web Research, Voice/Speech, and Activity.
 - **Web Research** — provider, enablement, limits, Tavily key. Not on the overview form.
+- **Voice / Speech** — STT provider, TTS provider, configured/not configured, ElevenLabs key status. Not Conversation AI. No Test Connection. No plaintext secrets.
 - **Telegram** — bot token and webhook. Legacy `?tab=telegram` opens this subsection.
 - **Activity** — Recent Tool Executions (time, tool, provider, status, duration, safe error code; no arguments/result bodies). Limit `config/integrations.php` `recent_executions_limit` (50). Retention TBD.
 
-Cards: Google (Connect / Reconnect / Disconnect / Enable Calendar / Enable Gmail; Identity vs Calendar vs Gmail capability states; Not configured if env missing), GitHub (Connect / Reconnect / Disconnect; login; scopes; Not configured if env missing), ElevenLabs (voice later, no API key form). Connected Google is not automatically Gmail-enabled. No Gmail inbox admin UI. No GitHub PAT field. GitHub card does not call GitHub on page load.
+Cards: Google (Connect / Reconnect / Disconnect / Enable Calendar / Enable Gmail; Identity vs Calendar vs Gmail capability states; Not configured if env missing), GitHub (Connect / Reconnect / Disconnect; login; scopes; Not configured if env missing), ElevenLabs (configured status from Voice settings; no key on the overview card). Connected Google is not automatically Gmail-enabled. No Gmail inbox admin UI. No GitHub PAT field. GitHub card does not call GitHub on page load.
 
 Normal user: 403. No Cabinet Integrations section.
 
@@ -116,7 +117,7 @@ Core does not know Google token field names. Envelope is provider-specific insid
 | `confirm_tool_action` | write (core) | null (only when a pending confirmation exists) |
 | `cancel_tool_action` | write (core) | null (only when a pending confirmation exists) |
 
-Calendar tools require capability `google_calendar` (owner). Gmail tools require capability `gmail` (owner). GitHub tools require capability `github` (owner). Definitions stay available when disconnected; runtime returns `google_not_connected` / `calendar_scope_required` / `gmail_scope_required` / `github_not_connected` / `github_scope_required`. Normal users do not receive Calendar, Gmail, or GitHub tools. Voice tools are not registered.
+Calendar tools require capability `google_calendar` (owner). Gmail tools require capability `gmail` (owner). GitHub tools require capability `github` (owner). Definitions stay available when disconnected; runtime returns `google_not_connected` / `calendar_scope_required` / `gmail_scope_required` / `github_not_connected` / `github_scope_required`. Normal users do not receive Calendar, Gmail, or GitHub tools. Voice is a conversation modality, not a tool.
 
 `ToolExecutionService` wraps every execute: resolve → capability → confirmation policy → log → run → finalize. Multi-step loop is unchanged (max 5 rounds).
 
@@ -350,9 +351,13 @@ Safe errors: `github_not_connected`, `github_scope_required`, `github_repository
 
 Owner-only capability `web_research`. Tools `search_web` and `fetch_web_page`. Search goes through `WebSearchManager` → `WebSearchProvider` (`gemini_google` / `tavily` / `disabled`). Admin: Settings → Integrations → Web Research. Runtime uses `WebResearchSettingsService` (DB → env/config → defaults, then hard ceilings). `gemini_google` uses the existing Gemini credential in `ai_provider_settings` (Google Search grounding for **discovery** only). Tavily remains an alternative; encrypted Admin key with `WEB_SEARCH_API_KEY` fallback. Fetch is always SSRF-guarded `WebPageFetchService`, never Gemini grounding. Disabled search → `web_search_disabled`. Fetch off → `web_fetch_disabled`. Secrets never returned to Inertia. Workspace shows read-only provider status only. Full spec: [WEB_RESEARCH.md](WEB_RESEARCH.md).
 
-### ElevenLabs
+### ElevenLabs / Voice Speech (M23)
 
-Voice later. Identity or Calendar or Gmail connected ≠ voice ready.
+Admin: Settings → Integrations → Voice/Speech. TTS adapter `ElevenLabsTextToSpeechProvider`. Encrypted key on `voice_settings` (env `ELEVENLABS_API_KEY` fallback). Overview ElevenLabs card shows configured/not configured only. Selecting TTS/STT does **not** change Owner Conversation AI. No live Test Connection. Telephony is not implemented.
+
+STT: `SpeechToTextProvider` + Null; optional OpenAI Whisper adapter using the existing OpenAI AI-provider credential (transcriptions API, not chat). Default STT is `none`. Gemini-as-STT is M23.1.
+
+See [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
 
 ---
 

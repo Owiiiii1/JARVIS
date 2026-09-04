@@ -29,6 +29,7 @@ use App\Services\Tools\CreateReminderTool;
 use App\Services\Tools\ToolConfirmationService;
 use App\Services\Tools\ToolExecutionContext;
 use App\Services\Tools\ToolRegistry;
+use App\Services\Voice\VoiceSettingsService;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -56,6 +57,7 @@ final class ConversationAiService
         private readonly ContextBudgetManager $contextBudgets,
         private readonly ToolResultBudgetManager $toolResultBudgets,
         private readonly ContextDiagnosticsLogger $contextLogs,
+        private readonly VoiceSettingsService $voiceSettings,
     ) {}
 
     public function completeUserTurn(Message $inbound): ConversationAiTurnResult
@@ -90,7 +92,7 @@ final class ConversationAiService
             user: $inbound->user ?? $inbound->conversation->user,
             conversation: $inbound->conversation,
             inbound: $inbound,
-            applicationEvent: null,
+            applicationEvent: $this->voicePresentationHint($inbound),
         );
     }
 
@@ -538,6 +540,19 @@ final class ConversationAiService
         }
 
         return $updatedAt->gt(now()->subSeconds(self::PENDING_STALE_SECONDS));
+    }
+
+    private function voicePresentationHint(Message $inbound): ?string
+    {
+        $modality = $inbound->metadata['modality'] ?? null;
+
+        if ($modality !== 'voice' || ! $this->voiceSettings->spokenStyleEnabled()) {
+            return null;
+        }
+
+        $hint = $this->voiceSettings->spokenStyleHint();
+
+        return $hint !== '' ? $hint : null;
     }
 
     private function processingStatus(Message $inbound): ?string

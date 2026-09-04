@@ -149,7 +149,15 @@ LLM здесь не участвует, если администратор пр
 
 ## Голос
 
-Тот же User Space, тот же selected `conversation_id`, тот же Conversation Engine, тот же AI config space, одна memory. Нет отдельных voice memories и нет auto-created voice chat. Transport/STT/TTS/`TBD` практикой. Runtime: [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Orb UI: [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
+Тот же User Space, тот же selected `conversation_id`, тот же Conversation Engine (`ConversationTurnService`), тот же AI config space, одна memory. Нет отдельных voice memories и нет auto-created voice chat.
+
+`VoiceRuntimeService` → `ConversationTurnService` → `ConversationAiService`. Direct LLM from Voice Runtime is forbidden.
+
+Final STT transcript = ordinary user `messages` row (`channel=web`, `metadata.modality=voice`, `voice_session_public_id`). Assistant reply = ordinary assistant row. Interrupt after persist does not delete the assistant message (`voice_playback_interrupted`).
+
+Voice uses the same User General Prompt plus an optional bounded spoken-style presentation hint. Same tools and confirmation policy. Same `ContextBudgetManager`: long voice sessions cannot grow an unbounded prompt because transcripts are normal messages.
+
+Runtime: [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Orb UI: [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
 
 ---
 

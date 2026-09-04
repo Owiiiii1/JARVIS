@@ -1,12 +1,10 @@
 # Voice UI
 
-**Status.** DOCUMENTED ONLY. Not implemented.
-
-Voice **UI** ≠ Voice **Runtime**.
+**Status.** M23: CSS state visualization + runtime controls in Owner Workspace. Final 3D Orb is **M24**. Voice **UI** ≠ Voice **Runtime**.
 
 | Layer | Owns |
 | --- | --- |
-| Voice Runtime | audio transport, STT, TTS, realtime provider — [VOICE_ARCHITECTURE.md](../VOICE_ARCHITECTURE.md) |
+| Voice Runtime | sessions, STT, TTS, events — [VOICE_ARCHITECTURE.md](../VOICE_ARCHITECTURE.md) |
 | Voice UI | Orb, transcript, controls, visualization state |
 
 A speech vendor can change without rewriting the Orb.
@@ -17,22 +15,42 @@ A speech vendor can change without rewriting the Orb.
 
 Voice Mode is a mode of the selected conversation on Web Workspace, Desktop, and Mobile. Not a separate User Space. Not a human avatar.
 
-Center of Voice Mode: an animated **3D Orb** — the visual representation of Jarvis.
+M23 Web: `/jarvis/chats/{id}` Text/Voice toggle. Voice uses **that** `conversation_id`. Switching Voice → Text ends the voice session and keeps the same thread (transcripts already persisted as ordinary messages).
 
 ---
 
-## Orb states
+## M23 Workspace client
+
+Component: `VoiceSession`. Replaces the M22 placeholder.
+
+- Start Voice (user gesture → microphone permission; never on page load)
+- End
+- Mute / resume
+- session state
+- current/final transcript
+- assistant text
+- basic audio playback when TTS bytes are returned
+- dynamic MediaRecorder MIME detection; unsupported-browser state
+- simple CSS orb (`.jarvis-orb` + state class). Not Three.js.
+
+Microphone capture starts only after Start Voice.
+
+---
+
+## Orb states (runtime + future Orb)
 
 - idle
 - connecting
 - listening
+- transcribing
 - thinking
 - speaking
 - interrupted
 - error
 - muted
+- ended
 
-### Behaviour
+M24 target motion (not implemented now):
 
 | State | Motion |
 | --- | --- |
@@ -43,45 +61,19 @@ Center of Voice Mode: an animated **3D Orb** — the visual representation of Ja
 | barge-in | speaking snaps to listening |
 | connecting / error / muted | distinct, calm, readable |
 
-Reduced-motion fallback is required later.
+Reduced-motion fallback exists for the CSS orb; Three.js reduced-motion is later.
 
 ---
 
-## Visual identity
+## Visual identity (M24)
 
-Desired style:
+Desired style: dark cinematic interface; translucent / glass / plasma sphere; waveform / energy lines; glow; audio-reactive movement. Do **not** copy Siri literally.
 
-- dark cinematic interface
-- translucent / glass / plasma sphere
-- many thin waveform / energy lines
-- lines deform around and inside the sphere
-- glow / bloom
-- subtle particles
-- audio-reactive movement
-
-Do **not** copy Siri literally. Final Orb must be a **Jarvis** identity.
-
-Reference directions (concepts only — do not copy assets or code):
-
-- Siri-style audio-reactive orb / wave
-- assistant-ui Orb
-- orb-ui voice agent UI
-- voiceorbs Nebula / Waveform Ring / Liquid Metal
-- Three.js + GLSL realtime audio-reactive orb write-ups
+Web / Desktop tech for M24: Three.js / WebGL, custom GLSL, Web Audio analyser. Visualization is **not** bound to a voice provider.
 
 ---
 
-## Web / Desktop tech
-
-- Three.js / WebGL
-- custom GLSL shaders
-- Web Audio analyser
-
-Visualization is **not** bound to a voice provider.
-
----
-
-## Input contract
+## Input contract (future Orb)
 
 ```
 VoiceVisualizationState
@@ -92,18 +84,7 @@ VoiceVisualizationState
   connectionState
 ```
 
-Runtime (ElevenLabs / OpenAI / Gemini / other) maps audio and session status into this struct. UI reads only this struct.
-
----
-
-## Controls (minimum later)
-
-- mute / unmute
-- end session
-- switch to text (same conversation)
-- interrupt affordance if barge-in fails
-
-Transcript is live and persisted as final text in `messages` when the turn commits. Partial hypotheses may show in UI only (`TBD`).
+M23 exposes `state` from `voice_sessions.status`. Amplitude/frequency are placeholders until M24.
 
 ---
 
@@ -112,3 +93,4 @@ Transcript is live and persisted as final text in `messages` when the turn commi
 - Implementing Three.js / Flutter Orb
 - Shipping shaders
 - Binding a live analyser to production
+- Telephony UI
