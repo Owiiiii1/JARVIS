@@ -11,7 +11,7 @@ import {
     takePendingMicrophoneStream,
 } from '@/voice/audio/voiceMedia';
 import { VoiceTurnDetector } from '@/voice/audio/VoiceTurnDetector';
-import { VOICE_TURN_DETECTION } from '@/voice/audio/voiceTurnDetection';
+import { VOICE_TURN_DETECTION, maybeLogVoiceVad } from '@/voice/audio/voiceTurnDetection';
 import VoiceDemoDrawer from '@/voice/components/VoiceDemoDrawer';
 import { isVoiceDemoEnabled } from '@/voice/demo';
 import { prefersReducedMotion } from '@/voice/visualization/capabilities';
@@ -183,7 +183,7 @@ export default function VoiceSession({
     const capturingRef = useRef(false);
     const visualOnlyRef = useRef(false);
     const analyserRef = useRef(null);
-    const vadRef = useRef(new VoiceTurnDetector());
+    const vadRef = useRef(null);
     const statusRef = useRef('connecting');
     const demoStateRef = useRef(null);
     const mutedRef = useRef(false);
@@ -214,7 +214,7 @@ export default function VoiceSession({
         setUnsupported(! browserSupported());
         mimeRef.current = pickRecorderMime(voiceClient.recorder_mime_candidates);
         analyserRef.current = new VoiceAudioAnalyzer();
-        vadRef.current = new VoiceTurnDetector();
+        vadRef.current = new VoiceTurnDetector({ maxUtteranceMs });
         endingRef.current = false;
         const gen = ++genRef.current;
 
@@ -268,7 +268,7 @@ export default function VoiceSession({
             runVad(now, analysis.rawInputRms ?? analysis.inputAmplitude);
 
             if (capturingRef.current && recordStartedAt.current && now - recordStartedAt.current >= maxUtteranceMs) {
-                if (vadRef.current.speechDetected) {
+                if (vadRef.current?.speechDetected) {
                     finalizeCapture('max_utterance');
                 } else {
                     recycleCapture();
@@ -328,6 +328,7 @@ export default function VoiceSession({
                 return;
             }
             const result = vadRef.current.tick(rms, now, 'barge-in');
+            maybeLogVoiceVad(result);
             if (result.event === 'barge_in') {
                 bargeLockRef.current = true;
                 handleInterrupt({ fromVad: true });
@@ -343,6 +344,7 @@ export default function VoiceSession({
         }
 
         const result = vadRef.current.tick(rms, now, 'listen');
+        maybeLogVoiceVad(result);
         if (result.event === 'end_of_turn' || result.event === 'max_utterance') {
             finalizeCapture(result.event);
         } else if (result.event === 'recycle') {

@@ -1,6 +1,6 @@
 # Голосовая архитектура
 
-**Status.** IMPLEMENTED / NOT VALIDATED (M23 Voice Runtime Foundation + M23.2 Gemini STT + M24 Voice UI / Orb + **M24.1 hands-free VAD**, 2026-09-04). M25U.1/M25U.2 expose the same runtime to ordinary users with capability `voice` via `/chat/.../voice/sessions` (aliases of the same controller as `/jarvis/...`). Sessions are authorized by `session.user_id` **and** `conversation.user_id` (`VoiceRuntimeService::ownedSession`); public_id is not sufficient. Disabled users cannot start a session. Automated tests not run. No live STT/TTS/AI. Telephony is out of scope.
+**Status.** IMPLEMENTED / NOT VALIDATED (M23 Voice Runtime Foundation + M23.2 Gemini STT + M24 Voice UI / Orb + **M24.1 hands-free VAD** + **M24.1.1 silence hotfix**, 2026-09-04). Owner live-tested M24.1: mic/Orb reacted but Listening never ended. Root cause: visual RMS gain leaked into VAD and ambient energy stayed above a single bootstrap threshold. Hotfix: unamplified VAD metric, noise calibration, start/end hysteresis. Owner must live-test next. No live STT/TTS/AI in this hotfix. Telephony is out of scope.
 
 Voice is a **modality** over an existing conversation. It is not a second Jarvis, second memory, second User Space, or a special voice chat.
 
@@ -74,6 +74,8 @@ TTS playback ends → listening + fresh recorder/VAD
 ```
 
 No push-to-talk. No continuous vendor stream. No wake word. Mute discards unsent audio and disables the mic track. Switching conversation while Voice is active ends the old session without uploading pending audio, then starts a new session for the new `conversation_id` if Voice mode remains selected.
+
+M24.1.1 VAD: each listen cycle calibrates ambient RMS (~650ms) without dropping MediaRecorder pre-roll. Detection uses unamplified `rawInputRms`; Orb visualization uses a separate `* 3.2` gain. Speech starts above `startThreshold`, silence/end uses a lower `endThreshold` (hysteresis). `endSilenceMs` stays 850. `?voice_debug=1` for throttled metrics.
 
 MIME: `VoiceAudioMime` canonicalizes `audio/webm;codecs=opus` → `audio/webm`. Upload filename matches the container (`utterance.webm` / `.ogg` / `.m4a`). Workspace `voiceClient.recorder_mime_candidates` is the intersection of browser recorder types and the active STT provider allowlist.
 

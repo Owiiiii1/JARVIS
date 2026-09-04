@@ -1,3 +1,4 @@
+import { VISUAL_RMS_GAIN } from './voiceTurnDetection.js';
 import { getSharedAudioContext, resumeSharedAudioContext } from './voiceMedia';
 
 export function emptyBands() {
@@ -125,7 +126,7 @@ export class VoiceAudioAnalyzer {
         this.outputSource = null;
     }
 
-    rms(analyser, timeBytes) {
+    physicalRms(analyser, timeBytes) {
         if (! analyser || ! timeBytes) {
             return 0;
         }
@@ -138,7 +139,11 @@ export class VoiceAudioAnalyzer {
             sum += v * v;
         }
 
-        return Math.min(1, Math.sqrt(sum / timeBytes.length) * 3.2);
+        return Math.min(1, Math.sqrt(sum / timeBytes.length));
+    }
+
+    visualRms(physical) {
+        return Math.min(1, physical * VISUAL_RMS_GAIN);
     }
 
     bandsFrom(analyser, freqBytes) {
@@ -160,15 +165,18 @@ export class VoiceAudioAnalyzer {
     }
 
     tick() {
-        const rawInputRms = this.rms(this.inputAnalyser, this.timeIn);
-        const outputRms = this.rms(this.outputAnalyser, this.timeOut);
-        this.inputAmplitude = smooth(this.inputAmplitude, rawInputRms, 0.38, 0.08);
-        this.outputAmplitude = smooth(this.outputAmplitude, outputRms, 0.34, 0.1);
+        const rawInputRms = this.physicalRms(this.inputAnalyser, this.timeIn);
+        const rawOutputRms = this.physicalRms(this.outputAnalyser, this.timeOut);
+        const visualInput = this.visualRms(rawInputRms);
+        const visualOutput = this.visualRms(rawOutputRms);
+        this.inputAmplitude = smooth(this.inputAmplitude, visualInput, 0.38, 0.08);
+        this.outputAmplitude = smooth(this.outputAmplitude, visualOutput, 0.34, 0.1);
         this.frequencyBands = this.bandsFrom(this.inputAnalyser, this.freqIn);
         this.outputBands = this.bandsFrom(this.outputAnalyser, this.freqOut);
 
         return {
             inputAmplitude: this.inputAmplitude,
+            visualInputAmplitude: this.inputAmplitude,
             rawInputRms,
             outputAmplitude: this.outputAmplitude,
             frequencyBands: this.frequencyBands,

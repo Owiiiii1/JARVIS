@@ -2164,6 +2164,16 @@
 
 ---
 
+## ADR-234 — VAD uses calibrated hysteresis, not a visual RMS gain
+
+**Контекст.** Owner live M24.1: Voice stayed Listening. Ambient microphone RMS (after `* 3.2` visual gain) sat above `speechThresholdMin`. `adaptNoise` only ran below that threshold, so the floor never learned. In `speech_active`, `level >= threshold` cleared `silenceStartedAt` forever.
+
+**Решение.** VAD uses unamplified `rawInputRms`. Orb keeps a separate visual gain. Each listen cycle calibrates ambient (~650ms) without stopping MediaRecorder. Speech starts above `startThreshold`; end-of-turn uses a lower `endThreshold`. `endSilenceMs` remains 850.
+
+**Следствие.** Constant room noise becomes baseline. Short pauses still do not end a turn. `?voice_debug=1` is for the next live tuning.
+
+---
+
 ## ADR-227 — Assistant personalization is separate from General Prompt
 
 **Контекст.** Concatenating onboarding into `general_prompt` loses structured identity, status, and header name.

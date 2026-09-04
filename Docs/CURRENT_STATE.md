@@ -13,7 +13,7 @@ This document describes **what exists on the server now**. Target architecture i
 
 **PLANNED / DOCUMENTED ONLY (not implemented):** versioned Client API; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch; telephony. Do not treat these as shipped.
 
-M23 Voice Runtime Foundation, M23.2 Gemini STT, M24 Voice UI / Orb, and M24.1 hands-free VAD are **IMPLEMENTED / NOT VALIDATED** (no live STT/TTS/AI).
+M23 Voice Runtime Foundation, M23.2 Gemini STT, M24 Voice UI / Orb, and M24.1 hands-free VAD are **IMPLEMENTED**. Owner live-tested M24.1: Listening did not end (ambient RMS vs bootstrap threshold). **M24.1.1 silence hotfix** is in code; Owner must live-test next. No live STT/TTS/AI in the hotfix.
 
 M25U.1/M25U.2 **core user workflow** is **MANUAL PASS** for Owner-confirmed production scenarios only: Admin-created ordinary user; login; `/chat`; basic requests. Not claimed: A/B IDOR campaign, Voice, reminders panel, onboarding (those last two are M25U.3, not live-validated).
 
@@ -62,9 +62,9 @@ Owner-only production confirmation. No automated tests. No new live test runs in
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | (this commit: `feat: add assistant onboarding and reminders panel`) |
-| Previous origin/main | `7d9c83f990f95415b60d3fd8e7e33f27bd9b4f95` |
-| Message | previous: `feat: add hands free voice turn detection` (M24.1 already on main; not reverted) |
+| HEAD | (this commit: `fix: improve voice activity silence detection`) |
+| Previous origin/main | `de7d57915eac1b7951343c7df39255e3da96a52d` |
+| Message | previous: `feat: add assistant onboarding and reminders panel` (M25U.3; M24.1 ancestor `7d9c83f` not reverted) |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 | Working tree (at audit start) | clean |
 | Uncommitted / untracked | none (before this file) |
@@ -819,7 +819,9 @@ See [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md), [Development/Cursor_Work_Report.
 
 ### Milestone 24.1 — Hands-Free Voice + VAD + MIME — IMPLEMENTED / NOT VALIDATED (2026-09-04)
 
-Push-to-talk removed. Text→Voice auto-starts. One mic = mute. Local VAD (850ms end silence). Canonical MIME + matching filename. `resume` → idle, then one `listen`. After TTS → listening. Barge-in implemented conservatively (echo cancellation + stronger threshold + guard). TESTS NOT RUN. NO LIVE STT/TTS/AI.
+Push-to-talk removed. Text→Voice auto-starts. One mic = mute. Local VAD (850ms end silence). Canonical MIME + matching filename. `resume` → idle, then one `listen`. After TTS → listening. Barge-in implemented conservatively (echo cancellation + stronger threshold + guard).
+
+**Live bug (Owner, M24.1):** mic and Orb reacted; Listening never ended after a pause. Cause: `VoiceAudioAnalyzer.rms()` `* 3.2` leaked into VAD; ambient RMS stayed above `speechThresholdMin`; `speech_active` reset silence forever. **Hotfix M24.1.1:** unamplified `rawInputRms`, ~650ms noise calibration, start/end hysteresis. TESTS NOT RUN. NO LIVE STT/TTS/AI. Owner must live-test next.
 
 See [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md), [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
 

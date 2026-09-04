@@ -1,6 +1,6 @@
 # Voice UI
 
-**Status.** M24 Orb + **M24.1 hands-free VAD** IMPLEMENTED / NOT VALIDATED (2026-09-04). M23.2 Gemini STT is Admin infrastructure; the Orb/Workspace UI stays provider-neutral. M25U.1: same Three.js Orb on Owner `/jarvis` and User `/chat` Shared Personal Workspace. No live STT/TTS. Automated tests not run. Ordinary users do not see a Gemini vendor label. When STT/TTS are configured, the generic **Speech providers not configured** notice is not shown.
+**Status.** M24 Orb + **M24.1 hands-free VAD** IMPLEMENTED; **M24.1.1 silence-detection hotfix** (2026-09-04) after Owner live test: Voice stayed Listening because ambient RMS sat above the bootstrap threshold. Automated tests not run. No live STT/TTS in this hotfix. Owner must live-test next.
 
 Voice is hands-free turn-based conversation. No push-to-talk. Mic button = mute/unmute only. Local VAD decides end of turn. After TTS, listening resumes automatically.
 
@@ -82,7 +82,7 @@ Identity: cyan/steel precision core. Not a Siri rainbow clone. No OrbitControls.
 
 `VoiceAudioAnalyzer`: `connectInputStream`, `connectOutputAudio`, smoothed RMS plus raw RMS for VAD, frequency bands. Shared `AudioContext` is resumed on the Text→Voice gesture. Microphone stream lives for the session except mute/end/text/unmount. Analyser does **not** archive audio.
 
-VAD (`voiceTurnDetection.js` + `VoiceTurnDetector`): adaptive noise floor, speech onset ~200ms, end-of-turn silence 850ms, min speech 300ms. Short pauses do not split a sentence. No-speech audio is never sent to STT. During `speaking`, the recorder is not sending STT; barge-in uses a stronger threshold + post-TTS guard, then Interrupt + listen.
+VAD (`voiceTurnDetection.js` + `VoiceTurnDetector`): unamplified `rawInputRms` for detection (Orb uses separate visual gain 3.2). Short noise calibration (~650ms) on each listen cycle; start/end hysteresis vs noise floor; speech onset ~200ms; end-of-turn silence 850ms; min speech 300ms. Short pauses do not split a sentence. Ambient room noise becomes baseline, not perpetual speech. No-speech audio is never sent to STT. Hard max utterance still finalizes. During `speaking`, the recorder is not sending STT; barge-in uses a stronger calibrated threshold + post-TTS guard, then Interrupt + listen. `?voice_debug=1` throttles console.debug of RMS/thresholds/phase (no samples/transcripts).
 
 Listening can visualize the mic even when STT is not configured. Speaking visualization uses playback analyser when TTS audio exists; otherwise demo synthetic output energy (marked as demo, not fake TTS).
 
