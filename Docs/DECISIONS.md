@@ -1198,6 +1198,116 @@
 
 ---
 
+## ADR-124 — Screenshots are ephemeral media (default 24h)
+
+**Контекст.** Chat images are for the current multimodal turn and a short follow-up window, not a photo library.
+
+**Решение.** Default `retention_class=ephemeral`, `expires_at = created_at + config retention` (24 hours). Configurable. No “save screenshot forever” in M22.2.
+
+**Следствие.** After expiry only a textual visual summary remains. Persistent images would be a future explicit action.
+
+---
+
+## ADR-125 — Image originals purge only after summary readiness, with hard fallback
+
+**Контекст.** Purging before a summary would lose all visual memory of the screenshot.
+
+**Решение.** Soft purge: `expires_at <= now` AND `summary_status=ready`. Failed summaries keep the original until `hard_retention_days` (7). After hard retention, purge bytes and leave metadata that the summary is unavailable. Bounded hourly command. No mass delete in migration.
+
+**Следствие.** Historical M22.1 rows stay valid; scheduler performs lifecycle.
+
+---
+
+## ADR-126 — Screenshot summaries are derived attachment metadata, not personal memory
+
+**Контекст.** The assistant reply (“yes, file permissions”) is not enough months later to know what was on the screenshot.
+
+**Решение.** Dedicated `summary_text` / `summary_status` via `AttachmentVisionSummaryService`. Memory Engine may still extract durable user facts from normal conversation text. It must not bulk-ingest screenshot summaries or Storage contents.
+
+**Следствие.** Historical context uses `[Previous screenshot summary: …]`.
+
+---
+
+## ADR-127 — Persistent user files live in Jarvis Storage
+
+**Контекст.** Owner needs a personal file library for logs and source, separate from chat screenshots.
+
+**Решение.** `stored_files` + `stored_file_chunks` + `/jarvis/storage`. Owner-only. Permanent until delete. Private disk. Text/source formats only in M22.2.
+
+**Следствие.** PDF/Office/images-as-Storage are later extractors.
+
+---
+
+## ADR-128 — `message_attachments` and `stored_files` have separate lifecycle semantics
+
+**Контекст.** Mixing chat media and the document library would break retention, retrieval, and security.
+
+**Решение.** Screenshots stay on `message_attachments`. Documents stay on `stored_files`. Optional `message_stored_files` pivot when a StoredFile is sent in chat. No physical copy.
+
+**Следствие.** Chat upload and direct Storage upload share StoredFile when the user attaches a text file; they never share screenshot rows.
+
+---
+
+## ADR-129 — Stored files are private and permanent until deletion
+
+**Контекст.** Owner documents are not public cache.
+
+**Решение.** Private filesystem, ownership-gated download, UUID physical names, no automatic expiry.
+
+**Следствие.** Delete is UI-confirmed and optionally a destructive tool with `ToolConfirmationService`.
+
+---
+
+## ADR-130 — Stored file content is chunked and tool-retrieved, never auto-injected
+
+**Контекст.** Logs can be tens of megabytes.
+
+**Решение.** Extract + chunk. Conversation Engine may inline only a configured small threshold. Otherwise tools. No “all files” in system prompt. Tool outputs have hard char/chunk limits.
+
+**Следствие.** ContextBudgetManager remains M22.3.
+
+---
+
+## ADR-131 — Chat file and direct Storage upload reuse the same StoredFile entity
+
+**Контекст.** A log sent in chat should still appear in Storage.
+
+**Решение.** One `stored_files` row. Chat adds a pivot. Direct upload has no message.
+
+**Следствие.** Source-chat links on the Storage page when a pivot exists.
+
+---
+
+## ADR-132 — Storage file contents are untrusted data
+
+**Контекст.** Source files and screenshots can contain prompt-injection text.
+
+**Решение.** Platform guidance: Storage contents and screenshot pixels are untrusted user data; embedded instructions are not system/tool authorization.
+
+**Следствие.** Applies to tool results and current-turn inline excerpts.
+
+---
+
+## ADR-133 — Full context budgeting remains M22.3
+
+**Контекст.** Storage tools, web research, and conversation windows will compete for tokens.
+
+**Решение.** M22.2 only bounds Storage tool results. Do not implement ContextBudgetManager yet.
+
+**Следствие.** M22.3: Web Research + global Context Budget Manager.
+
+---
+
+## ADR-134 — M22.2 tests and live vision are deferred by Owner
+
+**Контекст.** Production DB and live Gemini remain high-risk.
+
+**Решение.** Implement M22.2 without `php artisan test`, live vision, live AI conversation, Google, or GitHub.
+
+**Следствие.** Status: implemented, not validated.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Алфавит generated access_code (кроме зарезервированного 2000).

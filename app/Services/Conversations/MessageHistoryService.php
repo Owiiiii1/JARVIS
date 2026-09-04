@@ -6,6 +6,7 @@ use App\Enums\MessageRole;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Services\ChatAttachments\ChatAttachmentPresenter;
+use App\Services\Storage\StoredFileService;
 
 final class MessageHistoryService
 {
@@ -14,6 +15,7 @@ final class MessageHistoryService
     public function __construct(
         private readonly ConversationContextBuilder $contextBuilder,
         private readonly ChatAttachmentPresenter $attachments,
+        private readonly StoredFileService $storedFiles,
     ) {}
 
     /**
@@ -24,7 +26,7 @@ final class MessageHistoryService
         $limit = max(1, min(100, $limit));
 
         $query = Message::query()
-            ->with('attachments')
+            ->with(['attachments', 'storedFiles'])
             ->where('conversation_id', $conversation->id)
             ->orderByDesc('occurred_at')
             ->orderByDesc('id');
@@ -111,6 +113,7 @@ final class MessageHistoryService
                 ]
                 : null,
             'attachments' => $this->attachments->forMessage($message),
+            'stored_files' => $this->storedFiles->cardsForMessage($message),
             'status' => 'completed',
         ];
     }

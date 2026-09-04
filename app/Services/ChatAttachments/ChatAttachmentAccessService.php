@@ -48,6 +48,10 @@ final class ChatAttachmentAccessService
 
     public function stream(MessageAttachment $attachment, bool $thumbnail = false): StreamedResponse
     {
+        if ($attachment->isPurged() || $attachment->storage_path === '') {
+            abort(404);
+        }
+
         $path = $thumbnail ? ($attachment->thumbnailPath() ?? $attachment->storage_path) : $attachment->storage_path;
         $disk = Storage::disk($attachment->storage_disk);
 

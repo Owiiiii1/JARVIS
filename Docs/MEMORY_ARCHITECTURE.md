@@ -34,6 +34,11 @@ Derived memory — производный слой. Это позволяет:
 
 **Принцип:** raw messages никогда не удаляются автоматически из-за появления summary или extracted memory. Политика retention (юридическая, ручная очистка) — отдельное решение, `TBD`, и не смешивается с lifecycle derived-слоя.
 
+Отдельный слой, не personal memory:
+
+- **Ephemeral media summaries** — `message_attachments.summary_text`. Derived visual metadata so Jarvis can remember what a screenshot showed after the original is purged. Not bulk-ingested into `memories`.
+- **Persistent Storage** — `stored_files` + chunks. Owner document library. Retrieval via tools. Never auto-injected into conversation context. See [STORAGE.md](STORAGE.md).
+
 ---
 
 ## Типы памяти

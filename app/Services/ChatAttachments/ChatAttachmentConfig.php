@@ -28,6 +28,7 @@ final class ChatAttachmentConfig
                 ? array_values(array_map(static fn ($type): string => (string) $type, $types))
                 : [],
             'accept' => self::filePickerAccept(),
+            'retention_hours' => self::retentionHours(),
             'thumbnail' => [
                 'max_width' => (int) config('chat_attachments.thumbnail.max_width', 320),
                 'max_height' => (int) config('chat_attachments.thumbnail.max_height', 320),
@@ -123,5 +124,42 @@ final class ChatAttachmentConfig
     public static function thumbnailQuality(): int
     {
         return max(40, min(95, (int) config('chat_attachments.thumbnail.quality', 82)));
+    }
+
+    public static function defaultRetentionClass(): string
+    {
+        $value = (string) config('chat_attachments.retention_class', 'ephemeral');
+
+        return $value !== '' ? $value : 'ephemeral';
+    }
+
+    public static function retentionHours(): int
+    {
+        return max(1, (int) config('chat_attachments.retention_hours', 24));
+    }
+
+    public static function hardRetentionDays(): int
+    {
+        return max(1, (int) config('chat_attachments.hard_retention_days', 7));
+    }
+
+    public static function purgeBatch(): int
+    {
+        return max(1, min(200, (int) config('chat_attachments.purge_batch', 50)));
+    }
+
+    public static function summaryMaxChars(): int
+    {
+        return max(200, min(4000, (int) config('chat_attachments.summary_max_chars', 1200)));
+    }
+
+    public static function summaryQueue(): string
+    {
+        return (string) config('chat_attachments.summary_queue', 'memory');
+    }
+
+    public static function summaryMaxAttempts(): int
+    {
+        return max(1, (int) config('chat_attachments.summary_max_attempts', 3));
     }
 }

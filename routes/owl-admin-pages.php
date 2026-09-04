@@ -5,6 +5,7 @@ use App\Http\Controllers\CabinetController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\Jarvis\JarvisAttachmentController;
 use App\Http\Controllers\Jarvis\JarvisConfirmationController;
+use App\Http\Controllers\Jarvis\JarvisStorageController;
 use App\Http\Controllers\Jarvis\JarvisWorkspaceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
@@ -60,6 +61,12 @@ Route::middleware(['web', 'auth', 'user.active', 'owner.workspace'])->group(func
     Route::get('/jarvis/chats/{conversation}/attachments/{attachment}', [JarvisAttachmentController::class, 'show'])->name('jarvis.attachments.show');
     Route::post('/jarvis/confirmations/{confirmation}/confirm', [JarvisConfirmationController::class, 'confirm'])->name('jarvis.confirmations.confirm');
     Route::post('/jarvis/confirmations/{confirmation}/cancel', [JarvisConfirmationController::class, 'cancel'])->name('jarvis.confirmations.cancel');
+    Route::get('/jarvis/storage', [JarvisStorageController::class, 'index'])->name('jarvis.storage.index');
+    Route::post('/jarvis/storage', [JarvisStorageController::class, 'store'])->name('jarvis.storage.store');
+    Route::get('/jarvis/storage/{file}', [JarvisStorageController::class, 'show'])->name('jarvis.storage.show');
+    Route::patch('/jarvis/storage/{file}', [JarvisStorageController::class, 'update'])->name('jarvis.storage.update');
+    Route::delete('/jarvis/storage/{file}', [JarvisStorageController::class, 'destroy'])->name('jarvis.storage.destroy');
+    Route::get('/jarvis/storage/{file}/download', [JarvisStorageController::class, 'download'])->name('jarvis.storage.download');
     Route::patch('/jarvis/settings/general-prompt', [JarvisWorkspaceController::class, 'updateGeneralPrompt'])->name('jarvis.settings.prompt.update');
 });
 

@@ -5,7 +5,9 @@ import { Link, router, useForm, usePage } from '@inertiajs/react';
 import {
     Bell,
     Check,
+    FileText,
     FolderKanban,
+    HardDrive,
     Loader2,
     Menu,
     MessageSquarePlus,
@@ -75,6 +77,41 @@ const BLOCKED_CLIENT_MIMES = [
     'application/zip',
 ];
 
+function isDesktopPointer() {
+    return typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+}
+
+function focusComposer(textarea, { forceDesktopOnly = true } = {}) {
+    if (!textarea || textarea.disabled) {
+        return;
+    }
+
+    if (forceDesktopOnly && !isDesktopPointer()) {
+        return;
+    }
+
+    textarea.focus({ preventScroll: true });
+}
+
+function formatBytes(bytes) {
+    const value = Number(bytes || 0);
+
+    if (value < 1024) {
+        return `${value} B`;
+    }
+
+    if (value < 1024 * 1024) {
+        return `${(value / 1024).toFixed(1)} KB`;
+    }
+
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function fileExtension(name) {
+    const parts = String(name || '').toLowerCase().split('.');
+
+    return parts.length > 1 ? parts.pop() : '';
+}
 function isAllowedClientImage(file) {
     const mime = normalizeImageMime(file?.type);
 
@@ -82,7 +119,19 @@ function isAllowedClientImage(file) {
         return false;
     }
 
-    return true;
+    return Boolean(file) && (mime.startsWith('image/') || mime === '');
+}
+
+function isStorageTextFile(file, allowedExtensions = []) {
+    const ext = fileExtension(file?.name);
+
+    if (ext && allowedExtensions.includes(ext)) {
+        return true;
+    }
+
+    const mime = String(file?.type || '').toLowerCase();
+
+    return mime.startsWith('text/') || mime === 'application/json' || mime === 'application/xml';
 }
 
 function withStatus(message, status = 'completed') {
@@ -155,16 +204,23 @@ export default function JarvisWorkspace() {
         owlAdmin = {},
         flash = {},
         chatAttachments = null,
+        jarvisStorage = null,
     } = usePage().props;
 
     const timezone = user.timezone || undefined;
-    const acceptTypes = chatAttachments?.accept
+    const imageAccept = chatAttachments?.accept
         ? `${chatAttachments.accept},image/*`
         : 'image/*,.jpg,.jpeg,.png,.webp';
+    const storageAccept = jarvisStorage?.accept || '';
+    const acceptTypes = [imageAccept, storageAccept].filter(Boolean).join(',');
     const maxImages = Number(chatAttachments?.max_images_per_message || 0);
     const maxFileBytes = Number(chatAttachments?.max_file_size_mb || 0) * 1024 * 1024;
     const maxTotalBytes = Number(chatAttachments?.max_total_upload_mb || 0) * 1024 * 1024;
+    const maxStorageFiles = Number(jarvisStorage?.max_files_per_upload || 8);
+    const maxStorageBytes = Number(jarvisStorage?.max_file_size_mb || 20) * 1024 * 1024;
+    const storageExtensions = jarvisStorage?.allowed_extensions || [];
     const allowedMimes = chatAttachments?.allowed_mime_types || [];
+    const retentionHours = Number(chatAttachments?.retention_hours || 24);
     const brandName = owlAdmin?.brand_name ?? 'Jarvis';
     const [mode, setMode] = useState('text');
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -186,6 +242,7 @@ export default function JarvisWorkspace() {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const scrollerRef = useRef(null);
     const fileInputRef = useRef(null);
+    const composerRef = useRef(null);
     const shouldStickToBottom = useRef(true);
     const pendingFilesRef = useRef([]);
 
@@ -247,6 +304,12 @@ export default function JarvisWorkspace() {
             });
         };
     }, []);
+
+    useEffect(() => {
+        if (!sending) {
+            focusComposer(composerRef.current, { forceDesktopOnly: true });
+        }
+    }, [sending]);
 
     useEffect(() => {
         if (!shouldStickToBottom.current || !scrollerRef.current) {
@@ -329,13 +392,38 @@ export default function JarvisWorkspace() {
             let message = '';
 
             incoming.forEach((file) => {
-                if (next.length >= maxImages) {
+                const asStorage = isStorageTextFile(file, storageExtensions) && !String(file.type || '').startsWith('image/');
+
+                if (asStorage) {
+                    if (next.filter((item) => item.kind === 'file').length >= maxStorageFiles) {
+                        message = `Можно прикрепить не больше ${maxStorageFiles} файлов.`;
+                        return;
+                    }
+
+                    if (file.size > maxStorageBytes) {
+                        message = `Файл больше ${jarvisStorage.max_file_size_mb} МБ.`;
+                        return;
+                    }
+
+                    next.push({
+                        id: `local-${newClientId()}`,
+                        kind: 'file',
+                        file,
+                        name: file.name || 'file',
+                        mime: file.type,
+                        size: file.size,
+                    });
+
+                    return;
+                }
+
+                if (next.filter((item) => item.kind !== 'file').length >= maxImages) {
                     message = `Можно прикрепить не больше ${maxImages} изображений.`;
                     return;
                 }
 
                 if (!isAllowedClientImage(file)) {
-                    message = 'Этот тип файла не принимается. Нужны PNG, JPEG или WebP.';
+                    message = 'Нужны изображения PNG/JPEG/WebP или текстовый файл для Storage.';
                     return;
                 }
 
@@ -344,15 +432,16 @@ export default function JarvisWorkspace() {
                     return;
                 }
 
-                const total = next.reduce((sum, item) => sum + item.file.size, 0) + file.size;
+                const total = next.filter((item) => item.kind !== 'file').reduce((sum, item) => sum + item.file.size, 0) + file.size;
 
                 if (total > maxTotalBytes) {
-                    message = `Суммарный размер вложений больше ${chatAttachments.max_total_upload_mb} МБ.`;
+                    message = `Суммарный размер изображений больше ${chatAttachments.max_total_upload_mb} МБ.`;
                     return;
                 }
 
                 next.push({
                     id: `local-${newClientId()}`,
+                    kind: 'image',
                     file,
                     url: URL.createObjectURL(file),
                     name: file.name || 'image',
@@ -379,6 +468,7 @@ export default function JarvisWorkspace() {
 
             return current.filter((item) => item.id !== id);
         });
+        focusComposer(composerRef.current, { forceDesktopOnly: true });
     };
 
     const handleClipboardPaste = (event) => {
@@ -424,14 +514,25 @@ export default function JarvisWorkspace() {
             occurred_at: new Date().toISOString(),
             pending: true,
             status: 'pending',
-            attachments: pendingFiles.map((item) => ({
-                id: item.id,
-                kind: 'image',
-                mime_type: item.mime,
-                size_bytes: item.size,
-                preview_url: item.url,
-                view_url: item.url,
-            })),
+            attachments: pendingFiles
+                .filter((item) => item.kind !== 'file')
+                .map((item) => ({
+                    id: item.id,
+                    kind: 'image',
+                    mime_type: item.mime,
+                    size_bytes: item.size,
+                    preview_url: item.url,
+                    view_url: item.url,
+                    retention_class: 'ephemeral',
+                })),
+            stored_files: pendingFiles
+                .filter((item) => item.kind === 'file')
+                .map((item) => ({
+                    public_id: item.id,
+                    display_name: item.name,
+                    size_bytes: item.size,
+                    status: 'uploaded',
+                })),
         };
 
         shouldStickToBottom.current = true;
@@ -443,7 +544,13 @@ export default function JarvisWorkspace() {
         const form = new FormData();
         form.append('body', text);
         form.append('client_message_id', clientMessageId);
-        files.forEach((file) => form.append('images[]', file));
+        pendingFiles.forEach((item) => {
+            if (item.kind === 'file') {
+                form.append('files[]', item.file);
+            } else {
+                form.append('images[]', item.file);
+            }
+        });
 
         try {
             const response = await fetch(route('jarvis.messages.store', conversation.id), {
@@ -748,6 +855,14 @@ export default function JarvisWorkspace() {
                     <MessageSquarePlus className="h-4 w-4" />
                     New Chat
                 </button>
+                <Link
+                    href={route('jarvis.storage.index')}
+                    onClick={() => setSidebarOpen(false)}
+                    className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/10 px-3 text-sm font-semibold text-slate-200 hover:bg-white/5"
+                >
+                    <HardDrive className="h-4 w-4" />
+                    Storage
+                </Link>
                 <label className="mt-3 flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
                     <Search className="h-3.5 w-3.5 text-slate-500" />
                     <input
@@ -981,6 +1096,7 @@ export default function JarvisWorkspace() {
                                             message={message}
                                             time={formatWhen(message.occurred_at, timezone)}
                                             sending={sending}
+                                            retentionHours={retentionHours}
                                             onOpenImage={setLightbox}
                                             onConfirm={() => resolveConfirmation(message.pending_confirmation?.id, true)}
                                             onCancel={() => resolveConfirmation(message.pending_confirmation?.id, false)}
@@ -1011,18 +1127,37 @@ export default function JarvisWorkspace() {
                                 {pendingFiles.length > 0 ? (
                                     <div className="mb-2 flex flex-wrap gap-2">
                                         {pendingFiles.map((item) => (
-                                            <div key={item.id} className="relative h-16 w-16 overflow-hidden rounded-xl ring-1 ring-white/15">
-                                                <img src={item.url} alt="" className="h-full w-full object-cover" />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removePendingFile(item.id)}
-                                                    className="absolute right-0.5 top-0.5 rounded-full bg-black/70 p-0.5 text-white"
-                                                    aria-label="Remove attachment"
-                                                    disabled={sending}
-                                                >
-                                                    <X className="h-3 w-3" />
-                                                </button>
-                                            </div>
+                                            item.kind === 'file' ? (
+                                                <div key={item.id} className="relative flex h-16 min-w-[9rem] items-center gap-2 rounded-xl bg-white/5 px-3 ring-1 ring-white/15">
+                                                    <FileText className="h-4 w-4 text-sky-300" />
+                                                    <div className="min-w-0">
+                                                        <p className="truncate text-xs text-white">{item.name}</p>
+                                                        <p className="text-[10px] text-slate-400">{formatBytes(item.size)} · Storage</p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removePendingFile(item.id)}
+                                                        className="absolute right-0.5 top-0.5 rounded-full bg-black/70 p-0.5 text-white"
+                                                        aria-label="Remove attachment"
+                                                        disabled={sending}
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div key={item.id} className="relative h-16 w-16 overflow-hidden rounded-xl ring-1 ring-white/15">
+                                                    <img src={item.url} alt="" className="h-full w-full object-cover" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removePendingFile(item.id)}
+                                                        className="absolute right-0.5 top-0.5 rounded-full bg-black/70 p-0.5 text-white"
+                                                        aria-label="Remove attachment"
+                                                        disabled={sending}
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                </div>
+                                            )
                                         ))}
                                     </div>
                                 ) : null}
@@ -1048,9 +1183,10 @@ export default function JarvisWorkspace() {
                                         <Paperclip className="h-4 w-4" />
                                     </button>
                                     <textarea
+                                        ref={composerRef}
                                         value={draft}
                                         rows={1}
-                                        placeholder="Сообщение или Ctrl+V для скрина"
+                                        placeholder="Сообщение, файл или Ctrl+V для скрина"
                                         disabled={sending}
                                         onChange={(event) => setDraft(event.target.value)}
                                         onPaste={handleClipboardPaste}
@@ -1149,7 +1285,10 @@ export default function JarvisWorkspace() {
             {lightbox ? (
                 <div
                     className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4"
-                    onClick={() => setLightbox(null)}
+                    onClick={() => {
+                        setLightbox(null);
+                        focusComposer(composerRef.current, { forceDesktopOnly: true });
+                    }}
                 >
                     <img
                         src={lightbox.view_url || lightbox.preview_url}
@@ -1159,7 +1298,10 @@ export default function JarvisWorkspace() {
                     />
                     <button
                         type="button"
-                        onClick={() => setLightbox(null)}
+                        onClick={() => {
+                            setLightbox(null);
+                            focusComposer(composerRef.current, { forceDesktopOnly: true });
+                        }}
                         className="absolute right-4 top-4 rounded-lg bg-black/60 p-2 text-white"
                         aria-label="Close image"
                     >
@@ -1193,7 +1335,7 @@ function Modal({ title, onClose, children }) {
     );
 }
 
-function Bubble({ message, time, sending = false, onConfirm, onCancel, onOpenImage }) {
+function Bubble({ message, time, sending = false, onConfirm, onCancel, onOpenImage, retentionHours = 24 }) {
     if (message.kind === 'error' || message.status === 'failed') {
         return (
             <div className="mx-auto max-w-xl rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-center text-sm text-rose-200">
@@ -1225,19 +1367,43 @@ function Bubble({ message, time, sending = false, onConfirm, onCancel, onOpenIma
                 {Array.isArray(message.attachments) && message.attachments.length > 0 ? (
                     <div className={`mt-2 flex flex-wrap gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
                         {message.attachments.map((attachment) => (
-                            <button
-                                key={attachment.id}
-                                type="button"
-                                onClick={() => onOpenImage?.(attachment)}
-                                className="h-20 w-20 overflow-hidden rounded-xl ring-1 ring-white/15"
-                                aria-label="Open image"
+                            attachment.purged ? (
+                                <ExpiredScreenshotCard key={attachment.id} attachment={attachment} />
+                            ) : (
+                                <button
+                                    key={attachment.id}
+                                    type="button"
+                                    onClick={() => onOpenImage?.(attachment)}
+                                    className="overflow-hidden rounded-xl ring-1 ring-white/15"
+                                    aria-label="Open image"
+                                >
+                                    <img
+                                        src={attachment.preview_url || attachment.view_url}
+                                        alt=""
+                                        className="h-20 w-20 object-cover"
+                                    />
+                                    <p className="max-w-[10rem] px-2 py-1 text-[10px] text-slate-400">
+                                        Temporary image · expires in ~{retentionHours}h
+                                    </p>
+                                </button>
+                            )
+                        ))}
+                    </div>
+                ) : null}
+                {Array.isArray(message.stored_files) && message.stored_files.length > 0 ? (
+                    <div className={`mt-2 flex flex-wrap gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
+                        {message.stored_files.map((file) => (
+                            <Link
+                                key={file.public_id}
+                                href={route('jarvis.storage.show', file.public_id)}
+                                className="flex min-w-[10rem] items-center gap-2 rounded-xl bg-black/20 px-3 py-2 ring-1 ring-emerald-400/20"
                             >
-                                <img
-                                    src={attachment.preview_url || attachment.view_url}
-                                    alt=""
-                                    className="h-full w-full object-cover"
-                                />
-                            </button>
+                                <FileText className="h-4 w-4 text-emerald-300" />
+                                <div className="min-w-0">
+                                    <p className="truncate text-xs text-white">{file.display_name}</p>
+                                    <p className="text-[10px] text-emerald-200/80">Saved to Storage · {formatBytes(file.size_bytes)}</p>
+                                </div>
+                            </Link>
                         ))}
                     </div>
                 ) : null}
@@ -1245,6 +1411,29 @@ function Bubble({ message, time, sending = false, onConfirm, onCancel, onOpenIma
                 {pending?.id && !mine ? <ConfirmationCard pending={pending} sending={sending} onConfirm={onConfirm} onCancel={onCancel} /> : null}
                 <p className={`mt-1 text-[11px] ${mine ? 'text-sky-200/70' : 'text-slate-500'}`}>{time}</p>
             </div>
+        </div>
+    );
+}
+
+function ExpiredScreenshotCard({ attachment }) {
+    const [open, setOpen] = useState(false);
+    const summary = String(attachment.summary_text || '').trim();
+
+    return (
+        <div className="max-w-[16rem] rounded-xl bg-black/30 px-3 py-2 ring-1 ring-white/10">
+            <p className="text-xs font-medium text-slate-200">Screenshot expired</p>
+            {summary ? (
+                <>
+                    <p className={`mt-1 text-[11px] text-slate-400 ${open ? '' : 'line-clamp-3'}`}>{summary}</p>
+                    {summary.length > 120 ? (
+                        <button type="button" onClick={() => setOpen((value) => !value)} className="mt-1 text-[11px] text-sky-300">
+                            {open ? 'Collapse' : 'Expand'}
+                        </button>
+                    ) : null}
+                </>
+            ) : (
+                <p className="mt-1 text-[11px] text-slate-500">Screenshot expired; visual summary unavailable.</p>
+            )}
         </div>
     );
 }

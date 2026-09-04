@@ -109,21 +109,52 @@ Raw history. Закладывается в Phase 1 и **не ломается** 
 
 ### message_attachments
 
-Core attachment entity (M22.1). Generic `kind` (images first: `image`; later files/audio). **No raw bytes in DB.**
+Core ephemeral chat media (M22.1 images; M22.2 lifecycle). Generic `kind` (`image` first). **No raw bytes in DB.**
 
 - `message_id` → `messages`
 - `user_id` (owner of the conversation)
 - `kind`
-- `storage_disk` / `storage_path` (private disk, random filename)
+- `retention_class` (default `ephemeral`; future `persistent` possible — do not hardcode image==ephemeral everywhere)
+- `expires_at` nullable
+- `summary_status` `pending|processing|ready|failed|not_required`
+- `summary_text` / `summarized_at` — dedicated visual summary, not the assistant reply
+- `purged_at` / `purge_failure_count`
+- `storage_disk` / `storage_path` (private disk, random filename; cleared after purge)
 - `original_name` sanitized nullable
 - `mime_type`, `size_bytes`, `width`/`height` nullable
 - `sha256` optional
 - `metadata` JSON bounded (thumbnail path)
 - timestamps
 
-Access only via authenticated ownership routes. Not the public disk. Retention TBD.
+Access only via authenticated ownership routes. Not the public disk.
+
+Default screenshot retention: 24h (`config/chat_attachments.php`). Purge originals only when summary is `ready` **or** after hard retention (7 days). DB row remains. See [STORAGE.md](STORAGE.md).
 
 Telegram photos later can insert the same rows. Desktop/Mobile reuse the same table.
+
+### stored_files
+
+Owner persistent Storage (M22.2). **Not** `message_attachments`. Raw bytes on private disk, never in DB. No automatic expiry.
+
+- `user_id`, `public_id` UUID
+- `original_name` / `display_name` / `normalized_name`
+- `mime_type`, `extension`, `size_bytes`, `sha256`
+- `storage_disk` / `storage_path`
+- `status` `uploaded|processing|ready|failed|deleted`
+- `extracted_chars`, `chunk_count`, `summary` (structural, not required for search)
+- `client_upload_id` nullable unique per user (retry idempotency)
+- `metadata` bounded JSON
+- `uploaded_at`, `processed_at`, `deleted_at`
+
+Indexes: `(user_id, status, uploaded_at)`, `(user_id, normalized_name)`.
+
+### stored_file_chunks
+
+Extracted text windows. Unique `(stored_file_id, chunk_index)`. Retrieval source for Storage tools.
+
+### message_stored_files
+
+Optional pivot: one StoredFile may be attached to a chat message without copying bytes. Unique `(message_id, stored_file_id)`. Direct `/jarvis/storage` uploads have no pivot.
 
 ### channels (справочник или enum)
 

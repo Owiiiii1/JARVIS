@@ -635,7 +635,33 @@ Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
 **Зависимости:** M22, M4.
 
-После M22.1 — M23 Voice Runtime Foundation.
+После M22.1 — M22.2 Persistent Storage + ephemeral screenshots.
+
+---
+
+## Milestone 22.2 — Persistent Storage + Ephemeral Screenshots + Workspace UX
+
+**Статус.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live vision / AI / Google / GitHub.
+
+**Цель.** Screenshots remain current-turn + short-lived media with a derived visual summary; owner gets a permanent textual Storage library with chunked retrieval tools; desktop composer keeps focus.
+
+**Реализовано.** Attachment lifecycle columns; 24h/7d retention; `AttachmentVisionSummaryService`; `jarvis:attachments:purge-ephemeral`; `stored_files` + chunks + pivot; `/jarvis/storage`; chat `files[]`; Storage tools; composer focus helper. See [STORAGE.md](STORAGE.md).
+
+**Не входит:** PDF/Office; screenshot library; ContextBudgetManager; user-role Storage; tests/live vision.
+
+**Зависимости:** M22.1.
+
+После M22.2 — M22.3 Web Research + Context Budget Manager.
+
+---
+
+## Milestone 22.3 — Web Research + Context Budget Manager
+
+**Статус.** PLANNED.
+
+**Цель.** Bounded web research tools plus a global Context Budget Manager that covers conversation, memory, Storage tool results, and research excerpts. M22.2 only hard-bounds Storage tools.
+
+После M22.3 — M23 Voice Runtime Foundation.
 
 ---
 

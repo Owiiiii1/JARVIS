@@ -88,9 +88,11 @@ normalize
 
 Sync retrieve: current recent + summaries + compact memory. Тяжёлый raw-on-demand и group hierarchical analysis — tool/job, не обязательный sync dump.
 
-Web Workspace may send multipart images with the user turn. Empty body is allowed when at least one image is present. Image files are **not** personal memory. Telegram photo ingestion is not in M22.1; the same `message_attachments` rows can be created later.
+Web Workspace may send multipart images and persistent text files with the user turn. Empty body is allowed when at least one image or Storage file is present. Screenshots are ephemeral `message_attachments`. Text files become `stored_files` (optionally linked via `message_stored_files`). Neither screenshot bytes nor Storage contents are personal memory. Telegram photo ingestion is not in M22.2; the same attachment rows can be created later.
 
-Vision context: current inbound image bytes only. Historical attachments become a short text placeholder, not replayed pixels. ADR-118.
+Vision context: current inbound image bytes only, and only while not purged. Historical attachments become a short screenshot summary placeholder when ready (`[Previous screenshot summary: …]`), never replayed pixels. ADR-118 / ADR-124.
+
+Current-turn Storage files contribute compact metadata + a bounded excerpt when small. Large files are tool-retrieved (`list_storage_files`, `search_storage_file_contents`, `read_storage_file_chunks`). Storage is never auto-injected into every prompt. Content from screenshots and Storage is untrusted user data.
 
 ---
 

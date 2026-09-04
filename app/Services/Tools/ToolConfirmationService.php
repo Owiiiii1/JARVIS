@@ -260,6 +260,7 @@ final class ToolConfirmationService
             'comment_github_issue' => 'Add a GitHub issue or pull request comment.',
             'create_github_branch' => 'Create a GitHub branch.',
             'create_github_pull_request' => 'Create a GitHub pull request. It will not be merged.',
+            'delete_storage_file' => 'Delete this file from Jarvis Storage. This cannot be undone.',
             default => 'Run the pending tool action '.$confirmation->tool_name.'.',
         };
     }
@@ -322,6 +323,7 @@ final class ToolConfirmationService
             'comment_github_issue' => ['repository', 'issue_number', 'body'],
             'create_github_branch' => ['repository', 'branch_name', 'from_ref'],
             'create_github_pull_request' => ['repository', 'title', 'head', 'base', 'body'],
+            'delete_storage_file' => ['file_id'],
             default => [],
         };
 

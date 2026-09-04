@@ -37,9 +37,17 @@ return [
         'quality' => 82,
     ],
 
-    /*
-     | Retention of private chat images. TBD — do not auto-delete in M22.1.
-     */
-    'retention' => 'TBD',
+    'retention_class' => 'ephemeral',
 
+    'retention_hours' => (int) env('CHAT_ATTACHMENTS_RETENTION_HOURS', 24),
+
+    'hard_retention_days' => (int) env('CHAT_ATTACHMENTS_HARD_RETENTION_DAYS', 7),
+
+    'purge_batch' => (int) env('CHAT_ATTACHMENTS_PURGE_BATCH', 50),
+
+    'summary_max_chars' => (int) env('CHAT_ATTACHMENTS_SUMMARY_CHARS', 1200),
+
+    'summary_queue' => env('CHAT_ATTACHMENTS_SUMMARY_QUEUE', 'memory'),
+
+    'summary_max_attempts' => (int) env('CHAT_ATTACHMENTS_SUMMARY_ATTEMPTS', 3),
 ];

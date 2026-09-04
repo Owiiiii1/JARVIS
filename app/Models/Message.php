@@ -8,6 +8,7 @@ use App\Enums\MessageType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
@@ -69,6 +70,13 @@ class Message extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(MessageAttachment::class)->orderBy('id');
+    }
+
+    public function storedFiles(): BelongsToMany
+    {
+        return $this->belongsToMany(StoredFile::class, 'message_stored_files')
+            ->withPivot('attached_at')
+            ->withTimestamps();
     }
 
     public function telegramGroup(): BelongsTo

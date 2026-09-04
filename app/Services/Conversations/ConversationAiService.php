@@ -127,7 +127,7 @@ final class ConversationAiService
             $this->assertReady($configuration);
 
             if ($inbound !== null) {
-                $inbound->loadMissing('attachments');
+                $inbound->loadMissing(['attachments', 'storedFiles']);
             }
 
             if ($this->inboundHasImages($inbound) && ! $this->gateway->supportsVision($configuration)) {
@@ -421,7 +421,7 @@ final class ConversationAiService
         $inbound->loadMissing('attachments');
 
         foreach ($inbound->attachments as $attachment) {
-            if ($attachment->isImage()) {
+            if ($attachment->isImage() && ! $attachment->isPurged() && $attachment->storage_path !== '') {
                 return true;
             }
         }

@@ -82,7 +82,7 @@ Every tool execute goes through `ToolExecutionService`. Conversation Engine does
 
 `AiChatRequest` передаёт provider-neutral `ToolDefinition`. `AiChatResponse` возвращает text, zero or more `ToolCall`, finish reason, usage.
 
-**Gemini (production):** function calling обязателен — `tools.functionDeclarations`, `functionCall`, `functionResponse` обратно модели, затем natural-language answer. Conversation Engine не парсит Gemini JSON в ReminderService. M22.1: `supportsVision=true`. Current-turn images become Gemini `inlineData` only inside `GeminiClient`.
+**Gemini (production):** function calling обязателен — `tools.functionDeclarations`, `functionCall`, `functionResponse` обратно модели, затем natural-language answer. Conversation Engine не парсит Gemini JSON в ReminderService. `supportsVision=true`. Current-turn images become Gemini `inlineData` only inside `GeminiClient`. Attachment visual summaries use the same gateway + Owner Conversation config (vision-capable); they do not hardcode Gemini HTTP and do not change the Owner Analysis AI role.
 
 **OpenAI / Anthropic:** chat без tools. `supportsTools=false`. `supportsVision=false` in M22.1 — image turns return safe `vision_not_supported`. Do not silently drop images. Do not fake vision.
 

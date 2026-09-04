@@ -29,8 +29,9 @@ All of that stays in Jarvis Core.
 | --- | --- |
 | auth | login / refresh / device session / whoami / capabilities |
 | conversations | list / create / select / rename; same catalog as Telegram |
-| messages / turns | paged history; send turn → Conversation Engine; optional current-turn image attachments |
-| attachments | private preview/view of owned `message_attachments`; Desktop/Mobile reuse the same entity |
+| messages / turns | paged history; send turn → Conversation Engine; optional current-turn images and Storage files |
+| attachments | private preview/view of owned ephemeral `message_attachments`; Desktop/Mobile reuse the same entity |
+| storage | owner persistent `stored_files`; upload / list / preview / download / rename / delete; not Admin |
 | streaming | token / typing / speaking events (`TBD` transport) |
 | voice sessions | open/close on a `conversation_id`; audio in/out; barge-in |
 | tool confirmation | pending summary/preview; confirm / cancel |

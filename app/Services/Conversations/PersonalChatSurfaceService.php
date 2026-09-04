@@ -6,6 +6,7 @@ use App\Enums\MessageChannel;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Services\ChatAttachments\Exceptions\ChatAttachmentException;
+use App\Services\Storage\Exceptions\StoredFileException;
 use App\Services\Tools\ToolConfirmationService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\UploadedFile;
@@ -84,6 +85,7 @@ final class PersonalChatSurfaceService
 
     /**
      * @param  list<UploadedFile>  $files
+     * @param  list<UploadedFile>  $documents
      * @return array<string, mixed>
      */
     public function sendTurn(
@@ -92,6 +94,7 @@ final class PersonalChatSurfaceService
         string $body,
         string $clientMessageId,
         array $files = [],
+        array $documents = [],
     ): array {
         try {
             $turn = $this->turns->handleUserMessage(
@@ -103,12 +106,17 @@ final class PersonalChatSurfaceService
                     channelMessageId: $clientMessageId,
                 ),
                 $files,
+                $documents,
             );
         } catch (AuthorizationException) {
             abort(404);
         } catch (ChatAttachmentException $exception) {
             throw ValidationException::withMessages([
                 'images' => $exception->getMessage(),
+            ]);
+        } catch (StoredFileException $exception) {
+            throw ValidationException::withMessages([
+                'files' => $exception->getMessage(),
             ]);
         } catch (InvalidArgumentException $exception) {
             throw ValidationException::withMessages([

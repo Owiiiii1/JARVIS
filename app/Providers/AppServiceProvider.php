@@ -54,6 +54,12 @@ use App\Services\Tools\Google\SendGmailMessageTool;
 use App\Services\Tools\Google\UpdateCalendarEventTool;
 use App\Services\Tools\SearchConversationHistoryTool;
 use App\Services\Tools\SearchGroupKnowledgeTool;
+use App\Services\Tools\Storage\DeleteStorageFileTool;
+use App\Services\Tools\Storage\GetStorageFileTool;
+use App\Services\Tools\Storage\ListStorageFilesTool;
+use App\Services\Tools\Storage\ReadStorageFileChunksTool;
+use App\Services\Tools\Storage\SearchStorageFileContentsTool;
+use App\Services\Tools\Storage\SearchStorageFilesTool;
 use App\Services\Tools\ToolRegistry;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -108,6 +114,12 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(CommentGitHubIssueTool::class),
                 $app->make(CreateGitHubBranchTool::class),
                 $app->make(CreateGitHubPullRequestTool::class),
+                $app->make(ListStorageFilesTool::class),
+                $app->make(SearchStorageFilesTool::class),
+                $app->make(GetStorageFileTool::class),
+                $app->make(SearchStorageFileContentsTool::class),
+                $app->make(ReadStorageFileChunksTool::class),
+                $app->make(DeleteStorageFileTool::class),
                 $app->make(ConfirmToolActionTool::class),
                 $app->make(CancelToolActionTool::class),
             ]);

@@ -2,6 +2,7 @@
 
 namespace App\Services\ChatAttachments;
 
+use App\Enums\AttachmentSummaryStatus;
 use App\Models\Message;
 use App\Models\MessageAttachment;
 use App\Services\Ai\DTO\AiContentPart;
@@ -16,7 +17,7 @@ final class ChatAttachmentVisionLoader
      *
      * @return list<AiContentPart>
      */
-    public function currentTurnParts(Message $message): array
+    public function currentTurnParts(Message $message, string $extraText = ''): array
     {
         $message->loadMissing('attachments');
 
@@ -27,11 +28,17 @@ final class ChatAttachmentVisionLoader
             $parts[] = AiContentPart::text($body);
         }
 
+        $extra = trim($extraText);
+
+        if ($extra !== '') {
+            $parts[] = AiContentPart::text($extra);
+        }
+
         $budget = ChatAttachmentConfig::maxTotalUploadBytes();
         $used = 0;
 
         foreach ($message->attachments as $attachment) {
-            if (! $attachment instanceof MessageAttachment || ! $attachment->isImage()) {
+            if (! $attachment instanceof MessageAttachment || ! $attachment->isImage() || $attachment->isPurged()) {
                 continue;
             }
 
@@ -81,21 +88,52 @@ final class ChatAttachmentVisionLoader
     public function historicalPlaceholder(Message $message): ?string
     {
         $message->loadMissing('attachments');
-        $count = $message->attachments->filter(
+        $images = $message->attachments->filter(
             static fn (MessageAttachment $attachment): bool => $attachment->isImage(),
-        )->count();
+        );
 
-        if ($count === 0) {
+        if ($images->isEmpty()) {
             return null;
         }
 
-        return $count === 1
-            ? '[1 image attached]'
-            : '['.$count.' images attached]';
+        $lines = [];
+
+        foreach ($images as $attachment) {
+            $summary = trim((string) ($attachment->summary_text ?? ''));
+
+            if ($attachment->isPurged()) {
+                $lines[] = $summary !== ''
+                    ? '[Previous screenshot summary: '.$this->bounded($summary).']'
+                    : '[Previous screenshot summary unavailable]';
+
+                continue;
+            }
+
+            if ($attachment->summary_status === AttachmentSummaryStatus::Ready && $summary !== '') {
+                $lines[] = '[Previous screenshot summary: '.$this->bounded($summary).']';
+
+                continue;
+            }
+
+            $lines[] = '[1 image attached]';
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function bounded(string $text): string
+    {
+        $max = ChatAttachmentConfig::summaryMaxChars();
+
+        return mb_strlen($text) > $max ? mb_substr($text, 0, $max).'…' : $text;
     }
 
     private function readBytes(MessageAttachment $attachment): ?string
     {
+        if ($attachment->storage_path === '') {
+            return null;
+        }
+
         try {
             $contents = Storage::disk($attachment->storage_disk)->get($attachment->storage_path);
         } catch (Throwable) {

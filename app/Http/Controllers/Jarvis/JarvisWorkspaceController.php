@@ -7,6 +7,7 @@ use App\Models\UserAiSetting;
 use App\Services\ChatAttachments\ChatAttachmentConfig;
 use App\Services\Conversations\ConversationService;
 use App\Services\Conversations\PersonalChatSurfaceService;
+use App\Services\Storage\StoredFileConfig;
 use App\Services\Workspace\OwnerWorkspaceContextService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -50,6 +51,7 @@ class JarvisWorkspaceController extends Controller
             'oldestId' => $page['oldest_id'],
             'context' => $this->context->compact($user, $current),
             'chatAttachments' => ChatAttachmentConfig::publicLimits(),
+            'jarvisStorage' => StoredFileConfig::publicLimits(),
         ]);
     }
 
@@ -86,27 +88,39 @@ class JarvisWorkspaceController extends Controller
         $current = $this->chats->ensureOwned($user, $conversation);
         $maxImages = ChatAttachmentConfig::maxImagesPerMessage();
         $maxKilobytes = ChatAttachmentConfig::maxFileSizeKilobytes();
+        $maxFiles = StoredFileConfig::maxFilesPerUpload();
+        $maxFileKilobytes = StoredFileConfig::maxFileSizeKilobytes();
 
         $validated = $request->validate([
             'body' => ['nullable', 'string', 'max:8000'],
             'client_message_id' => ['required', 'uuid'],
             'images' => ['sometimes', 'array', 'max:'.$maxImages],
             'images.*' => ['file', 'max:'.$maxKilobytes],
+            'files' => ['sometimes', 'array', 'max:'.$maxFiles],
+            'files.*' => ['file', 'max:'.$maxFileKilobytes],
         ]);
 
-        $files = [];
+        $images = [];
 
         foreach ($request->file('images', []) as $file) {
             if ($file instanceof UploadedFile) {
-                $files[] = $file;
+                $images[] = $file;
+            }
+        }
+
+        $documents = [];
+
+        foreach ($request->file('files', []) as $file) {
+            if ($file instanceof UploadedFile) {
+                $documents[] = $file;
             }
         }
 
         $body = trim((string) ($validated['body'] ?? ''));
 
-        if ($body === '' && $files === []) {
+        if ($body === '' && $images === [] && $documents === []) {
             throw ValidationException::withMessages([
-                'body' => 'Нужен текст или хотя бы одно изображение.',
+                'body' => 'Нужен текст, изображение или файл.',
             ]);
         }
 
@@ -116,7 +130,8 @@ class JarvisWorkspaceController extends Controller
                 $current,
                 $body,
                 $validated['client_message_id'],
-                $files,
+                $images,
+                $documents,
             ),
         );
     }

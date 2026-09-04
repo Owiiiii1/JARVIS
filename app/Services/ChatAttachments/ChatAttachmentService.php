@@ -2,6 +2,9 @@
 
 namespace App\Services\ChatAttachments;
 
+use App\Enums\AttachmentRetentionClass;
+use App\Enums\AttachmentSummaryStatus;
+use App\Jobs\SummarizeMessageAttachmentJob;
 use App\Models\Message;
 use App\Models\MessageAttachment;
 use App\Models\User;
@@ -75,10 +78,13 @@ final class ChatAttachmentService
     public function linkToMessage(Message $message, array $stored): void
     {
         foreach ($stored as $item) {
-            MessageAttachment::query()->create([
+            $attachment = MessageAttachment::query()->create([
                 'message_id' => $message->id,
                 'user_id' => (int) $message->user_id,
                 'kind' => MessageAttachment::KIND_IMAGE,
+                'retention_class' => ChatAttachmentConfig::defaultRetentionClass(),
+                'expires_at' => now()->addHours(ChatAttachmentConfig::retentionHours()),
+                'summary_status' => AttachmentSummaryStatus::Pending,
                 'storage_disk' => $item->disk,
                 'storage_path' => $item->path,
                 'original_name' => $item->originalName,
@@ -89,6 +95,11 @@ final class ChatAttachmentService
                 'sha256' => $item->sha256,
                 'metadata' => $item->metadata,
             ]);
+
+            if ($attachment->retention_class === AttachmentRetentionClass::Ephemeral) {
+                SummarizeMessageAttachmentJob::dispatch((int) $attachment->id)
+                    ->onQueue(ChatAttachmentConfig::summaryQueue());
+            }
         }
 
         if ($stored !== []) {

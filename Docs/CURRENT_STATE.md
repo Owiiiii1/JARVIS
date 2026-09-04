@@ -9,7 +9,7 @@ This document describes **what exists on the server now**. Target architecture i
 
 ### Implemented vs planned (post-M22)
 
-**IMPLEMENTED (code/runtime, Google/GitHub/Workspace/vision not live-validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Owner Personal Workspace (`/jarvis`) including M22.1 image attachments + copyable artifacts; Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, Workspace conversational validation, and live vision calls are deferred by Owner.
+**IMPLEMENTED (code/runtime, Google/GitHub/Workspace/vision not live-validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Owner Personal Workspace (`/jarvis`) including M22.1 image attachments + copyable artifacts and M22.2 persistent Storage + ephemeral screenshots; Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, Workspace conversational validation, and live vision calls are deferred by Owner.
 
 **PLANNED / DOCUMENTED ONLY (not implemented):** versioned Client API; realtime Voice Runtime; Orb Voice UI; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch. Do not treat these as shipped.
 
@@ -31,8 +31,9 @@ Status vocabulary:
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | `7a1adc84b7a0601b0da82e162a165fa700f39227` |
-| Message | `Document multi-user cabinets, isolated memory, and role-based AI.` |
+| HEAD | (see latest `feat: add Jarvis persistent storage and ephemeral media`) |
+| Previous origin/main | `ac85b14759efae52cf79dbe8581fa25923a87991` |
+| Message | `feat: add Jarvis persistent storage and ephemeral media` |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 | Working tree (at audit start) | clean |
 | Uncommitted / untracked | none (before this file) |

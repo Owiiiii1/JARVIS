@@ -22,6 +22,7 @@ final class MemoryAnalysisPromptBuilder
             '- Do not invent user_id. Core assigns identity.',
             '- Extract only durable personal facts, preferences, relationships, project context, standing instructions, explicit "remember this", or changes to already known facts.',
             '- Ignore greetings, ok/thanks, one-off formatting, menu commands, most reminder requests, system/error rows, and temporary UI chatter.',
+            '- Do not ingest screenshot visual summaries, ephemeral image descriptions, or Storage file contents as personal memory unless the user explicitly asked to remember a durable fact.',
             '- Explicit memory intent such as "запомни" / "remember" should usually become a preference or fact with high confidence.',
             '- Temporary facts must include valid_until when the expiry is known. Do not treat them as eternal profile.',
             '- If a new fact replaces an old one, action=supersede and set supersede_normalized_key.',

@@ -34,6 +34,8 @@ final class UserCapability
 
     public const GITHUB = 'github';
 
+    public const STORAGE = 'storage';
+
     public const VOICE = 'voice';
 
     public const IMPERSONATION = 'impersonation';

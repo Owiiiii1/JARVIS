@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\AttachmentRetentionClass;
+use App\Enums\AttachmentSummaryStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +12,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'message_id',
     'user_id',
     'kind',
+    'retention_class',
+    'expires_at',
+    'summary_status',
+    'summary_text',
+    'summarized_at',
+    'purged_at',
+    'purge_failure_count',
     'storage_disk',
     'storage_path',
     'original_name',
@@ -33,7 +42,13 @@ class MessageAttachment extends Model
             'size_bytes' => 'integer',
             'width' => 'integer',
             'height' => 'integer',
+            'purge_failure_count' => 'integer',
             'metadata' => 'array',
+            'retention_class' => AttachmentRetentionClass::class,
+            'summary_status' => AttachmentSummaryStatus::class,
+            'expires_at' => 'datetime',
+            'summarized_at' => 'datetime',
+            'purged_at' => 'datetime',
         ];
     }
 
@@ -50,6 +65,11 @@ class MessageAttachment extends Model
     public function isImage(): bool
     {
         return $this->kind === self::KIND_IMAGE;
+    }
+
+    public function isPurged(): bool
+    {
+        return $this->purged_at !== null;
     }
 
     public function thumbnailPath(): ?string
