@@ -6,6 +6,7 @@ use App\Services\Voice\Contracts\SpeechToTextProvider;
 use App\Services\Voice\DTO\SpeechTranscript;
 use App\Services\Voice\DTO\VoiceAudioChunk;
 use App\Services\Voice\Exceptions\VoiceException;
+use App\Services\Voice\VoiceAudioMime;
 use App\Services\Voice\VoiceSettingsService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
@@ -86,13 +87,6 @@ final class OpenAiSpeechToTextProvider implements SpeechToTextProvider
 
     private function extension(string $mime): string
     {
-        return match (strtolower($mime)) {
-            'audio/mpeg', 'audio/mp3' => '.mp3',
-            'audio/wav', 'audio/x-wav' => '.wav',
-            'audio/ogg' => '.ogg',
-            'audio/mp4', 'audio/m4a' => '.m4a',
-            'audio/flac' => '.flac',
-            default => '.webm',
-        };
+        return VoiceAudioMime::dottedExtension($mime);
     }
 }

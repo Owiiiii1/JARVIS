@@ -1,8 +1,8 @@
-# Cursor Work Report — M25U.2 User Administration + Isolation Hardening
+# Cursor Work Report — M24.1 Hands-Free Voice + VAD + Audio Compatibility
 
 **Date:** 2026-09-04  
 **Repo:** `/var/www/jarvis` (`Owiiiii1/JARVIS`)  
-**Commit intent:** `feat: complete user administration and isolation controls`
+**Commit intent:** `feat: add hands free voice turn detection`
 
 ---
 
@@ -12,139 +12,146 @@
 | --- | --- |
 | `git fetch origin` | done |
 | Working tree at start | clean |
-| Local HEAD = `origin/main` | `00b54e06ca2df474a6258546cd5d17221f154f77` |
-| That commit | `feat: add Gemini speech to text provider` |
-| M23.2 Gemini STT already on main | **yes — not reverted, not overwritten** |
-| M25U.1 | `291e248693e93db04c8ff1f935ce27ad19535f79` `feat: add shared personal workspace for users` (ancestor of M23.2) |
-| Uncommitted leftover / other task | none |
+| `origin/main` HEAD | `72b4e3c010d58d7979c572b8f646f35d0a6f482e` |
+| That commit | `feat: complete user administration and isolation controls` (M25U.2) |
+| M25U.1 | present (ancestor) |
+| M23.2 Gemini STT | `00b54e06ca2df474a6258546cd5d17221f154f77` — **kept, not reverted** |
+| Uncommitted leftover | none |
 
-Production DB. No `migrate:fresh`. No truncate. No new migration (status, access_code, sessions already exist). Impersonation is session-only.
-
----
-
-## Pre-existing user admin state
-
-Already present before this milestone and reused:
-
-- `users.role` (`owner`/`user`), `users.status` (`active`/`disabled`), unique `access_code`, `AccessCodeGenerator` (skips `2000`, collision retry)
-- Owner-only `UserController` create/update/unlink/regenerate
-- `EnsureUserIsActive`, `LoginRequest` disabled check
-- `UserCapabilities` for regular users (chat/memory/telegram_dm/reminders/workspace/profile/web_research/voice/storage)
-- Isolation via `ConversationService::ensureOwned`, attachment/file/voice/memory/reminder `user_id` scopes
-- No `/register` route; pairing does not create users from unknown codes
-- Hard **delete** existed in UI/controller — converted to refuse + UI removed
-- Double-hash on create (`Hash::make` + `'password' => 'hashed'` cast) — fixed by assigning plaintext to the cast
-- Impersonation and User Card page did **not** exist
-- Already-linked Telegram could still hit AI when the user was disabled — blocked
+Production DB. No migrations. No destructive tests.
 
 ---
 
-## What shipped
+## Original two-microphone UX
 
-### Users catalog + create
+Primary mic: Start Voice / Start listening / Send utterance (push-to-talk).  
+Second mic: Mute/Unmute.
 
-Admin → Users is a Jarvis user catalog: name, email, role, status, Telegram yes/no, access code, chats/messages counts (`withCount`), last activity (derived), created at. Owner-only create: name, email, password+confirm, timezone; system `role=user`, `status=active`, generated access code. Redirect to User Card. Password never shown after save.
-
-### User Card
-
-`GET /settings/users/{user}` — Overview / Access / Chats / Memory. Profile (role read-only), usage counts, General Prompt on the same `user_ai_settings` row, read-only chat metadata, memory diagnostics link. Actions: Disable/Enable, Set password, Regenerate Telegram Code, Unlink Telegram, Open as User. No prominent delete. Owner account cannot be disabled/demoted/password-reset/code-regenerated through these endpoints. `DELETE` still exists but returns an error: disable instead.
-
-### Active / disabled
-
-Disabled: generic login failure; sessions for that `user_id` deleted; `user.active` blocks the app; ConversationTurn and Voice start reject inactive users; Telegram already-linked sends system copy, no AI; reminders skip (`user_disabled`). Data kept. Reversible.
-
-### Password reset
-
-Owner: new + confirm, Laravel password rules, hashed cast only. Then `UserSessionInvalidator` deletes `sessions` rows for that `user_id` and clears remember token (database session driver). Other users untouched.
-
-Ordinary user: Personal Workspace settings current + new + confirm (`PUT /chat/settings/password`).
-
-### Access code + Telegram
-
-Regenerate: new unique non-`2000` code; old code cannot pair; **linked Telegram stays**. Unlink: delete that user’s Telegram `channel_identities` only; chats/history kept.
-
-### Impersonation
-
-`ImpersonationService` session keys: original owner id, target id, started_at. Start: Owner-only, target `role=user` and active. Auth becomes the target so `/chat` is that user; `EnsureOwner` blocks Admin. Banner on Admin/Workspace/Cabinet layouts. Exit: restore Owner, redirect `/jarvis`; if Owner missing/inactive → login. Logs: `impersonation_started` / `impersonation_ended` with internal ids only. Writes while impersonating mutate that user’s data (banner states this).
-
-If the impersonated user is disabled mid-session, `EnsureUserIsActive` restores Owner instead of wiping the Owner session.
-
-### Counts / last activity
-
-Catalog: `withCount` conversations/messages, `withMax` conversation `last_activity_at`, eager `telegramIdentity`. Card: additional `withCount` memories/files/reminders/voice. No new `last_activity_at` column.
-
-### Login routing
-
-Owner → `/jarvis`. User → `/chat`. No `intended()` to Admin for users. `/cabinet` still compatibility. No self-registration UI.
+That is removed. One control remains: Mic = listening, MicOff = muted.
 
 ---
 
-## Ownership enforcement matrix (static IDOR review)
+## Unsupported format — root cause
 
-| Surface | Enforcement class / point |
+`MediaRecorder` could select `audio/webm`, `audio/ogg`, or `audio/mp4` (often with `;codecs=opus`), but upload always used filename `utterance.webm` and passed the raw `recorder.mimeType`. Server/file sniffing could then label the bytes as webm while the container was ogg/mp4, or send a codec suffix into validation. Gemini STT then rejected the payload (`voice_audio_format_unsupported`).
+
+### MIME normalization implemented
+
+`VoiceAudioMime` (PHP) + `resources/js/voice/audio/mime.js`:
+
+- raw `audio/webm;codecs=opus` → canonical `audio/webm` → `utterance.webm`
+- `audio/ogg;codecs=opus` → `audio/ogg` → `utterance.ogg`
+- `audio/mp4` → `audio/mp4` → `utterance.m4a`
+
+Workspace `voiceClient.recorder_mime_candidates` is **browser preference ∩ active STT allowlist** (Gemini includes webm/ogg/mp4). Chrome/Edge typically keeps Opus/WebM when Gemini is selected.
+
+Validation uses uploaded-file MIME, then a safe client canonical fallback. Format-reject logs: raw MIME, canonical MIME, extension, `audio_bytes`, STT provider/model. No audio content, transcripts, or secrets.
+
+---
+
+## Invalid-state on unmute — cause and fix
+
+Backend `resume` is **muted → idle**, not listening. The old client then always POSTed `listen`. Duplicate/racy `listen` (or `listen` while already listening after a stale snapshot) produced `voice_session_invalid_state`.
+
+Fix: after `resume`, call `listen` **only if** status is `idle`. Never `listen` when already `listening`. Client operations are ref-locked (no duplicate create/listen/mute/resume/interrupt/destroy/upload). On `voice_session_invalid_state`, GET session snapshot and reconcile; if ended, restart that Voice session without a full page reload.
+
+---
+
+## VAD
+
+Local only (`VoiceTurnDetector` + `VoiceAudioAnalyzer.rawInputRms`). No cloud VAD. No continuous vendor stream.
+
+Internal phases: `waiting_for_speech` → `speech_active` → `end_of_turn_candidate` (UI stays “Listening…”).
+
+Defaults (`voiceTurnDetection.js`):
+
+| Key | Value |
 | --- | --- |
-| Conversation routes (integer id, `/chat`, `/cabinet` aliases) | `ConversationService::findOwned` / `ensureOwned`; `PersonalChatSurfaceService::ensureOwned`; `JarvisWorkspaceController` / `CabinetChatController` |
-| Messages / history | owned conversation first; `ConversationTurnService` `conversation.user_id`; `MessageHistoryService` via that conversation |
-| Attachments preview/download | `JarvisAttachmentController` + `ChatAttachmentAccessService` (attachment → message → conversation → user_id) |
-| Stored files (search/metadata/chunks/download) | `StoredFileService::findOwnedByPublicId` / `owned`; `StoredFileSearchService` `where user_id`; no UUID-only auth |
-| Memory retrieval / summaries | `PersonalMemoryRetriever`, `MemoryWriter`, `ConversationSummaryService` `user_id`; Owner diagnostics `UserMemoryController` (owner middleware, scoped to that user) |
-| Voice session (public_id binding) | `JarvisVoiceController` + `VoiceRuntimeService::ownedSession` (`session.user_id` **and** `conversation.user_id`); `ensureOwned` on start |
-| User General Prompt | `JarvisWorkspaceController::updateGeneralPrompt` uses `$request->user()->id` only; admin `UserAdministrationService::updateGeneralPrompt` Owner-only for the bound user |
-| User management | `owner` middleware + `UserController::assertUsersAdmin` (`USERS_ADMIN` + `isOwner`) |
-| Impersonation start | `ImpersonationService::start` Owner + `IMPERSONATION` capability; target must be `role=user` and active |
-| Impersonation stop | restores session Owner only; cannot pick another account |
-| Telegram unlink / access code | Owner User Card endpoints; `TelegramPairingService::unlinkTelegram` scoped `user_id`; regenerate does not unlink |
-| Reminders | `ReminderService` `user_id`; delivery identity `findTelegramForUser` of that user; disabled skip |
-| Web research settings | Admin routes behind `owner`; users share instance provider, execution is their conversation turn |
+| speech onset | 200 ms |
+| end silence | **850 ms** |
+| min speech | 300 ms |
+| max wait without speech | 14 s (recycle recorder, no STT) |
+| max utterance | backend `max_utterance_seconds` (default 30s) |
+| noise | adaptive floor × 3.4, clamped |
+| barge-in | threshold min 0.13, 280 ms, 480 ms post-TTS guard |
 
-Default User Conversation AI: `AiConfigurationResolver::resolveConversation` (not Owner Conversation AI).
+No-speech recordings are never uploaded. Short pauses do not split a turn.
 
 ---
 
-## Migrations / backups
+## Lifecycle
 
-None. No table backups taken because no schema change. Existing unique `access_code`; `users.status`; database `sessions.user_id`.
+Text→Voice click primes mic + AudioContext, mounts `VoiceSession`, auto-starts **once** (generation ref). Listening begins without a second click.
+
+After VAD end-of-turn: stop recorder → Blob → STT → thinking → speaking.
+
+After TTS `ended`: `listen` if needed → fresh recorder/VAD.
+
+Mute: discard unsent audio, disable tracks, POST mute. Unmute: restore tracks, resume→idle, one listen, VAD.
+
+End / Text: discard, stop tracks/TTS, destroy session once.
+
+Conversation switch: cleanup ends the old session; pending audio is not uploaded into the new chat; if Voice stays selected, a new session starts.
 
 ---
 
-## Static checks (allowed)
+## Barge-in
 
-- `composer dump-autoload`
+**Implemented (conservative), not faked.** During `speaking` the STT recorder is off. Mic stays available for the analyser. Sustained loud input after a post-TTS guard stops playback, POSTs interrupt (only from speaking/thinking), then listen + capture. Echo cancellation on. Manual Interrupt button remains as fallback (disabled outside interruptible states).
+
+---
+
+## Error recovery
+
+Recoverable: unsupported format, STT rate limit/timeout/fail, TTS fail, stale invalid state → notice + return to listening when possible.
+
+Fatal-ish: permission revoked → Enable microphone CTA; session missing/ended → restart Voice session; providers unconfigured → visual listening, no STT.
+
+---
+
+## Static checks
+
 - `vendor/bin/pint --dirty`
-- `php artisan route:list`
-- `php artisan migrate:status`
-- `php artisan queue:failed`
 - `npm run build`
-- static ownership audit (this report)
+- `php artisan route:list` (voice routes unchanged aside from optional mime fields)
+- static state-machine inspection
 
-## Not run (Owner policy)
+## Not run
 
 - `php artisan test` / PHPUnit
-- destructive feature tests
-- live AI / Gemini / Web Search / ElevenLabs / Telegram / Gmail / Calendar / GitHub
-- production User A / User B creation
+- live Gemini STT
+- live ElevenLabs
+- live Conversation AI
 
 ---
 
-## Manual validation checklist
+## Manual validation checklist (NOT RUN)
 
-Prepared in [USER_ADMINISTRATION.md](../USER_ADMINISTRATION.md). **NOT RUN.**
+1. Open text chat.  
+2. Click Voice once.  
+3. Browser asks mic permission if needed.  
+4. No second mic click.  
+5. Orb listens.  
+6. Say “Привет, как дела?”  
+7. Stop speaking.  
+8. After ~850ms, transcription starts.  
+9. Jarvis replies.  
+10. ElevenLabs speaks.  
+11. After playback, automatic Listening.  
+12. Second phrase without touching UI.  
+13. Second turn works.  
+14. Mic → Muted.  
+15. Speech while muted: no STT.  
+16. Unmute.  
+17. Listening without invalid state.  
+18. Short pause inside a sentence does not split the turn.  
+19. Silence does not create a blank message.  
+20. End closes mic/session.  
+21. Text switches back safely.  
+22. Chrome recorder MIME is accepted.  
+23. No `voice_session_invalid_state`.  
+24. No `voice_audio_format_unsupported` for a supported browser format.
 
----
+Owner should run this live after merge.
 
-## Known limitations
-
-- Hard user delete is refused, not implemented as a guarded cascade.
-- `(user_id, channel)` uniqueness for Telegram is application-level; DB unique is `(channel, external_user_id)`.
-- Last activity is derived, not a dedicated indexed column.
-- Session invalidation after password reset applies to the database session driver.
-- USER SPACE is not MANUAL PASS until Owner creates A/B and runs the isolation campaign.
-- Live Voice STT/TTS still deferred (M23.2 remains on main).
-
----
-
-## Next recommended action
-
-Owner manually creates User A and User B from Admin and performs the isolation campaign in USER_ADMINISTRATION.md.
-
-No passwords, access codes, Telegram external ids, private chat text, or API keys are recorded here.
+No secrets, transcripts, or audio in this report.

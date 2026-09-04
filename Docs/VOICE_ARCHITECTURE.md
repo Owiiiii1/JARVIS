@@ -1,8 +1,10 @@
 # Голосовая архитектура
 
-**Status.** IMPLEMENTED / NOT VALIDATED (M23 Voice Runtime Foundation + M23.2 Gemini STT + M24 Voice UI / Orb, 2026-09-04). M25U.1/M25U.2 expose the same runtime to ordinary users with capability `voice` via `/chat/.../voice/sessions` (aliases of the same controller as `/jarvis/...`). Sessions are authorized by `session.user_id` **and** `conversation.user_id` (`VoiceRuntimeService::ownedSession`); public_id is not sufficient. Disabled users cannot start a session. Automated tests not run. No live STT/TTS/AI. Telephony is out of scope.
+**Status.** IMPLEMENTED / NOT VALIDATED (M23 Voice Runtime Foundation + M23.2 Gemini STT + M24 Voice UI / Orb + **M24.1 hands-free VAD**, 2026-09-04). M25U.1/M25U.2 expose the same runtime to ordinary users with capability `voice` via `/chat/.../voice/sessions` (aliases of the same controller as `/jarvis/...`). Sessions are authorized by `session.user_id` **and** `conversation.user_id` (`VoiceRuntimeService::ownedSession`); public_id is not sufficient. Disabled users cannot start a session. Automated tests not run. No live STT/TTS/AI. Telephony is out of scope.
 
 Voice is a **modality** over an existing conversation. It is not a second Jarvis, second memory, second User Space, or a special voice chat.
+
+M24.1: Voice is **hands-free turn-based conversation**. No push-to-talk. The mic button is **mute/unmute only**. Local VAD detects end of turn. After TTS playback, listening resumes automatically. Still utterance blob → STT → LLM → TTS (not Gemini Live streaming).
 
 ```
 audio input
@@ -42,12 +44,18 @@ M23 Web policy: switching Voice → Text **ends** the active session cleanly. Th
 
 ---
 
-## Runtime path (M23)
+## Runtime path (M23 + M24.1)
 
 ```
-Browser MediaRecorder (short utterance blob)
+Text → Voice (user gesture)
         ↓
-POST /jarvis/voice/sessions/{id}/audio
+getUserMedia + session + listening
+        ↓
+MediaRecorder (pre-roll) + local VAD
+        ↓
+end-of-turn silence → Blob (canonical MIME + matching filename)
+        ↓
+POST /jarvis/voice/sessions/{id}/audio  (or /chat/...)
         ↓
 VoiceTempAudioStore (ephemeral private disk)
         ↓
@@ -60,7 +68,15 @@ ConversationAiService + ContextBudgetManager + tools
 TextToSpeechManager → TextToSpeechProvider
         ↓
 JSON events + optional audio bytes (HTTP)
+        ↓
+TTS playback ends → listening + fresh recorder/VAD
 ```
+
+No push-to-talk. No continuous vendor stream. No wake word. Mute discards unsent audio and disables the mic track. Switching conversation while Voice is active ends the old session without uploading pending audio, then starts a new session for the new `conversation_id` if Voice mode remains selected.
+
+MIME: `VoiceAudioMime` canonicalizes `audio/webm;codecs=opus` → `audio/webm`. Upload filename matches the container (`utterance.webm` / `.ogg` / `.m4a`). Workspace `voiceClient.recorder_mime_candidates` is the intersection of browser recorder types and the active STT provider allowlist.
+
+`resume` is `muted → idle`. Frontend then calls `listen` exactly once. Do not call `listen` when already `listening`. Recoverable `voice_session_invalid_state` fetches the session snapshot and continues; it must not require a full page refresh.
 
 Domain layer is transport-neutral. M23 Web uses authenticated session + CSRF HTTP JSON. No WebRTC/websocket infra was added. Desktop/Mobile later call the same `VoiceRuntimeService` via Client API.
 
@@ -72,7 +88,7 @@ M23 generates full assistant text before TTS. Later: LLM streaming → sentence 
 
 **Voice Runtime** (this document): session, STT, TTS, turn pipeline, events, interrupt/mute.
 
-**Voice UI** ([CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md)): Orb, transcript, controls. M24 ships a provider-neutral Three.js Orb driven by `VoiceVisualizationState`. Runtime is unchanged.
+**Voice UI** ([CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md)): Orb, transcript, mute/interrupt/end. M24 Orb is provider-neutral. M24.1 removes push-to-talk; one mic = mute.
 
 ---
 

@@ -1,6 +1,7 @@
 import SafeMarkdown from '@/Components/Jarvis/SafeMarkdown';
 import JarvisWorkspaceLayout from '@/Layouts/JarvisWorkspaceLayout';
 import { workspaceRoute } from '@/personal-workspace/named';
+import { primeVoiceMediaFromUserGesture } from '@/voice/audio/voiceMedia';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
 import {
     Bell,
@@ -214,6 +215,7 @@ export default function PersonalWorkspace() {
         flash = {},
         chatAttachments = null,
         jarvisStorage = null,
+        voiceClient = {},
         surface: surfaceProp = 'jarvis',
         capabilities: capabilityProps = {},
         settings = {},
@@ -835,7 +837,9 @@ export default function PersonalWorkspace() {
                             type="button"
                             role="tab"
                             aria-selected={mode === 'voice'}
-                            onClick={() => setMode('voice')}
+                            onClick={() => {
+                                primeVoiceMediaFromUserGesture().finally(() => setMode('voice'));
+                            }}
                             className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium ${
                                 mode === 'voice' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'
                             }`}
@@ -1120,6 +1124,7 @@ export default function PersonalWorkspace() {
                             <VoiceSession
                                 conversationId={conversation?.id}
                                 surface={surface}
+                                voiceClient={voiceClient}
                                 onSwitchToText={() => setMode('text')}
                                 onTurn={(payload, optimisticId, clientMessageId) => applyTurnPayload(payload, optimisticId, clientMessageId)}
                             />

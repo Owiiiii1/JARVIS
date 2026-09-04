@@ -733,6 +733,20 @@ Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
 ---
 
+## Milestone 24.1 — Hands-Free Voice Conversation + VAD + Audio Compatibility
+
+**Status.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live STT/TTS/AI.
+
+**Цель.** Cancel push-to-talk. Text→Voice auto-starts listening. One mic = mute. Local VAD ends turns. Auto-listen after TTS. Canonical MIME + matching upload filename. Recoverable invalid-state races.
+
+**Реализовано.** `VoiceTurnDetector`, `VoiceAudioMime`, workspace `voiceClient` MIME negotiation, unmute = `resume` (idle) + one `listen`, barge-in with stronger threshold (plus Interrupt fallback). Same `VoiceSession` on `/jarvis` and `/chat`.
+
+**Не реализовывать.** Gemini Live / streaming STT. Wake word. Admin VAD UI. Continuous audio archive. Live provider smoke. `php artisan test`.
+
+**Зависимости:** M23, M23.2, M24.
+
+---
+
 ## Milestone 25U.1 — Shared Personal Workspace + Full User Chat
 
 **Status.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live AI / Web Search / Voice.

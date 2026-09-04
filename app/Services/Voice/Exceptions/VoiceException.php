@@ -53,9 +53,12 @@ final class VoiceException extends RuntimeException
         return new self('voice_audio_too_large', 'Audio chunk exceeds the allowed size.');
     }
 
-    public static function audioFormatUnsupported(): self
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    public static function audioFormatUnsupported(array $context = []): self
     {
-        return new self('voice_audio_format_unsupported', 'This audio format is not supported.');
+        return new self('voice_audio_format_unsupported', 'This audio format is not supported.', 422, $context);
     }
 
     public static function sttNotConfigured(): self

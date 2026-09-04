@@ -2094,6 +2094,76 @@
 
 ---
 
+## ADR-220 — Voice mode auto-starts after an explicit Voice gesture
+
+**Контекст.** Push-to-talk required a second mic click after entering Voice.
+
+**Решение.** Text→Voice is the user gesture: prime `getUserMedia` + AudioContext, then auto-create the session and enter listening.
+
+**Следствие.** An “Enable microphone” CTA is only for permission/activation recovery, not the normal path.
+
+---
+
+## ADR-221 — No push-to-talk in normal Voice UX
+
+**Контекст.** Natural conversation cannot require tap-to-send between turns.
+
+**Решение.** Remove Start listening / Send utterance. Turns finalize via local VAD.
+
+**Следствие.** The old dual-mic control is gone.
+
+---
+
+## ADR-222 — One mic button means mute/unmute only
+
+**Контекст.** Two mic icons (record vs mute) were confusing.
+
+**Решение.** Mic = listening enabled; MicOff = muted. Mute discards unsent audio and does not STT.
+
+**Следствие.** Interrupt remains a separate Square control for speaking/thinking.
+
+---
+
+## ADR-223 — End-of-turn is local bounded VAD
+
+**Контекст.** Vendor VAD or streaming STT would change the runtime contract.
+
+**Решение.** Client-side amplitude VAD (`VoiceTurnDetector`) with `endSilenceMs = 850` and related bounds in `voiceTurnDetection.js`. No cloud VAD. No Gemini Live in this milestone.
+
+**Следствие.** Short pauses do not end a turn; no-speech audio is never uploaded.
+
+---
+
+## ADR-224 — Voice returns to listening after TTS
+
+**Контекст.** After speaking, users should continue without clicking.
+
+**Решение.** When playback `ended`, `listen` if needed and start a fresh capture/VAD cycle. Conversation stays open until mute, End, Text, or a fatal error.
+
+**Следствие.** Do not STT Jarvis TTS: no MediaRecorder during `speaking` except barge-in.
+
+---
+
+## ADR-225 — Raw browser MIME is canonicalized before provider validation
+
+**Контекст.** `audio/webm;codecs=opus` plus a hardcoded `utterance.webm` filename caused container/MIME mismatch and `voice_audio_format_unsupported`.
+
+**Решение.** `VoiceAudioMime` strips codecs, maps aliases, and picks a filename extension that matches the container. Workspace exposes STT-supported recorder candidates. Validation uses uploaded-file MIME plus safe client canonical MIME.
+
+**Следствие.** Frontend actions must follow the server state machine (`resume` → idle, then one `listen`). Invalid-state races fetch a snapshot and recover without a full reload.
+
+---
+
+## ADR-226 — No continuous audio archive; streaming STT is future
+
+**Контекст.** Hands-free must not mean always-on vendor streaming or retained mic audio.
+
+**Решение.** Only the current utterance buffer is kept. After upload, browser blobs may GC; server temp files follow existing deletion. Gemini Live / streaming STT is a later latency optimization, not M24.1.
+
+**Следствие.** Mute or Text is how the user stops being listened to. No wake word.
+
+---
+
 - Алфавит generated access_code (кроме зарезервированного 2000).
 - 403 vs redirect когда user открывает admin URL.
 - Auth схема Desktop/Mobile (token flavour).

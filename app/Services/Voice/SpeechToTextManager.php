@@ -49,4 +49,12 @@ final class SpeechToTextManager
 
         return $provider->transcribe($chunk, $language);
     }
+
+    /**
+     * @return list<string>
+     */
+    public function supportedInputMimes(): array
+    {
+        return VoiceAudioMime::supportedForProvider($this->providerName());
+    }
 }

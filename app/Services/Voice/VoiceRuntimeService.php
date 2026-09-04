@@ -144,6 +144,8 @@ final class VoiceRuntimeService
         int $channels = 1,
         ?int $durationMs = null,
         ?string $language = null,
+        ?string $clientMime = null,
+        ?string $rawMime = null,
     ): VoiceSessionSnapshot {
         $session = $this->ownedActive($user, $session);
 
@@ -167,21 +169,38 @@ final class VoiceRuntimeService
             ]);
         }
 
-        $chunk = $this->audio->store(
-            (string) $session->public_id,
-            (int) $user->id,
-            $sequence,
-            $file,
-            $isFinal,
-            $sampleRate,
-            $channels,
-            $durationMs,
-        );
+        try {
+            $chunk = $this->audio->store(
+                (string) $session->public_id,
+                (int) $user->id,
+                $sequence,
+                $file,
+                $isFinal,
+                $sampleRate,
+                $channels,
+                $durationMs,
+                $clientMime,
+                $rawMime,
+            );
+        } catch (VoiceException $exception) {
+            if ($exception->error === 'voice_audio_format_unsupported') {
+                $this->metrics->record('audio.format_rejected', $this->sessionContext($session, array_merge($exception->context, [
+                    'stt_provider' => $this->stt->providerName(),
+                    'stt_model' => $this->settings->sttModel(),
+                ])));
+            }
+
+            throw $exception;
+        }
 
         $this->metrics->record('audio.received', $this->sessionContext($session, [
             'audio_bytes' => $chunk->byteLength,
             'duration_ms' => $chunk->durationMs,
-            'mime' => $chunk->mime,
+            'canonical_mime' => $chunk->mime,
+            'raw_mime' => $rawMime ?: $clientMime,
+            'extension' => VoiceAudioMime::extension($chunk->mime),
+            'stt_provider' => $this->stt->providerName(),
+            'stt_model' => $this->settings->sttModel(),
             'sequence' => $chunk->sequence,
             'is_final' => $chunk->isFinal,
         ]));

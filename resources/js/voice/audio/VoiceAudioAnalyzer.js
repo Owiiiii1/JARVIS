@@ -1,3 +1,5 @@
+import { getSharedAudioContext, resumeSharedAudioContext } from './voiceMedia';
+
 export function emptyBands() {
     return {
         sub: 0,
@@ -53,12 +55,11 @@ export class VoiceAudioAnalyzer {
         }
 
         if (! this.ctx) {
-            const Ctor = window.AudioContext || window.webkitAudioContext;
-            if (! Ctor) {
+            this.ctx = getSharedAudioContext();
+            if (! this.ctx) {
                 return null;
             }
 
-            this.ctx = new Ctor();
             this.inputAnalyser = this.ctx.createAnalyser();
             this.outputAnalyser = this.ctx.createAnalyser();
             this.inputAnalyser.fftSize = 1024;
@@ -71,9 +72,7 @@ export class VoiceAudioAnalyzer {
             this.timeOut = new Uint8Array(this.outputAnalyser.fftSize);
         }
 
-        if (this.ctx.state === 'suspended') {
-            this.ctx.resume().catch(() => {});
-        }
+        resumeSharedAudioContext();
 
         return this.ctx;
     }
@@ -161,15 +160,16 @@ export class VoiceAudioAnalyzer {
     }
 
     tick() {
-        const inputRms = this.rms(this.inputAnalyser, this.timeIn);
+        const rawInputRms = this.rms(this.inputAnalyser, this.timeIn);
         const outputRms = this.rms(this.outputAnalyser, this.timeOut);
-        this.inputAmplitude = smooth(this.inputAmplitude, inputRms, 0.38, 0.08);
+        this.inputAmplitude = smooth(this.inputAmplitude, rawInputRms, 0.38, 0.08);
         this.outputAmplitude = smooth(this.outputAmplitude, outputRms, 0.34, 0.1);
         this.frequencyBands = this.bandsFrom(this.inputAnalyser, this.freqIn);
         this.outputBands = this.bandsFrom(this.outputAnalyser, this.freqOut);
 
         return {
             inputAmplitude: this.inputAmplitude,
+            rawInputRms,
             outputAmplitude: this.outputAmplitude,
             frequencyBands: this.frequencyBands,
             outputBands: this.outputBands,
@@ -179,9 +179,6 @@ export class VoiceAudioAnalyzer {
     dispose() {
         this.disconnectInput();
         this.disconnectOutput();
-        if (this.ctx && this.ctx.state !== 'closed') {
-            this.ctx.close().catch(() => {});
-        }
         this.ctx = null;
         this.inputAnalyser = null;
         this.outputAnalyser = null;

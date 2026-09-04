@@ -8,6 +8,8 @@ use App\Services\ChatAttachments\ChatAttachmentConfig;
 use App\Services\Conversations\ConversationService;
 use App\Services\Conversations\PersonalChatSurfaceService;
 use App\Services\Storage\StoredFileConfig;
+use App\Services\Voice\VoiceAudioMime;
+use App\Services\Voice\VoiceSettingsService;
 use App\Services\Workspace\OwnerWorkspaceContextService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -60,6 +62,9 @@ class JarvisWorkspaceController extends Controller
                 : ['settings' => $settings],
             'chatAttachments' => ChatAttachmentConfig::publicLimits(),
             'jarvisStorage' => StoredFileConfig::publicLimits(),
+            'voiceClient' => VoiceAudioMime::workspacePayload(
+                app(VoiceSettingsService::class)->effective()->sttProvider->value,
+            ),
         ]);
     }
 

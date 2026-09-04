@@ -6,12 +6,21 @@ use App\Services\Voice\DTO\VoiceAudioChunk;
 use App\Services\Voice\Exceptions\VoiceException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 final class VoiceTempAudioStore
 {
-    public function store(string $sessionPublicId, int $userId, int $sequence, UploadedFile $file, bool $isFinal, ?int $sampleRate, int $channels, ?int $durationMs): VoiceAudioChunk
-    {
+    public function store(
+        string $sessionPublicId,
+        int $userId,
+        int $sequence,
+        UploadedFile $file,
+        bool $isFinal,
+        ?int $sampleRate,
+        int $channels,
+        ?int $durationMs,
+        ?string $clientMime = null,
+        ?string $rawMime = null,
+    ): VoiceAudioChunk {
         $bytes = (int) $file->getSize();
         $max = max(1024, (int) config('voice.max_audio_chunk_bytes', 2_000_000));
 
@@ -19,10 +28,16 @@ final class VoiceTempAudioStore
             throw VoiceException::audioTooLarge();
         }
 
-        $mime = $this->normalizeMime((string) ($file->getMimeType() ?: $file->getClientMimeType()));
+        $resolved = VoiceAudioMime::resolveUploaded($file, $clientMime, $rawMime);
+        $mime = $resolved['canonical'];
 
-        if (! $this->mimeAllowed($mime)) {
-            throw VoiceException::audioFormatUnsupported();
+        if (! $resolved['allowed']) {
+            throw VoiceException::audioFormatUnsupported([
+                'raw_mime' => $resolved['raw'],
+                'canonical_mime' => $mime,
+                'extension' => $resolved['extension'],
+                'audio_bytes' => $bytes,
+            ]);
         }
 
         $maxSeconds = max(1, (int) config('voice.max_utterance_seconds', 30));
@@ -38,7 +53,7 @@ final class VoiceTempAudioStore
             $sessionPublicId,
             now()->format('YmdHis'),
             $sequence,
-            $this->extension($mime),
+            VoiceAudioMime::dottedExtension($mime),
         );
 
         $disk = (string) config('voice.audio_disk', 'local');
@@ -97,33 +112,12 @@ final class VoiceTempAudioStore
 
     public function normalizeMime(string $mime): string
     {
-        $base = strtolower(trim(Str::before($mime, ';')));
-
-        return match ($base) {
-            'audio/x-m4a' => 'audio/m4a',
-            'audio/wave' => 'audio/wav',
-            default => $base,
-        };
+        return VoiceAudioMime::canonicalize($mime);
     }
 
     public function mimeAllowed(string $mime): bool
     {
-        $allowed = config('voice.allowed_mimes', []);
-
-        return in_array($this->normalizeMime($mime), is_array($allowed) ? $allowed : [], true);
-    }
-
-    private function extension(string $mime): string
-    {
-        return match ($mime) {
-            'audio/mpeg', 'audio/mp3' => '.mp3',
-            'audio/wav', 'audio/x-wav' => '.wav',
-            'audio/ogg' => '.ogg',
-            'audio/mp4', 'audio/m4a' => '.m4a',
-            'audio/flac' => '.flac',
-            'audio/aac' => '.aac',
-            default => '.webm',
-        };
+        return VoiceAudioMime::isAllowed($mime);
     }
 
     private function relativePath(string $absolute): ?string

@@ -1,6 +1,8 @@
 # Voice UI
 
-**Status.** M24 IMPLEMENTED / NOT VALIDATED (2026-09-04). M23.2 Gemini STT is Admin infrastructure; the Orb/Workspace UI stays provider-neutral. M25U.1: same Three.js Orb on Owner `/jarvis` and User `/chat` Shared Personal Workspace. No live STT/TTS. Automated tests not run. Ordinary users do not see a Gemini vendor label. When STT/TTS are configured, the generic **Speech providers not configured** notice is not shown.
+**Status.** M24 Orb + **M24.1 hands-free VAD** IMPLEMENTED / NOT VALIDATED (2026-09-04). M23.2 Gemini STT is Admin infrastructure; the Orb/Workspace UI stays provider-neutral. M25U.1: same Three.js Orb on Owner `/jarvis` and User `/chat` Shared Personal Workspace. No live STT/TTS. Automated tests not run. Ordinary users do not see a Gemini vendor label. When STT/TTS are configured, the generic **Speech providers not configured** notice is not shown.
+
+Voice is hands-free turn-based conversation. No push-to-talk. Mic button = mute/unmute only. Local VAD decides end of turn. After TTS, listening resumes automatically.
 
 Voice **UI** ≠ Voice **Runtime**.
 
@@ -78,7 +80,9 @@ Identity: cyan/steel precision core. Not a Siri rainbow clone. No OrbitControls.
 
 ### Audio (local, no providers)
 
-`VoiceAudioAnalyzer`: `connectInputStream`, `connectOutputAudio`, smoothed RMS, frequency bands. Microphone only after Start Voice. Tracks stop on End / Text / unmount. Analyser does **not** archive audio.
+`VoiceAudioAnalyzer`: `connectInputStream`, `connectOutputAudio`, smoothed RMS plus raw RMS for VAD, frequency bands. Shared `AudioContext` is resumed on the Text→Voice gesture. Microphone stream lives for the session except mute/end/text/unmount. Analyser does **not** archive audio.
+
+VAD (`voiceTurnDetection.js` + `VoiceTurnDetector`): adaptive noise floor, speech onset ~200ms, end-of-turn silence 850ms, min speech 300ms. Short pauses do not split a sentence. No-speech audio is never sent to STT. During `speaking`, the recorder is not sending STT; barge-in uses a stronger threshold + post-TTS guard, then Interrupt + listen.
 
 Listening can visualize the mic even when STT is not configured. Speaking visualization uses playback analyser when TTS audio exists; otherwise demo synthetic output energy (marked as demo, not fake TTS).
 
@@ -98,9 +102,11 @@ Enable with `?voice_demo=1` or `VITE_VOICE_DEMO_MODE=true`. Hidden drawer cycles
 
 ## Workspace client
 
-`VoiceSession` still owns session lifecycle (M23 HTTP). Controls: Start Voice, Mute, Interrupt, End, Text. Readable state label. Latest user phrase + latest assistant line only (full history stays in Text mode).
+`VoiceSession` owns session lifecycle (M23 HTTP + M24.1 VAD). Controls: **Mute/Unmute**, Interrupt (when speaking/thinking), End, Text. No second mic. No “Send utterance”. Labels: Listening… / Thinking… / Speaking… / Muted.
 
 If STT/TTS are not configured: Orb keeps working; status **Speech providers not configured.** — not a crash.
+
+If Voice opens without a usable user gesture, a single **Enable microphone** CTA appears. After Text→Voice it should not. **Enable audio** appears only if TTS autoplay is blocked.
 
 ---
 

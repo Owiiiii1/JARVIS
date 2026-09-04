@@ -169,11 +169,13 @@ Workspace does not reproduce OAuth forms or AI provider settings.
 
 ---
 
-## Voice (M23 runtime + M23.2 Gemini STT + M24 Orb)
+## Voice (M23 runtime + M23.2 Gemini STT + M24 Orb + M24.1 hands-free)
 
-Text / Voice toggle keeps the selected conversation. `VoiceSession` owns session HTTP. `JarvisVoiceOrb` renders a provider-neutral Three.js energy sphere from `VoiceVisualizationState`. Microphone after user gesture. Local Web Audio analyser drives listening deformation even when STT is not configured. Status **Speech providers not configured** is a clean notice, not a crash; it clears through existing status/error props when Admin STT/TTS are configured. Ordinary users do not see a Gemini vendor label.
+Text / Voice toggle keeps the selected conversation. Clicking Voice primes microphone + AudioContext from that gesture, then mounts `VoiceSession`, which auto-starts listening (no second mic click). One mic button = mute. Local VAD ends turns. After TTS, listening resumes. Same frontend on `/jarvis` and `/chat`.
 
-Switching Voice → Text ends the active `voice_session` and shows the same message thread.
+`JarvisVoiceOrb` remains provider-neutral. Ordinary users do not see a Gemini vendor label.
+
+Switching Voice → Text ends the active `voice_session` and shows the same message thread. Changing `conversationId` while Voice is active ends the old session without uploading pending audio, then starts a new session for the new chat.
 
 Demo visualization: `?voice_demo=1` or `VITE_VOICE_DEMO_MODE`. Not live TTS.
 

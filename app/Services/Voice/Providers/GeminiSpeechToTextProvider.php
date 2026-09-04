@@ -7,6 +7,7 @@ use App\Services\Voice\Contracts\SpeechToTextProvider;
 use App\Services\Voice\DTO\SpeechTranscript;
 use App\Services\Voice\DTO\VoiceAudioChunk;
 use App\Services\Voice\Exceptions\VoiceException;
+use App\Services\Voice\VoiceAudioMime;
 use App\Services\Voice\VoiceMetricsLogger;
 use App\Services\Voice\VoiceSettingsService;
 use Illuminate\Http\Client\ConnectionException;
@@ -16,30 +17,6 @@ use Throwable;
 
 final class GeminiSpeechToTextProvider implements SpeechToTextProvider
 {
-    /**
-     * Official Gemini audio-understanding MIME types, plus browser MediaRecorder
-     * types sent via the same generateContent inlineData mechanism.
-     *
-     * @see https://ai.google.dev/gemini-api/docs/audio
-     *
-     * @var array<string, string>
-     */
-    private const MIME_MAP = [
-        'audio/wav' => 'audio/wav',
-        'audio/x-wav' => 'audio/wav',
-        'audio/wave' => 'audio/wav',
-        'audio/mp3' => 'audio/mp3',
-        'audio/mpeg' => 'audio/mp3',
-        'audio/aiff' => 'audio/aiff',
-        'audio/x-aiff' => 'audio/aiff',
-        'audio/aac' => 'audio/aac',
-        'audio/ogg' => 'audio/ogg',
-        'audio/flac' => 'audio/flac',
-        'audio/webm' => 'audio/webm',
-        'audio/mp4' => 'audio/mp4',
-        'audio/m4a' => 'audio/mp4',
-    ];
-
     public function __construct(
         private readonly VoiceSettingsService $settings,
         private readonly GeminiCredentialResolver $credentials,
@@ -65,10 +42,15 @@ final class GeminiSpeechToTextProvider implements SpeechToTextProvider
             throw VoiceException::sttNotConfigured();
         }
 
-        $mime = $this->geminiMime($chunk->mime);
+        $mime = VoiceAudioMime::forGemini($chunk->mime);
 
         if ($mime === null) {
-            throw VoiceException::audioFormatUnsupported();
+            throw VoiceException::audioFormatUnsupported([
+                'canonical_mime' => VoiceAudioMime::canonicalize($chunk->mime),
+                'raw_mime' => $chunk->mime,
+                'audio_bytes' => $chunk->byteLength,
+                'extension' => VoiceAudioMime::extension($chunk->mime),
+            ]);
         }
 
         $this->assertBounded($chunk);
@@ -183,13 +165,6 @@ final class GeminiSpeechToTextProvider implements SpeechToTextProvider
         }
 
         throw VoiceException::sttFailed();
-    }
-
-    private function geminiMime(string $mime): ?string
-    {
-        $normalized = strtolower(trim(strtok($mime, ';') ?: $mime));
-
-        return self::MIME_MAP[$normalized] ?? null;
     }
 
     private function assertBounded(VoiceAudioChunk $chunk): void

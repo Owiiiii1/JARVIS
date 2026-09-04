@@ -15,7 +15,7 @@ This document describes **what exists on the server now**. Target architecture i
 
 **PLANNED / DOCUMENTED ONLY (not implemented):** versioned Client API; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch; telephony. Do not treat these as shipped.
 
-M23 Voice Runtime Foundation, M23.2 Gemini STT, and M24 Voice UI / Orb are **IMPLEMENTED / NOT VALIDATED** (no live STT/TTS/AI).
+M23 Voice Runtime Foundation, M23.2 Gemini STT, M24 Voice UI / Orb, and M24.1 hands-free VAD are **IMPLEMENTED / NOT VALIDATED** (no live STT/TTS/AI).
 
 Status vocabulary:
 
@@ -805,6 +805,12 @@ See [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md), [Development/Cursor_Work_Rep
 Three.js + custom GLSL Orb (`resources/js/voice/visualization`). `VoiceVisualizationState`. Local Web Audio analyser. Demo mode `?voice_demo=1`. WebGL CSS fallback. Reduced motion. No live STT/TTS. No Conversation Engine changes. No telephony.
 
 See [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md), [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 24.1 — Hands-Free Voice + VAD + MIME — IMPLEMENTED / NOT VALIDATED (2026-09-04)
+
+Push-to-talk removed. Text→Voice auto-starts. One mic = mute. Local VAD (850ms end silence). Canonical MIME + matching filename. `resume` → idle, then one `listen`. After TTS → listening. Barge-in implemented conservatively (echo cancellation + stronger threshold + guard). TESTS NOT RUN. NO LIVE STT/TTS/AI.
+
+See [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md), [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
 
 ### Milestone 25U.1 — Shared Personal Workspace + Full User Chat — IMPLEMENTED / NOT VALIDATED (2026-09-04)
 

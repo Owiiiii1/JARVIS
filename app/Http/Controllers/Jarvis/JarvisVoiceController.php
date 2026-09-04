@@ -81,6 +81,8 @@ class JarvisVoiceController extends Controller
             'channels' => ['nullable', 'integer', 'min:1', 'max:2'],
             'duration_ms' => ['nullable', 'integer', 'min:1'],
             'language' => ['nullable', 'string', 'max:16'],
+            'mime' => ['nullable', 'string', 'max:128'],
+            'raw_mime' => ['nullable', 'string', 'max:160'],
         ]);
 
         $file = $request->file('audio');
@@ -103,6 +105,8 @@ class JarvisVoiceController extends Controller
                 (int) ($validated['channels'] ?? 1),
                 isset($validated['duration_ms']) ? (int) $validated['duration_ms'] : null,
                 $validated['language'] ?? null,
+                isset($validated['mime']) ? (string) $validated['mime'] : null,
+                isset($validated['raw_mime']) ? (string) $validated['raw_mime'] : null,
             );
         } catch (VoiceException $exception) {
             return $this->error($exception);
