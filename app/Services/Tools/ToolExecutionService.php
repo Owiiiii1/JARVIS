@@ -10,6 +10,7 @@ use App\Services\Ai\DTO\ToolCall;
 use App\Services\Ai\DTO\ToolResult;
 use App\Services\Integrations\Exceptions\IntegrationException;
 use App\Services\Integrations\IntegrationAccountService;
+use App\Services\WebResearch\Exceptions\WebResearchException;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -133,6 +134,12 @@ final class ToolExecutionService
                 'error' => $exception->error,
                 'retryable' => $exception->retryable,
             ], $exception->context));
+        } catch (WebResearchException $exception) {
+            $result = ToolResult::failure($call->id, $tool->name(), [
+                'success' => false,
+                'error' => $exception->error,
+                'retryable' => $exception->retryable,
+            ]);
         } catch (Throwable $exception) {
             try {
                 Log::warning('tool execution failed', [
@@ -288,6 +295,10 @@ final class ToolExecutionService
 
         if (isset($payload['messages']) && is_array($payload['messages'])) {
             $metadata['result_count'] = count($payload['messages']);
+        }
+
+        if (isset($payload['char_count']) && is_numeric($payload['char_count'])) {
+            $metadata['char_count'] = (int) $payload['char_count'];
         }
 
         if (isset($payload['labels']) && is_array($payload['labels'])) {

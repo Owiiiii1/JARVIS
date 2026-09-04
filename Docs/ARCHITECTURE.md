@@ -14,6 +14,8 @@
       +caps                 Conv/     Gmail      not chat
                             Analysis  Calendar
                             User Conv GitHub (M21)
+                                      Storage
+                                      Web Research (M22.3)
                                       Reminders
                               |
                            Database
@@ -34,12 +36,14 @@
 - conversations и messages (kind: `direct` | `group`; personal всегда с `user_id`);
 - message_attachments (private, owned, ephemeral screenshots by default);
 - stored_files / stored_file_chunks (owner persistent Storage; retrieval, not auto-context);
+- Web Research tools (`search_web`, `fetch_web_page`) via provider abstraction; no web content mirror tables;
+- ContextBudgetManager: one LLM request is token-bounded regardless of DB size;
 - Telegram Groups: авторегистрация, group conversations; **owner-only** admin;
-- Tool / Integration Layer (owner-only: Google, GitHub, ElevenLabs placeholder; Telegram channel отдельно);
+- Tool / Integration Layer (owner-only: Google, GitHub, ElevenLabs placeholder, Web Research; Telegram channel отдельно);
 - memory и topics (с Phase 2; retrieval всегда scoped);
 - AI: Owner Conversation / Owner Analysis / Default User Conversation;
 - Reminder Engine; Projects (owner); Proactive placeholder;
-- context: summary-first, raw-on-demand; Telegram `active_conversation_id`;
+- context: summary-first, raw-on-demand, centrally budgeted (`ContextBudgetManager`); Telegram `active_conversation_id`;
 - configuration (platform + per-user);
 - channel abstraction;
 - APIs, User Cabinet и Owner Workspace / Desktop / Mobile для тех же accounts;
@@ -64,7 +68,7 @@
 | --- | --- | --- |
 | LLM Provider abstraction | единый контракт chat/complete | 1 |
 | Prompt management | platform prompt роли + User General Prompt | 1 |
-| Context builder | hierarchy package, всегда с `user_id` | 1 (простой), 2 (полный) |
+| Context builder | hierarchy package + ContextBudgetManager | 1 (простой), 2 (полный), M22.3 (budget) |
 | Topic classifier | тема(ы) сообщения **этого** user | 2 |
 | Memory retriever | память только scoped owner | 1 recent / 2 selective |
 | Memory extractor | факты из диалога | 2 |
@@ -75,7 +79,7 @@
 
 Не привязывать систему к одной модели или одному provider. Три независимых config: **Owner Conversation AI**, **Owner Analysis AI**, **Default User Conversation AI**. Одна глобальная модель на весь Jarvis запрещена. User не наследует Owner Conversation. ADR-013, ADR-034, ADR-035.
 
-См. [AI_PROVIDER_ARCHITECTURE.md](AI_PROVIDER_ARCHITECTURE.md).
+См. [AI_PROVIDER_ARCHITECTURE.md](AI_PROVIDER_ARCHITECTURE.md), [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md), [WEB_RESEARCH.md](WEB_RESEARCH.md).
 
 Classification и extraction **не обязаны** быть одним LLM-вызовом.
 

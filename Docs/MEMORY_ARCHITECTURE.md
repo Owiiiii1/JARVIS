@@ -221,7 +221,7 @@ incoming personal message
 
 **Phase 1:** recent window по `conversation_id` **и** `user_id` + timestamps. Другие чаты того же user в raw window не подмешиваются.
 
-**M12:** `PersonalMemoryRetriever` — SQL/hybrid: `user_id` first, затем topic/keyword/`normalized_key`, freshness, confidence, status, `valid_from`/`valid_until`. Disputed/superseded/obsolete и expired не подаются как current truth. Bounded candidate queries, без fetch-all-then-filter.
+**M12:** `PersonalMemoryRetriever` — SQL/hybrid: `user_id` first, затем topic/keyword/`normalized_key`, freshness, confidence, status, `valid_from`/`valid_until`. Disputed/superseded/obsolete и expired не подаются как current truth. Bounded candidate queries, без fetch-all-then-filter. `ContextBudgetManager` additionally caps what actually enters one LLM request.
 
 **Future (не обязательно для MVP):**
 
@@ -236,11 +236,13 @@ incoming personal message
 
 ## Summarization
 
-- Порог: `config('memory.summary_message_threshold')` (MVP 20 semantic messages с последней summary).
-- Incremental: previous summary + raw после `to_message_id`. Initial long history — chunk/reduce, не один гигантский prompt.
-- Пишет в `conversation_summaries` (версии; `current` / `superseded`).
+- Порог: `config('memory.summary_message_threshold')` **или** estimated tokens of the unsummarized range (`context_budget.summary_refresh_tokens`).
+- Incremental: previous summary + raw после `to_message_id`. Load of that range is capped. Initial long history — chunk/reduce, не один гигантский prompt.
+- Summary text itself is bounded (`context_budget.summary_max_chars`); oversized summaries are recompressed.
+- Пишет в `conversation_summaries` (версии; `current` / `superseded`; coverage `from_message_id` / `to_message_id`).
 - Raw не трогает. Summary не source of truth.
 - Пересчёт: `jarvis:memory:backfill` / `UpdateConversationSummaryJob`. Owner Analysis AI.
+- Web-scraped facts are not personal memory. Extract from the user’s own statements only.
 
 ---
 

@@ -236,6 +236,8 @@ Production MySQL (`2026_09_03_220000_create_memory_engine_tables`):
 
 Indexes: `user_id`, `conversation_id`, memory `(user_id, status, confidence)`, topic `normalized_name`, summary status/version.
 
+**M22.3:** no new tables. Context budgets are config/classes. Web research is live external data (no `web_pages` / `search_results` / `web_cache`). Summary coverage already uses `from_message_id` / `to_message_id`.
+
 ---
 
 ## AI

@@ -20,6 +20,9 @@ use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\DTO\ToolResult;
 use App\Services\Ai\Exceptions\AiConfigurationException;
 use App\Services\ChatAttachments\Exceptions\ChatAttachmentException;
+use App\Services\Context\ContextBudgetManager;
+use App\Services\Context\ContextDiagnosticsLogger;
+use App\Services\Context\ToolResultBudgetManager;
 use App\Services\Memory\MemoryTurnDispatcher;
 use App\Services\Tools\ConfirmationIntentParser;
 use App\Services\Tools\CreateReminderTool;
@@ -37,7 +40,7 @@ final class ConversationAiService
 
     public const VISION_NOT_SUPPORTED = 'Этот AI-провайдер не принимает изображения. Смените модель в Admin или отправьте текст.';
 
-    public const MAX_TOOL_ROUNDS = 5;
+    public const MAX_TOOL_ROUNDS = 8;
 
     public const PENDING_STALE_SECONDS = 25;
 
@@ -50,6 +53,9 @@ final class ConversationAiService
         private readonly MemoryTurnDispatcher $memoryTurns,
         private readonly ToolConfirmationService $confirmations,
         private readonly ConfirmationIntentParser $confirmationIntent,
+        private readonly ContextBudgetManager $contextBudgets,
+        private readonly ToolResultBudgetManager $toolResultBudgets,
+        private readonly ContextDiagnosticsLogger $contextLogs,
     ) {}
 
     public function completeUserTurn(Message $inbound): ConversationAiTurnResult
@@ -165,6 +171,7 @@ final class ConversationAiService
                 $applicationEvent,
                 $toolDefinitions,
             );
+            $diagnostics = $context['diagnostics'] ?? [];
 
             $toolResults = [];
 
@@ -176,6 +183,7 @@ final class ConversationAiService
                     $toolDefinitions,
                     $toolContext,
                     $toolResults,
+                    $diagnostics,
                 );
             } catch (Throwable $exception) {
                 $fallback = $this->fallbackTextFromToolResults($toolResults);
@@ -204,8 +212,29 @@ final class ConversationAiService
 
             $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
             $roleKey = $configuration->roleKey()->value;
+            $this->contextLogs->log($user->id, $conversation->id, $diagnostics);
 
             $pendingConfirmation = $this->pendingConfirmationFromResults($toolResults);
+            $metadata = [
+                'ai' => [
+                    'configuration' => $roleKey,
+                    'provider' => $response->provider,
+                    'model' => $response->model,
+                    'latency_ms' => $latencyMs,
+                    'prompt_tokens' => $response->inputTokens,
+                    'completion_tokens' => $response->outputTokens,
+                    'total_tokens' => $response->totalTokens,
+                    'finish_reason' => $response->finishReason,
+                    'event' => $eventName,
+                    'context' => $this->safeContextMetadata($diagnostics),
+                ],
+                'pending_confirmation' => $pendingConfirmation,
+            ];
+
+            if ($toolContext->budgets->webSources !== []) {
+                $metadata['web_sources'] = $toolContext->budgets->webSources;
+            }
+
             $assistant = $this->messages->persistOutbound(new PersistMessageData(
                 conversation: $conversation,
                 role: MessageRole::Assistant,
@@ -214,20 +243,7 @@ final class ConversationAiService
                 body: $response->text,
                 parentMessageId: $inbound?->id,
                 occurredAt: now(),
-                metadata: [
-                    'ai' => [
-                        'configuration' => $roleKey,
-                        'provider' => $response->provider,
-                        'model' => $response->model,
-                        'latency_ms' => $latencyMs,
-                        'prompt_tokens' => $response->inputTokens,
-                        'completion_tokens' => $response->outputTokens,
-                        'total_tokens' => $response->totalTokens,
-                        'finish_reason' => $response->finishReason,
-                        'event' => $eventName,
-                    ],
-                    'pending_confirmation' => $pendingConfirmation,
-                ],
+                metadata: $metadata,
             ))->message;
 
             if ($inbound !== null) {
@@ -292,6 +308,7 @@ final class ConversationAiService
      * @param  list<AiChatMessage>  $messages
      * @param  list<ToolDefinition>  $tools
      * @param  list<ToolResult>  $toolResults
+     * @param  array<string, mixed>  $diagnostics
      */
     private function completeWithTools(
         AiRoleSetting $configuration,
@@ -300,10 +317,17 @@ final class ConversationAiService
         array $tools,
         ToolExecutionContext $toolContext,
         array &$toolResults = [],
+        array &$diagnostics = [],
     ): AiChatResponse {
         $rounds = 0;
+        $maxRounds = max(1, (int) config('context_budget.max_tool_rounds', self::MAX_TOOL_ROUNDS));
 
         while (true) {
+            $enforced = $this->contextBudgets->enforceRequest($systemPrompt, $messages, $configuration, $diagnostics);
+            $systemPrompt = $enforced['system_prompt'];
+            $messages = $enforced['messages'];
+            $diagnostics = $enforced['diagnostics'];
+
             $response = $this->gateway->chat($configuration, new AiChatRequest(
                 model: (string) $configuration->model,
                 systemPrompt: $systemPrompt,
@@ -320,7 +344,7 @@ final class ConversationAiService
                 return $response;
             }
 
-            if ($rounds >= self::MAX_TOOL_ROUNDS) {
+            if ($rounds >= $maxRounds) {
                 try {
                     Log::warning('AI tool loop limit reached', [
                         'configuration' => $configuration->roleKey()->value,
@@ -346,12 +370,30 @@ final class ConversationAiService
 
             foreach ($response->toolCalls as $call) {
                 $result = $this->tools->execute($call, $toolContext);
+                $result = $this->toolResultBudgets->apply($result, $toolContext->budgets);
                 $toolResults[] = $result;
                 $messages[] = AiChatMessage::toolResult($result);
             }
 
             $rounds++;
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $diagnostics
+     * @return array<string, mixed>
+     */
+    private function safeContextMetadata(array $diagnostics): array
+    {
+        return [
+            'estimated_input_tokens' => $diagnostics['estimated_input_tokens'] ?? null,
+            'output_reserve' => $diagnostics['output_reserve'] ?? null,
+            'input_budget' => $diagnostics['input_budget'] ?? null,
+            'utilization_percent' => $diagnostics['utilization_percent'] ?? null,
+            'overflow_prevented' => (bool) ($diagnostics['overflow_prevented'] ?? false),
+            'sources' => $diagnostics['sources'] ?? [],
+            'trimmed' => $diagnostics['trimmed'] ?? [],
+        ];
     }
 
     /**

@@ -36,6 +36,8 @@ final class UserCapability
 
     public const STORAGE = 'storage';
 
+    public const WEB_RESEARCH = 'web_research';
+
     public const VOICE = 'voice';
 
     public const IMPERSONATION = 'impersonation';

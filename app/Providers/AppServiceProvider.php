@@ -61,6 +61,11 @@ use App\Services\Tools\Storage\ReadStorageFileChunksTool;
 use App\Services\Tools\Storage\SearchStorageFileContentsTool;
 use App\Services\Tools\Storage\SearchStorageFilesTool;
 use App\Services\Tools\ToolRegistry;
+use App\Services\Tools\WebResearch\FetchWebPageTool;
+use App\Services\Tools\WebResearch\SearchWebTool;
+use App\Services\WebResearch\Contracts\WebSearchProvider;
+use App\Services\WebResearch\Providers\NullWebSearchProvider;
+use App\Services\WebResearch\Providers\TavilyWebSearchProvider;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -72,6 +77,15 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(AiChatGateway::class, ProviderAiChatGateway::class);
+
+        $this->app->singleton(WebSearchProvider::class, function ($app): WebSearchProvider {
+            $name = strtolower(trim((string) config('web_research.provider')));
+
+            return match ($name) {
+                'tavily' => $app->make(TavilyWebSearchProvider::class),
+                default => $app->make(NullWebSearchProvider::class),
+            };
+        });
 
         $this->app->singleton(ToolRegistry::class, function ($app): ToolRegistry {
             return new ToolRegistry([
@@ -120,6 +134,8 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(SearchStorageFileContentsTool::class),
                 $app->make(ReadStorageFileChunksTool::class),
                 $app->make(DeleteStorageFileTool::class),
+                $app->make(SearchWebTool::class),
+                $app->make(FetchWebPageTool::class),
                 $app->make(ConfirmToolActionTool::class),
                 $app->make(CancelToolActionTool::class),
             ]);

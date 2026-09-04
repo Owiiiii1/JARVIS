@@ -657,9 +657,15 @@ Versioned Client API remains later (Desktop/Mobile). M22 uses Inertia session.
 
 ## Milestone 22.3 — Web Research + Context Budget Manager
 
-**Статус.** PLANNED.
+**Статус.** IMPLEMENTED / NOT VALIDATED (2026-09-04). Automated tests not run. No live web search, live page fetch, or live AI.
 
-**Цель.** Bounded web research tools plus a global Context Budget Manager that covers conversation, memory, Storage tool results, and research excerpts. M22.2 only hard-bounds Storage tools.
+**Цель.** Owner web research tools (search then selective fetch) plus a global Context Budget Manager so one LLM request stays bounded regardless of DB size.
+
+**Реализовано.** `WebSearchProvider` (Tavily) + `WebPageFetchService` / SSRF guard; `search_web` / `fetch_web_page`; capability `web_research`; `ContextBudgetManager`, `AiModelContextPolicy`, `TokenEstimator`, `ToolResultBudgetManager`; budget-aware incremental summaries. See [WEB_RESEARCH.md](WEB_RESEARCH.md), [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md).
+
+**Не входит:** live provider validation; PDF fetch; browser automation; web content DB; user-role web tools; tests.
+
+**Зависимости:** M22.2, M4.
 
 После M22.3 — M23 Voice Runtime Foundation.
 

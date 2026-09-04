@@ -9,17 +9,17 @@ Conversation Engine
       → Core tool | Integration provider adapter
 ```
 
-**Status (M21):** IMPLEMENTED (not live-validated) — Integration Registry, encrypted `integration_accounts`, `tool_execution_logs`, persisted `tool_confirmations`, owner Integrations Admin, Google OAuth (identity + incremental Calendar + Gmail scopes), **Google Calendar tools**, **Gmail tools**, **GitHub OAuth App + GitHub tools**. ElevenLabs API is **not** implemented. Automated tests and live Google/GitHub smoke are deferred by Owner. Identity or Calendar connected ≠ Gmail ready. Missing Gmail scopes do not call the Gmail API. Missing GitHub OAuth env → Not configured; no GitHub API calls.
+**Status (M22.3):** IMPLEMENTED (not live-validated) — Integration Registry, encrypted `integration_accounts`, `tool_execution_logs`, persisted `tool_confirmations`, owner Integrations Admin, Google OAuth (identity + incremental Calendar + Gmail scopes), **Google Calendar tools**, **Gmail tools**, **GitHub OAuth App + GitHub tools**, **Web Research tools** (`search_web`, `fetch_web_page` via `WebSearchProvider` / Tavily; fetch via `WebPageFetchService`). ElevenLabs API is **not** implemented. Automated tests and live Google/GitHub/web/AI smoke are deferred by Owner. Identity or Calendar connected ≠ Gmail ready. Missing Gmail scopes do not call the Gmail API. Missing GitHub OAuth env → Not configured; no GitHub API calls. Missing `WEB_SEARCH_API_KEY` → `web_search_not_configured`; no live search.
 
-Conversation Engine не импортирует Google SDK, ElevenLabs SDK или Telegram SDK.
+Conversation Engine не импортирует Google SDK, ElevenLabs SDK, Telegram SDK, или Tavily HTTP.
 
 ---
 
 ## Кто имеет доступ
 
-Google / ElevenLabs / GitHub / Integrations admin — **owner only** (`integrations_admin`). GitHub tools also require capability `github` (owner default `*`). ADR-028, ADR-095.
+Google / ElevenLabs / GitHub / Integrations admin — **owner only** (`integrations_admin`). GitHub tools also require capability `github` (owner default `*`). Web Research requires `web_research` (owner default `*`; not granted to regular users in M22.3). ADR-028, ADR-095.
 
-Обычный `user` не видит Integrations, не получает Gmail/Calendar/GitHub/voice tools, не читает credentials.
+Обычный `user` не видит Integrations, не получает Gmail/Calendar/GitHub/Storage/web/voice tools, не читает credentials.
 
 **Reminders** — не этот слой и не Calendar. Core Reminder Engine доступен owner и users. [REMINDERS.md](REMINDERS.md).
 
@@ -342,6 +342,10 @@ Private repo content may enter Owner Conversation AI only through explicit tools
 Future Web/Desktop/Mobile/Voice use the same server-side tools. Clients must not store GitHub tokens.
 
 Safe errors: `github_not_connected`, `github_scope_required`, `github_repository_not_found`, `github_ref_not_found`, `github_file_not_found`, `github_issue_not_found`, `github_pr_not_found`, `github_workflow_run_not_found`, `github_forbidden`, `github_rate_limited`, `github_validation_failed`, `github_conflict`, `github_unavailable`, `github_token_revoked`. Raw API bodies are not returned to AI/logs.
+
+### Web Research (M22.3)
+
+Owner-only capability `web_research`. Tools `search_web` and `fetch_web_page`. Search goes through `WebSearchProvider` (initial: Tavily). Fetch is a separate SSRF-guarded HTTP path. Missing `WEB_SEARCH_API_KEY` → `web_search_not_configured`. Web content is untrusted and is not a source of tool authorization. No web content tables. Full spec: [WEB_RESEARCH.md](WEB_RESEARCH.md).
 
 ### ElevenLabs
 

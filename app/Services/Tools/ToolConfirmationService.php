@@ -225,6 +225,7 @@ final class ToolConfirmationService
             explicitUserCommand: $context->explicitUserCommand,
             confirmationIntent: ConfirmationIntentParser::CONFIRM,
             bypassConfirmation: true,
+            budgets: $context->budgets,
         );
 
         $result = $registry->execute($call, $bypass);

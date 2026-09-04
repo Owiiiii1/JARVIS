@@ -38,7 +38,7 @@ Jarvis context is assembled from distinct layers. None of these is “the whole 
 
 Storage is **not** automatic prompt context. There is no “all stored files” dump. Current-turn attached files may include compact metadata and a small inline excerpt; large files must be read with tools.
 
-Global Context Budget Manager is **M22.3**, together with Web Research. M22.2 only hard-bounds Storage tool results.
+Global Context Budget Manager is **implemented in M22.3** together with Web Research. M22.2 still hard-bounds Storage tool results locally; M22.3 adds the second global layer. [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md).
 
 ---
 
@@ -225,7 +225,7 @@ Touch/mobile: do not force the software keyboard after a turn.
 - PDF/Office/ZIP extractors
 - Permanent screenshot library / “save image to Storage”
 - Vector/embedding search
-- ContextBudgetManager (M22.3)
+- ContextBudgetManager (done in M22.3; Storage still never auto-dumps files)
 - User-role Storage
 - Telegram document/photo ingestion
 - Automated tests / live vision validation

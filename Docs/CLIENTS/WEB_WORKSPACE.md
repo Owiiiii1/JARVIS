@@ -1,6 +1,6 @@
 # Owner Web Workspace
 
-**Status.** IMPLEMENTED / NOT VALIDATED (M22 + M22.1 + M22.2). Voice runtime is still planned.
+**Status.** IMPLEMENTED / NOT VALIDATED (M22 + M22.1 + M22.2 + M22.3). Voice runtime is still planned.
 
 Owner-facing Personal Workspace. This is **not** the Admin Panel and **not** the User Cabinet (`/cabinet`).
 
@@ -44,6 +44,8 @@ Workspace uses the existing Owner Space and engines:
 - projects, reminders, group knowledge tools
 - Google Calendar / Gmail tools
 - GitHub tools (M21)
+- Storage tools (M22.2)
+- Web Research tools (M22.3: `search_web`, `fetch_web_page`)
 - `tool_confirmations`
 
 This is **not** a second chat engine and **not** a second owner memory.
@@ -166,4 +168,4 @@ No credentials, system prompts, tool logs, or raw group archive.
 - Streaming, delete-chat
 - Historical image byte replay into later turns
 - Permanent screenshot library / “save image to Storage”
-- ContextBudgetManager (M22.3)
+- ContextBudgetManager (done in M22.3)

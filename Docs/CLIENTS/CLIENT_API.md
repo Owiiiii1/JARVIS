@@ -15,6 +15,7 @@ Canonical protocol lives in `Owiiiii1/JARVIS`. Client repos keep a reference onl
 - Memory Engine
 - Tool execution
 - Google / Gmail / Calendar / GitHub credentials
+- web search API keys
 - group intelligence
 - project knowledge assembly
 - AI provider selection
@@ -58,7 +59,7 @@ Realtime transport: SSE / WebSocket / WebRTC — `TBD` by practical test. See [V
 
 ## Errors
 
-Safe codes only. No provider raw bodies, tokens, or email dumps in API errors.
+Safe codes only. No provider raw bodies, tokens, email dumps, or fetched web page bodies in API errors. Web Research stays server-side tools (`search_web` / `fetch_web_page`); clients never call Tavily. One-turn context size is a Core concern (`ContextBudgetManager`), not a client prompt dump.
 
 ---
 

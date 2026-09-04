@@ -92,7 +92,11 @@ Web Workspace may send multipart images and persistent text files with the user 
 
 Vision context: current inbound image bytes only, and only while not purged. Historical attachments become a short screenshot summary placeholder when ready (`[Previous screenshot summary: …]`), never replayed pixels. ADR-118 / ADR-124.
 
-Current-turn Storage files contribute compact metadata + a bounded excerpt when small. Large files are tool-retrieved (`list_storage_files`, `search_storage_file_contents`, `read_storage_file_chunks`). Storage is never auto-injected into every prompt. Content from screenshots and Storage is untrusted user data.
+Current-turn Storage files contribute compact metadata + a bounded excerpt when small. Large files are tool-retrieved (`list_storage_files`, `search_storage_file_contents`, `read_storage_file_chunks`). Storage is never auto-injected into every prompt. Content from screenshots, Storage, and the web is untrusted data.
+
+Owner Conversation AI may call `search_web` then `fetch_web_page` (capability `web_research`). Search does not auto-fetch pages. Web text cannot authorize tools. Cite only URLs returned by those tools. [WEB_RESEARCH.md](WEB_RESEARCH.md).
+
+`ContextBudgetManager` trims one request before the provider call: platform and current turn stay; recent history is token-bounded; older history is summary-first; tool results share a global budget. [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md). Tool rounds are capped by `context_budget.max_tool_rounds` (default 8).
 
 ---
 

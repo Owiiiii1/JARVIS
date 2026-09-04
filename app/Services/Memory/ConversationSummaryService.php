@@ -11,6 +11,7 @@ use App\Services\Ai\AiConfigurationResolver;
 use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\DTO\AiChatMessage;
 use App\Services\Ai\DTO\AiChatRequest;
+use App\Services\Context\TokenEstimator;
 use App\Services\Conversations\ConversationContextBuilder;
 use Illuminate\Support\Collection;
 
@@ -21,34 +22,30 @@ final class ConversationSummaryService
         private readonly AiChatGateway $gateway,
         private readonly SummaryPromptBuilder $prompts,
         private readonly ConversationContextBuilder $contextBuilder,
+        private readonly TokenEstimator $estimator,
     ) {}
 
     public function semanticCountSince(?ConversationSummary $summary, Conversation $conversation): int
     {
-        $query = Message::query()->where('conversation_id', $conversation->id);
-
-        if ($summary?->to_message_id) {
-            $query->where('id', '>', $summary->to_message_id);
-        }
-
-        return $query
-            ->orderBy('id')
-            ->get()
-            ->filter(fn (Message $message): bool => $this->contextBuilder->isSemanticDialogue($message))
-            ->count();
+        return $this->messagesAfter($conversation, $summary?->to_message_id)->count();
     }
 
     public function shouldUpdate(Conversation $conversation): bool
     {
         $current = $this->current($conversation);
-        $count = $this->semanticCountSince($current, $conversation);
+        $messages = $this->messagesAfter($conversation, $current?->to_message_id);
         $threshold = (int) config('memory.summary_message_threshold');
 
-        if ($current === null) {
-            return $count >= $threshold;
+        if ($messages->count() >= $threshold) {
+            return true;
         }
 
-        return $count >= $threshold;
+        $joined = $messages
+            ->map(static fn (Message $message): string => trim((string) $message->body))
+            ->filter()
+            ->implode("\n");
+
+        return $this->estimator->estimateText($joined) >= (int) config('context_budget.summary_refresh_tokens', 2500);
     }
 
     public function current(Conversation $conversation): ?ConversationSummary
@@ -74,10 +71,17 @@ final class ConversationSummaryService
         }
 
         $configuration = $this->resolver->resolveAnalysis();
+        $previousText = $previous?->summary;
+        $maxChars = max(500, (int) config('context_budget.summary_max_chars', 4000));
+
+        if (is_string($previousText) && mb_strlen($previousText) > $maxChars) {
+            $previousText = $this->summarize($this->prompts->reduce($conversation, [$previousText]));
+        }
+
         $chunkSize = (int) config('memory.summary_initial_chunk');
         $text = $previous === null && $messages->count() > $chunkSize
             ? $this->chunkReduce($conversation, $messages, $chunkSize)
-            : $this->summarize($this->prompts->incremental($previous?->summary, $conversation, $messages));
+            : $this->summarize($this->prompts->incremental($previousText, $conversation, $messages));
 
         if ($previous !== null) {
             $previous->forceFill(['status' => ConversationSummaryStatus::Superseded])->save();
@@ -115,10 +119,14 @@ final class ConversationSummaryService
             $query->where('id', '>', $afterId);
         }
 
+        $cap = max(20, (int) config('context_budget.unsummarized_message_cap', 80));
+
         return $query
             ->orderBy('id')
+            ->limit($cap * 3)
             ->get()
             ->filter(fn (Message $message): bool => $this->contextBuilder->isSemanticDialogue($message))
+            ->take($cap)
             ->values();
     }
 
@@ -158,6 +166,6 @@ final class ConversationSummaryService
             $summary = trim($response->text);
         }
 
-        return mb_substr($summary, 0, 8000);
+        return mb_substr($summary, 0, max(500, (int) config('context_budget.summary_max_chars', 4000)));
     }
 }

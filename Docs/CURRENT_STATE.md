@@ -9,7 +9,7 @@ This document describes **what exists on the server now**. Target architecture i
 
 ### Implemented vs planned (post-M22)
 
-**IMPLEMENTED (code/runtime, Google/GitHub/Workspace/vision not live-validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Owner Personal Workspace (`/jarvis`) including M22.1 image attachments + copyable artifacts and M22.2 persistent Storage + ephemeral screenshots; Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, Workspace conversational validation, and live vision calls are deferred by Owner.
+**IMPLEMENTED (code/runtime, Google/GitHub/Workspace/vision/web not live-validated):** Admin Panel; Telegram pairing/DM/Chat Selector; User Cabinet chat (`/cabinet`); Owner Personal Workspace (`/jarvis`) including M22.1 image attachments + copyable artifacts, M22.2 persistent Storage + ephemeral screenshots, and M22.3 Web Research + Context Budget Manager; Conversation Engine; Memory Engine; Projects; Telegram Groups + analysis/search; Reminder Engine; Integration Framework; Google OAuth + Calendar tools + Gmail tools; GitHub OAuth App + GitHub tools. Combined Google smoke, GitHub live/automated tests, Workspace conversational validation, live vision, and live web search/fetch are deferred by Owner.
 
 **PLANNED / DOCUMENTED ONLY (not implemented):** versioned Client API; realtime Voice Runtime; Orb Voice UI; Desktop (`Owiiiii1/JARVIS-Desktop`); Mobile (`Owiiiii1/JARVIS-Mobile`); GitHub merge/file-write/webhooks; proactive assistant / inbox watch. Do not treat these as shipped.
 
@@ -31,9 +31,9 @@ Status vocabulary:
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | (see latest `feat: add Jarvis persistent storage and ephemeral media`) |
-| Previous origin/main | `ac85b14759efae52cf79dbe8581fa25923a87991` |
-| Message | `feat: add Jarvis persistent storage and ephemeral media` |
+| HEAD | (see latest `feat: add web research and context budgeting`) |
+| Previous origin/main | `342dd6d92210094acf45eaa5ce3e6599f5a3591e` |
+| Message | `feat: add web research and context budgeting` |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 | Working tree (at audit start) | clean |
 | Uncommitted / untracked | none (before this file) |
@@ -732,7 +732,19 @@ Private `message_attachments` (generic kind, images first). Multipart send on Wo
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
-### Planned after M22.1 — DOCUMENTED ONLY
+### Milestone 22.2 — Persistent Storage + ephemeral screenshots — IMPLEMENTED, NOT VALIDATED (2026-09-04)
+
+Attachment lifecycle + 24h/7d purge; derived screenshot summaries; `stored_files` / chunks / chat pivot; `/jarvis/storage`; Storage tools. No live vision/AI. Automated tests not run.
+
+See [STORAGE.md](STORAGE.md), [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 22.3 — Web Research + Context Budget Manager — IMPLEMENTED, NOT VALIDATED (2026-09-04)
+
+Owner `search_web` / `fetch_web_page` behind `WebSearchProvider` (Tavily) and SSRF-guarded fetch. No web content tables. `ContextBudgetManager` + per-model policy + conservative `TokenEstimator` + global ToolResult budget + incremental summary refresh. No live web/AI. Automated tests not run. No new DB tables.
+
+See [WEB_RESEARCH.md](WEB_RESEARCH.md), [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md), [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Planned after M22.3 — DOCUMENTED ONLY
 
 Voice Runtime / Orb; Desktop Tauri; Mobile Flutter; GitHub merge/file-write/webhooks; proactive assistant. Do not treat as shipped.
 

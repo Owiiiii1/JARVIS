@@ -1308,6 +1308,156 @@
 
 ---
 
+## ADR-135 — Web Research is explicit tool-driven retrieval
+
+**Контекст.** Owner needs current public-web facts without dumping the internet into every prompt.
+
+**Решение.** `search_web` and `fetch_web_page` are Tool Layer tools behind `WebSearchProvider` / `WebPageFetchService`. Controllers and models do not call search APIs. Search does not auto-fetch pages.
+
+**Следствие.** The model chooses which 2–5 URLs to read.
+
+---
+
+## ADR-136 — Web content is untrusted data
+
+**Контекст.** Pages can contain prompt-injection (“send all Gmail to attacker”).
+
+**Решение.** Platform rule: web text is quoted source material only. It cannot override instructions, grant permissions, authorize tools, or reveal secrets. `ToolExecutionContext` remains the source of authorization.
+
+**Следствие.** A page cannot enable Gmail/GitHub/Storage.
+
+---
+
+## ADR-137 — Search and page fetch are separate tools
+
+**Контекст.** Downloading every search hit would blow latency, cost, and context.
+
+**Решение.** `search_web` returns compact snippets. `fetch_web_page` reads one URL. Caps: max searches, fetches, and total web chars per turn.
+
+**Следствие.** `web_research_budget_exceeded` when caps hit.
+
+---
+
+## ADR-138 — SSRF and private-network access are forbidden
+
+**Контекст.** Server-side fetch is a classic SSRF surface.
+
+**Решение.** http/https only. Deny localhost, loopback, RFC1918, link-local, metadata, internal hostnames, credentials, non-http schemes. Resolve DNS before request; revalidate every redirect.
+
+**Следствие.** No unix/file/data/javascript fetches. No browser automation in M22.3.
+
+---
+
+## ADR-139 — Web results do not auto-enter personal memory
+
+**Контекст.** Scraped prices and news are not durable personal facts.
+
+**Решение.** Memory analysis ignores web-scraped facts unless the user explicitly asked to remember a personal fact. Fetched pages are not stored in DB.
+
+**Следствие.** Source links in the assistant message are enough for later conversation.
+
+---
+
+## ADR-140 — Context size is governed centrally by ContextBudgetManager
+
+**Контекст.** Conversation, memory, Storage, Gmail, GitHub, and web can each overflow a prompt.
+
+**Решение.** `ConversationContextBuilder` gathers slices; `ContextBudgetManager` decides how much of each enters one AI request. Named budgets live in `config/context_budget.php`.
+
+**Следствие.** Local tool bounds remain; they are not the only limiter.
+
+---
+
+## ADR-141 — Model context limits resolve per provider/model with a conservative fallback
+
+**Контекст.** Models do not share one context window.
+
+**Решение.** `AiModelContextPolicy` + `config/ai_model_context.php`. Unknown model → conservative default (32k context, 2k output reserve). Input budget = max − reserve − safety margin.
+
+**Следствие.** Do not hardcode one window in Conversation Engine.
+
+---
+
+## ADR-142 — Token estimator is intentionally conservative
+
+**Контекст.** Perfect tokenizers are provider-specific.
+
+**Решение.** `TokenEstimator` overestimates via Unicode-aware chars/words + overhead. Prefer overestimating. Provider usage can later show drift in logs.
+
+**Следствие.** Before each provider call, estimated input must be ≤ input budget.
+
+---
+
+## ADR-143 — Recent history raw window is token-bounded
+
+**Контекст.** A message-count window still explodes if messages are huge.
+
+**Решение.** Take newest messages backwards until the recent-token budget is exhausted. Preserve complete message boundaries. Count limits remain query bounds only.
+
+**Следствие.** Emergency minimum recent context is kept; old memories are dropped first.
+
+---
+
+## ADR-144 — Old history is summary-first / raw-on-demand
+
+**Контекст.** Lifetime chats cannot be stuffed into the prompt.
+
+**Решение.** Keep current architecture: current `conversation_summary` for older same-chat; cross-chat summaries; raw other chats only via `search_conversation_history`.
+
+**Следствие.** DB size does not imply prompt size.
+
+---
+
+## ADR-145 — Global ToolResult budget is a second safety layer
+
+**Контекст.** A GitHub diff, Gmail thread, web page, or Storage log can overflow even when base context is small.
+
+**Решение.** `ToolResultBudgetManager` trims every ToolResult. Preserve structure; trim content first. Shared per-turn tool budget. Exhausted → `tool_context_budget_exceeded`.
+
+**Следствие.** Gmail/GitHub/Web/Storage cannot independently overflow context.
+
+---
+
+## ADR-146 — Compaction never deletes raw conversation
+
+**Контекст.** Summaries are derived.
+
+**Решение.** `UpdateConversationSummaryJob` still writes versions. Raw `messages` stay. Coverage uses existing `from_message_id` / `to_message_id`.
+
+**Следствие.** No M22.3 destructive data migration.
+
+---
+
+## ADR-147 — Summaries update incrementally and stay bounded
+
+**Контекст.** Re-summarizing a lifetime chat every turn would be unbounded.
+
+**Решение.** Previous summary + unsummarized range (capped). Refresh on message **or** token threshold. Cap summary chars and recompress if needed.
+
+**Следствие.** Unsummarized queries use LIMIT. No all-history summarizer prompt.
+
+---
+
+## ADR-148 — Database size must not imply prompt size
+
+**Контекст.** Owner scale goal: 1M messages still yields a bounded one-turn request.
+
+**Решение.** After summary threshold, extra raw rows do not materially grow the normal prompt. Only retrieval/index cost may grow. Persistent files stay on disk; object storage is a future threshold, not this milestone.
+
+**Следствие.** Context diagnostics log metrics only, never private texts.
+
+---
+
+## ADR-149 — M22.3 tests and live web/AI are deferred by Owner
+
+**Контекст.** Production DB and live Tavily/AI remain high-risk.
+
+**Решение.** Implement M22.3 without `php artisan test`, live search, live fetch, live AI conversation, Google, or GitHub.
+
+**Следствие.** Status: implemented, not validated.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Алфавит generated access_code (кроме зарезервированного 2000).

@@ -1,229 +1,138 @@
-# Cursor Work Report — M22.2 Persistent Storage + Ephemeral Screenshots + Workspace UX
+# Cursor Work Report — M22.3 Web Research + Context Budget Manager
 
-Date: 2026-09-04  
-Host: `/var/www/jarvis`  
-Public URL: https://jarvis.owlsolutions.net  
-GitHub: Owiiiii1/JARVIS  
-Branch: `main`
-
-Status: **IMPLEMENTED / NOT VALIDATED**. Owner deferred all automated/live tests. No live AI vision, live conversation send, Google, or GitHub calls during this work.
+**Date:** 2026-09-04  
+**Host:** `/var/www/jarvis`  
+**Public URL:** https://jarvis.owlsolutions.net  
+**GitHub:** https://github.com/Owiiiii1/JARVIS.git  
+**Branch:** `main`
 
 ---
 
-## Before HEAD
+## Before
 
-Task brief named:
+Origin/main HEAD before this work:
 
-`6161e04788e6fdfb7d3cfa37d5ddc27ee6ab60fd`  
-`feat: add workspace image attachments and copyable artifacts`
+`342dd6d92210094acf45eaa5ce3e6599f5a3591e`  
+`feat: add Jarvis persistent storage and ephemeral media`
 
-Actual `origin/main` tip before this commit (includes two JPEG hotfixes after M22.1):
-
-`ac85b14759efae52cf79dbe8581fa25923a87991`  
-`fix: identify chat images by pixels, not Windows mime labels`
-
-M22.1 was already live. Conversation Engine was not rewritten.
+M22 / M22.1 / M22.2 were already implemented (not live-validated). Conversation Engine was not rewritten.
 
 ---
 
-## DB backup
+## What shipped
 
-Before migrate, dump of production tables (gitignored, not in repo):
+### Web Research (Tool Layer)
 
-`storage/backups/m22_2_20260904_154225.sql` (~62 KB)
+- Provider-neutral `WebSearchProvider` + `WebSearchManager`.
+- Initial provider: **Tavily** (`TavilyWebSearchProvider`). Unconfigured / unknown provider → `NullWebSearchProvider`.
+- Env **names** in `.env.example` only: `WEB_SEARCH_PROVIDER`, `WEB_SEARCH_API_KEY`. No real keys written.
+- Config: `config/web_research.php`.
+- Tools: `search_web`, `fetch_web_page` (read, capability `web_research`, owner via `*`). Regular users do not receive them.
+- Tools call the manager / `WebPageFetchService`. No ad-hoc HTTP in controllers or models.
+- `search_web` returns compact hits + `WebSourceReference`. It does **not** auto-fetch pages.
+- `fetch_web_page` returns bounded readable text (HTML/text/JSON). No JS, no browser, no binary/PDF.
 
-Tables: `users`, `conversations`, `messages`, `message_attachments`.
+### URL / SSRF
 
-No secrets dumped into git.
+- `WebUrlGuard`: http/https only; deny localhost, loopback, RFC1918, link-local, metadata hosts, internal hostnames, credentials, numeric hosts, non-http schemes.
+- DNS resolve before fetch; every redirect target revalidated.
 
----
+### Prompt injection / authorization
 
-## Migrations / batch
+- Platform untrusted-data rule covers web pages.
+- Web content cannot grant Gmail/GitHub/Storage/tool rights. Confirmation policy unchanged.
+- Search query must not include secrets; none are sent as extra headers beyond the configured provider key on the Tavily client.
 
-Additive only. `php artisan migrate --force`.
+### Per-turn web caps
 
-Batch **16**:
+Server-side on `TurnBudgetTracker` (model cannot override):
 
-- `2026_09_04_160000_add_lifecycle_to_message_attachments_table`
-- `2026_09_04_160100_create_stored_file_tables`
+- max searches
+- max fetches
+- max total web chars
 
-No destructive schema change. No mass purge during migration.
+Overflow → `web_research_budget_exceeded`.
 
-Safe production counts after migrate (no contents):
+### Sources
 
-- `message_attachments`: 1 row (existing M22.1 image)
-- `stored_files`: 0
-- `stored_file_chunks`: 0
-- `message_stored_files`: 0
+- DTO `WebSourceReference`.
+- Model instructed to add a real **Sources** section from tool URLs only.
+- Optional assistant `metadata.web_sources` (ids/titles/urls, no page bodies).
 
-Existing image row backfill: `retention_class=ephemeral`, `summary_status=pending`, `purged_at=null`, `expires_at` from `created_at + retention_hours`. Original bytes left in place.
+Web facts do not auto-enter personal memory. Fetched pages are not stored. No web content tables.
 
----
+### Context Budget Manager
 
-## Message attachment lifecycle
+- `config/context_budget.php`, `config/ai_model_context.php`
+- `ContextBudgetManager`, `AiModelContextPolicy`, `TokenEstimator` (conservative overestimate)
+- Recent history token-bounded, newest backwards, complete messages
+- Current conversation summary, memories, cross-chat, projects, storage excerpt, screenshot summaries all have named budgets
+- System/platform and current user turn are preserved
+- Hard check before each provider call: estimated input ≤ input budget
+- Tool-round cap configurable (`max_tool_rounds`, default 8) for research loops without an infinite loop
 
-New columns: `retention_class`, `expires_at`, `summary_status`, `summary_text`, `summarized_at`, `purged_at`, `purge_failure_count`.
+### ToolResult budget
 
-`message_attachments` remains the Core entity for ephemeral chat media.
+- `ToolResultBudgetManager` is a second safety layer on every ToolResult
+- Shared per-turn budget; family caps for web/Gmail/GitHub/Storage/group
+- Trim content/excerpts first; keep success/error/ids/`truncated`/metadata
+- Exhausted → `tool_context_budget_exceeded`
 
----
+### Summary compaction
 
-## Screenshot retention config
+- Existing `UpdateConversationSummaryJob` / `ConversationSummaryService`
+- Refresh on message **or** token threshold
+- Incremental: previous summary + capped unsummarized range
+- Coverage already on `from_message_id` / `to_message_id` — **no migration**
+- Summary size capped; recompress if needed
+- Raw messages never deleted
 
-`config/chat_attachments.php`:
+### Diagnostics
 
-- `retention_class` default `ephemeral` (not hardcoded image==ephemeral in every layer)
-- `retention_hours` default **24**
-- `hard_retention_days` default **7**
-- `purge_batch` 50
-- `summary_max_chars` 1200
-- `summary_queue` `memory`
-- `summary_max_attempts` 3
-
----
-
-## Summary pipeline
-
-Successful persisted user image → `SummarizeMessageAttachmentJob` (`memory` queue) → `AttachmentVisionSummaryService`.
-
-Uses `AiChatGateway` + Owner Conversation configuration (production vision-capable Gemini). Does **not** hardcode Gemini HTTP. Does **not** silently change Owner Analysis AI.
-
-Dedicated `summary_text` is derived attachment metadata, not the assistant reply and not personal memory. Memory analysis prompt now forbids bulk-ingest of screenshot summaries / Storage contents.
-
-Hourly command also enqueues a bounded batch of pending summaries (for existing M22.1 rows).
-
----
-
-## Purge schedule / hard fallback
-
-Command: `jarvis:attachments:purge-ephemeral`  
-Schedule: hourly, `withoutOverlapping`. Reminders everyMinute left untouched.
-
-Eligibility:
-
-- ready summary **and** `expires_at <= now`, **or**
-- `created_at` older than 7 days (hard fallback even if summary failed)
-
-Bounded batch. Deletes original + thumbnail, clears paths, sets `purged_at`, keeps DB row + summary. After hard fallback without summary: metadata indicates summary unavailable.
-
-Existing production screenshot was **not** deleted during implementation.
+- Log `context budget` metrics only (user/conversation ids, model, estimated tokens, per-source counts, trimmed, utilization, overflow_prevented)
+- Compact copy on `metadata.ai.context`
+- No private texts. No new admin subsystem. No new DB table.
 
 ---
 
-## Persistent Storage schema
+## Migration
 
-- `stored_files` — metadata only, private disk bytes
-- `stored_file_chunks` — unique `(stored_file_id, chunk_index)`
-- `message_stored_files` — optional pivot, unique pair
-
-Config: `config/jarvis_storage.php`  
-Disk: Laravel `local` (`storage/app/private`) under `jarvis-storage/{user}/{uuid}/…`
-
-No automatic expiry. Remain until owner deletes.
+None. No `web_pages` / `search_results` / `web_cache`. Production tables were not altered.
 
 ---
 
-## Text formats / limits
+## Verification (allowed only)
 
-App-level: 20 MB per file, 8 files/upload, 40 MB total. Extracted text capped (2M chars). Chunk ~8k with 400 overlap. Inline current-turn text only if ≤ 4k chars.
+Intended static checks (not product tests):
 
-Supported: listed text/source extensions in config. Rejected: PDF/Office/ZIP/executables/images as Storage, null-byte binaries.
-
-MIME + extension + binary heuristics. HTML/XML stored as documents; download always `attachment`.
-
----
-
-## Extraction / chunking / search
-
-- `StoredFileTextExtractor` — BOM, line endings, UTF-8 when safe
-- `StoredFileChunker` — line-aware windows
-- `StoredFileSearchService` — SQL `LIKE` on names/summaries and chunk text. No embeddings. No FULLTEXT in M22.2.
-
-Queued `ProcessStoredFileJob` (`default`); sync for small files (`sync_process_max_bytes`). Failed processing: `status=failed`, original kept.
-
-sha256 stored. No silent merge of intentional duplicate uploads. `client_upload_id` for retry idempotency.
-
----
-
-## Tools / capability
-
-Capability: `UserCapability::STORAGE` (owner has `*`; regular users do not get Storage tools/UI).
-
-Registered:
-
-- `list_storage_files`
-- `search_storage_files`
-- `get_storage_file`
-- `search_storage_file_contents`
-- `read_storage_file_chunks`
-- `delete_storage_file` (destructive → `ToolConfirmationService`)
-
-Hard bounds: result count, excerpt chars, total tool chars, `truncated=true`. Storage is never auto-injected into every prompt. Current-turn attached files expose `public_id` for tools.
-
----
-
-## Chat attachment integration
-
-Composer: images + persistent text files in one turn. `images[]` remain ephemeral `message_attachments`. `files[]` create `StoredFile` + pivot. Direct `/jarvis/storage` upload does not create a conversation/message.
-
-UI: “Temporary image · expires in ~24h” vs “Saved to Storage”. Purged screenshots: expired card + bounded summary, no broken image. Historical context uses screenshot summary placeholders.
-
----
-
-## `/jarvis/storage` routes/UI
-
-Owner Workspace (not Admin):
-
-- `GET/POST /jarvis/storage`
-- `GET/PATCH/DELETE /jarvis/storage/{public_id}`
-- `GET /jarvis/storage/{public_id}/download`
-
-Sidebar **Storage** nav. Paginated list, drag/drop upload, search, rename, delete confirmation modal, bounded preview, source-chat link.
-
----
-
-## Focus fix
-
-Stable textarea ref. `focusComposer({ forceDesktopOnly: true })` via `(hover: hover) and (pointer: fine)`. Restores after send/error/chip/remove-attachment/lightbox once textarea is enabled. Mobile does not force the keyboard after a turn. No pointless `setTimeout`.
-
----
-
-## Ownership / security
-
-StoredFile and attachment routes check `user_id`. UUID alone is insufficient. Untrusted-data guidance in conversation system context. Logs: ids, type, size, chunk count, status/error class — not contents, summaries, or absolute paths.
-
----
-
-## Build / static verification
-
-Ran:
-
-- `php artisan migrate --force` (batch 16)
-- `php artisan migrate:status`
-- `php artisan route:list --name=jarvis` (17 routes including Storage)
-- `php artisan schedule:list` (reminders everyMinute; purge hourly; memory,default queue:work stop-when-empty everyMinute)
-- `php artisan queue:failed` (none)
-- `npm run build` (success)
-- `vendor/bin/pint --dirty`
 - `composer dump-autoload`
+- `vendor/bin/pint --dirty`
+- `php artisan migrate:status`
+- `php artisan route:list`
+- `php artisan schedule:list`
+- `php artisan queue:failed`
+- `npm run build`
 
-**TESTS NOT RUN — Owner deferred.**  
-**NO LIVE AI / VISION / Google / GitHub.**
+**TESTS NOT RUN** (Owner decision). No PHPUnit. No `php artisan test`.
 
-Do not claim validated.
+**NO LIVE WEB / AI:** no Tavily search, no outbound page fetch to the internet, no live Conversation AI, no Google, no GitHub.
+
+Do not claim tested or live-validated.
 
 ---
 
-## Known issues
+## Known limitations
 
-- Existing M22.1 screenshot is `summary_status=pending` until the hourly enqueue + `memory` worker runs. Original bytes were not purged.
-- Storage search is substring `LIKE`, not FTS/vectors.
-- Telegram photos/documents still not ingested.
-- ContextBudgetManager not implemented (M22.3).
-- No PDF/Office/ZIP/persistent-image Storage.
+- Without `WEB_SEARCH_API_KEY`, tools return `web_search_not_configured`.
+- HTML extraction is lightweight (no JS rendering).
+- PDF fetch is out of scope.
+- Token estimator is approximate (intentionally conservative).
+- Current-turn images still consume a fixed image-token allowance; they are not dropped to keep old memories.
+- Workspace UI still shows “Jarvis is thinking…” (no research-specific thinking state).
+- Regular users do not get web tools in M22.3.
 
 ---
 
 ## Next
 
-**M22.3 — Web Research + Context Budget Manager.**
+**M23 Voice Runtime Foundation.**
