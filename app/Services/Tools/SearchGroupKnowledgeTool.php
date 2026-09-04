@@ -2,6 +2,7 @@
 
 namespace App\Services\Tools;
 
+use App\Enums\ToolOperationClass;
 use App\Enums\UserRole;
 use App\Services\Ai\DTO\ToolCall;
 use App\Services\Ai\DTO\ToolDefinition;
@@ -74,6 +75,14 @@ final class SearchGroupKnowledgeTool implements JarvisTool
                 ],
                 'required' => ['query'],
             ],
+        );
+    }
+
+    public function meta(): ToolMeta
+    {
+        return new ToolMeta(
+            capability: UserCapability::GROUP_ANALYSIS,
+            operation: ToolOperationClass::Read,
         );
     }
 

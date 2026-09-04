@@ -39,7 +39,7 @@ class SettingsController extends Controller
             ])
             ->all();
 
-        $allowedTabs = ['general', 'users', 'ai', 'app', 'telegram'];
+        $allowedTabs = ['general', 'users', 'ai', 'app', 'telegram', 'integrations'];
         $tab = (string) $request->query('tab', 'general');
         if (! in_array($tab, $allowedTabs, true)) {
             $tab = 'general';
@@ -53,6 +53,7 @@ class SettingsController extends Controller
             'providers' => $aiSettings->providersPayload(),
             'aiRoles' => $aiSettings->rolesPayload(),
             'telegram' => $this->telegramPayload(),
+            'integrations' => app(IntegrationsController::class)->payload($request),
             'tab' => $tab,
         ]);
     }

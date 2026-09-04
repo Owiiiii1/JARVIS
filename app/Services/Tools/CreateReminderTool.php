@@ -3,6 +3,7 @@
 namespace App\Services\Tools;
 
 use App\Enums\ReminderStatus;
+use App\Enums\ToolOperationClass;
 use App\Models\Reminder;
 use App\Services\Ai\DTO\ToolCall;
 use App\Services\Ai\DTO\ToolDefinition;
@@ -51,6 +52,14 @@ final class CreateReminderTool implements JarvisTool
                 ],
                 'required' => ['text', 'run_at_local'],
             ],
+        );
+    }
+
+    public function meta(): ToolMeta
+    {
+        return new ToolMeta(
+            capability: UserCapability::REMINDERS,
+            operation: ToolOperationClass::Write,
         );
     }
 

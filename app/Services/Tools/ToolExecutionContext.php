@@ -12,5 +12,7 @@ final readonly class ToolExecutionContext
         public User $user,
         public Conversation $conversation,
         public ?Message $inbound = null,
+        public ?string $channel = null,
+        public ?bool $explicitUserCommand = null,
     ) {}
 }

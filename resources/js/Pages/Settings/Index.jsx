@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import AiPanel from './AiPanel';
 import AppPanel from './AppPanel';
 import GeneralPanel from './GeneralPanel';
+import IntegrationsPanel from './IntegrationsPanel';
 import TelegramPanel from './TelegramPanel';
 import UsersPanel from './UsersPanel';
 
@@ -23,6 +24,7 @@ export default function SettingsIndex() {
             ai: 'AI',
             app: 'App settings',
             telegram: 'Telegram',
+            integrations: 'Integrations',
         },
         ru: {
             pageTitle: 'Settings',
@@ -31,6 +33,7 @@ export default function SettingsIndex() {
             ai: 'AI',
             app: 'App settings',
             telegram: 'Telegram',
+            integrations: 'Integrations',
         },
         uk: {
             pageTitle: 'Settings',
@@ -39,6 +42,7 @@ export default function SettingsIndex() {
             ai: 'AI',
             app: 'App settings',
             telegram: 'Telegram',
+            integrations: 'Integrations',
         },
     };
     const t = text[locale] ?? text.en;
@@ -50,8 +54,9 @@ export default function SettingsIndex() {
             { id: 'ai', label: t.ai },
             { id: 'app', label: t.app },
             { id: 'telegram', label: t.telegram },
+            { id: 'integrations', label: t.integrations },
         ],
-        [t.ai, t.app, t.general, t.telegram, t.users],
+        [t.ai, t.app, t.general, t.integrations, t.telegram, t.users],
     );
 
     const switchTab = (nextTab) => {
@@ -102,6 +107,7 @@ export default function SettingsIndex() {
                 {activeTab === 'ai' && <AiPanel />}
                 {activeTab === 'app' && <AppPanel />}
                 {activeTab === 'telegram' && <TelegramPanel />}
+                {activeTab === 'integrations' && <IntegrationsPanel />}
             </div>
         </AdminLayout>
     );

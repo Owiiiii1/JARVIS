@@ -489,27 +489,28 @@ Personal DM persist → recent context of the **current** conversation → Conve
 
 ## Milestone 16 — Integration Framework
 
+**Статус.** COMPLETED (2026-09-04).
+
 **Цель.** Registry + encrypted accounts + tools + logs + owner check. Multi-step tool loop.
 
-**Реализуем** [INTEGRATIONS.md](INTEGRATIONS.md) каркас без Google OAuth ещё.
+**Реализовано** [INTEGRATIONS.md](INTEGRATIONS.md) каркас без Google OAuth.
 
-**Migrations:** `integration_accounts`, `tool_execution_logs`.
+- Code `IntegrationRegistry`: google / telegram / elevenlabs descriptors.
+- `integration_accounts` + Laravel-encrypted credentials; hidden from UI/JSON.
+- Telegram card reads `telegram_bot_settings` only — no second token store.
+- `ToolExecutionService` + `tool_execution_logs` + confirmation policy skeleton.
+- Existing Core tools pass through the wrapper; production tool list unchanged.
+- Owner Settings → Integrations; normal user 403.
 
-**Backend:** Tool Registry; capability checks; confirmation policy skeleton; loop ≠ max one call.
+**Migrations:** `2026_09_04_020000_create_integration_framework_tables` (batch 13).
 
-**Frontend:** Integrations list.
+**Frontend:** Settings → Integrations cards + Recent Tool Executions.
 
-**Tests:** user 403; tokens never in logs; two sequential mocked tool calls in one turn.
+**Tests:** `tests/Feature/IntegrationFrameworkTest.php` (fake tools/provider; no live Google/ElevenLabs/Telegram/Gemini).
 
-**Deploy:** migrate.
+**Deploy:** migrate; `npm run build`.
 
-**DoD**
-
-- Каркас готов; Telegram overview без второго token store.
-
-**Зависимости:** M1, M4.
-
-**Не входит:** live Google/ElevenLabs calls.
+**Не входит:** live Google/ElevenLabs calls; OAuth connect; Calendar/Gmail tools.
 
 ---
 

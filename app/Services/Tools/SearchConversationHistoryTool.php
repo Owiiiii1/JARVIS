@@ -2,6 +2,7 @@
 
 namespace App\Services\Tools;
 
+use App\Enums\ToolOperationClass;
 use App\Services\Ai\DTO\ToolCall;
 use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\DTO\ToolResult;
@@ -44,6 +45,14 @@ final class SearchConversationHistoryTool implements JarvisTool
                 ],
                 'required' => ['query'],
             ],
+        );
+    }
+
+    public function meta(): ToolMeta
+    {
+        return new ToolMeta(
+            capability: UserCapability::MEMORY,
+            operation: ToolOperationClass::Read,
         );
     }
 

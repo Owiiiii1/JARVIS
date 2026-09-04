@@ -12,6 +12,8 @@ interface JarvisTool
 
     public function definition(): ToolDefinition;
 
+    public function meta(): ToolMeta;
+
     public function isAvailable(ToolExecutionContext $context): bool;
 
     public function execute(ToolCall $call, ToolExecutionContext $context): ToolResult;

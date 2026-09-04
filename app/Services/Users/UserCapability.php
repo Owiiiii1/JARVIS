@@ -32,6 +32,8 @@ final class UserCapability
 
     public const GOOGLE_CALENDAR = 'google_calendar';
 
+    public const VOICE = 'voice';
+
     public const IMPERSONATION = 'impersonation';
 
     public const SYSTEM_AI_SETTINGS = 'system_ai_settings';

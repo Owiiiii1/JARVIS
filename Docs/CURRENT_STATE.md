@@ -678,3 +678,9 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 Owner-only `search_group_knowledge` (capability `group_analysis`) for Telegram/Web personal chat. Channel-neutral `GroupKnowledgeSearchService`: derived-first ACTIVE knowledge, bounded raw fallback, per-group timezone ranges, project filter via `project_groups`, participant display-name search. Missing/stale analysis may queue the existing M14 job without blocking the turn. Default personal prompt still contains zero group knowledge/raw. No migration. No Admin search UI. No Vector DB. Manual live smoke deferred by Owner.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 16 — Integration Framework — COMPLETED (2026-09-04)
+
+Owner Integration Layer: code `IntegrationRegistry` (google / telegram / elevenlabs), `integration_accounts` with encrypted credentials, `tool_execution_logs`, `ToolExecutionService`, confirmation policy skeleton, Settings → Integrations. Telegram card reuses `telegram_bot_settings` and does not copy the bot token. Google OAuth, Calendar/Gmail tools, and ElevenLabs API are not implemented. Existing Core tools still run through the wrapper. Production `integration_accounts` = 0.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).

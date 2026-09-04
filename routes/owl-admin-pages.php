@@ -6,6 +6,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\Settings\AiSettingsController;
+use App\Http\Controllers\Settings\IntegrationsController;
 use App\Http\Controllers\Settings\SettingsController;
 use App\Http\Controllers\Settings\TelegramSettingsController;
 use App\Http\Controllers\Settings\UserController as SettingsUserController;
@@ -75,6 +76,8 @@ Route::middleware(array_merge(AdminRouteMiddleware::stack(), ['user.active', 'ow
     Route::get('/calendar', [CalendarController::class, 'index'])->name('calendar.index');
 
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+    Route::get('/settings/integrations', [IntegrationsController::class, 'index'])->name('settings.integrations.index');
+    Route::get('/settings/integrations/accounts/{integrationAccount}', [IntegrationsController::class, 'showAccount'])->name('settings.integrations.accounts.show');
     Route::post('/settings/language', [SettingsController::class, 'updateLanguage'])->name('settings.language.update');
     Route::post('/settings/users', [SettingsUserController::class, 'store'])->name('settings.users.store');
     Route::get('/settings/users/{user}/memory', [UserMemoryController::class, 'show'])->name('settings.users.memory.show');

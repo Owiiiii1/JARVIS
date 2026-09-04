@@ -8,6 +8,10 @@ use App\Policies\ProjectPolicy;
 use App\Policies\TelegramGroupPolicy;
 use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\ProviderAiChatGateway;
+use App\Services\Integrations\IntegrationRegistry;
+use App\Services\Integrations\Providers\ElevenLabsIntegrationProvider;
+use App\Services\Integrations\Providers\GoogleIntegrationProvider;
+use App\Services\Integrations\Providers\TelegramIntegrationProvider;
 use App\Services\Tools\CreateReminderTool;
 use App\Services\Tools\GetProjectContextTool;
 use App\Services\Tools\SearchConversationHistoryTool;
@@ -31,6 +35,14 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(SearchConversationHistoryTool::class),
                 $app->make(GetProjectContextTool::class),
                 $app->make(SearchGroupKnowledgeTool::class),
+            ]);
+        });
+
+        $this->app->singleton(IntegrationRegistry::class, function ($app): IntegrationRegistry {
+            return new IntegrationRegistry([
+                $app->make(GoogleIntegrationProvider::class),
+                $app->make(TelegramIntegrationProvider::class),
+                $app->make(ElevenLabsIntegrationProvider::class),
             ]);
         });
     }

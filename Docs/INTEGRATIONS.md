@@ -4,19 +4,22 @@
 
 ```
 Conversation Engine
-  → Tool Registry / Integration Layer
-    → provider adapter (Google / Telegram / ElevenLabs / …)
+  → Tool Registry
+    → ToolExecutionService (policy + logs)
+      → Core tool | Integration provider adapter
 ```
 
-Фактическое состояние: **Tool Layer foundation IMPLEMENTED** (`JarvisTool`, `ToolRegistry`, `ToolDefinition`, `ToolCall`, `ToolResult`). Первый tool — Core `create_reminder`, не Google. Telegram settings — PARTIAL. Google / ElevenLabs — отсутствуют. [CURRENT_STATE.md](CURRENT_STATE.md).
+**Status (M16):** IMPLEMENTED — Integration Registry, `integration_accounts`, encrypted credentials, `tool_execution_logs`, confirmation policy skeleton, owner Integrations Admin. Google OAuth / Calendar / Gmail / ElevenLabs API are **not** implemented.
+
+Conversation Engine не импортирует Google SDK, ElevenLabs SDK или Telegram SDK.
 
 ---
 
 ## Кто имеет доступ
 
-Google / ElevenLabs / Integrations admin — **owner only**. ADR-028.
+Google / ElevenLabs / Integrations admin — **owner only** (`integrations_admin`). ADR-028.
 
-Обычный `user` не видит Integrations, не получает Gmail/Calendar tools, не читает чужие OAuth tokens.
+Обычный `user` не видит Integrations, не получает Gmail/Calendar/voice tools, не читает credentials.
 
 **Reminders** — не этот слой и не Calendar. Core Reminder Engine доступен owner и users. [REMINDERS.md](REMINDERS.md).
 
@@ -24,127 +27,104 @@ Google / ElevenLabs / Integrations admin — **owner only**. ADR-028.
 
 ---
 
-## Providers (первый набор)
+## Registry vs accounts
 
-| Provider | Адаптеры | Назначение |
+- **Code `IntegrationRegistry`** — available providers and capabilities.
+- **DB `integration_accounts`** — connected account state and encrypted credentials.
+
+Не хранить классы провайдеров в DB.
+
+Зарегистрированные keys: `google`, `telegram`, `elevenlabs`.
+
+| Provider | M16 | Source of truth |
 | --- | --- | --- |
-| Google | Calendar, Gmail | owner tools |
-| Telegram | Bot API (уже channel adapter) | DM, groups, outbound |
-| ElevenLabs | STT / TTS / realtime | Phase 3 voice |
+| Google | placeholder Disconnected | `integration_accounts` when later connected |
+| ElevenLabs | placeholder Not configured | `integration_accounts` later |
+| Telegram | status bridge | existing `telegram_bot_settings` — **no token copy** |
 
-Новый provider = новый adapter + registry row. Jarvis Core не импортирует vendor SDK в Conversation Engine.
-
-Telegram **channel** (получить/отправить сообщение) остаётся Channel Layer. Telegram **как integration card** в Settings — обзор статуса того же source of truth (`telegram_bot_settings`), не вторая копия token.
+Telegram integration card never writes `integration_accounts.credentials_encrypted`. ADR-061.
 
 ---
 
 ## Settings → Integrations (Owner Admin)
 
-Раздел админки. Минимум карточки:
+Owner-only (`/settings?tab=integrations`, also `/settings/integrations`).
 
-### Google
+Cards: Google (Connect disabled — next milestone), Telegram (current bot/webhook/groups status, no token), ElevenLabs (voice later, no API key form).
 
-- Connected / Disconnected;
-- connected Google account;
-- scopes;
-- Connect / Reconnect / Disconnect;
-- last successful use;
-- diagnostic status.
+Recent Tool Executions: time, tool, provider, status, duration, safe error code. No arguments/result bodies. Limit `config/integrations.php` `recent_executions_limit` (50). Retention TBD.
 
-OAuth 2.0. Access/refresh tokens: encrypted at rest, не в UI, не в логах. Scopes — минимально необходимые. Disconnect отзывает/удаляет локальные credentials насколько позволяет API.
-
-### ElevenLabs
-
-- status;
-- credential/config;
-- voice settings later.
-
-### Telegram
-
-Либо отдельная вкладка Settings (как сейчас), либо строка в Integrations overview, читающая те же поля. **Один** source of truth.
+Normal user: 403. No Cabinet Integrations section.
 
 ---
 
-## Google Calendar (owner tools)
+## Credentials
 
-Conversation AI вызывает через Tool Registry:
+`integration_accounts.credentials_encrypted` uses Laravel `encrypted:array`. Adapter-only getter. Hidden from `toArray` / JSON / Inertia. Never logged.
 
-- list calendars;
-- read events;
-- search events;
-- free/busy;
-- create / update / delete event.
-
-Write только через tools + confirmation policy ниже. Reminder ≠ Calendar event.
+Core does not know Google token field names. Envelope is provider-specific inside the adapter.
 
 ---
 
-## Gmail (owner tools)
+## Tools
 
-- search messages;
-- read message / thread;
-- inbox / new mail inspect;
-- create draft;
-- reply;
-- send;
-- labels при необходимости.
+Production tools unchanged:
 
-Не встраивать Gmail SDK в Nutgram handlers.
+| Tool | Class | Provider |
+| --- | --- | --- |
+| `create_reminder` | write (core) | null |
+| `search_conversation_history` | read | null |
+| `get_project_context` | read | null |
+| `search_group_knowledge` | read | null |
+
+UI providers ≠ enabled tools. Google/Gmail/voice tools are not registered.
+
+`ToolExecutionService` wraps every execute: resolve → capability → confirmation policy → log → run → finalize. Multi-step loop is unchanged (max 5 rounds).
+
+Model cannot pass `authorized`, `confirmation`, `user_id`, or `integration_account_id` as rights.
+
+---
+
+## Confirmation policy (M16 skeleton)
+
+| Класс | Решение |
+| --- | --- |
+| Read | allowed |
+| Core write (`create_reminder`) | allowed (existing explicit-request UX) |
+| External write + `explicitUserCommand=true` | allowed |
+| External write + model-proposed / unknown | confirmation_required |
+| Destructive | confirmation_required |
+
+`ToolExecutionContext.explicitUserCommand` is set by the application layer. User-initiated conversation turns currently set `true`. Precise NLP intent detection can evolve later.
+
+Confirmation result: `error=confirmation_required` + human summary. Full confirmation workflow is M18/M19.
+
+---
+
+## Execution logs
+
+`tool_execution_logs`: started/succeeded/failed/denied/confirmation_required. Metadata only safe counts/error codes. No tokens, keys, email bodies, transcripts, or raw arguments.
+
+Integration tools later update `last_used_at` / `last_success_at` / `last_error_*` on the account. Core tools leave `integration_account_id` null.
+
+---
+
+## Google Calendar / Gmail / ElevenLabs
+
+Still future milestones. M16 does not call those APIs and does not create OAuth URLs.
 
 ---
 
 ## Multi-step tools
 
-Один conversational turn может содержать **несколько** последовательных tool calls.
-
-Примеры: free/busy → reasoning → create event; Gmail search/read → extract → Calendar create.
-
-Conversation Engine **не** предполагает `one message = max one tool call`.
-
----
-
-## Confirmation policy (conceptual)
-
-| Класс | Confirm? |
-| --- | --- |
-| Read-only (Gmail/Calendar search, group analysis, project lookup) | обычно нет |
-| Write, который user **явно** попросил («создай встречу», «отправь письмо») | команда = authorization |
-| Write, который модель **предложила сама** | требуется confirmation |
-| Destructive (delete calendar event) | повышенный confirm |
-
-UX уточняется на implementation.
-
----
-
-## Контракт tool
-
-Концептуально:
-
-- name / capability id;
-- allowed roles (`owner` на старте);
-- input schema;
-- adapter;
-- execution log (без секретов);
-- success / error для модели.
-
-Conversation AI может запросить tool; Analysis AI — нет, если job не объявлен отдельно.
-
----
-
-## Хранение
-
-Концептуальные сущности (имена не финальные):
-
-- `integration_accounts` — provider, owner user_id, status, external account, scopes, connected_at, last_used_at;
-- encrypted credential blob / token columns;
-- `tool_execution_logs` — capability, actor, success, latency; **не** raw tokens.
+Один conversational turn может содержать **несколько** последовательных tool calls. Conversation Engine **не** предполагает `one message = max one tool call`.
 
 ---
 
 ## Связь с AI roles
 
-- **Owner Conversation AI** — общение owner + tool loop (Calendar/Gmail/group search/reminders).
-- **Default User Conversation AI** — без Google tools; reminders да.
+- **Owner Conversation AI** — общение owner + tool loop.
+- **Default User Conversation AI** — reminder + history search.
 - **Owner Analysis AI** — группы/jobs. Не user DM.
 
 ADR-013, ADR-029.

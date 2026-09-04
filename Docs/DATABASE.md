@@ -313,9 +313,13 @@ IMPLEMENTED. См. [REMINDERS.md](REMINDERS.md). `user_id`, source conversation/
 
 IMPLEMENTED M13 + M11 `project_groups`. `projects` (`user_id`, unique `(user_id, normalized_name)`, status `active|archived`). Pivots: `project_conversations`, `project_topics`, `project_memories`, `project_groups` (unique pair, `attached_at`). Cascade pivot on project/entity delete; archive keeps rows. Group attach does not copy raw messages. [PROJECTS.md](PROJECTS.md).
 
-### integration_accounts / tool_execution_logs
+### integration_accounts (M16)
 
-Owner-only. Encrypted tokens. [INTEGRATIONS.md](INTEGRATIONS.md).
+Owner-only connected-account state. Unique `(user_id, provider, external_account_id)`. Status: `disconnected|connecting|connected|error|revoked`. `credentials_encrypted` is Laravel-encrypted JSON (never plaintext tokens). Telegram bot token is **not** stored here. [INTEGRATIONS.md](INTEGRATIONS.md).
+
+### tool_execution_logs (M16)
+
+Owner/user tool audit: tool_name, capability, provider, nullable `integration_account_id`, status (`started|succeeded|failed|denied|confirmation_required`), duration, safe error_code, bounded metadata. No tokens, arguments, or result bodies. Indexes: user_id, tool_name, provider, status, started_at. Retention TBD.
 
 ---
 
@@ -346,6 +350,9 @@ memories N—N messages (sources)
 conversations 1—N summaries
 projects N—N conversations / topics / memories / telegram_groups
 project_groups implemented M11; group knowledge via `get_project_context` (M14 derived rows, no extra pivot)
+users 1—N integration_accounts
+users 1—N tool_execution_logs
+integration_accounts 1—N tool_execution_logs
 ```
 
 ---

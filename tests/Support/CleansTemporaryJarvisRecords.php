@@ -2,12 +2,19 @@
 
 namespace Tests\Support;
 
+use App\Enums\ConversationKind;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\ChannelIdentity;
-use App\Enums\ConversationKind;
 use App\Models\Conversation;
+use App\Models\ConversationSummary;
+use App\Models\IntegrationAccount;
+use App\Models\Memory;
+use App\Models\MemoryAnalysisRun;
+use App\Models\MemoryRevision;
+use App\Models\MemorySource;
 use App\Models\Message;
+use App\Models\MessageTopicRelation;
 use App\Models\Project;
 use App\Models\Reminder;
 use App\Models\TelegramGroup;
@@ -16,11 +23,14 @@ use App\Models\TelegramGroupKnowledge;
 use App\Models\TelegramGroupKnowledgeRevision;
 use App\Models\TelegramGroupKnowledgeSource;
 use App\Models\TelegramGroupParticipant;
+use App\Models\ToolExecutionLog;
 use App\Models\Topic;
 use App\Models\User;
 use App\Models\UserAiSetting;
+use App\Models\UserProfile;
 use App\Services\Users\AccessCodeGenerator;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 trait CleansTemporaryJarvisRecords
@@ -69,17 +79,23 @@ trait CleansTemporaryJarvisRecords
             $user->forceFill(['role' => UserRole::User])->save();
         }
 
-        \App\Models\Project::query()->where('user_id', $user->id)->delete();
-        $memoryIds = \App\Models\Memory::query()->where('user_id', $user->id)->pluck('id');
-        \App\Models\MemorySource::query()->whereIn('memory_id', $memoryIds)->delete();
-        \App\Models\MemoryRevision::query()->whereIn('memory_id', $memoryIds)->delete();
-        \App\Models\Memory::query()->where('user_id', $user->id)->delete();
-        $topicIds = \App\Models\Topic::query()->where('user_id', $user->id)->pluck('id');
-        \App\Models\MessageTopicRelation::query()->whereIn('topic_id', $topicIds)->delete();
-        \App\Models\Topic::query()->where('user_id', $user->id)->delete();
-        \App\Models\ConversationSummary::query()->where('user_id', $user->id)->delete();
-        \App\Models\MemoryAnalysisRun::query()->where('user_id', $user->id)->delete();
-        \App\Models\UserProfile::query()->where('user_id', $user->id)->delete();
+        if (Schema::hasTable('tool_execution_logs')) {
+            ToolExecutionLog::query()->where('user_id', $user->id)->delete();
+        }
+        if (Schema::hasTable('integration_accounts')) {
+            IntegrationAccount::query()->where('user_id', $user->id)->delete();
+        }
+        Project::query()->where('user_id', $user->id)->delete();
+        $memoryIds = Memory::query()->where('user_id', $user->id)->pluck('id');
+        MemorySource::query()->whereIn('memory_id', $memoryIds)->delete();
+        MemoryRevision::query()->whereIn('memory_id', $memoryIds)->delete();
+        Memory::query()->where('user_id', $user->id)->delete();
+        $topicIds = Topic::query()->where('user_id', $user->id)->pluck('id');
+        MessageTopicRelation::query()->whereIn('topic_id', $topicIds)->delete();
+        Topic::query()->where('user_id', $user->id)->delete();
+        ConversationSummary::query()->where('user_id', $user->id)->delete();
+        MemoryAnalysisRun::query()->where('user_id', $user->id)->delete();
+        UserProfile::query()->where('user_id', $user->id)->delete();
         Reminder::query()->where('user_id', $user->id)->delete();
         $conversationIds = Conversation::query()->where('user_id', $user->id)->pluck('id');
         $groupIds = TelegramGroup::query()->whereIn('conversation_id', $conversationIds)->pluck('id');

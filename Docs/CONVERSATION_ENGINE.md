@@ -147,18 +147,19 @@ LLM здесь не участвует, если администратор пр
 
 Tool loop в одном turn: несколько последовательных calls. Не `one message = max one tool call`. Safety limit: **max 5 tool rounds**.
 
-Реализовано в Core (`ConversationAiService`): AI → tool call(s) → `ToolRegistry` → tool result(s) → AI → возможно ещё tools → final answer. Telegram и Cabinet не знают, какой tool сработал.
+Реализовано в Core (`ConversationAiService`): AI → tool call(s) → `ToolRegistry` → `ToolExecutionService` (capability + confirmation policy + `tool_execution_logs`) → tool result(s) → AI → возможно ещё tools → final answer. Telegram и Cabinet не знают, какой tool сработал.
 
 Tools:
 
 - `create_reminder` — Reminder Engine. [REMINDERS.md](REMINDERS.md).
 - `search_conversation_history` — targeted raw-on-demand по **текущему** user.
 - `get_project_context` — owner-only (`projects` capability). Derived project context including bounded ACTIVE group knowledge for attached groups, не raw dump. Не подмешивается в обычный prompt.
+- `search_group_knowledge` — owner-only (`group_analysis`). Explicit group search only.
 
 Gemini — production provider с function calling (`functionDeclarations` / `functionCall` / `functionResponse`). OpenAI и Anthropic chat работают; tool-enabled request им **не** отправляется молча (`supportsTools=false`).
 
 Current user local datetime и IANA timezone инжектятся в system context на каждом turn.
 
-Confirmation: read-only обычно без confirm. Явная команда user авторизует write. Самопредложенный моделью write — confirm. Destructive (delete event) — повышенный confirm. [INTEGRATIONS.md](INTEGRATIONS.md).
+Confirmation: read-only без confirm. Core `create_reminder` остаётся allowed. Future external write: явная команда user = allowed; model-proposed = confirmation_required. Destructive = confirmation_required. Модель не может self-authorize. [INTEGRATIONS.md](INTEGRATIONS.md).
 
 Reminders: Reminder Tool → Reminder Engine, не Calendar. [REMINDERS.md](REMINDERS.md).

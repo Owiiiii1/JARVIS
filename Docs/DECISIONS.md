@@ -618,6 +618,56 @@
 
 ---
 
+## ADR-061 — Integration registry in code, accounts in DB
+
+**Контекст.** Можно хранить список провайдеров в таблице и динамически резолвить классы.
+
+**Решение.** `IntegrationRegistry` в коде. `integration_accounts` хранит только connected state / credentials. Telegram status — virtual bridge без обязательной DB-строки.
+
+**Следствие.** Новый provider = новый adapter + register(), не row «class name» в MySQL.
+
+---
+
+## ADR-062 — Credentials encrypted and never serialized
+
+**Контекст.** Access/refresh tokens в plaintext JSON опасны в dump и Inertia.
+
+**Решение.** Laravel `encrypted:array` на `credentials_encrypted`. Model hidden + `toArray` strip. Adapter getter only. Logs/UI never receive the blob or plaintext.
+
+**Следствие.** DB dump не содержит usable tokens.
+
+---
+
+## ADR-063 — Telegram integration card reuses Channel source of truth
+
+**Контекст.** Второй store bot token в `integration_accounts` разъедется с Settings → Telegram.
+
+**Решение.** `TelegramIntegrationProvider` читает `telegram_bot_settings`. Не копирует token. Не создаёт account row ради UI.
+
+**Следствие.** Один token store. Integrations card — overview.
+
+---
+
+## ADR-064 — ToolExecutionService centralizes logs and policy
+
+**Контекст.** Логирование в каждом tool разъедется и начнёт писать секреты.
+
+**Решение.** `ToolRegistry::execute` делегирует `ToolExecutionService`: capability, confirmation policy, `tool_execution_logs`, safe metadata, account last_used/error.
+
+**Следствие.** Core и future integration tools проходят один pipeline. Multi-tool loop не схлопывается в one-call.
+
+---
+
+## ADR-065 — Model cannot self-authorize writes
+
+**Контекст.** Модель может передать `authorized=true`.
+
+**Решение.** Права только из `ToolExecutionContext.user` и server-side `explicitUserCommand`. Model arguments `authorized` / `confirmation` / `user_id` / `integration_account_id` игнорируются.
+
+**Следствие.** Confirmation policy скелет готов для M18/M19. Precise NLP explicit-intent detection может эволюционировать.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Алфавит generated access_code (кроме зарезервированного 2000).
@@ -629,3 +679,4 @@
 - Retention raw messages по закону/желанию пользователя (отдельно от derived lifecycle).
 - UX явного переноса group knowledge → personal fact.
 - Persisted capability overrides (сейчас достаточно default из role).
+- Retention `tool_execution_logs`.

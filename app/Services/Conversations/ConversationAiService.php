@@ -119,7 +119,13 @@ final class ConversationAiService
         try {
             $this->assertReady($configuration);
 
-            $toolContext = new ToolExecutionContext($user, $conversation, $inbound);
+            $toolContext = new ToolExecutionContext(
+                user: $user,
+                conversation: $conversation,
+                inbound: $inbound,
+                channel: $inbound?->channel?->value,
+                explicitUserCommand: true,
+            );
             $toolDefinitions = $this->gateway->supportsTools($configuration)
                 ? $this->tools->definitionsFor($toolContext)
                 : [];

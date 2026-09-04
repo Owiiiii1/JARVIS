@@ -50,6 +50,7 @@ class UserCapabilitiesTest extends TestCase
             [UserCapability::PROJECTS],
             [UserCapability::GMAIL],
             [UserCapability::GOOGLE_CALENDAR],
+            [UserCapability::VOICE],
             [UserCapability::IMPERSONATION],
             [UserCapability::SYSTEM_AI_SETTINGS],
         ];
