@@ -668,6 +668,66 @@
 
 ---
 
+## ADR-066 — OAuth state is server-side session controlled
+
+**Контекст.** Callback без state — CSRF/account mix-up.
+
+**Решение.** Cryptographic state + PKCE verifier in the owner session, TTL, one-time consume, bound to `user_id`. Return path is always Settings → Integrations.
+
+**Следствие.** Invalid/expired/used state rejects without token exchange.
+
+---
+
+## ADR-067 — Google tokens only in encrypted IntegrationAccount credentials
+
+**Контекст.** Client secret и user tokens в одном store или в UI.
+
+**Решение.** Client ID/Secret = env. User access/refresh = `credentials_encrypted`. Never serialize to Inertia/JSON/logs.
+
+**Следствие.** DB dump без APP_KEY не даёт usable Google tokens.
+
+---
+
+## ADR-068 — Refresh only through GoogleCredentialService
+
+**Контекст.** M18/M19 adapters могут прочитать plaintext envelope.
+
+**Решение.** Единственный путь к access token — `GoogleCredentialService::getValidAccessToken()`. lockForUpdate + refresh skew.
+
+**Следствие.** Core не знает имена Google token fields.
+
+---
+
+## ADR-069 — Existing refresh_token is never overwritten by an absent response
+
+**Контекст.** Google часто не возвращает refresh_token на повторный consent.
+
+**Решение.** `mergeTokenResponse` сохраняет предыдущий refresh_token, если incoming пустой.
+
+**Следствие.** Reconnect не ломает offline access.
+
+---
+
+## ADR-070 — One active Google account per owner (MVP)
+
+**Контекст.** Schema допускает несколько Google accounts.
+
+**Решение.** M17 UI — один active. Same `sub` updates. Different `sub` disconnects the previous connected account (revoke + wipe). Rows are not silently deleted.
+
+**Следствие.** Нет duplicate connected Google accounts.
+
+---
+
+## ADR-071 — OAuth connection does not enable AI tools
+
+**Контекст.** Connected Google может выглядеть как Calendar/Gmail ready.
+
+**Решение.** Tool registry остаётся reminder / history / project / group search. Calendar/Gmail tools — M18/M19.
+
+**Следствие.** Connected ≠ capability exposed to Conversation AI.
+
+---
+
 ## Открытые решения (`TBD`)
 
 - Алфавит generated access_code (кроме зарезервированного 2000).

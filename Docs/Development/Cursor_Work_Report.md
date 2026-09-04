@@ -1,4 +1,4 @@
-# Cursor work report — Integration Framework (Milestone 16)
+# Cursor work report — Google OAuth (Milestone 17)
 
 Date: 2026-09-04  
 Repo: `Owiiiii1/JARVIS`  
@@ -9,118 +9,115 @@ Host: `/var/www/jarvis`
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| Before HEAD | `08d0ca2` (`feat: add owner group knowledge search`) |
-| Commit message | `feat: add integration framework` |
+| Before HEAD | `1cd9bf5` (`feat: add integration framework`) |
+| Commit message | `feat: add Google OAuth integration` |
 | Working tree before start | clean on `origin/main` |
 
-## Backup
+## Schema / migration
 
-Before migration: `storage/backups/pre_integration_framework_20260904.sql` (gitignored). Tables dumped: `users`, `conversations`, `channel_identities`, `telegram_bot_settings`, `ai_role_settings`, `projects`, `reminders`. Production personal and group data were not deleted.
+No migration. M16 `integration_accounts.credentials_encrypted` holds the token envelope (`access_token`, `refresh_token`, `expires_at`, `token_type`). `id_token` is not stored. OAuth state is session-based, not a table.
 
-## Migration / schema
+## Routes
 
-`2026_09_04_020000_create_integration_framework_tables` ran with `--force` (batch 13). `migrate:status` shows Ran.
+| Method | Path | Name |
+| --- | --- | --- |
+| GET | `/settings/integrations/google/connect` | `integrations.google.connect` |
+| GET | `/integrations/google/callback` | `integrations.google.callback` |
+| POST | `/settings/integrations/google/disconnect` | `integrations.google.disconnect` |
 
-New tables:
+Canonical callback: `{APP_URL}/integrations/google/callback` (override `GOOGLE_REDIRECT_URI`). Must match Google Cloud Console.
 
-- `integration_accounts` — unique `(user_id, provider, external_account_id)`; status enum; `credentials_encrypted` longtext
-- `tool_execution_logs` — indexes on user_id, tool_name, provider, status, started_at
+Owner + `integrations_admin` only. Guest → login. Normal user → 403. Connect is throttled. Disconnect is POST + CSRF. Callback is GET (OAuth).
 
-Unrelated production tables were not altered.
+## Google OAuth service
 
-## IntegrationRegistry
+`GoogleOAuthService`: authorization URL, code exchange, refresh, userinfo, revoke. Laravel HTTP client with connect/timeout, no token-endpoint retry. Errors mapped to safe codes (`configuration_missing`, `oauth_access_denied`, `oauth_invalid_state`, `token_exchange_failed`, `refresh_revoked`, `google_unavailable`). No response bodies in logs.
 
-Code registry (not DB class names). Registered providers:
+PKCE S256 is implemented for the confidential web client.
 
-- `google` — placeholder, disconnected, Connect conceptually later
-- `telegram` — status bridge
-- `elevenlabs` — placeholder, not configured
+## State
 
-Owner-only list via capability `integrations_admin`.
+Session payload: random state, PKCE verifier, owner user id, created_at. TTL 10 minutes. Consumed once. Bound to the authenticated owner. Return path is always Settings → Integrations.
 
-## Telegram source of truth
+## Scopes
 
-`TelegramIntegrationProvider` reads existing `telegram_bot_settings` (configured/connected/webhook, bot username, groups count). It does not copy the bot token into `integration_accounts` and does not create a Telegram account row for the UI.
+Requested: `openid email profile`. Calendar/Gmail not requested. Granted scopes stored unique/sorted. UI labels: Identity, Email identity, Profile.
 
-## IntegrationAccountService
+`access_type=offline`. `prompt=consent` only when no usable refresh token.
 
-Owner-scoped get/upsert, mark connected/error/revoked/disconnected, adapter-only credential get/set, last used/success/error, local `disconnect()`. Placeholder providers do not fake remote revoke.
+## Token storage
 
-## Encryption
+Encrypted envelope via existing Laravel cast. Client id/secret stay in env (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`). Identity is Google `sub`; email is a label.
 
-Laravel `encrypted:array` on `credentials_encrypted`. Model `$hidden` plus `toArray` strip. Automated test: getter returns the synthetic credential; raw DB value does not contain the plaintext; Inertia/JSON omit the blob.
+## Refresh lifecycle
 
-## ToolExecutionService
+`GoogleCredentialService::getValidAccessToken()` is the only future adapter entry. Refresh when expiry is within `refresh_skew_seconds` (120). Successful OAuth/refresh updates `last_success_at` only. `last_used_at` stays for later API/tool use. Expired access + refresh token = still Connected.
 
-`ToolRegistry::execute` delegates here. Pipeline: resolve → capability → confirmation policy → log → execute → finalize log → optional account timestamps. Tool exceptions become safe `tool_failed` results. Multi-tool loop is unchanged (max 5 rounds).
+## Race protection
 
-## ToolDefinition metadata
+Refresh runs inside a DB transaction with `lockForUpdate`, then re-reads credentials so a second caller uses the new token.
 
-AI-facing `ToolDefinition` is still name/description/parameters. `JarvisTool::meta()` adds capability, operation class (`read|write|destructive`), optional provider. Existing tools:
+## Reconnect
 
-- `create_reminder` — write, core
-- `search_conversation_history` — read
-- `get_project_context` — read
-- `search_group_knowledge` — read
+Same `sub` updates the existing row and merges tokens (preserves refresh if Google omits it). A different `sub` disconnects the previous active account. One active Google account for MVP. Rows are not silently deleted.
 
-No Google/Gmail/voice tools registered.
+## Disconnect / revoke
 
-## Confirmation policy
+Try Google revoke, then always wipe local credentials. Revoke failure still disconnects locally and flashes a warning. Email/`sub` remain on the disconnected row.
 
-Read → allowed. Core write → allowed. External write + explicit user command → allowed. External write + model-proposed/unknown → confirmation_required. Destructive → confirmation_required. Model `authorized` / `confirmation` arguments are ignored. `ToolExecutionContext.explicitUserCommand` is set by the application layer; user-initiated turns currently pass `true`. Precise intent detection can evolve later.
+`invalid_grant` → status `revoked`, credentials cleared, Reconnect required.
 
-## Execution logs
+## Google provider status
 
-Statuses: succeeded, failed, denied, confirmation_required (plus duration). Metadata: safe counts/error codes only. Retention TBD. No auto purge.
+`GoogleIntegrationProvider` is no longer a placeholder. Status is local only (no Google call on Integrations page load): Not configured / Disconnected / Connected / Error / Revoked, plus token health (`healthy` / `refreshable` / `needs_reconnect` / `missing`).
 
-## Admin Integrations UI
+## Admin UI
 
-Settings → Integrations tab (`/settings?tab=integrations`, alias `/settings/integrations`). Cards: Google disconnected + disabled Connect, Telegram current status, ElevenLabs not configured. Recent Tool Executions (last 50). No token fingerprints. Normal user 403. No Cabinet section.
+Settings → Integrations Google card: Connect, Reconnect, Disconnect, email, scope labels, connected date, token health. No tokens, secrets, or client secret field.
+
+## Env / manual setup
+
+Cursor did not write production Google credentials. Card is **Not configured** until Owner adds env values and runs `php artisan config:clear`.
+
+Google Cloud checklist is in `Docs/INTEGRATIONS.md`. Testing-mode refresh-token limits are Google policy; Jarvis does not work around them.
+
+OAuth admin actions are not written to `tool_execution_logs`.
 
 ## Tests
 
-`tests/Feature/IntegrationFrameworkTest.php`. Fake AI/provider/tools. No live Google, ElevenLabs, Telegram API, or billable Gemini.
+`tests/Feature/GoogleOAuthTest.php` uses `Http::fake` only. Existing M16 and Core suites remain green.
 
-Covered: schema/registry; owner 200 / user 403; encryption + serialization; user cannot inspect account or receive integration tools; Telegram virtual; success/failure/denied logs; duration; no secrets in metadata; last_success / last_error; confirmation policy; model cannot self-authorize; core tools null account; existing definitions; safe exception; local disconnect; two sequential tools in one turn.
-
-Full suite: 160 tests, 159 passed, 1 skipped.
+Full suite: 169 tests, 168 passed, 1 skipped.
 
 ## Build
 
-`npm run build` succeeded (IntegrationsPanel included).
+`npm run build` succeeded.
 
 ## Production counts
 
-| Table | Count after M16 | Change |
+| Table | Count | Change |
 | --- | --- | --- |
-| integration_accounts | 0 | new table, empty |
-| tool_execution_logs | 0 | new table, empty |
-| telegram_groups | 4 | unchanged |
-| memories | 2 | unchanged |
-| projects | 2 | unchanged |
+| integration_accounts | 0 | unchanged |
+| tool_execution_logs | 0 | unchanged |
 | users | 1 | unchanged |
 
-No Google account rows were created. No live external integration calls.
+No real Google account was connected.
 
 ## Worker status
 
-- `queue:work database --queue=analysis,memory,default` — active
-- Telegram worker (`--queue=telegram`) — present
-- Reminder scheduler — `jarvis:reminders:dispatch` in `schedule:list`; host cron runs `schedule:run`
-- `php artisan queue:failed` — no failed jobs
+Unchanged: `analysis,memory,default` worker, telegram worker, reminder scheduler. `queue:failed` empty.
 
 ## Manual smoke
 
-Automated coverage of the wrapper, policy, logs, encryption, and Integrations HTTP page is complete. Live Owner browser click-through and live Telegram/Gemini tool turns were not required to close M16. No live external integrations were exercised.
+Not run. Env is unset; live Google consent requires Owner Google Cloud setup. Automated coverage is complete. This report does not claim a live Connect/consent turn.
 
 ## Known issues
 
-- Google Connect is intentionally disabled until M17 OAuth.
-- Confirmation is a skeleton (`confirmation_required` ToolResult); no user confirm UX yet.
-- `explicitUserCommand` is application-set, not an NLP classifier.
-- Tool log retention is TBD (no purge).
-- Telegram card status depends on existing bot settings; it never displays the token.
+- Integrations Google card stays Not configured until env is set.
+- Calendar/Gmail scopes and tools are not requested or registered.
+- Google Testing OAuth clients may issue limited refresh tokens.
+- One active Google account only; switching accounts disconnects the previous one.
 
 ## Next milestone
 
-Milestone 17 — Google OAuth (connect/callback/refresh/disconnect, encrypted tokens, no tokens in UI/logs).
+Milestone 18 — Google Calendar tools (read/write via Tool Registry + confirmation policy). Reminder Engine stays separate.

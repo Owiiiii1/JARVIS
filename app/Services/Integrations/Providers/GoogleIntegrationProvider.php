@@ -7,10 +7,19 @@ use App\Models\IntegrationAccount;
 use App\Models\User;
 use App\Services\Integrations\Contracts\IntegrationProvider;
 use App\Services\Integrations\DTO\IntegrationStatus;
+use App\Services\Integrations\Google\GoogleCredentialService;
+use App\Services\Integrations\Google\GoogleOAuthService;
+use App\Services\Integrations\IntegrationAccountService;
 use App\Services\Users\UserCapability;
 
 final class GoogleIntegrationProvider implements IntegrationProvider
 {
+    public function __construct(
+        private readonly GoogleOAuthService $oauth,
+        private readonly GoogleCredentialService $credentials,
+        private readonly IntegrationAccountService $accounts,
+    ) {}
+
     public function key(): string
     {
         return 'google';
@@ -36,43 +45,104 @@ final class GoogleIntegrationProvider implements IntegrationProvider
 
     public function supportsConnect(): bool
     {
-        return true;
+        return $this->oauth->isConfigured();
     }
 
     public function status(User $owner): IntegrationStatus
     {
+        $configured = $this->oauth->isConfigured();
         $account = IntegrationAccount::query()
             ->where('user_id', $owner->id)
             ->where('provider', $this->key())
+            ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', [IntegrationAccountStatus::Connected->value])
             ->orderByDesc('connected_at')
             ->orderByDesc('id')
             ->first();
 
+        if (! $configured) {
+            return new IntegrationStatus(
+                provider: $this->key(),
+                displayName: $this->displayName(),
+                state: IntegrationAccountStatus::Disconnected,
+                label: 'Not configured',
+                diagnosticMessage: 'Google client configuration is missing.',
+                actions: [
+                    ['key' => 'connect', 'available' => false, 'label' => 'Connect Google'],
+                ],
+                configured: false,
+            );
+        }
+
         $state = $account?->status ?? IntegrationAccountStatus::Disconnected;
+        $envelope = $account !== null ? $this->accounts->getCredentials($account) : [];
+        $tokenHealth = $account !== null ? $this->credentials->healthFromEnvelope($envelope) : 'missing';
+        $scopes = is_array($account?->scopes) ? $account->scopes : [];
+
+        $label = match ($state) {
+            IntegrationAccountStatus::Connected => 'Connected',
+            IntegrationAccountStatus::Error => 'Error',
+            IntegrationAccountStatus::Revoked => 'Revoked',
+            IntegrationAccountStatus::Connecting => 'Connecting',
+            default => 'Disconnected',
+        };
+
+        $diagnostic = match ($state) {
+            IntegrationAccountStatus::Connected => $this->connectedDiagnostic($tokenHealth),
+            IntegrationAccountStatus::Error => 'Reconnect required.',
+            IntegrationAccountStatus::Revoked => 'Reconnect required.',
+            default => 'Google Calendar / Gmail tools will use this account later.',
+        };
+
+        $canConnect = $state !== IntegrationAccountStatus::Connecting;
+        $canDisconnect = in_array($state, [
+            IntegrationAccountStatus::Connected,
+            IntegrationAccountStatus::Error,
+            IntegrationAccountStatus::Revoked,
+        ], true);
 
         return new IntegrationStatus(
             provider: $this->key(),
             displayName: $this->displayName(),
             state: $state,
-            label: $state === IntegrationAccountStatus::Connected
-                ? 'Connected'
-                : 'Disconnected',
+            label: $label,
             accountLabel: $account?->external_account_email,
-            scopes: is_array($account?->scopes) ? $account->scopes : [],
+            scopes: $scopes,
             lastSuccessAt: optional($account?->last_success_at)?->toIso8601String(),
             lastErrorAt: optional($account?->last_error_at)?->toIso8601String(),
-            diagnosticMessage: $state === IntegrationAccountStatus::Connected
-                ? null
-                : 'Google Calendar / Gmail integration not connected.',
+            diagnosticMessage: $diagnostic,
             actions: [
-                ['key' => 'connect', 'available' => false, 'label' => 'Available next milestone'],
-                ['key' => 'disconnect', 'available' => $state === IntegrationAccountStatus::Connected, 'label' => 'Disconnect'],
+                [
+                    'key' => $state === IntegrationAccountStatus::Disconnected ? 'connect' : 'reconnect',
+                    'available' => $canConnect,
+                    'label' => $state === IntegrationAccountStatus::Disconnected ? 'Connect Google' : 'Reconnect',
+                ],
+                ['key' => 'disconnect', 'available' => $canDisconnect, 'label' => 'Disconnect'],
             ],
+            configured: true,
+            connectedAt: optional($account?->connected_at)?->toIso8601String(),
+            tokenHealth: $account !== null ? $tokenHealth : null,
+            scopeLabels: $this->oauth->scopeLabels($scopes),
+            lastErrorCode: $account?->last_error_code,
         );
     }
 
     public function disconnect(IntegrationAccount $account): void
     {
-        // Local state only. Remote Google revoke is M17.
+        $envelope = $this->accounts->getCredentials($account);
+        $token = filled($envelope['refresh_token'] ?? null)
+            ? (string) $envelope['refresh_token']
+            : (string) ($envelope['access_token'] ?? '');
+
+        $this->oauth->revokeSafely($token !== '' ? $token : null);
+    }
+
+    private function connectedDiagnostic(string $health): string
+    {
+        return match ($health) {
+            'refreshable' => 'Access token will refresh when needed.',
+            'needs_reconnect' => 'Reconnect recommended.',
+            'missing' => 'Credentials are missing. Reconnect required.',
+            default => 'Credentials are stored encrypted.',
+        };
     }
 }

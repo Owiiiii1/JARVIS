@@ -516,31 +516,30 @@ Personal DM persist → recent context of the **current** conversation → Conve
 
 ## Milestone 17 — Google OAuth
 
+**Статус.** COMPLETED (2026-09-04).
+
 **Цель.** Owner connect Google.
 
-**Реализуем**
+**Реализовано**
 
-- OAuth 2.0 connect/callback/refresh/disconnect.
-- Encrypted tokens; min scopes; diagnostics.
-- No tokens in UI/logs.
+- Authorization Code + PKCE (S256), session state (TTL, one-time, owner-bound).
+- Callback exchanges code, fetches OpenID userinfo (`sub` + email), upserts `integration_accounts`.
+- Encrypted access + refresh + `expires_at`. Existing refresh_token is never overwritten by an absent response.
+- `GoogleCredentialService::getValidAccessToken()` with lockForUpdate refresh and skew.
+- `invalid_grant` → revoked; disconnect wipes local credentials and attempts remote revoke.
+- Identity scopes only: `openid email profile`. Calendar/Gmail incremental later.
+- One active Google account per owner; same `sub` reconnects in place.
+- Missing env → Not configured; Connect disabled.
 
-**Migrations:** token columns on integration account.
+**Migrations:** none. Credentials stay in `credentials_encrypted`.
 
-**Backend:** OAuth controller owner-only.
+**Frontend:** Settings → Integrations Google card: Connect / Reconnect / Disconnect.
 
-**Frontend:** Connect/Reconnect/Disconnect.
+**Tests:** `tests/Feature/GoogleOAuthTest.php` (`Http::fake` only).
 
-**Tests:** fake OAuth; user cannot start connect; disconnect wipes local secrets.
+**Deploy:** set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, optional `GOOGLE_REDIRECT_URI`; then `php artisan config:clear`. Do not `config:cache` unless following current deploy practice.
 
-**Deploy:** Google Cloud client id/secret in **encrypted settings or env** (`TBD`); HTTPS already.
-
-**DoD**
-
-- Owner видит Connected + account email/scopes.
-
-**Зависимости:** M16.
-
-**Не входит:** Calendar/Gmail API calls.
+**Не входит:** Calendar/Gmail API; AI tools.
 
 ---
 

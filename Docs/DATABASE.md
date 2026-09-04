@@ -313,9 +313,9 @@ IMPLEMENTED. См. [REMINDERS.md](REMINDERS.md). `user_id`, source conversation/
 
 IMPLEMENTED M13 + M11 `project_groups`. `projects` (`user_id`, unique `(user_id, normalized_name)`, status `active|archived`). Pivots: `project_conversations`, `project_topics`, `project_memories`, `project_groups` (unique pair, `attached_at`). Cascade pivot on project/entity delete; archive keeps rows. Group attach does not copy raw messages. [PROJECTS.md](PROJECTS.md).
 
-### integration_accounts (M16)
+### integration_accounts (M16 + M17)
 
-Owner-only connected-account state. Unique `(user_id, provider, external_account_id)`. Status: `disconnected|connecting|connected|error|revoked`. `credentials_encrypted` is Laravel-encrypted JSON (never plaintext tokens). Telegram bot token is **not** stored here. [INTEGRATIONS.md](INTEGRATIONS.md).
+Owner-only connected-account state. Unique `(user_id, provider, external_account_id)`. Status: `disconnected|connecting|connected|error|revoked`. `credentials_encrypted` is Laravel-encrypted JSON (never plaintext tokens). Google `expires_at` lives inside that envelope, not a separate column. Google `external_account_id` = OpenID `sub`. Telegram bot token is **not** stored here. [INTEGRATIONS.md](INTEGRATIONS.md).
 
 ### tool_execution_logs (M16)
 

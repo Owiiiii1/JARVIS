@@ -9,6 +9,7 @@ final readonly class IntegrationStatus
     /**
      * @param  list<string>  $scopes
      * @param  list<array{key: string, available: bool, label: string}>  $actions
+     * @param  list<string>  $scopeLabels
      */
     public function __construct(
         public string $provider,
@@ -21,6 +22,11 @@ final readonly class IntegrationStatus
         public ?string $lastErrorAt = null,
         public ?string $diagnosticMessage = null,
         public array $actions = [],
+        public bool $configured = true,
+        public ?string $connectedAt = null,
+        public ?string $tokenHealth = null,
+        public array $scopeLabels = [],
+        public ?string $lastErrorCode = null,
     ) {}
 
     /**
@@ -39,6 +45,11 @@ final readonly class IntegrationStatus
             'last_error_at' => $this->lastErrorAt,
             'diagnostic_message' => $this->diagnosticMessage,
             'actions' => $this->actions,
+            'configured' => $this->configured,
+            'connected_at' => $this->connectedAt,
+            'token_health' => $this->tokenHealth,
+            'scope_labels' => $this->scopeLabels,
+            'last_error_code' => $this->lastErrorCode,
         ];
     }
 }

@@ -45,6 +45,9 @@ class HandleInertiaRequests extends Middleware
 
             'flash' => [
                 'analysis' => $request->session()->get('analysis'),
+                'success' => $request->session()->get('success'),
+                'warning' => $request->session()->get('warning'),
+                'error' => $request->session()->get('error'),
             ],
 
             'owlAdmin' => fn () => [

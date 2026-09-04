@@ -12,10 +12,6 @@ use App\Services\Users\UserCapability;
 
 final class IntegrationAccountService
 {
-    public function __construct(
-        private readonly IntegrationRegistry $registry,
-    ) {}
-
     public function getActiveAccount(User $user, string $provider): ?IntegrationAccount
     {
         $this->assertOwner($user);
@@ -110,6 +106,14 @@ final class IntegrationAccountService
         ])->save();
     }
 
+    public function recordAuthSuccess(IntegrationAccount $account): void
+    {
+        $account->forceFill([
+            'last_success_at' => now(),
+            'last_error_code' => null,
+        ])->save();
+    }
+
     public function recordSuccess(IntegrationAccount $account): void
     {
         $account->forceFill([
@@ -128,11 +132,13 @@ final class IntegrationAccountService
         ])->save();
     }
 
-    public function disconnect(IntegrationAccount $account): void
+    public function disconnect(IntegrationAccount $account, bool $notifyProvider = true): void
     {
-        $provider = $this->registry->get($account->provider);
-        if ($provider instanceof IntegrationProvider) {
-            $provider->disconnect($account);
+        if ($notifyProvider) {
+            $provider = app(IntegrationRegistry::class)->get($account->provider);
+            if ($provider instanceof IntegrationProvider) {
+                $provider->disconnect($account);
+            }
         }
 
         $account->forceFill([

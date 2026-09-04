@@ -1,4 +1,5 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 
 function statusClass(state) {
     if (state === 'connected') {
@@ -14,15 +15,19 @@ function statusClass(state) {
     return 'bg-slate-100 text-slate-700';
 }
 
+function actionAvailable(provider, key) {
+    return (provider.actions ?? []).some((action) => action.key === key && action.available);
+}
+
 export default function IntegrationsPanel() {
-    const { integrations = {}, locale = 'en' } = usePage().props;
+    const { integrations = {}, locale = 'en', flash = {} } = usePage().props;
     const providers = integrations.providers ?? [];
     const executions = integrations.recent_executions ?? [];
+    const [disconnecting, setDisconnecting] = useState(false);
 
     const text = {
         en: {
-            hint: 'Owner integration cards. Telegram uses the existing bot settings. Google and ElevenLabs are placeholders.',
-            connectNext: 'Available next milestone',
+            hint: 'Owner integration cards. Telegram uses the existing bot settings. Google OAuth is identity-only; Calendar and Gmail tools come later.',
             recent: 'Recent Tool Executions',
             empty: 'No tool executions yet.',
             time: 'Time',
@@ -32,10 +37,15 @@ export default function IntegrationsPanel() {
             duration: 'Duration',
             error: 'Error',
             telegramSettings: 'Telegram settings',
+            connect: 'Connect Google',
+            reconnect: 'Reconnect',
+            disconnect: 'Disconnect',
+            connectedAt: 'Connected',
+            scopes: 'Scopes',
+            tokenHealth: 'Token health',
         },
         ru: {
-            hint: 'Карточки интеграций owner. Telegram читает существующие настройки бота. Google и ElevenLabs — заглушки.',
-            connectNext: 'Available next milestone',
+            hint: 'Карточки интеграций owner. Telegram читает существующие настройки бота. Google OAuth — только identity; Calendar и Gmail позже.',
             recent: 'Recent Tool Executions',
             empty: 'Пока нет выполнений tools.',
             time: 'Time',
@@ -45,10 +55,15 @@ export default function IntegrationsPanel() {
             duration: 'Duration',
             error: 'Error',
             telegramSettings: 'Telegram settings',
+            connect: 'Connect Google',
+            reconnect: 'Reconnect',
+            disconnect: 'Disconnect',
+            connectedAt: 'Connected',
+            scopes: 'Scopes',
+            tokenHealth: 'Token health',
         },
         uk: {
-            hint: 'Картки інтеграцій owner. Telegram читає наявні налаштування бота. Google і ElevenLabs — заглушки.',
-            connectNext: 'Available next milestone',
+            hint: 'Картки інтеграцій owner. Telegram читає наявні налаштування бота. Google OAuth — лише identity; Calendar і Gmail пізніше.',
             recent: 'Recent Tool Executions',
             empty: 'Поки немає виконань tools.',
             time: 'Time',
@@ -58,13 +73,41 @@ export default function IntegrationsPanel() {
             duration: 'Duration',
             error: 'Error',
             telegramSettings: 'Telegram settings',
+            connect: 'Connect Google',
+            reconnect: 'Reconnect',
+            disconnect: 'Disconnect',
+            connectedAt: 'Connected',
+            scopes: 'Scopes',
+            tokenHealth: 'Token health',
         },
     };
     const t = text[locale] ?? text.en;
 
+    const disconnectGoogle = () => {
+        if (disconnecting) {
+            return;
+        }
+
+        setDisconnecting(true);
+        router.post(route('integrations.google.disconnect'), {}, {
+            preserveScroll: true,
+            onFinish: () => setDisconnecting(false),
+        });
+    };
+
     return (
         <div className="space-y-6">
             <p className="text-sm text-slate-600">{t.hint}</p>
+
+            {flash.success && (
+                <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{flash.success}</p>
+            )}
+            {flash.warning && (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{flash.warning}</p>
+            )}
+            {flash.error && (
+                <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{flash.error}</p>
+            )}
 
             <div className="grid gap-4 md:grid-cols-3">
                 {providers.map((provider) => (
@@ -85,17 +128,58 @@ export default function IntegrationsPanel() {
                         {provider.account_label && (
                             <p className="mt-2 text-sm text-slate-700">{provider.account_label}</p>
                         )}
+                        {provider.scope_labels?.length > 0 && (
+                            <p className="mt-1 text-sm text-slate-600">
+                                {t.scopes}: {provider.scope_labels.join(', ')}
+                            </p>
+                        )}
+                        {provider.connected_at && (
+                            <p className="mt-1 text-sm text-slate-600">
+                                {t.connectedAt}: {provider.connected_at}
+                            </p>
+                        )}
+                        {provider.token_health && (
+                            <p className="mt-1 text-sm text-slate-600">
+                                {t.tokenHealth}: {provider.token_health}
+                            </p>
+                        )}
                         {provider.diagnostic_message && (
                             <p className="mt-2 text-sm text-slate-600">{provider.diagnostic_message}</p>
                         )}
                         <div className="mt-4 flex flex-wrap gap-2">
-                            {provider.provider === 'google' && (
+                            {provider.provider === 'google' && actionAvailable(provider, 'connect') && (
+                                <a
+                                    href={route('integrations.google.connect')}
+                                    className="inline-flex h-9 items-center rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700"
+                                >
+                                    {t.connect}
+                                </a>
+                            )}
+                            {provider.provider === 'google' && actionAvailable(provider, 'reconnect') && (
+                                <a
+                                    href={route('integrations.google.connect')}
+                                    className="inline-flex h-9 items-center rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-700"
+                                >
+                                    {t.reconnect}
+                                </a>
+                            )}
+                            {provider.provider === 'google' && !provider.configured && (
                                 <button
                                     type="button"
                                     disabled
                                     className="inline-flex h-9 items-center rounded-lg bg-slate-200 px-3 text-sm font-medium text-slate-500"
                                 >
-                                    {t.connectNext}
+                                    {t.connect}
+                                </button>
+                            )}
+                            {provider.provider === 'google' && actionAvailable(provider, 'disconnect') && (
+                                <button
+                                    type="button"
+                                    onClick={disconnectGoogle}
+                                    disabled={disconnecting}
+                                    className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                >
+                                    {t.disconnect}
                                 </button>
                             )}
                             {provider.provider === 'telegram' && (

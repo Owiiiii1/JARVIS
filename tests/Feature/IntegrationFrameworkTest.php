@@ -74,8 +74,7 @@ class IntegrationFrameworkTest extends TestCase
             $this->assertStringContainsString('Google', $html);
             $this->assertStringContainsString('Telegram', $html);
             $this->assertStringContainsString('ElevenLabs', $html);
-            $this->assertStringContainsString('Disconnected', $html);
-            $this->assertStringContainsString('Available next milestone', $html);
+            $this->assertStringContainsString('Not configured', $html);
             $this->assertStringNotContainsString('credentials_encrypted', $html);
             $this->assertStringNotContainsString('access_token', $html);
 

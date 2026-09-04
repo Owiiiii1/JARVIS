@@ -684,3 +684,9 @@ See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 Owner Integration Layer: code `IntegrationRegistry` (google / telegram / elevenlabs), `integration_accounts` with encrypted credentials, `tool_execution_logs`, `ToolExecutionService`, confirmation policy skeleton, Settings → Integrations. Telegram card reuses `telegram_bot_settings` and does not copy the bot token. Google OAuth, Calendar/Gmail tools, and ElevenLabs API are not implemented. Existing Core tools still run through the wrapper. Production `integration_accounts` = 0.
 
 See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
+### Milestone 17 — Google OAuth — COMPLETED (2026-09-04)
+
+Owner Google Authorization Code + PKCE. Callback path `/integrations/google/callback`. Tokens encrypted on `integration_accounts`. Identity scopes only (`openid email profile`). Refresh via `GoogleCredentialService` (no page-load Google calls). Connected ≠ Calendar/Gmail tools. Env client id/secret were not set by Cursor; Integrations card is Not configured until Owner adds Google Cloud credentials. Production `integration_accounts` remains 0.
+
+See [Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
