@@ -2454,6 +2454,16 @@
 
 ---
 
+## ADR-254 — Telegram Voice Replies send MP3 via sendVoice; default text
+
+**Контекст.** Docs previously treated OGG/OPUS + ffmpeg as likely. Telegram Bot API `sendVoice` accepts OGG/OPUS, MP3, and M4A. Existing ElevenLabs TTS already returns MP3.
+
+**Решение.** MVP sends ElevenLabs MP3 bytes with Nutgram `sendVoice`. No ffmpeg. Preference lives in `user_channel_preferences` (not Memory / General Prompt / assistant profile). Default mode is **text** so deploy does not change Telegram behavior. TTS Voice ID remains instance Voice settings. Delivery failures fall back to a single `sendMessage`.
+
+**Следствие.** Status IMPLEMENTED / NOT VALIDATED until Owner confirms a live voice bubble. Telegram Voice Input remains unimplemented.
+
+---
+
 - Алфавит generated access_code (кроме зарезервированного 2000).
 - 403 vs redirect когда user открывает admin URL.
 - Auth схема future Mobile (token flavour) — only if Mobile is built; Desktop auth cancelled.

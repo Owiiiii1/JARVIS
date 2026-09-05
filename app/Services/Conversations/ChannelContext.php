@@ -15,5 +15,6 @@ final readonly class ChannelContext
         public ?string $channelMessageId = null,
         public ?DateTimeInterface $occurredAt = null,
         public ?array $metadata = null,
+        public string $inboundModality = 'text',
     ) {}
 }

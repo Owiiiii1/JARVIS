@@ -3,13 +3,14 @@
 namespace App\Services\Voice;
 
 use App\Enums\VoiceTtsProvider;
+use App\Services\Voice\Contracts\SpeechSynthesizer;
 use App\Services\Voice\Contracts\TextToSpeechProvider;
 use App\Services\Voice\DTO\SynthesizedSpeech;
 use App\Services\Voice\Exceptions\VoiceException;
 use App\Services\Voice\Providers\ElevenLabsTextToSpeechProvider;
 use App\Services\Voice\Providers\NullTextToSpeechProvider;
 
-final class TextToSpeechManager
+final class TextToSpeechManager implements SpeechSynthesizer
 {
     public function __construct(
         private readonly VoiceSettingsService $settings,

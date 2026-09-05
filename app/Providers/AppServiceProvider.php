@@ -17,6 +17,8 @@ use App\Services\Tools\CancelToolActionTool;
 use App\Services\Tools\CompleteAssistantOnboardingTool;
 use App\Services\Tools\ConfirmToolActionTool;
 use App\Services\Tools\CreateReminderTool;
+use App\Services\Tools\GetTelegramResponseModeTool;
+use App\Services\Tools\SetTelegramResponseModeTool;
 use App\Services\Tools\GetAssistantProfileTool;
 use App\Services\Tools\GetProjectContextTool;
 use App\Services\Tools\GitHub\CommentGitHubIssueTool;
@@ -66,7 +68,18 @@ use App\Services\Tools\ToolRegistry;
 use App\Services\Tools\UpdateAssistantProfileTool;
 use App\Services\Tools\WebResearch\FetchWebPageTool;
 use App\Services\Tools\WebResearch\SearchWebTool;
+use App\Services\Telegram\SpokenTextNormalizer;
+use App\Services\Telegram\TelegramChatKeyboard;
+use App\Services\Telegram\TelegramReplyDeliveryService;
+use App\Services\Telegram\TelegramVoiceSuitabilityPolicy;
+use App\Services\Users\ResolvesTelegramResponseMode;
+use App\Services\Users\UserChannelPreferenceService;
+use App\Services\Voice\Contracts\RecordsVoiceMetrics;
+use App\Services\Voice\Contracts\SpeechSynthesizer;
 use App\Services\Voice\Contracts\SpeechToTextProvider;
+use App\Services\Voice\Contracts\StoresEphemeralVoiceAudio;
+use App\Services\Voice\VoiceMetricsLogger;
+use App\Services\Voice\VoiceTempAudioStore;
 use App\Services\Voice\Contracts\TextToSpeechProvider;
 use App\Services\Voice\SpeechToTextManager;
 use App\Services\Voice\TextToSpeechManager;
@@ -82,6 +95,32 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->bind(ResolvesTelegramResponseMode::class, UserChannelPreferenceService::class);
+        $this->app->bind(SpeechSynthesizer::class, TextToSpeechManager::class);
+        $this->app->bind(StoresEphemeralVoiceAudio::class, VoiceTempAudioStore::class);
+        $this->app->bind(RecordsVoiceMetrics::class, VoiceMetricsLogger::class);
+
+        $this->app->singleton(TelegramReplyDeliveryService::class, function ($app): TelegramReplyDeliveryService {
+            return new TelegramReplyDeliveryService(
+                $app->make(ResolvesTelegramResponseMode::class),
+                $app->make(SpeechSynthesizer::class),
+                $app->make(StoresEphemeralVoiceAudio::class),
+                $app->make(TelegramVoiceSuitabilityPolicy::class),
+                $app->make(TelegramChatKeyboard::class),
+                $app->make(RecordsVoiceMetrics::class),
+                max(1024, (int) config('voice.max_audio_chunk_bytes', 2_000_000)),
+            );
+        });
+
+        $this->app->singleton(TelegramVoiceSuitabilityPolicy::class, function ($app): TelegramVoiceSuitabilityPolicy {
+            return new TelegramVoiceSuitabilityPolicy(
+                $app->make(SpokenTextNormalizer::class),
+                max(200, (int) config('voice.telegram_voice.max_spoken_chars', 2000)),
+                max(50, (int) config('voice.telegram_voice.max_code_fence_chars', 400)),
+                max(2, (int) config('voice.telegram_voice.max_table_rows', 4)),
+            );
+        });
+
         $this->app->singleton(AiChatGateway::class, ProviderAiChatGateway::class);
 
         $this->app->bind(WebSearchProvider::class, function ($app): WebSearchProvider {
@@ -102,6 +141,8 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(GetAssistantProfileTool::class),
                 $app->make(UpdateAssistantProfileTool::class),
                 $app->make(CompleteAssistantOnboardingTool::class),
+                $app->make(GetTelegramResponseModeTool::class),
+                $app->make(SetTelegramResponseModeTool::class),
                 $app->make(SearchConversationHistoryTool::class),
                 $app->make(GetProjectContextTool::class),
                 $app->make(SearchGroupKnowledgeTool::class),

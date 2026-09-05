@@ -2,9 +2,10 @@
 
 namespace App\Services\Voice;
 
+use App\Services\Voice\Contracts\RecordsVoiceMetrics;
 use Illuminate\Support\Facades\Log;
 
-final class VoiceMetricsLogger
+final class VoiceMetricsLogger implements RecordsVoiceMetrics
 {
     /**
      * @param  array<string, mixed>  $context

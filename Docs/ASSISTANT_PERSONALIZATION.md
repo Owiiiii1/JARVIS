@@ -15,7 +15,7 @@ See also: [USERS_AND_CABINET.md](USERS_AND_CABINET.md), [MEMORY_ARCHITECTURE.md]
 | Assistant profile (`user_assistant_profiles`) | Who the assistant is: name, personality, interaction style; compact `about_user` from onboarding |
 | User General Prompt | Additional explicit ongoing instructions |
 | Memory Engine | Facts/preferences accumulated over time |
-| Telegram response mode (future) | How Telegram **delivers** the answer (`text` / `voice` / `auto`) — not who the assistant is |
+| Telegram response mode (`user_channel_preferences`) | How Telegram **delivers** the answer (`text` / `voice` / `auto`) — not who the assistant is |
 
 Do not encode onboarding only in General Prompt. Do not treat `about_user` as a replacement for Memory.
 
@@ -59,7 +59,7 @@ Telegram: bot username is infrastructure. Conversation AI identifies itself with
 
 Voice (Web): same profile. TTS Voice ID remains instance-level provider setting unless a future decision adds per-user voice selection.
 
-**Telegram response mode** (`text` / `voice` / `auto`) is a **channel delivery preference**, not personality, not General Prompt, and not the TTS Voice ID. Do not store it on `user_assistant_profiles` unless an implementation audit says that table is the right home. Chat commands such as «Отвечай голосом» should update that structured preference, not a Memory fact. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
+**Telegram response mode** (`text` / `voice` / `auto`) is a **channel delivery preference** on `user_channel_preferences`, not personality, not General Prompt, and not the TTS Voice ID. Tools: `get_telegram_response_mode` / `set_telegram_response_mode`. Default **text**. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
 ---
 

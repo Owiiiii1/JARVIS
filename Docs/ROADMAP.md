@@ -8,7 +8,7 @@ The old four-phase model (Telegram MVP → Memory → Workspace+Desktop+Voice �
 **Desktop client:** **CANCELLED**.  
 **Mobile:** optional future companion, **not** current priority.  
 **Voice:** a Web modality. Basic hands-free flow is **MANUAL PASS**.  
-**Telegram Voice Replies:** PLANNED (channel enhancement; not a second Voice Core).
+**Telegram Voice Replies:** IMPLEMENTED / NOT VALIDATED (outbound `sendVoice`; inbound STT still future).
 
 ---
 
@@ -112,7 +112,7 @@ Future:
 
 **Wake word:** not mandatory. Desktop is cancelled; a wake word in a normal browser has limited product value. Optional future research (mobile/native or always-open environments only).
 
-**Telegram Voice Replies** (small independent enhancement, not a new phase): Jarvis may later answer in Telegram with a native voice message (`sendVoice`) by running existing TTS on the canonical assistant text. Same Core, same conversation. Web remains primary. Telegram remains a secondary adapter. Not implemented. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
+**Telegram Voice Replies** (small independent enhancement, not a new phase): Jarvis can answer in Telegram with a native voice message (`sendVoice`) by running existing TTS on the canonical assistant text. Same Core, same conversation. Default remains **text**. Web remains primary. Telegram remains a secondary adapter. Status: **IMPLEMENTED / NOT VALIDATED**. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
 Do **not** imply Desktop, a second Voice assistant, or Telegram becoming the primary client.
 

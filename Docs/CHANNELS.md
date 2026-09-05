@@ -10,15 +10,15 @@
 | --- | --- | --- |
 | Web text | Web Personal Workspace `/jarvis` or `/chat` | PRIMARY |
 | Web voice | Modality over the same conversation (`metadata.modality = voice`, `messages.channel = web`) | MANUAL PASS |
-| Telegram DM | Adapter — **text** inbound and outbound | IMPLEMENTED |
+| Telegram DM | Adapter — **text** inbound; outbound text or `sendVoice` per user preference | IMPLEMENTED / voice outbound NOT VALIDATED |
 | Telegram Groups | Owner-only group persist / analysis | IMPLEMENTED / NOT VALIDATED as a full campaign |
 
 ## Future / cancelled
 
 | Surface | Status |
 | --- | --- |
-| Telegram Voice Input (user voice note → STT) | PLANNED / NOT IMPLEMENTED |
-| Telegram Voice Reply (`sendVoice` TTS delivery) | PLANNED / NOT IMPLEMENTED |
+| Telegram Voice Input (user voice note → STT) | NOT IMPLEMENTED |
+| Telegram Voice Reply (`sendVoice` TTS delivery) | IMPLEMENTED / NOT VALIDATED |
 | Mobile companion | DEFERRED |
 | Desktop | CANCELLED |
 | Client API as a product | DEFERRED |
@@ -80,11 +80,11 @@ Reminder **delivery** today uses Telegram. That is a delivery adapter, not a cha
 **Current**
 
 - Inbound: text only (non-text is rejected for paired DM)
-- Outbound: text (`sendMessage`)
+- Outbound: text (`sendMessage`) by default
+- Outbound voice: `sendVoice` when the user’s Telegram response mode is `voice` and delivery succeeds ([TELEGRAM_VOICE.md](TELEGRAM_VOICE.md))
 
 **Future (not implemented)**
 
-- Voice input: user Telegram voice note → STT → same Conversation Engine (separate from Web Voice; not implied by Web MANUAL PASS)
-- Voice output: assistant text → existing TTS → `sendVoice` (OGG/OPUS likely). Canonical content remains text. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md)
+- Voice input: user Telegram voice note → STT → same Conversation Engine
 
 Telegram remains a **secondary** messaging adapter. Web remains the primary interactive client. Desktop stays CANCELLED.

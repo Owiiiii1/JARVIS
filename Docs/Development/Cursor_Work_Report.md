@@ -1,9 +1,8 @@
-# Cursor work report — Telegram Voice Replies documentation
+# Cursor work report — Telegram Voice Replies
 
 **Date:** 2026-09-05  
 **Host:** `/var/www/jarvis`  
-**GitHub:** `Owiiiii1/JARVIS`  
-**Task:** documentation only — future Telegram Voice Replies
+**GitHub:** `Owiiiii1/JARVIS`
 
 ---
 
@@ -11,112 +10,118 @@
 
 | Item | Value |
 | --- | --- |
-| Branch | `main` |
-| origin/main at start | `6e18325aae2d53c65d05b535f46c14bd9ee60ce8` |
-| Message | `docs: realign Jarvis roadmap and current architecture` (M26D) |
+| origin/main | `e4f3ea12f9ed8880f2ad5e942fee82effc35dd2a` |
+| Message | `docs: add Telegram voice reply roadmap` |
 
-Worked on top of M26D. Did not revert that realignment. Desktop remains CANCELLED. Web remains primary. Telegram remains a secondary adapter.
+Did not revert M26D, M25U.3, Voice, isolation, or reminders.
 
-Uncommitted local Voice client/TTS experiments were **not** treated as shipped and were **not** committed.
-
----
-
-## Files changed
-
-- `Docs/TELEGRAM_VOICE.md` — **new** target architecture
-- `Docs/ROADMAP.md` — Phase C enhancement
-- `Docs/IMPLEMENTATION_PLAN.md` — PLANNED / DEFERRED milestone after M25U.3.1
-- `Docs/CHANNELS.md` — current text vs future voice in/out
-- `Docs/VOICE_ARCHITECTURE.md` — Telegram voice delivery section
-- `Docs/ASSISTANT_PERSONALIZATION.md` — response mode ≠ personality
-- `Docs/CURRENT_STATE.md` — not implemented
-- `Docs/DECISIONS.md` — ADR-246–253
-- `Docs/ARCHITECTURE.md`, `Docs/HUMAN_LIKE_ASSISTANT.md`, `Docs/CONVERSATION_ENGINE.md`, `Docs/USERS_AND_CABINET.md`, `Docs/PROJECT.md`, `Docs/README.md`
-- this report
+Uncommitted local Web Voice experiments were **not** included in this commit.
 
 ---
 
-## New product decision
+## Telegram handler path
 
-Jarvis may later reply in Telegram with a native **voice message**. That is adapter **delivery**, not a second Voice Core or a second conversational agent.
+`TelegramWebhookController` → `TelegramWebhookProcessor` → `TelegramUpdateHandler`.
 
----
+Paired DM: `handlePairedMessage` → `ConversationTurnService::handleUserMessage` → persist assistant text → **`TelegramReplyDeliveryService`**.
 
-## Target Telegram voice reply flow
+Groups: still `TelegramGroupInboundService` only. No voice replies.
 
-```
-Telegram message
-  → Jarvis Core (ConversationTurnService)
-  → assistant text persisted as normal assistant message
-  → delivery policy (text / voice / auto)
-  → if voice: existing TextToSpeechProvider → convert if needed → sendVoice
-  → on TTS/conversion/Telegram failure: send canonical text
-```
+Reminders: still `ReminderDeliveryService` → `TelegramBotManager::sendTextMessage`. Unchanged.
 
-Same user, `conversation_id`, Memory, tools, Assistant Profile, General Prompt.
+Disabled users: existing reject before the turn.
 
 ---
 
-## Current vs planned
+## TTS path
 
-| Item | Status |
-| --- | --- |
-| Web Voice (VAD, Gemini STT, ElevenLabs TTS, Orb) | MANUAL PASS |
-| Telegram DM inbound | **text only** (`handlePairedMessage` rejects non-text) |
-| Telegram DM outbound | **`sendMessage` only** |
-| Telegram Voice Input (voice note → STT) | NOT IMPLEMENTED |
-| Telegram Voice Replies (`sendVoice`) | PLANNED / NOT IMPLEMENTED |
-| Group inbound voice | `[voice]` placeholder, no STT, no auto-reply |
+`TextToSpeechManager` → configured `TextToSpeechProvider` (ElevenLabs). Adapter does not read API keys.
 
-Web Voice PASS does not imply Telegram transcription or voice replies.
+Format: **MP3** (`audio/mpeg`, `mp3_44100_128`). Telegram `sendVoice` accepts MP3. **ffmpeg was not required and was not installed.**
 
 ---
 
-## Response modes (future)
+## Preference storage
 
-Conceptual `telegram_response_mode`: `text` | `voice` | `auto`.
+New additive table `user_channel_preferences`: `user_id`, `channel`, `response_mode` (`text`/`voice`/`auto`), unique `(user_id, channel)`.
 
-- `text` — always Telegram text
-- `voice` — voice message where technically possible
-- `auto` — recommended default candidate: voice-in → voice-out; text-in → text-out
+**Default: `text`** (missing row = text). Existing users unchanged after deploy.
 
-Per-user/channel delivery preference, not personality, not AI provider config. Chat commands update the same structured preference. No migration in this task.
+Tools: `get_telegram_response_mode`, `set_telegram_response_mode` (capability `telegram_dm`, current user only).
 
----
-
-## Fallback
-
-TTS unavailable, conversion failure, Telegram reject, or temp media failure → still send canonical text. Answer must not be lost.
-
-Do not voice-render files, large code, huge tables, visual artifacts. Long answers: future duration/length limits; not chosen here.
+`auto`: voice inbound → voice out. Inbound STT is **not** implemented, so auto currently behaves as text for text inbound.
 
 ---
 
-## Storage lifecycle
+## Delivery policy
 
-Text persists. Temporary TTS artifact → deliver → delete after bounded retry. No default audio archive. ffmpeg is a likely conversion need (OGG/OPUS for `sendVoice`); **not** installed or committed as a dependency in this task.
+`TelegramReplyDeliveryService` (handler stays thin).
 
----
+- Pending tool confirmation → text + confirm keyboard (no TTS)
+- `text` / `auto`+text inbound → `sendMessage`
+- `voice` → suitability → TTS → Nutgram `sendVoice` via `TelegramNutgramDmOutbound`
+- Failures → one `sendMessage` fallback
 
-## Future milestone placement
-
-Immediate executable remains **M25U.3.1 Web Reminders without Telegram**.
-
-**Telegram Voice Replies** is a small independent Phase C item, PLANNED / DEFERRED, after reminder hardening. Not a new major phase. Not Desktop. Not a primary-client change.
-
----
-
-## Checks
-
-- `git fetch origin`; HEAD = M26D `6e18325`
-- Telegram adapter audit: text-only DM; `sendMessage` only; groups `[voice]` placeholder
-- Existing TTS: `TextToSpeechManager` / ElevenLabs (typical MP3)
-- No product code, migrations, ffmpeg, settings, live TTS/Telegram tests, or DB writes
+No `voice_sessions`. No second message row.
 
 ---
 
-## NO PRODUCT CODE CHANGES
+## sendVoice
+
+Nutgram `sendVoice` + `InputFile::make` (local temp file). Reply markup = existing menu keyboard (same as text). Not `sendDocument`.
 
 ---
 
-## NO LIVE TESTS
+## Temp files
+
+`voice-temp/telegram/{userId}/{random}.mp3` on the private voice disk. Deleted after send. Stale cleanup: `jarvis:voice:cleanup-temp`.
+
+---
+
+## Spoken normalization
+
+`SpokenTextNormalizer`: strip emphasis, fenced code, turn markdown links into labels, drop raw URLs. No extra LLM. Canonical DB text unchanged.
+
+Long/unsuitable skip: fenced code total > 400 chars; markdown tables ≥ 4 rows; `artifact` fences; spoken length > **2000** characters (`voice.telegram_voice.max_spoken_chars`). Then text, not truncated canonical.
+
+---
+
+## Static checks
+
+- `php -l` on new/changed PHP
+- `vendor/bin/phpunit tests/Unit/Telegram/TelegramVoiceRepliesTest.php` — 11 passed (PHPUnit `TestCase`, no production DB, no providers)
+- `php artisan migrate --force` — additive `user_channel_preferences` only
+- `migrate:status` Ran
+
+**NO** `php artisan test` against production DB.  
+**NO LIVE TELEGRAM / ELEVENLABS / AI.**
+
+---
+
+## Owner manual checklist
+
+1. Telegram: «Отвечай мне голосом» → confirms setting.  
+2. Short test message → native voice bubble.  
+3. Another question → still voice.  
+4. «Отвечай текстом» → later replies text.  
+5. Optional TTS misconfig → text fallback, answer not lost.
+
+Owner default remains text until changed.
+
+---
+
+## Known limitations
+
+- Telegram Voice Input not implemented
+- `auto` equals text until inbound voice exists
+- No Web settings UI (chat tools only)
+- Groups unchanged
+- Status not MANUAL PASS until Owner confirms live `sendVoice`
+
+---
+
+## NO LIVE TELEGRAM
+
+## NO LIVE ELEVENLABS
+
+## NO LIVE AI

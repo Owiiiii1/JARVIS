@@ -47,7 +47,7 @@ Desktop client: CANCELLED. Not a node in this architecture.
 
 Voice is a **modality** of that workspace over an existing `conversation_id`. It is not a separate client or assistant.
 
-Telegram is a **secondary messaging channel / adapter**. Same Conversation Engine, same catalog. Future: optional voice **delivery** (`sendVoice`) of canonical assistant text — not a second assistant. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
+Telegram is a **secondary messaging channel / adapter**. Same Conversation Engine, same catalog. Optional voice **delivery** (`sendVoice`) of canonical assistant text — not a second assistant. Default Telegram replies remain text. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
 Mobile is a **future optional companion**. Same Core. Not required for Phase A/B.
 
@@ -124,6 +124,5 @@ Web uses Laravel/Inertia session routes. That is not a second engine.
 - Proactive Engine (event/condition driven)
 - Personal Knowledge Graph
 - People / Contacts intelligence
-- Telegram Voice Replies (adapter TTS delivery; [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md))
 
 See [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).

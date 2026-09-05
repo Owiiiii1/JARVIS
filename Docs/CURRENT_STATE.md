@@ -111,11 +111,11 @@ Vite production build is generated on deploy (`public/build` gitignored).
 
 ## 4. Database
 
-Engine: MySQL. **47 tables** (including `migrations`). CRM tables were dropped (M0). **33** app migrations recorded; all listed as Ran.
+Engine: MySQL. **48 tables** (including `migrations`). CRM tables were dropped (M0). App migrations listed as Ran, including `user_channel_preferences`.
 
 ### Tables (product)
 
-`users`, `password_reset_tokens`, `sessions`, `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`, `ai_provider_settings`, `ai_role_settings`, `user_ai_settings`, `telegram_bot_settings`, `channel_identities`, `conversations`, `messages`, `message_attachments`, `reminders`, `conversation_summaries`, `topics`, `message_topic_relations`, `memories`, `memory_sources`, `memory_revisions`, `user_profiles`, `memory_analysis_runs`, `projects`, `project_conversations`, `project_topics`, `project_memories`, `project_groups`, `telegram_groups`, `telegram_group_participants`, `telegram_group_analysis_runs`, `telegram_group_knowledge`, `telegram_group_knowledge_sources`, `telegram_group_knowledge_revisions`, `integration_accounts`, `tool_execution_logs`, `tool_confirmations`, `stored_files`, `stored_file_chunks`, `message_stored_files`, `web_research_settings`, `voice_sessions`, `voice_settings`, `user_assistant_profiles`.
+`users`, `password_reset_tokens`, `sessions`, `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`, `ai_provider_settings`, `ai_role_settings`, `user_ai_settings`, `telegram_bot_settings`, `channel_identities`, `conversations`, `messages`, `message_attachments`, `reminders`, `conversation_summaries`, `topics`, `message_topic_relations`, `memories`, `memory_sources`, `memory_revisions`, `user_profiles`, `memory_analysis_runs`, `projects`, `project_conversations`, `project_topics`, `project_memories`, `project_groups`, `telegram_groups`, `telegram_group_participants`, `telegram_group_analysis_runs`, `telegram_group_knowledge`, `telegram_group_knowledge_sources`, `telegram_group_knowledge_revisions`, `integration_accounts`, `tool_execution_logs`, `tool_confirmations`, `stored_files`, `stored_file_chunks`, `message_stored_files`, `web_research_settings`, `voice_sessions`, `voice_settings`, `user_assistant_profiles`, `user_channel_preferences`.
 
 Row counts at audit (order of magnitude, not a metric): users 2 (1 owner + 1 user), conversations 9, messages 145, reminders 13, assistant profiles 1, voice_sessions 11, stored_files 1.
 
@@ -150,8 +150,8 @@ Regular user capabilities: chat, memory, telegram_dm, reminders, cabinet, person
 
 Committed path: hands-free VAD, Gemini STT, ElevenLabs TTS, Orb. Owner MANUAL PASS. Admin Voice settings under Integrations. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
 
-Telegram Voice Replies (`sendVoice`): **PLANNED / NOT IMPLEMENTED**.  
-Telegram Voice Input (user voice note → STT): **NOT IMPLEMENTED** (DM rejects non-text; groups store `[voice]` placeholder). Web Voice PASS does not cover Telegram audio. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
+Telegram Voice Replies (`sendVoice`): **IMPLEMENTED / NOT VALIDATED**.  
+Telegram Voice Input (user voice note → STT): **NOT IMPLEMENTED** (DM rejects non-text; groups store `[voice]` placeholder). Web Voice PASS does not cover Telegram audio. Default Telegram reply mode is **text**. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
 ---
 
@@ -183,4 +183,4 @@ Code: Google OAuth (Gmail + Calendar tools; **no Drive**), GitHub OAuth + tools,
 - Knowledge Graph
 - Proactive engine
 - Wake word
-- Telegram Voice Replies / Telegram Voice Input
+- Telegram Voice Input (STT)

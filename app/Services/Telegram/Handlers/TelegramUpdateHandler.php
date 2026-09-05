@@ -18,6 +18,7 @@ use App\Services\Telegram\Pairing\TelegramPairingService;
 use App\Services\Telegram\TelegramChatKeyboard;
 use App\Services\Telegram\TelegramConversationMessages;
 use App\Services\Telegram\TelegramIdentityState;
+use App\Services\Telegram\TelegramReplyDeliveryService;
 use DateTimeImmutable;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
@@ -38,6 +39,7 @@ final class TelegramUpdateHandler
         private readonly ConversationTurnService $conversationTurns,
         private readonly TelegramGroupInboundService $groupInbound,
         private readonly TelegramGroupMembershipService $groupMembership,
+        private readonly TelegramReplyDeliveryService $replyDelivery,
     ) {}
 
     public function handleMessage(Nutgram $bot): void
@@ -308,6 +310,7 @@ final class TelegramUpdateHandler
                 channel: MessageChannel::Telegram,
                 channelMessageId: (string) $message->message_id,
                 occurredAt: (new DateTimeImmutable)->setTimestamp((int) $message->date),
+                inboundModality: 'text',
             ),
         );
 
@@ -317,7 +320,7 @@ final class TelegramUpdateHandler
 
         $reply = $turn->replyText() ?? ConversationAiService::AI_FAILURE;
 
-        $this->replyWithOptionalConfirmation($bot, $reply, $identity, $turn->assistantMessage);
+        $this->deliverAssistantReply($bot, $identity, $reply, $turn->assistantMessage, 'text');
     }
 
     /**
@@ -337,12 +340,40 @@ final class TelegramUpdateHandler
             new ChannelContext(
                 channel: MessageChannel::Telegram,
                 channelMessageId: 'tc-'.$confirmation['id'].'-'.$confirmation['intent'],
+                inboundModality: 'text',
             ),
         );
 
         $this->answerCallback($bot);
         $reply = $turn->replyText() ?? ConversationAiService::AI_FAILURE;
-        $this->replyWithOptionalConfirmation($bot, $reply, $identity, $turn->assistantMessage);
+        $this->deliverAssistantReply($bot, $identity, $reply, $turn->assistantMessage, 'text');
+    }
+
+    private function deliverAssistantReply(
+        Nutgram $bot,
+        ChannelIdentity $identity,
+        string $text,
+        ?\App\Models\Message $assistant,
+        string $inboundModality,
+    ): void {
+        $identity->loadMissing('user');
+
+        if ($identity->user === null || ! $identity->user->isActive()) {
+            return;
+        }
+
+        try {
+            $this->replyDelivery->deliverAssistantReply(
+                $bot,
+                $identity,
+                $identity->user,
+                $text,
+                $assistant,
+                $inboundModality,
+            );
+        } catch (Throwable) {
+            $this->replyWithOptionalConfirmation($bot, $text, $identity, $assistant);
+        }
     }
 
     private function replyWithOptionalConfirmation(

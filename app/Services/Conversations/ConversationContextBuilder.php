@@ -20,6 +20,8 @@ use App\Services\Memory\PersonalMemoryRetriever;
 use App\Services\Storage\StoredFileService;
 use App\Services\Tools\CompleteAssistantOnboardingTool;
 use App\Services\Tools\CreateReminderTool;
+use App\Services\Tools\GetTelegramResponseModeTool;
+use App\Services\Tools\SetTelegramResponseModeTool;
 use App\Services\Tools\GetAssistantProfileTool;
 use App\Services\Tools\GetProjectContextTool;
 use App\Services\Tools\SearchConversationHistoryTool;
@@ -178,6 +180,14 @@ final class ConversationContextBuilder
             $lines[] = 'update_assistant_profile writes only fields the user explicitly stated. Do not invent or replace unspecified preferences.';
             $lines[] = 'complete_assistant_onboarding only after assistant_name, personality, interaction_style, and about_user are set and you summarized them.';
             $lines[] = 'These writes do not need a confirmation modal. Identify yourself using assistant_name. Telegram bot username is infrastructure.';
+        }
+
+        if (in_array(GetTelegramResponseModeTool::NAME, $names, true)
+            || in_array(SetTelegramResponseModeTool::NAME, $names, true)) {
+            $lines[] = 'Telegram response mode is a structured channel preference, not personality, General Prompt, or Memory.';
+            $lines[] = 'get_telegram_response_mode / set_telegram_response_mode control whether Telegram DM replies are text, native voice, or auto.';
+            $lines[] = 'Call set_telegram_response_mode when the user asks to be answered by voice or text in Telegram (for example «отвечай голосом», «отвечай текстом», «на голосовые отвечай голосом»). Never pass user_id. No confirmation modal.';
+            $lines[] = 'After a successful set, confirm in natural language. Do not mention tool names.';
         }
 
         if (in_array(SearchConversationHistoryTool::NAME, $names, true)) {

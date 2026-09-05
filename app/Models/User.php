@@ -118,4 +118,9 @@ class User extends Authenticatable
     {
         return $this->hasOne(UserAssistantProfile::class);
     }
+
+    public function channelPreferences(): HasMany
+    {
+        return $this->hasMany(UserChannelPreference::class);
+    }
 }

@@ -277,7 +277,7 @@ Webhook → Adapter → identity → User → active conversation
 
 Tools/groups — capabilities, не адаптер.
 
-**Current:** paired DM accepts **text** only; outbound is `sendMessage`. Non-text (including Telegram voice notes) is rejected. **Future (not implemented):** Telegram Voice Replies — same Core text, then optional TTS + `sendVoice`. Telegram Voice Input (STT) is a separate gap. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
+**Current:** paired DM inbound is **text** only (voice notes rejected). Outbound: `sendMessage` by default; `sendVoice` when Telegram response mode is `voice` and delivery succeeds. Telegram Voice Input (STT) is still not implemented. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
 ### Повторный `/start` при уже связанной identity
 

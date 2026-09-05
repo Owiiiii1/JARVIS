@@ -14,6 +14,8 @@ Engine: MySQL. CRM leftover tables were dropped. Vector DB is not used.
 
 **user_assistant_profiles:** unique `user_id`; `assistant_name`, `personality`, `interaction_style`, `about_user`, onboarding fields.
 
+**user_channel_preferences:** unique (`user_id`, `channel`); `response_mode` text\|voice\|auto. Missing row = Telegram **text**. Not personality.
+
 **user_profiles:** derived Memory summary (not the assistant profile).
 
 **channel_identities:** Telegram (and future channels) ↔ user; `active_conversation_id`.

@@ -27,6 +27,12 @@ return [
 
     'max_text_for_tts' => (int) env('VOICE_MAX_TEXT_FOR_TTS', 2000),
 
+    'telegram_voice' => [
+        'max_spoken_chars' => (int) env('TELEGRAM_VOICE_MAX_SPOKEN_CHARS', 2000),
+        'max_code_fence_chars' => (int) env('TELEGRAM_VOICE_MAX_CODE_FENCE_CHARS', 400),
+        'max_table_rows' => (int) env('TELEGRAM_VOICE_MAX_TABLE_ROWS', 4),
+    ],
+
     'stt_timeout_seconds' => (int) env('VOICE_STT_TIMEOUT', 20),
 
     'tts_timeout_seconds' => (int) env('VOICE_TTS_TIMEOUT', 25),

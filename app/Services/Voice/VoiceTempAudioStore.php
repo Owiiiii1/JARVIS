@@ -2,12 +2,13 @@
 
 namespace App\Services\Voice;
 
+use App\Services\Voice\Contracts\StoresEphemeralVoiceAudio;
 use App\Services\Voice\DTO\VoiceAudioChunk;
 use App\Services\Voice\Exceptions\VoiceException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
-final class VoiceTempAudioStore
+final class VoiceTempAudioStore implements StoresEphemeralVoiceAudio
 {
     public function store(
         string $sessionPublicId,
@@ -86,6 +87,33 @@ final class VoiceTempAudioStore
         }
     }
 
+    public function putBytes(string $relativePath, string $bytes): string
+    {
+        $relative = $this->guardedRelative($relativePath);
+        Storage::disk((string) config('voice.audio_disk', 'local'))->put($relative, $bytes);
+
+        return $relative;
+    }
+
+    public function absolutePath(string $relativePath): string
+    {
+        return Storage::disk((string) config('voice.audio_disk', 'local'))
+            ->path($this->guardedRelative($relativePath));
+    }
+
+    public function deleteRelative(string $relativePath): void
+    {
+        $relative = $this->guardedRelative($relativePath);
+        $disk = Storage::disk((string) config('voice.audio_disk', 'local'));
+        $disk->delete($relative);
+
+        $absolute = $disk->path($relative);
+
+        if (is_file($absolute)) {
+            @unlink($absolute);
+        }
+    }
+
     public function purgeStale(): int
     {
         $disk = Storage::disk((string) config('voice.audio_disk', 'local'));
@@ -118,6 +146,24 @@ final class VoiceTempAudioStore
     public function mimeAllowed(string $mime): bool
     {
         return VoiceAudioMime::isAllowed($mime);
+    }
+
+    private function guardedRelative(string $relativePath): string
+    {
+        $root = trim((string) config('voice.temp_directory', 'voice-temp'), '/');
+        $relative = str_replace('\\', '/', ltrim($relativePath, '/'));
+
+        if (str_starts_with($relative, $root.'/')) {
+            $relative = substr($relative, strlen($root) + 1);
+        }
+
+        $relative = $root.'/'.ltrim($relative, '/');
+
+        if (str_contains($relative, '..')) {
+            throw VoiceException::runtimeFailed();
+        }
+
+        return $relative;
     }
 
     private function relativePath(string $absolute): ?string

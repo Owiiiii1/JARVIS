@@ -183,22 +183,20 @@ Errors: `voice_session_not_found`, `voice_session_invalid_state`, `voice_session
 - Wake word as a Web requirement
 - Desktop client
 - Continuous audio archive
-- Telegram Voice Replies as current Web Voice behavior (they are a **separate**, not-implemented adapter path)
+- Telegram Voice Replies as a second Voice Core (outbound delivery is implemented; it is still not Web Voice)
 
 ---
 
-## Telegram voice delivery (future)
+## Telegram voice delivery
 
-**Status.** PLANNED / NOT IMPLEMENTED. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
+**Status.** IMPLEMENTED / NOT VALIDATED. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
-This is **not** Web Voice. It does **not** use the `voice_sessions` state machine unless a later implementation has a specific reason.
+This is **not** Web Voice. It does **not** use the `voice_sessions` state machine.
 
-Target: Telegram inbound → normal Conversation Engine → persist assistant **text** → delivery policy → optional existing `TextToSpeechProvider` → convert if needed → `sendVoice`.
+Telegram inbound text → Conversation Engine → persist assistant **text** → `TelegramReplyDeliveryService` → existing `TextToSpeechManager` (ElevenLabs MP3) → Nutgram `sendVoice`. ffmpeg is not used.
 
-Same user, `conversation_id`, Memory, tools, Assistant Profile, General Prompt. No second conversational agent. No Telegram-specific TTS provider.
+Default mode `text`. Tools: `get_telegram_response_mode` / `set_telegram_response_mode`.
 
-Canonical content is text. Audio is a transport representation. Temporary TTS files; no default archive.
+Canonical content is text. Audio is a temporary delivery representation.
 
-Do not mix this one-shot delivery with Web listen/VAD/session lifecycle.
-
-**Telegram Voice Input** (user voice note → STT) is a different direction and is also **not implemented**. Groups persist `[voice]` placeholders only.
+**Telegram Voice Input** (user voice note → STT) remains **not implemented**.
