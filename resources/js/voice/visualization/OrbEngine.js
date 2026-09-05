@@ -26,6 +26,8 @@ const MOBILE_DISPLAY_SCALE = 0.49;
 const MOBILE_BREAKPOINT = 768;
 const WEB_LIFT_Y = 0.12;
 const MOBILE_LIFT_Y = 0.28;
+const WEB_INTENSITY = 1.12;
+const MOBILE_INTENSITY = 1.5;
 
 function displayScaleFor(width) {
     return width < MOBILE_BREAKPOINT ? MOBILE_DISPLAY_SCALE : WEB_DISPLAY_SCALE;
@@ -33,6 +35,10 @@ function displayScaleFor(width) {
 
 function liftFor(width) {
     return width < MOBILE_BREAKPOINT ? MOBILE_LIFT_Y : WEB_LIFT_Y;
+}
+
+function intensityFor(width) {
+    return width < MOBILE_BREAKPOINT ? MOBILE_INTENSITY : WEB_INTENSITY;
 }
 
 function makeUniforms() {
@@ -94,6 +100,7 @@ export class OrbEngine {
         this.clock = 0;
         this.displayScale = displayScaleFor(typeof window !== 'undefined' ? window.innerWidth : 1280);
         this.liftY = liftFor(typeof window !== 'undefined' ? window.innerWidth : 1280);
+        this.intensity = intensityFor(typeof window !== 'undefined' ? window.innerWidth : 1280);
 
         const spec = TIER[this.tier] ?? TIER.medium;
         const width = Math.max(1, container.clientWidth);
@@ -265,6 +272,7 @@ export class OrbEngine {
         const height = Math.max(1, this.container.clientHeight);
         this.displayScale = displayScaleFor(typeof window !== 'undefined' ? window.innerWidth : width);
         this.liftY = liftFor(typeof window !== 'undefined' ? window.innerWidth : width);
+        this.intensity = intensityFor(typeof window !== 'undefined' ? window.innerWidth : width);
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
         this.renderer.setPixelRatio(clampPixelRatio(this.tier));
@@ -340,8 +348,8 @@ export class OrbEngine {
         this.uniforms.uHigh.value = (bands.highMid || 0) * 0.45 + (bands.high || 0);
         this.uniforms.uTight.value = v.tightness;
         this.uniforms.uReduced.value = reduced;
-        this.uniforms.uGlow.value = v.glow * (viz.isMuted ? 0.55 : 1);
-        this.uniforms.uOpacity.value = v.opacity;
+        this.uniforms.uGlow.value = v.glow * this.intensity * (viz.isMuted ? 0.55 : 1);
+        this.uniforms.uOpacity.value = v.opacity * this.intensity;
         this.uniforms.uSaturate.value = v.saturate;
         this.uniforms.uWarning.value = v.warning;
         this.uniforms.uSpin.value = v.innerSpin;

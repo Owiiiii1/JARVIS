@@ -157,6 +157,7 @@
     width: min(9.8rem, 32vw);
     height: min(9.8rem, 32vw);
     transform: translateY(-5%);
+    filter: brightness(1.12) saturate(1.05);
 }
 
 .jarvis-voice-mode__state {
@@ -389,6 +390,7 @@
         width: min(5.4rem, 20vw);
         height: min(5.4rem, 20vw);
         transform: translateY(-14%);
+        filter: brightness(1.5) saturate(1.12);
     }
 
     .jarvis-voice-demo {
