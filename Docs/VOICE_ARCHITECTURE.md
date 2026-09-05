@@ -117,7 +117,7 @@ Recommended: **STT = Gemini**, **TTS = ElevenLabs**. Conversation AI stays role 
 
 `models.generateContent` (`v1beta`), **separate** from chat `GeminiClient`. Default model `gemini-3.5-transcribe` (Admin-editable). Live streaming model is **not** used.
 
-Request: `inlineData` + `generationConfig.audioTranscriptionConfig` as a JSON **object** (empty config must be `{}`, not `[]`). Auto language detection by default.
+Request: `inlineData` + `generationConfig.audioTranscriptionConfig` as a JSON **object** (empty config must be `{}`, not `[]`; a PHP `[]` would serialize as an array and Gemini rejects it). Auto language detection by default. JSON-shape 400s (`unknown name` / `json payload`) are `voice_stt_failed`, not unsupported MIME. Provider logs may include HTTP status and a truncated `error.message`; they must not include audio, transcripts, API keys, or raw request bodies.
 
 STT is instance-level Admin infrastructure. Ordinary users do not configure it.
 
@@ -127,7 +127,7 @@ STT is instance-level Admin infrastructure. Ordinary users do not configure it.
 
 `voice_sessions`: `public_id`, `user_id`, `conversation_id`, `origin` (`web`; enum also lists `desktop`/`mobile` as leftover values, not planned Desktop work), `status`, STT/TTS used, activity timestamps, `error_code`, `metadata`.
 
-Admin infrastructure remains singleton `voice_settings` (providers, key, fallback Voice ID). Each user selects one curated ElevenLabs voice in Workspace settings; the ID is stored as nullable `users.voice_id`. There is no `user_voice_settings` table. Resolution is explicit at Web/Telegram TTS boundaries through `ResolvesUserVoice`.
+Admin infrastructure remains singleton `voice_settings` (providers, key, fallback Voice ID). Each user selects one curated ElevenLabs voice in Workspace settings; the ID is stored as nullable `users.voice_id`. There is no `user_voice_settings` table. Resolution is explicit at Web/Telegram TTS boundaries through `ResolvesUserVoice`. If the selected voice is unavailable on the ElevenLabs account (HTTP 404 or voice-unavailable body markers such as `invalid_voice` / `voice_not_found` / `library voice`), TTS may retry **once** with the instance/config fallback voice. Auth (401/403), quota (402), rate limit (429), connection/transport, and generic 5xx errors must not retry another voice. Fallback failure is surfaced once. Exception context is bounded (`http_status`, `voice_id`, `reason`, `voice_unavailable`) and must not store the raw provider body.
 
 ### State machine
 

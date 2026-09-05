@@ -13,6 +13,7 @@ use App\Services\Voice\VoiceSettingsService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Throwable;
 
 final class GeminiSpeechToTextProvider implements SpeechToTextProvider
@@ -72,7 +73,7 @@ final class GeminiSpeechToTextProvider implements SpeechToTextProvider
                 ]],
             ]],
             'generationConfig' => [
-                'audioTranscriptionConfig' => $this->transcriptionConfig($language),
+                'audioTranscriptionConfig' => $this->audioTranscriptionConfig($language),
             ],
         ];
 
@@ -107,13 +108,19 @@ final class GeminiSpeechToTextProvider implements SpeechToTextProvider
         }
 
         if (in_array($status, [400, 415], true) && $this->looksLikeUnsupportedMedia($response)) {
-            $this->logOutcome($chunk, $mime, $model, $started, 'voice_audio_format_unsupported');
+            $this->logOutcome($chunk, $mime, $model, $started, 'voice_audio_format_unsupported', [
+                'gemini_status' => $status,
+                'gemini_message' => Str::limit((string) $response->json('error.message', ''), 240),
+            ]);
 
             throw VoiceException::audioFormatUnsupported();
         }
 
         if (! $response->successful()) {
-            $this->logOutcome($chunk, $mime, $model, $started, 'voice_stt_failed');
+            $this->logOutcome($chunk, $mime, $model, $started, 'voice_stt_failed', [
+                'gemini_status' => $status,
+                'gemini_message' => Str::limit((string) $response->json('error.message', ''), 240),
+            ]);
 
             throw VoiceException::sttFailed();
         }
@@ -183,6 +190,18 @@ final class GeminiSpeechToTextProvider implements SpeechToTextProvider
         if ($chunk->durationMs !== null && $chunk->durationMs > $maxMs) {
             throw VoiceException::audioTooLarge();
         }
+    }
+
+    /**
+     * Empty PHP arrays JSON-encode as `[]`. Gemini proto expects an object here.
+     *
+     * @return array<string, mixed>|\stdClass
+     */
+    private function audioTranscriptionConfig(?string $language): array|\stdClass
+    {
+        $config = $this->transcriptionConfig($language);
+
+        return $config === [] ? new \stdClass : $config;
     }
 
     /**
@@ -290,24 +309,31 @@ final class GeminiSpeechToTextProvider implements SpeechToTextProvider
 
     private function looksLikeUnsupportedMedia(Response $response): bool
     {
-        $code = strtolower((string) $response->json('error.status', ''));
-        $message = strtolower((string) $response->json('error.message', ''));
-
-        if ($code === 'invalid_argument' && (
-            str_contains($message, 'mime')
-            || str_contains($message, 'audio')
-            || str_contains($message, 'format')
-            || str_contains($message, 'unsupported')
-        )) {
+        if ($response->status() === 415) {
             return true;
         }
 
-        return $response->status() === 415;
+        $message = strtolower((string) $response->json('error.message', ''));
+
+        if ($message === '' || str_contains($message, 'unknown name') || str_contains($message, 'json payload')) {
+            return false;
+        }
+
+        $code = strtolower((string) $response->json('error.status', ''));
+
+        return $code === 'invalid_argument' && (
+            str_contains($message, 'mime')
+            || str_contains($message, 'unsupported media')
+            || str_contains($message, 'audio format')
+        );
     }
 
-    private function logOutcome(VoiceAudioChunk $chunk, string $mime, string $model, float $started, string $code): void
+    /**
+     * @param  array<string, mixed>  $extra
+     */
+    private function logOutcome(VoiceAudioChunk $chunk, string $mime, string $model, float $started, string $code, array $extra = []): void
     {
-        $this->metrics->record('stt.provider', [
+        $this->metrics->record('stt.provider', array_merge([
             'session_public_id' => $chunk->sessionPublicId,
             'provider' => $this->name(),
             'model' => $model,
@@ -316,6 +342,6 @@ final class GeminiSpeechToTextProvider implements SpeechToTextProvider
             'duration_ms' => $chunk->durationMs,
             'latency_ms' => (int) round((microtime(true) - $started) * 1000),
             'result' => $code,
-        ]);
+        ], $extra));
     }
 }

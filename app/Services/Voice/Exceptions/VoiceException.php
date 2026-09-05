@@ -86,9 +86,12 @@ final class VoiceException extends RuntimeException
         return new self('voice_tts_not_configured', 'Text-to-speech is not configured.');
     }
 
-    public static function ttsFailed(): self
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    public static function ttsFailed(array $context = []): self
     {
-        return new self('voice_tts_failed', 'Text-to-speech failed.');
+        return new self('voice_tts_failed', 'Text-to-speech failed.', 422, $context);
     }
 
     public static function runtimeFailed(): self

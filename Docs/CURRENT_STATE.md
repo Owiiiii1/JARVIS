@@ -64,13 +64,10 @@ The former hands-free «Диалог» mode was removed; only «Рация» rem
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD (origin/main at Telegram Voice Input) | this commit: `feat: add Telegram voice input` |
-| Previous | `a8e05d5` Telegram Voice Replies; `e4f3ea1` voice reply docs; `6e18325` M26D |
+| HEAD | `main`, aligned with `origin/main` after voice provider hardening |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 
-This documentation commit does **not** include uncommitted Voice client experiments that may exist in the working tree.
-
-`.env` is gitignored.
+Production checkout is the GitHub source of truth. Gemini STT request-shape and bounded ElevenLabs voice fallback are committed. Laravel Boost is require-dev tooling in a separate commit. `.env` stays gitignored.
 
 ---
 
@@ -147,7 +144,7 @@ Regular user capabilities: chat, memory, telegram_dm, reminders, cabinet, person
 
 ## 6. Voice
 
-Committed path: push-to-talk, Gemini STT, ElevenLabs TTS, responsive Orb. The core pipeline is Owner MANUAL PASS. Admin provider/key settings remain under Integrations; each user chooses one of six curated voices in Workspace settings (`users.voice_id`). [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
+Committed path: push-to-talk, Gemini STT, ElevenLabs TTS, responsive Orb. The core pipeline is Owner MANUAL PASS. Admin provider/key settings remain under Integrations; each user chooses one of six curated voices in Workspace settings (`users.voice_id`). Empty Gemini `audioTranscriptionConfig` is sent as JSON `{}`. If a selected ElevenLabs voice is unavailable on the account, TTS makes at most one fallback request to the instance/default voice; auth, quota, rate-limit, and generic server errors do not retry. Live Gemini/ElevenLabs validation was not run. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
 
 Telegram Voice Replies (`sendVoice`): **MANUAL PASS**.  
 Telegram Voice Input (DM `Message.voice` → existing Gemini STT → Core): **IMPLEMENTED / NOT VALIDATED**. Groups still store `[voice]` placeholder (no STT). Default Telegram reply mode remains **text**. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).

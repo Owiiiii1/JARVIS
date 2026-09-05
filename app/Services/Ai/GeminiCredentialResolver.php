@@ -4,7 +4,7 @@ namespace App\Services\Ai;
 
 use App\Models\AiProviderSetting;
 
-final class GeminiCredentialResolver
+class GeminiCredentialResolver
 {
     public function setting(): ?AiProviderSetting
     {
