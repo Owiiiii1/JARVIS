@@ -150,6 +150,9 @@ Regular user capabilities: chat, memory, telegram_dm, reminders, cabinet, person
 
 Committed path: hands-free VAD, Gemini STT, ElevenLabs TTS, Orb. Owner MANUAL PASS. Admin Voice settings under Integrations. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
 
+Telegram Voice Replies (`sendVoice`): **PLANNED / NOT IMPLEMENTED**.  
+Telegram Voice Input (user voice note → STT): **NOT IMPLEMENTED** (DM rejects non-text; groups store `[voice]` placeholder). Web Voice PASS does not cover Telegram audio. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
+
 ---
 
 ## 7. Personalization (M25U.3)
@@ -180,3 +183,4 @@ Code: Google OAuth (Gmail + Calendar tools; **no Drive**), GitHub OAuth + tools,
 - Knowledge Graph
 - Proactive engine
 - Wake word
+- Telegram Voice Replies / Telegram Voice Input

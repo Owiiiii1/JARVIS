@@ -2374,6 +2374,86 @@
 
 ---
 
+## ADR-246 — Telegram Voice Replies reuse Jarvis Core; no second AI
+
+**Контекст.** Telegram users may want native voice messages. That must not fork a second assistant or Voice Core.
+
+**Решение.** Telegram Voice Reply is adapter **delivery**: Conversation Engine produces assistant text as today; optional TTS then `sendVoice`. Same `user_id`, `conversation_id`, Memory, tools, Assistant Profile, General Prompt. Not a `voice_sessions` Web runtime unless a later implementation has a specific reason.
+
+**Следствие.** [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md). Web Voice MANUAL PASS does not implement this path.
+
+---
+
+## ADR-247 — Assistant text is canonical; audio is a delivery representation
+
+**Контекст.** TTS output could be mistaken for the source of truth.
+
+**Решение.** Persisted assistant **text** is the canonical conversation content. Generated audio is only a transport representation of that text. History, Memory, and Web Workspace use text.
+
+**Следствие.** Voice delivery failure must still leave the text answer intact (ADR-251).
+
+---
+
+## ADR-248 — Telegram Voice Replies reuse the existing TTS abstraction
+
+**Контекст.** A Telegram-only TTS stack would duplicate ElevenLabs/provider config.
+
+**Решение.** Reuse `TextToSpeechManager` / `TextToSpeechProvider`. Do not add a Telegram-specific TTS provider in the target architecture. TTS Voice ID remains instance-level unless a later ADR introduces per-user voice selection.
+
+**Следствие.** Implementation converts provider bytes (often MP3 today) if Telegram requires another container.
+
+---
+
+## ADR-249 — Generated Telegram voice audio is not archived by default
+
+**Контекст.** Permanent voice archives conflict with current Voice privacy (transcripts persist; recordings do not).
+
+**Решение.** Temporary TTS artifact → deliver → delete after a bounded retry window. No default archive. A future archive needs a separate explicit decision.
+
+**Следствие.** Same philosophy as `VoiceTempAudioStore` / `jarvis:voice:cleanup-temp`.
+
+---
+
+## ADR-250 — Telegram response medium is a user/channel preference
+
+**Контекст.** Personality and delivery channel are easy to conflate.
+
+**Решение.** Conceptual `telegram_response_mode`: `text` | `voice` | `auto`. Per-user (or user+Telegram-channel) delivery preference — not AI provider config, not `user_assistant_profiles` unless an implementation audit says otherwise. `auto` is a recommended default candidate (voice-in → voice-out; text-in → text-out); exact default at implementation time. Explicit chat commands update this structured preference, not an unreliable Memory fact.
+
+**Следствие.** Assistant name/personality stay shared across channels.
+
+---
+
+## ADR-251 — Voice delivery failure falls back to text
+
+**Контекст.** TTS, conversion, or Telegram media APIs can fail independently of Conversation AI.
+
+**Решение.** If TTS is unavailable, conversion fails, Telegram rejects audio, or temp media fails, send the canonical text. Do not drop the assistant answer.
+
+**Следствие.** Large or non-spoken payloads (code, tables, files) should prefer text/file delivery rather than forced TTS.
+
+---
+
+## ADR-252 — Telegram-native voice UX uses sendVoice
+
+**Контекст.** Sending an audio *file* is a different Telegram UX from a voice bubble.
+
+**Решение.** Target native voice-message UX via Bot API `sendVoice`. Preferred container: OGG / OPUS where Telegram requires it. ffmpeg is a **likely** conversion tool, not a committed shipped dependency until the implementation milestone audits provider output and the host.
+
+**Следствие.** Do not install ffmpeg or change TTS in a documentation task.
+
+---
+
+## ADR-253 — Telegram Voice Replies are a Telegram adapter enhancement
+
+**Контекст.** Channel voice can be misread as a new primary client or a Desktop prerequisite.
+
+**Решение.** This is a **Telegram DM** enhancement. Web Personal Workspace remains the primary interactive client (ADR-236). Desktop remains CANCELLED (ADR-235). Telegram remains a secondary messaging adapter. The milestone is small and independent, after reminder hardening (M25U.3.1), not a new major phase.
+
+**Следствие.** [ROADMAP.md](ROADMAP.md) Phase C; [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+
+---
+
 - Алфавит generated access_code (кроме зарезервированного 2000).
 - 403 vs redirect когда user открывает admin URL.
 - Auth схема future Mobile (token flavour) — only if Mobile is built; Desktop auth cancelled.

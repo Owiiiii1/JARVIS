@@ -32,6 +32,7 @@ Desktop is cancelled. Do not wait on a native shell.
 - Stable personality (profile + General Prompt; not per-channel copies)
 - Better working memory
 - Natural conversational initiative (bounded; see [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md))
+- Telegram Voice Replies: channel delivery of assistant text via `sendVoice` (not a second Voice Core; [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md))
 
 **Wake word:** not mandatory. Limited value in a normal browser. Optional research for mobile/native or always-open environments.
 

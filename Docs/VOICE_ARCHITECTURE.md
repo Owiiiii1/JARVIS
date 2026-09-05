@@ -183,3 +183,22 @@ Errors: `voice_session_not_found`, `voice_session_invalid_state`, `voice_session
 - Wake word as a Web requirement
 - Desktop client
 - Continuous audio archive
+- Telegram Voice Replies as current Web Voice behavior (they are a **separate**, not-implemented adapter path)
+
+---
+
+## Telegram voice delivery (future)
+
+**Status.** PLANNED / NOT IMPLEMENTED. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
+
+This is **not** Web Voice. It does **not** use the `voice_sessions` state machine unless a later implementation has a specific reason.
+
+Target: Telegram inbound → normal Conversation Engine → persist assistant **text** → delivery policy → optional existing `TextToSpeechProvider` → convert if needed → `sendVoice`.
+
+Same user, `conversation_id`, Memory, tools, Assistant Profile, General Prompt. No second conversational agent. No Telegram-specific TTS provider.
+
+Canonical content is text. Audio is a transport representation. Temporary TTS files; no default archive.
+
+Do not mix this one-shot delivery with Web listen/VAD/session lifecycle.
+
+**Telegram Voice Input** (user voice note → STT) is a different direction and is also **not implemented**. Groups persist `[voice]` placeholders only.

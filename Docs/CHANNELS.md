@@ -10,18 +10,20 @@
 | --- | --- | --- |
 | Web text | Web Personal Workspace `/jarvis` or `/chat` | PRIMARY |
 | Web voice | Modality over the same conversation (`metadata.modality = voice`, `messages.channel = web`) | MANUAL PASS |
-| Telegram DM | Adapter | IMPLEMENTED |
+| Telegram DM | Adapter — **text** inbound and outbound | IMPLEMENTED |
 | Telegram Groups | Owner-only group persist / analysis | IMPLEMENTED / NOT VALIDATED as a full campaign |
 
 ## Future / cancelled
 
 | Surface | Status |
 | --- | --- |
+| Telegram Voice Input (user voice note → STT) | PLANNED / NOT IMPLEMENTED |
+| Telegram Voice Reply (`sendVoice` TTS delivery) | PLANNED / NOT IMPLEMENTED |
 | Mobile companion | DEFERRED |
 | Desktop | CANCELLED |
 | Client API as a product | DEFERRED |
 
-Voice is **not** a standalone channel identity. It is a modality of Web (and later Mobile) over Conversation Core.
+Voice is **not** a standalone channel identity. Web Voice is a modality of Web over Conversation Core. Telegram Voice Reply, if built, is **adapter delivery** of the same assistant text — not a new channel-brain. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
 Admin Panel is **not** a conversation channel.
 
@@ -72,3 +74,17 @@ The same `conversation_id` continues across Telegram DM and Web. Voice uses that
 First shipping adapter, still a **secondary** product surface after Web. Pairing via `access_code`. Bot does not create Users. Groups persist without auto-reply.
 
 Reminder **delivery** today uses Telegram. That is a delivery adapter, not a channel-specific reminder engine. Target: reminders exist without Telegram. [REMINDERS.md](REMINDERS.md).
+
+### Telegram DM modalities
+
+**Current**
+
+- Inbound: text only (non-text is rejected for paired DM)
+- Outbound: text (`sendMessage`)
+
+**Future (not implemented)**
+
+- Voice input: user Telegram voice note → STT → same Conversation Engine (separate from Web Voice; not implied by Web MANUAL PASS)
+- Voice output: assistant text → existing TTS → `sendVoice` (OGG/OPUS likely). Canonical content remains text. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md)
+
+Telegram remains a **secondary** messaging adapter. Web remains the primary interactive client. Desktop stays CANCELLED.

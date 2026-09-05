@@ -60,6 +60,7 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 | A/B isolation campaign | Prepared, not executed |
 | Web Push / Tasks / Daily Brief | Not implemented |
 | Versioned Client API | Not implemented; **not** current work |
+| Telegram Voice Replies / Telegram Voice Input | NOT IMPLEMENTED |
 | Desktop | CANCELLED |
 
 ---
@@ -92,6 +93,27 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 - Selected Google / GitHub manual validation if Owner wants
 - Optional A/B isolation campaign
 
+### Telegram Voice Replies
+
+**Status.** PLANNED / DEFERRED. Small independent channel enhancement. **Not** the next executable milestone (that remains M25U.3.1). **Not** a new major phase.
+
+Place after reminder hardening unless Owner reorders.
+
+**Scope (when started)**
+
+- Audit Telegram adapter (DM text-only inbound/outbound today)
+- Audit inbound Telegram voice (currently **not** transcribed)
+- Reuse `TextToSpeechManager` / `TextToSpeechProvider`
+- Optional audio conversion (likely OGG/OPUS for `sendVoice`; ffmpeg only if audit requires it)
+- `sendVoice` delivery of TTS over canonical assistant text
+- Text fallback on TTS/conversion/Telegram failure
+- Per-user `text` / `voice` / `auto` preference
+- Temporary audio lifecycle (no default archive)
+- Safe error handling
+- Manual production validation
+
+Detail: [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
+
 ---
 
 ## D. Deferred strategic milestones
@@ -103,6 +125,7 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 | Tasks domain + relations | B |
 | Daily Brief / Weekly Review | B |
 | Streaming STT/TTS, richer barge-in | C |
+| Telegram Voice Replies (`sendVoice`) | C (small; after M25U.3.1) |
 | Wake word | research only, not mandatory |
 | Mobile companion | D |
 | Versioned Client API | if/when Mobile (or similar) starts |
