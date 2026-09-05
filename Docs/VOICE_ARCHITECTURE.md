@@ -1,6 +1,6 @@
 # Голосовая архитектура
 
-**Status.** MANUAL PASS (Owner, 2026-09-04/05): Voice starts, microphone/listening, hands-free end-of-turn after pause, Gemini STT, Jarvis reply, ElevenLabs TTS playback, M24.1.1 VAD hotfix.
+**Status.** Voice pipeline MANUAL PASS (Owner, 2026-09-04/05). Current Web UX is push-to-talk («Рация»): hold to record, release to send. Hands-free dialogue/VAD capture was removed on 2026-09-05.
 
 Voice is a **modality** of Web Personal Workspace over an existing conversation. Not a second Jarvis, second memory, second User Space, or a separate client.
 
@@ -10,17 +10,17 @@ Desktop reuse is **not** a planned path (Desktop CANCELLED). Mobile may later ca
 Voice selection
   → microphone permission
   → listening
-  → local VAD
-  → automatic end-of-turn
+  → hold push-to-talk
+  → release to end turn
   → Gemini STT
   → ConversationTurnService (same Core / tools / memory)
   → persisted messages
   → ElevenLabs TTS
   → playback
-  → listening again
+  → ready for the next push-to-talk turn
 ```
 
-Mic button = **mute/unmute only** (committed M24.1). Same `conversation_id`. Persistence = ordinary `messages`. No second Voice brain. No continuous audio archive.
+The separate mic button is **mute/unmute**; the large push-to-talk button controls recording. Same `conversation_id`. Persistence = ordinary `messages`. No second Voice brain. No continuous audio archive.
 
 ```
 audio input
@@ -43,7 +43,7 @@ UI Orb: [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
 - same selected `conversation_id`
 - same Conversation Engine
 - same AI configuration of that space (STT/TTS do **not** change Conversation AI)
-- same assistant personalization profile; TTS Voice ID is instance-level
+- same assistant personalization profile; TTS Voice ID is a per-user preference (`users.voice_id`) with an instance fallback
 - one memory; no `voice_memory` / `voice_messages`
 - Text ↔ Voice must not create a new conversation
 - final STT text and assistant text are ordinary `messages` rows
@@ -56,11 +56,11 @@ UI Orb: [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
 ```
 Text → Voice (user gesture)
         ↓
-getUserMedia + session + listening
+getUserMedia + session ready
         ↓
-MediaRecorder (pre-roll) + local VAD
+hold push-to-talk → MediaRecorder
         ↓
-end-of-turn silence → Blob (canonical MIME + matching filename)
+release push-to-talk → Blob (canonical MIME + matching filename)
         ↓
 POST /jarvis/voice/sessions/{id}/audio  (or /chat/...)
         ↓
@@ -76,16 +76,16 @@ TextToSpeechManager → TextToSpeechProvider
         ↓
 JSON events + optional audio bytes (HTTP)
         ↓
-TTS playback ends → listening + fresh recorder/VAD
+TTS playback ends → ready for the next held turn
 ```
 
 No continuous vendor stream. No wake word (optional future research only; not Web-mandatory). Mute discards unsent audio. Switching conversation while Voice is active ends the old session.
 
-M24.1.1 VAD: each listen cycle calibrates ambient RMS (~650ms) without dropping MediaRecorder pre-roll. Detection uses unamplified `rawInputRms`; Orb visualization uses a separate `* 3.2` gain. Speech starts above `startThreshold`, silence/end uses a lower `endThreshold`. `endSilenceMs` stays 850. `?voice_debug=1` for throttled metrics.
+The normal turn boundary is explicit pointer hold/release, not silence VAD. Holding push-to-talk while Jarvis is speaking first interrupts playback, then records. The configured maximum utterance duration still bounds a held turn.
 
 MIME: `VoiceAudioMime` canonicalizes `audio/webm;codecs=opus` → `audio/webm`. Upload filename matches the container.
 
-`resume` is `muted → idle`. Frontend then calls `listen` exactly once. Recoverable `voice_session_invalid_state` fetches a snapshot; no full page refresh required.
+`resume` is `muted → idle`. Frontend then calls `listen` exactly once and waits for push-to-talk. Recoverable `voice_session_invalid_state` fetches a snapshot; no full page refresh required.
 
 Domain layer is transport-neutral. Production Web uses authenticated session + CSRF HTTP JSON. No WebRTC. A future Mobile client would call the same `VoiceRuntimeService`; there is no Desktop client.
 
@@ -127,7 +127,7 @@ STT is instance-level Admin infrastructure. Ordinary users do not configure it.
 
 `voice_sessions`: `public_id`, `user_id`, `conversation_id`, `origin` (`web`; enum also lists `desktop`/`mobile` as leftover values, not planned Desktop work), `status`, STT/TTS used, activity timestamps, `error_code`, `metadata`.
 
-Admin: singleton `voice_settings`. No `user_voice_settings`.
+Admin infrastructure remains singleton `voice_settings` (providers, key, fallback Voice ID). Each user selects one curated ElevenLabs voice in Workspace settings; the ID is stored as nullable `users.voice_id`. There is no `user_voice_settings` table. Resolution is explicit at Web/Telegram TTS boundaries through `ResolvesUserVoice`.
 
 ### State machine
 

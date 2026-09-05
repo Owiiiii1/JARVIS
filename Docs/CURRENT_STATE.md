@@ -36,17 +36,17 @@ This file is a **runtime snapshot**. If it disagrees with older milestone prose,
 - persistent text-file upload / Storage retrieval through chat
 - Gemini Google Search web research
 
-**PASS — Voice (M23–M24.1.1):**
+**PASS — Voice pipeline (M23–M24.1.1); current PTT UI implemented:**
 
 - Voice mode starts
-- microphone / listening
-- hands-free turn ends after pause
+- microphone permission/session starts
+- hold-to-talk recording; release sends the turn
 - Gemini STT
 - Jarvis generates a reply
 - ElevenLabs TTS plays audio
-- post-VAD hotfix works
+- each user can select a personal TTS voice
 
-Voice stage is **CLOSED**.
+The former hands-free «Диалог» mode was removed; only «Рация» remains.
 
 **PARTIAL — M25U.3:**
 
@@ -147,7 +147,7 @@ Regular user capabilities: chat, memory, telegram_dm, reminders, cabinet, person
 
 ## 6. Voice
 
-Committed path: hands-free VAD, Gemini STT, ElevenLabs TTS, Orb. Owner MANUAL PASS. Admin Voice settings under Integrations. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
+Committed path: push-to-talk, Gemini STT, ElevenLabs TTS, responsive Orb. The core pipeline is Owner MANUAL PASS. Admin provider/key settings remain under Integrations; each user chooses one of six curated voices in Workspace settings (`users.voice_id`). [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
 
 Telegram Voice Replies (`sendVoice`): **MANUAL PASS**.  
 Telegram Voice Input (DM `Message.voice` → existing Gemini STT → Core): **IMPLEMENTED / NOT VALIDATED**. Groups still store `[voice]` placeholder (no STT). Default Telegram reply mode remains **text**. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
@@ -157,6 +157,8 @@ Telegram Voice Input (DM `Message.voice` → existing Gemini STT → Core): **IM
 ## 7. Personalization (M25U.3)
 
 Table `user_assistant_profiles`. Tools: `get_assistant_profile`, `update_assistant_profile`, `complete_assistant_onboarding`. Owner seeded Jarvis / completed. User onboarding UI exists; Owner confirmed **entry**. Completion E2E not confirmed.
+
+Personal voice preference: nullable `users.voice_id`; effective fallback is the configured instance/default voice. The same selected voice is passed explicitly to Web Voice and Telegram TTS.
 
 ---
 

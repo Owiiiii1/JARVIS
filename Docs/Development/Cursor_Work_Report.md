@@ -142,3 +142,41 @@ Voice notes longer than 30 seconds or larger than 2 MB should get a short text l
 - Job retry before persist can STT twice  
 - Gemini empty-audio currently surfaces as STT failure in the provider; adapter also treats empty transcript as `VOICE_EMPTY`  
 - `voice-temp/` remains www-data 0700 (Web Voice); Telegram uses `voice-outbound/`  
+
+---
+
+## Subsequent voice changes (2026-09-05)
+
+These changes landed after the Telegram Voice Input commit described above:
+
+### Web Voice: «Рация» only
+
+- Removed hands-free «Диалог», automatic VAD capture, and its mode selector.
+- The only capture flow is push-to-talk: hold to record, release to submit.
+- Pressing push-to-talk while Jarvis is speaking/thinking interrupts first.
+- Existing Voice Runtime, Gemini STT, `ConversationTurnService`, persisted messages, and ElevenLabs TTS remain unchanged.
+- Commit: `2b3a972` (`fix: keep web voice in push-to-talk mode`).
+
+### Orb visibility
+
+- Increased WebGL glow/opacity intensity by about 12% on desktop and 50% below 768px.
+- Applied matching responsive brightness/saturation to the CSS fallback Orb.
+- Commit: `79ae9af` (`fix: brighten voice orb on mobile`).
+
+### Per-user assistant voice
+
+- Added six curated ElevenLabs choices: Jessica, Sarah, Lily; Eric, George, Chris.
+- Voice selection moved from global Admin Voice settings to each user's Workspace settings.
+- Migration `2026_09_05_202207_add_voice_id_to_users_table.php` adds nullable `users.voice_id`.
+- `VoiceSettingsService` resolves user preference → configured instance fallback → catalog default.
+- Both Web Voice (`VoiceRuntimeService`) and Telegram voice delivery (`TelegramReplyDeliveryService`) pass the resolved user's Voice ID to the existing TTS abstraction.
+- Validation only accepts catalog IDs. A user's selection does not affect another user.
+- Commits: `e25bf3a` (`feat: add curated assistant voice selection`) and `ee7d4f0` (`fix: make assistant voice a user preference`).
+
+The original “No schema migration / no production DB writes” statement at the top applies only to the Telegram Voice Input commit. The later per-user voice change intentionally includes the migration above.
+
+### Verification
+
+- Per-user catalog/update/isolation/validation feature tests passed.
+- Telegram TTS propagation test for distinct user Voice IDs passed.
+- PHP formatting and the production frontend build passed.

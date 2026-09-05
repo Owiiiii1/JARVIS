@@ -96,7 +96,7 @@ Owner **также** обычный участник Conversation Core: своя
 
 Пока **только**:
 
-- Web Personal Workspace `/chat`: login, chats, composer, images/files, Voice, General Prompt, profile name/timezone, own password change;
+- Web Personal Workspace `/chat`: login, chats, composer, images/files, push-to-talk Voice, General Prompt, profile name/timezone, personal assistant voice, own password change;
 - Telegram DM after pairing + Chat Selector;
 - reminders (create currently Telegram-gated; target: Core independent of Telegram);
 - instance Web Research tools (`search_web`, `fetch_web_page`);
@@ -186,7 +186,7 @@ Disable is preferred over delete. Ordinary user эту страницу не в�
 
 ## Personal Workspace (`role=user`)
 
-Минимум: **Chat**, плюс редактирование **своего General Prompt**. Timezone используется для отображения времени сообщений.
+Минимум: **Chat**, плюс редактирование **своего General Prompt**. Timezone используется для отображения времени сообщений. В Workspace settings каждый пользователь выбирает собственный TTS voice из шести curated ElevenLabs voices; выбор хранится в `users.voice_id` и не меняет голоса других пользователей.
 
 Chat: sidebar список, Новый чат, history, composer, attachments, Voice. Canonical URL `/chat/chats/{id}`. `/cabinet/chats/{id}` redirects here. Тот же каталог conversations и те же messages, что в Telegram. Engine: `ConversationTurnService`. Frontend: тот же `PersonalWorkspace`, что Owner `/jarvis`.
 

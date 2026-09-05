@@ -39,6 +39,8 @@ Do not start a listed “completed” milestone again. Do not treat Desktop as u
 | M24 | Voice Orb UI | MANUAL PASS |
 | M24.1 | Hands-free local VAD | MANUAL PASS |
 | M24.1.1 | VAD silence hotfix | MANUAL PASS |
+| Current Web Voice capture | Push-to-talk «Рация» only; supersedes hands-free capture | IMPLEMENTED |
+| Per-user TTS voice | Six curated voices shared across Web/Telegram per user | IMPLEMENTED |
 | M25U.1 | Shared `/chat` Personal Workspace | MANUAL PASS (core user workflow) |
 | M25U.2 | User administration / isolation | MANUAL PASS (core user workflow) |
 | M25U.3 | Assistant profiles, onboarding UI, reminders panel code | MANUAL PARTIAL (onboarding entry); panel LIVE BUG |

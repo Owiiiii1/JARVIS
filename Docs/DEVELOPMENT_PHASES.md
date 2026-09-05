@@ -14,6 +14,6 @@ The original four phases (Telegram MVP → Memory → Workspace + native clients
 Corrections vs this archive:
 
 - Desktop / Tauri / Phase 3 “native clients” → **CANCELLED** for Desktop
-- Basic Voice / hands-free / VAD — **done**, not Phase 4 future
+- Basic Voice STT/Core/TTS pipeline — **done**; current Web capture is push-to-talk and hands-free/VAD capture was removed
 - Web Personal Workspace is the primary client, not a stepping stone to Desktop
 - Reminder Telegram-only create/delivery is **current code**, not the target architecture

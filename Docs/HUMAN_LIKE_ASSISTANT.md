@@ -1,6 +1,6 @@
 # Natural conversation (Phase C)
 
-**Status.** Basic Voice I/O is **MANUAL PASS**. This document is **future** conversational intelligence, not a redo of VAD / hands-free.
+**Status.** Basic Voice I/O pipeline is **MANUAL PASS**. Current Web capture is push-to-talk. This document is future conversational intelligence, not a request to restore the removed hands-free mode.
 
 ADR-010 still applies: this is a layer over Core, Memory, and Voice — not “a better prompt”.
 
@@ -10,9 +10,9 @@ Desktop is cancelled. Do not wait on a native shell.
 
 ## Already done (do not plan again)
 
-- Local VAD / hands-free end-of-turn
-- Mute as the single mic control
-- Barge-in foundation during TTS
+- Explicit push-to-talk turn boundary
+- Separate mute control
+- Push-to-talk interruption during TTS/thinking
 - Gemini STT → ConversationTurnService → ElevenLabs TTS
 - Same conversation_id and ordinary messages
 - Spoken-style presentation hint
@@ -24,7 +24,7 @@ Desktop is cancelled. Do not wait on a native shell.
 - Lower latency
 - Streaming STT / TTS if valuable
 - More robust barge-in / overlap
-- Better short-pause policy (pause ≠ always end of thought — refine, do not invent from scratch)
+- Optional future hands-free turn detection only if it is explicitly re-scoped and made reliable
 - Text generation cancellation when the user sends a new turn
 - Incomplete phrases / pronouns
 - Topic continuity and return-to-topic

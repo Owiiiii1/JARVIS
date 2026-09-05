@@ -2116,6 +2116,8 @@
 
 ## ADR-220 — Voice mode auto-starts after an explicit Voice gesture
 
+**Status.** Superseded for capture behavior by ADR-256. The gesture still primes microphone/AudioContext and starts the session, but recording waits for push-to-talk.
+
 **Контекст.** Push-to-talk required a second mic click after entering Voice.
 
 **Решение.** Text→Voice is the user gesture: prime `getUserMedia` + AudioContext, then auto-create the session and enter listening.
@@ -2125,6 +2127,8 @@
 ---
 
 ## ADR-221 — No push-to-talk in normal Voice UX
+
+**Status.** Superseded by ADR-256.
 
 **Контекст.** Natural conversation cannot require tap-to-send between turns.
 
@@ -2146,6 +2150,8 @@
 
 ## ADR-223 — End-of-turn is local bounded VAD
 
+**Status.** Superseded by ADR-256 for the current Web client.
+
 **Контекст.** Vendor VAD or streaming STT would change the runtime contract.
 
 **Решение.** Client-side amplitude VAD (`VoiceTurnDetector`) with `endSilenceMs = 850` and related bounds in `voiceTurnDetection.js`. No cloud VAD. No Gemini Live in this milestone.
@@ -2155,6 +2161,8 @@
 ---
 
 ## ADR-224 — Voice returns to listening after TTS
+
+**Status.** Partially superseded by ADR-256: the runtime returns to listening-ready state but does not automatically capture.
 
 **Контекст.** After speaking, users should continue without clicking.
 
@@ -2306,6 +2314,8 @@
 
 ## ADR-239 — Basic hands-free Voice is production MANUAL PASS
 
+**Status.** Historical validation of the STT/Core/TTS pipeline. Current capture UX is ADR-256 push-to-talk.
+
 **Контекст.** M23–M24.1.1 implemented Voice Runtime, Gemini STT, Orb UI, local VAD, silence hotfix. Older ADRs deferred live validation.
 
 **Решение.** Owner confirmed in production: Voice starts; microphone/listening; hands-free turn ends after pause; Gemini STT; Jarvis reply; ElevenLabs TTS; post-VAD hotfix. Therefore M23, M23.2, M24, M24.1, M24.1.1 are **MANUAL PASS**. Basic VAD/hands-free is not future work.
@@ -2400,7 +2410,7 @@
 
 **Решение.** Reuse `TextToSpeechManager` / `TextToSpeechProvider`. Do not add a Telegram-specific TTS provider in the target architecture. TTS Voice ID remains instance-level unless a later ADR introduces per-user voice selection.
 
-**Следствие.** Implementation converts provider bytes (often MP3 today) if Telegram requires another container.
+**Следствие.** Implementation converts provider bytes (often MP3 today) if Telegram requires another container. The instance-level Voice ID clause is superseded by ADR-257.
 
 ---
 
@@ -2460,7 +2470,7 @@
 
 **Решение.** MVP sends ElevenLabs MP3 bytes with Nutgram `sendVoice`. No ffmpeg. Preference lives in `user_channel_preferences` (not Memory / General Prompt / assistant profile). Default mode is **text** so deploy does not change Telegram behavior. TTS Voice ID remains instance Voice settings. Delivery failures fall back to a single `sendMessage`.
 
-**Следствие.** Owner confirmed a live voice bubble (MANUAL PASS). Telegram Voice Input is a separate adapter inbound path (ADR-255).
+**Следствие.** Owner confirmed a live voice bubble (MANUAL PASS). Telegram Voice Input is a separate adapter inbound path (ADR-255). The instance-level Voice ID clause is superseded by ADR-257.
 
 ---
 
@@ -2471,6 +2481,26 @@
 **Решение.** Telegram Voice Input is adapter inbound: `Message.voice` in a paired private DM → Nutgram `getFile`/`downloadFile` → existing `SpeechToTextManager` / `GeminiSpeechToTextProvider` → transcript → `ConversationTurnService` → existing `TelegramReplyDeliveryService` with explicit `inboundModality=voice`. Same identity, active-user, and `channel_message_id` idempotency as text. Application limits stay at Web STT bounds (30 s / 2 MB), not the Telegram 20 MB `getFile` ceiling. Typical OGG/Opus is accepted without ffmpeg. Groups, video notes, audio files, and documents are unchanged. Empty transcript and STT errors send text only and do not create an AI turn. Gemini model/credentials are unchanged.
 
 **Следствие.** `auto` response mode becomes voice-in → voice-out and text-in → text-out. Status IMPLEMENTED / NOT VALIDATED until Owner manual checklist.
+
+---
+
+## ADR-256 — Web Voice capture is push-to-talk only
+
+**Контекст.** Hands-free «Диалог» stopped reliably producing audible voice replies and complicated capture/playback state. The requested product behavior is an explicit radio interaction.
+
+**Решение.** Remove the hands-free mode and automatic VAD capture from normal Web Voice. Keep one «Рация» flow: pointer hold starts recording; release/cancel/lost capture finalizes the turn; hard max duration remains. Pressing push-to-talk during speaking/thinking interrupts before recording. After TTS the session becomes listening-ready but waits for the next hold.
+
+**Следствие.** Supersedes ADR-220/221/223/224 where they require automatic capture or silence-finalized turns. The same Voice Runtime, Gemini STT, Conversation Engine, persistence, and ElevenLabs TTS remain.
+
+---
+
+## ADR-257 — TTS voice is a per-user cross-channel preference
+
+**Контекст.** A singleton ElevenLabs Voice ID made every person share one voice. Users need to select their own voice without changing anyone else.
+
+**Решение.** Curate six currently available voices: Jessica, Sarah, Lily; Eric, George, Chris. Store the selected ID in nullable `users.voice_id`, validate it against `ElevenLabsVoiceCatalog`, and expose selection in each user's Workspace settings. Resolve the user explicitly at Web Voice and Telegram delivery boundaries and pass the existing optional Voice ID into `SpeechSynthesizer::synthesize`. Provider/API key/STT settings remain instance-level and owner-only; the instance Voice ID is fallback only.
+
+**Следствие.** One user's choice applies to both Web Voice and Telegram TTS and cannot alter another user. Supersedes the instance-only Voice ID clauses in ADR-248/254. No `user_voice_settings` table and no request-global `Auth::user()` inside TTS providers.
 
 ---
 

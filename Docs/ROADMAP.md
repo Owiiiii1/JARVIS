@@ -7,7 +7,7 @@ The old four-phase model (Telegram MVP → Memory → Workspace+Desktop+Voice �
 **Primary interactive client:** Web Personal Workspace (`/jarvis` Owner, `/chat` users).  
 **Desktop client:** **CANCELLED**.  
 **Mobile:** optional future companion, **not** current priority.  
-**Voice:** a Web modality. Basic hands-free flow is **MANUAL PASS**.  
+**Voice:** a Web modality. STT/Core/TTS pipeline is **MANUAL PASS**; current capture UX is push-to-talk only.
 **Telegram Voice Replies:** MANUAL PASS.  
 **Telegram Voice Input:** IMPLEMENTED / NOT VALIDATED.
 
@@ -33,7 +33,7 @@ Includes (in code unless noted):
 - Google Calendar / Gmail tools (Owner)
 - GitHub tools (Owner)
 - Assistant personalization / onboarding foundation
-- Voice (STT Gemini, TTS ElevenLabs, local VAD, Orb)
+- Voice (push-to-talk, Gemini STT, per-user ElevenLabs TTS, responsive Orb)
 - Reminder engine foundation (Telegram-gated create/delivery)
 
 ### Validation (Owner-confirmed)
@@ -42,7 +42,8 @@ Includes (in code unless noted):
 | --- | --- |
 | Ordinary user create / login / `/chat` / basic requests | MANUAL PASS |
 | Owner Workspace images, Storage-through-chat, Gemini Google Search | MANUAL PASS |
-| Voice start, mic, hands-free end-of-turn, Gemini STT, reply, ElevenLabs TTS, VAD hotfix | MANUAL PASS |
+| Voice start, mic, Gemini STT, reply, ElevenLabs TTS pipeline | MANUAL PASS |
+| Push-to-talk-only Web capture + per-user voice choice | IMPLEMENTED |
 | Onboarding «Знакомство» entry | MANUAL PARTIAL |
 | Full onboarding completion / profile update E2E | IMPLEMENTED / NOT VALIDATED |
 | Reminders panel in live user workspace | IMPLEMENTED IN CODE / LIVE BUG |
@@ -86,13 +87,12 @@ Detail: [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).
 
 ## PHASE C — Natural Conversation
 
-**Status.** Basic Voice is **complete** (MANUAL PASS). This phase is **future improvement**, not a redo of VAD / hands-free.
+**Status.** Basic Voice pipeline is **complete** (MANUAL PASS). Current capture is push-to-talk. This phase is future improvement, not an implicit restoration of the removed hands-free mode.
 
 Do **not** plan as future:
 
-- basic local VAD
-- hands-free end-of-turn
-- barge-in foundation
+- explicit push-to-talk turn boundary
+- push-to-talk interruption during playback/thinking
 - Gemini STT / ElevenLabs TTS path
 - Voice as a Web Workspace mode
 

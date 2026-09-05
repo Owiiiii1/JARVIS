@@ -11,7 +11,7 @@
 Channel adapter (или Voice layer) передаёт в Core структуру уровня:
 
 - `channel` (`telegram` / `web`; enum may still list unused `mobile` / `desktop` values);
-- `modality` (`text` / `voice`) — голос не отдельный ассистент, не отдельный канал-мозг и не новый `conversation_id`. M24.1 Voice is hands-free VAD over the same turn: blob STT → this engine → TTS. No push-to-talk.
+- `modality` (`text` / `voice`) — голос не отдельный ассистент, не отдельный канал-мозг и не новый `conversation_id`. Current Web Voice is push-to-talk over the same turn: hold/release → blob STT → this engine → per-user voice TTS.
 - `external_identity` (telegram user id, app user id, …);
 - `conversation_id` или hint: Telegram → `channel_identities.active_conversation_id`; Web Workspace → открытый chat; тот же id на каналах одного space;
 - `payload` (текст и/или current-turn image attachments; медиа refs в `message_attachments`);

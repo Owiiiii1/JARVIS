@@ -15,6 +15,7 @@ See also: [USERS_AND_CABINET.md](USERS_AND_CABINET.md), [MEMORY_ARCHITECTURE.md]
 | Assistant profile (`user_assistant_profiles`) | Who the assistant is: name, personality, interaction style; compact `about_user` from onboarding |
 | User General Prompt | Additional explicit ongoing instructions |
 | Memory Engine | Facts/preferences accumulated over time |
+| TTS voice (`users.voice_id`) | Which curated voice speaks this user's replies in Web Voice and Telegram |
 | Telegram response mode (`user_channel_preferences`) | How Telegram **delivers** the answer (`text` / `voice` / `auto`) — not who the assistant is |
 
 Do not encode onboarding only in General Prompt. Do not treat `about_user` as a replacement for Memory.
@@ -57,9 +58,9 @@ Every turn gets a compact **Assistant identity** block (name, personality, inter
 
 Telegram: bot username is infrastructure. Conversation AI identifies itself with the chosen assistant name. No Telegram-specific personality profile.
 
-Voice (Web): same profile. TTS Voice ID remains instance-level provider setting unless a future decision adds per-user voice selection.
+Voice (Web and Telegram): same assistant profile and one per-user TTS voice preference. Each user chooses from six curated, currently available ElevenLabs voices in **Workspace settings → Assistant voice**: Jessica, Sarah, Lily, Eric, George, Chris. `users.voice_id` stores the selection; invalid IDs are rejected. The singleton `voice_settings.elevenlabs_voice_id` remains infrastructure fallback only.
 
-**Telegram response mode** (`text` / `voice` / `auto`) is a **channel delivery preference** on `user_channel_preferences`, not personality, not General Prompt, and not the TTS Voice ID. Tools: `get_telegram_response_mode` / `set_telegram_response_mode`. Default **text**. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
+**Telegram response mode** (`text` / `voice` / `auto`) is a **channel delivery preference** on `user_channel_preferences`, not personality, not General Prompt, and not the TTS Voice ID. The user's TTS voice is shared across Web and Telegram. Tools: `get_telegram_response_mode` / `set_telegram_response_mode`. Default **text**. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
 ---
 

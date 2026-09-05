@@ -157,7 +157,7 @@ Workspace (personal):
 
 - General Prompt (`user_ai_settings`)
 - timezone display
-- voice preferences placeholder
+- personal assistant voice: six curated ElevenLabs choices, stored per user
 - integrations status + deep link to Admin
 
 Admin (technical):
@@ -171,11 +171,15 @@ Workspace does not reproduce OAuth forms or AI provider settings.
 
 ---
 
-## Voice (M23 runtime + M23.2 Gemini STT + M24 Orb + M24.1 hands-free)
+## Voice (M23 runtime + Gemini STT + Orb + push-to-talk)
 
-Text / Voice toggle keeps the selected conversation. Clicking Voice primes microphone + AudioContext from that gesture, then mounts `VoiceSession`, which auto-starts listening (no second mic click). One mic button = mute. Local VAD ends turns. After TTS, listening resumes. Same frontend on `/jarvis` and `/chat`.
+Text / Voice toggle keeps the selected conversation. Clicking Voice primes microphone + AudioContext and creates the session. The only capture mode is «Рация»: hold the large button to record, release to send. Silence does not auto-submit. The separate mic button is mute. After TTS, the session waits for the next held turn. Same frontend on `/jarvis` and `/chat`.
+
+Workspace settings include **Assistant voice** for every owner/user. Six curated voices are grouped as three female (Jessica, Sarah, Lily) and three male (Eric, George, Chris). Selection is validated and stored in `users.voice_id`; it applies to both Web Voice and Telegram TTS. Provider/key configuration remains owner-only.
 
 `JarvisVoiceOrb` remains provider-neutral. Ordinary users do not see a Gemini vendor label.
+
+Orb rendering is intentionally brighter on narrow mobile Web screens (about +50%) than desktop (+12%); the CSS fallback follows the same responsive rule.
 
 Switching Voice → Text ends the active `voice_session` and shows the same message thread. Changing `conversationId` while Voice is active ends the old session without uploading pending audio, then starts a new session for the new chat.
 
