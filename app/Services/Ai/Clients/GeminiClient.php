@@ -10,6 +10,7 @@ use App\Services\Ai\DTO\AiChatResponse;
 use App\Services\Ai\DTO\AiContentPart;
 use App\Services\Ai\DTO\ToolCall;
 use App\Services\Ai\DTO\ToolDefinition;
+use App\Services\Ai\Exceptions\AiEmptyResponseException;
 use App\Services\Ai\Exceptions\AiProviderException;
 use App\Services\Ai\Exceptions\AiSafetyException;
 use Illuminate\Support\Facades\Http;
@@ -194,7 +195,7 @@ class GeminiClient implements AiProviderClient
                 );
             }
 
-            throw new AiProviderException('Gemini returned an empty assistant response.');
+            throw new AiEmptyResponseException;
         }
 
         $usage = is_array($body['usageMetadata'] ?? null) ? $body['usageMetadata'] : [];

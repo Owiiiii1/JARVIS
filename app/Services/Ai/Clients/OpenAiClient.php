@@ -6,6 +6,7 @@ use App\Services\Ai\AiProviderMessageNormalizer;
 use App\Services\Ai\Contracts\AiProviderClient;
 use App\Services\Ai\DTO\AiChatRequest;
 use App\Services\Ai\DTO\AiChatResponse;
+use App\Services\Ai\Exceptions\AiEmptyResponseException;
 use App\Services\Ai\Exceptions\AiProviderException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -94,7 +95,7 @@ class OpenAiClient implements AiProviderClient
         $text = $this->extractText($payload);
 
         if ($text === '') {
-            throw new AiProviderException('OpenAI returned an empty assistant response.');
+            throw new AiEmptyResponseException;
         }
 
         $usage = is_array($payload['usage'] ?? null) ? $payload['usage'] : [];

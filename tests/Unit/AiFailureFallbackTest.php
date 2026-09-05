@@ -23,6 +23,19 @@ class AiFailureFallbackTest extends TestCase
         $this->assertStringNotContainsString('ошибка ИИ', mb_strtolower((string) $fallback));
     }
 
+    public function test_online_meeting_safety_block_gets_practical_guidance(): void
+    {
+        $fallback = (new AiFailureFallback)->resolve(
+            new AiSafetyException('SAFETY'),
+            [],
+            'Мне 11 лет, интернет-знакомый по фото выглядит взрослым и зовёт встретиться.',
+        );
+
+        $this->assertSame(AiFailureFallback::ONLINE_MEETING_RESPONSE, $fallback);
+        $this->assertStringContainsString('доверенному взрослому', (string) $fallback);
+        $this->assertStringNotContainsString('не могу ответить', mb_strtolower((string) $fallback));
+    }
+
     public function test_successful_onboarding_tool_gets_completion_fallback(): void
     {
         $fallback = (new AiFailureFallback)->resolve(
@@ -50,6 +63,6 @@ class AiFailureFallbackTest extends TestCase
             [],
         );
 
-        $this->assertNull($fallback);
+        $this->assertSame(AiFailureFallback::ANSWER_UNAVAILABLE, $fallback);
     }
 }

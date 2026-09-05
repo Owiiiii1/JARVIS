@@ -3,6 +3,8 @@
 namespace App\Services\Ai;
 
 use App\Services\Ai\DTO\ToolResult;
+use App\Services\Ai\Exceptions\AiConfigurationException;
+use App\Services\Ai\Exceptions\AiProviderException;
 use App\Services\Ai\Exceptions\AiSafetyException;
 use App\Services\Tools\CompleteAssistantOnboardingTool;
 use App\Services\Tools\CreateReminderTool;
@@ -13,17 +15,17 @@ use Throwable;
 
 final class AiFailureFallback
 {
-    public const SAFETY_RESPONSE = 'Я не могу ответить на это сообщение в обычном режиме из-за ограничений безопасности. Если ситуация может быть опасной, не действуй в одиночку: обратись к родителю, другому доверенному взрослому или в экстренной ситуации позвони 112. Можешь задать вопрос короче — я постараюсь помочь безопасно.';
+    public const ANSWER_UNAVAILABLE = 'Сейчас ответ на этот вопрос недоступен. Пожалуйста, спросите ещё раз.';
+
+    public const SAFETY_RESPONSE = 'В этой ситуации важно выбрать безопасный вариант. Не предпринимай опасных действий и не оставайся с риском один на один: обратись к доверенному человеку или специалисту, а при непосредственной угрозе — в экстренную службу. Я могу помочь продумать безопасные следующие шаги.';
+
+    public const ONLINE_MEETING_RESPONSE = 'Не соглашайся встречаться с интернет-знакомым наедине, особенно если его возраст вызывает сомнения. Не сообщай адрес, школу, телефон и другие личные данные. Покажи переписку родителю или другому доверенному взрослому и принимай решение только вместе с ним. Если человек давит, просит сохранить встречу в секрете или прислать личные фотографии — прекрати общение и заблокируй его.';
 
     /**
      * @param  list<ToolResult>  $results
      */
-    public function resolve(Throwable $exception, array $results): ?string
+    public function resolve(Throwable $exception, array $results, ?string $userText = null): ?string
     {
-        if ($exception instanceof AiSafetyException) {
-            return self::SAFETY_RESPONSE;
-        }
-
         foreach (array_reverse($results) as $result) {
             if ($result->name !== CreateReminderTool::NAME) {
                 continue;
@@ -56,6 +58,14 @@ final class AiFailureFallback
             };
         }
 
+        if ($exception instanceof AiSafetyException) {
+            return $this->safetyResponse($userText);
+        }
+
+        if ($exception instanceof AiProviderException || $exception instanceof AiConfigurationException) {
+            return self::ANSWER_UNAVAILABLE;
+        }
+
         return null;
     }
 
@@ -67,5 +77,19 @@ final class AiFailureFallback
             'text' => 'Готово. В Telegram буду отвечать текстом.',
             default => 'Готово. Режим ответа в Telegram обновлён.',
         };
+    }
+
+    private function safetyResponse(?string $userText): string
+    {
+        $text = mb_strtolower(trim((string) $userText));
+        $meeting = preg_match('/встр(?:ет|ич)|meet(?:ing)?/u', $text) === 1;
+        $onlineContact = preg_match('/интернет|онлайн|weplay|telegram|чат|фото|photo|online/u', $text) === 1;
+        $minor = preg_match('/\b(?:1[0-7]|[5-9])\s*(?:лет|год|years?|yo)\b/u', $text) === 1;
+
+        if ($meeting && ($onlineContact || $minor)) {
+            return self::ONLINE_MEETING_RESPONSE;
+        }
+
+        return self::SAFETY_RESPONSE;
     }
 }

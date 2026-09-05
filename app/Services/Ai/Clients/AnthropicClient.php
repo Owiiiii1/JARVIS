@@ -6,6 +6,7 @@ use App\Services\Ai\AiProviderMessageNormalizer;
 use App\Services\Ai\Contracts\AiProviderClient;
 use App\Services\Ai\DTO\AiChatRequest;
 use App\Services\Ai\DTO\AiChatResponse;
+use App\Services\Ai\Exceptions\AiEmptyResponseException;
 use App\Services\Ai\Exceptions\AiProviderException;
 use Illuminate\Support\Facades\Http;
 
@@ -126,7 +127,7 @@ class AnthropicClient implements AiProviderClient
         $text = trim(implode("\n", array_filter($chunks)));
 
         if ($text === '') {
-            throw new AiProviderException('Anthropic returned an empty assistant response.');
+            throw new AiEmptyResponseException;
         }
 
         $usage = is_array($body['usage'] ?? null) ? $body['usage'] : [];

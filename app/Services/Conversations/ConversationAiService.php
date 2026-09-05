@@ -13,6 +13,7 @@ use App\Models\Message;
 use App\Models\User;
 use App\Services\Ai\AiConfigurationResolver;
 use App\Services\Ai\AiFailureFallback;
+use App\Services\Ai\AiSafetyResponseService;
 use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\DTO\AiChatMessage;
 use App\Services\Ai\DTO\AiChatRequest;
@@ -20,6 +21,8 @@ use App\Services\Ai\DTO\AiChatResponse;
 use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\DTO\ToolResult;
 use App\Services\Ai\Exceptions\AiConfigurationException;
+use App\Services\Ai\Exceptions\AiEmptyResponseException;
+use App\Services\Ai\Exceptions\AiSafetyException;
 use App\Services\ChatAttachments\Exceptions\ChatAttachmentException;
 use App\Services\Context\ContextBudgetManager;
 use App\Services\Context\ContextDiagnosticsLogger;
@@ -39,7 +42,7 @@ final class ConversationAiService
 
     public const ONBOARDING_GREETING_EVENT = 'Начни знакомство: поприветствуй пользователя и мягко спроси, как тебя называть. Не используй анкету. Не завершай знакомство в этом первом сообщении.';
 
-    public const AI_FAILURE = 'Не удалось получить ответ от AI. Попробуйте ещё раз позже.';
+    public const AI_FAILURE = AiFailureFallback::ANSWER_UNAVAILABLE;
 
     public const VISION_NOT_SUPPORTED = 'Этот AI-провайдер не принимает изображения. Смените модель в Admin или отправьте текст.';
 
@@ -61,6 +64,7 @@ final class ConversationAiService
         private readonly ContextDiagnosticsLogger $contextLogs,
         private readonly VoiceSettingsService $voiceSettings,
         private readonly AiFailureFallback $failureFallback,
+        private readonly AiSafetyResponseService $safetyResponses,
     ) {}
 
     public function completeUserTurn(Message $inbound): ConversationAiTurnResult
@@ -212,7 +216,11 @@ final class ConversationAiService
                     $diagnostics,
                 );
             } catch (Throwable $exception) {
-                $fallback = $this->failureFallback->resolve($exception, $toolResults);
+                $fallback = $this->failureFallback->resolve(
+                    $exception,
+                    $toolResults,
+                    $inbound?->body,
+                );
 
                 if ($fallback === null) {
                     throw $exception;
@@ -355,17 +363,38 @@ final class ConversationAiService
             $messages = $enforced['messages'];
             $diagnostics = $enforced['diagnostics'];
 
-            $response = $this->gateway->chat($configuration, new AiChatRequest(
-                model: (string) $configuration->model,
-                systemPrompt: $systemPrompt,
-                messages: $messages,
-                parameters: is_array($configuration->parameters) ? $configuration->parameters : [],
-                tools: $tools,
-            ));
+            $parameters = is_array($configuration->parameters) ? $configuration->parameters : [];
+
+            try {
+                $response = $this->gateway->chat($configuration, new AiChatRequest(
+                    model: (string) $configuration->model,
+                    systemPrompt: $systemPrompt,
+                    messages: $messages,
+                    parameters: $parameters,
+                    tools: $tools,
+                ));
+            } catch (AiSafetyException $exception) {
+                try {
+                    Log::warning('AI response blocked; retrying with safety guidance', [
+                        'configuration' => $configuration->roleKey()->value,
+                        'provider' => $configuration->provider,
+                        'model' => $configuration->model,
+                        'reason' => $exception->reason,
+                    ]);
+
+                    return $this->safetyResponses->retry(
+                        $configuration,
+                        $messages,
+                        $parameters,
+                    );
+                } catch (Throwable) {
+                    throw $exception;
+                }
+            }
 
             if (! $response->hasToolCalls()) {
                 if (trim($response->text) === '') {
-                    throw new AiConfigurationException('AI returned an empty assistant response.');
+                    throw new AiEmptyResponseException;
                 }
 
                 return $response;
