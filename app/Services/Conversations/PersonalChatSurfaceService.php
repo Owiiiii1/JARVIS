@@ -11,6 +11,7 @@ use App\Services\Reminders\ReminderService;
 use App\Services\Storage\Exceptions\StoredFileException;
 use App\Services\Tools\ToolConfirmationService;
 use App\Services\Users\UserCapability;
+use App\Services\Voice\VoiceSettingsService;
 use App\Support\Timezones;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\UploadedFile;
@@ -27,6 +28,7 @@ final class PersonalChatSurfaceService
         private readonly AssistantProfileService $assistantProfiles,
         private readonly ConversationAiService $conversationAi,
         private readonly ReminderService $reminders,
+        private readonly VoiceSettingsService $voiceSettings,
     ) {}
 
     /**
@@ -93,6 +95,7 @@ final class PersonalChatSurfaceService
             'timezone' => $user->timezone,
             'general_prompt' => $user->aiSettings?->general_prompt,
             'timezones' => Timezones::options($user->timezone),
+            'voice' => $this->voiceSettings->userVoicePayload($user),
         ];
     }
 

@@ -10,6 +10,7 @@ use App\Services\Conversations\ConversationService;
 use App\Services\Conversations\PersonalChatSurfaceService;
 use App\Services\Reminders\ReminderService;
 use App\Services\Storage\StoredFileConfig;
+use App\Services\Voice\ElevenLabsVoiceCatalog;
 use App\Services\Voice\VoiceAudioMime;
 use App\Services\Voice\VoiceSettingsService;
 use App\Services\Workspace\OwnerWorkspaceContextService;
@@ -17,6 +18,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -207,11 +209,13 @@ class JarvisWorkspaceController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'timezone' => ['required', 'timezone:all'],
+            'voice_id' => ['required', 'string', Rule::in(ElevenLabsVoiceCatalog::ids())],
         ]);
 
         $request->user()->forceFill([
             'name' => $validated['name'],
             'timezone' => $validated['timezone'],
+            'voice_id' => $validated['voice_id'],
         ])->save();
 
         return back()->with('success', 'Profile saved.');

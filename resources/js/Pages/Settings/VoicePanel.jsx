@@ -20,7 +20,6 @@ export default function VoicePanel() {
         stt_provider: voice.stt_provider ?? 'none',
         tts_provider: voice.tts_provider ?? 'none',
         spoken_style_enabled: Boolean(voice.spoken_style_enabled),
-        elevenlabs_voice_id: voice.elevenlabs_voice_id ?? '',
         stt_model: voice.stt_model ?? voice.stt_model_default ?? 'gemini-3.5-transcribe',
     });
 
@@ -43,18 +42,6 @@ export default function VoicePanel() {
             geminiNoKey: 'No Voice/Speech Gemini API key field. Configure Gemini under AI provider credentials.',
             spoken: 'Spoken-style presentation hint',
             spokenHelp: 'Adds a bounded spoken-response hint. It is not a second personality prompt.',
-            voiceId: 'Assistant voice',
-            selectVoice: 'Select a voice',
-            femaleVoices: 'Female voices',
-            maleVoices: 'Male voices',
-            voiceStyles: {
-                playful_warm: 'playful, bright, warm',
-                calm_confident: 'calm, reassuring, confident',
-                velvety_expressive: 'velvety and expressive',
-                smooth_trustworthy: 'smooth and trustworthy',
-                warm_storyteller: 'warm storyteller',
-                natural_friendly: 'natural and friendly',
-            },
             save: 'Save settings',
             sttConfigured: 'STT configured',
             ttsConfigured: 'TTS configured',
@@ -90,18 +77,6 @@ export default function VoicePanel() {
             geminiNoKey: 'Поля Gemini API key в Voice/Speech нет. Gemini настраивается в AI provider credentials.',
             spoken: 'Spoken-style presentation hint',
             spokenHelp: 'Ограниченная подсказка для устной речи. Это не второй personality prompt.',
-            voiceId: 'Голос ассистента',
-            selectVoice: 'Выберите голос',
-            femaleVoices: 'Женские голоса',
-            maleVoices: 'Мужские голоса',
-            voiceStyles: {
-                playful_warm: 'игривый, яркий и тёплый',
-                calm_confident: 'спокойный и уверенный',
-                velvety_expressive: 'бархатный и выразительный',
-                smooth_trustworthy: 'мягкий и уверенный',
-                warm_storyteller: 'тёплый рассказчик',
-                natural_friendly: 'естественный и дружелюбный',
-            },
             save: 'Save settings',
             sttConfigured: 'STT configured',
             ttsConfigured: 'TTS configured',
@@ -137,18 +112,6 @@ export default function VoicePanel() {
             geminiNoKey: 'Поля Gemini API key у Voice/Speech немає. Gemini налаштовується в AI provider credentials.',
             spoken: 'Spoken-style presentation hint',
             spokenHelp: 'Обмежена підказка для усного мовлення. Це не другий personality prompt.',
-            voiceId: 'Голос асистента',
-            selectVoice: 'Оберіть голос',
-            femaleVoices: 'Жіночі голоси',
-            maleVoices: 'Чоловічі голоси',
-            voiceStyles: {
-                playful_warm: 'грайливий, яскравий і теплий',
-                calm_confident: 'спокійний і впевнений',
-                velvety_expressive: 'оксамитовий і виразний',
-                smooth_trustworthy: 'м’який і впевнений',
-                warm_storyteller: 'теплий оповідач',
-                natural_friendly: 'природний і дружній',
-            },
             save: 'Save settings',
             sttConfigured: 'STT configured',
             ttsConfigured: 'TTS configured',
@@ -169,9 +132,6 @@ export default function VoicePanel() {
     };
     const t = text[locale] ?? text.en;
     const limits = voice.limits ?? {};
-    const voiceOptions = voice.elevenlabs_voices ?? [];
-    const femaleVoices = voiceOptions.filter((option) => option.gender === 'female');
-    const maleVoices = voiceOptions.filter((option) => option.gender === 'male');
 
     const submit = (event) => {
         event.preventDefault();
@@ -281,35 +241,8 @@ export default function VoicePanel() {
                 </label>
                 <p className="text-xs text-slate-500">{t.spokenHelp}</p>
 
-                <label className="block text-sm text-slate-700">
-                    {t.voiceId}
-                    <select
-                        value={form.elevenlabs_voice_id}
-                        onChange={(event) => setForm((current) => ({ ...current, elevenlabs_voice_id: event.target.value }))}
-                        required={form.tts_provider === 'elevenlabs'}
-                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
-                    >
-                        <option value="" disabled>{t.selectVoice}</option>
-                        <optgroup label={t.femaleVoices}>
-                            {femaleVoices.map((option) => (
-                                <option key={option.id} value={option.id}>
-                                    {option.name} — {t.voiceStyles[option.style] ?? option.style}
-                                </option>
-                            ))}
-                        </optgroup>
-                        <optgroup label={t.maleVoices}>
-                            {maleVoices.map((option) => (
-                                <option key={option.id} value={option.id}>
-                                    {option.name} — {t.voiceStyles[option.style] ?? option.style}
-                                </option>
-                            ))}
-                        </optgroup>
-                    </select>
-                </label>
-
                 {errors.stt_provider && <p className="text-sm text-red-600">{errors.stt_provider}</p>}
                 {errors.stt_model && <p className="text-sm text-red-600">{errors.stt_model}</p>}
-                {errors.elevenlabs_voice_id && <p className="text-sm text-red-600">{errors.elevenlabs_voice_id}</p>}
 
                 <button
                     type="submit"

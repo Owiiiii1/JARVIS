@@ -9,6 +9,7 @@ use App\Services\Telegram\Contracts\TelegramDmOutbound;
 use App\Services\Telegram\Exceptions\TelegramSendException;
 use App\Services\Users\ResolvesTelegramResponseMode;
 use App\Services\Voice\Contracts\RecordsVoiceMetrics;
+use App\Services\Voice\Contracts\ResolvesUserVoice;
 use App\Services\Voice\Contracts\SpeechSynthesizer;
 use App\Services\Voice\Contracts\StoresEphemeralVoiceAudio;
 use App\Services\Voice\DTO\SynthesizedSpeech;
@@ -23,6 +24,7 @@ final class TelegramReplyDeliveryService
 {
     public function __construct(
         private readonly ResolvesTelegramResponseMode $preferences,
+        private readonly ResolvesUserVoice $userVoices,
         private readonly SpeechSynthesizer $tts,
         private readonly StoresEphemeralVoiceAudio $tempAudio,
         private readonly TelegramVoiceSuitabilityPolicy $suitability,
@@ -94,7 +96,10 @@ final class TelegramReplyDeliveryService
         }
 
         try {
-            $speech = $this->tts->synthesize($suitability->spokenText);
+            $speech = $this->tts->synthesize(
+                $suitability->spokenText,
+                $this->userVoices->voiceIdFor($user),
+            );
             $format = $this->compatibleFormat($speech);
 
             if ($format === null) {

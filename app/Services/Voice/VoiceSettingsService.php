@@ -5,12 +5,14 @@ namespace App\Services\Voice;
 use App\Enums\VoiceSttProvider;
 use App\Enums\VoiceTtsProvider;
 use App\Models\AiProviderSetting;
+use App\Models\User;
 use App\Models\VoiceSetting;
 use App\Services\Ai\GeminiCredentialResolver;
+use App\Services\Voice\Contracts\ResolvesUserVoice;
 use App\Services\Voice\DTO\VoiceEffectiveSettings;
 use Illuminate\Support\Facades\Schema;
 
-final class VoiceSettingsService
+final class VoiceSettingsService implements ResolvesUserVoice
 {
     public function __construct(
         private readonly GeminiCredentialResolver $geminiCredentials,
@@ -140,6 +142,32 @@ final class VoiceSettingsService
     public function sttModel(): string
     {
         return $this->effective()->sttModel;
+    }
+
+    public function voiceIdFor(User $user): string
+    {
+        $selected = trim((string) $user->voice_id);
+
+        if (in_array($selected, ElevenLabsVoiceCatalog::ids(), true)) {
+            return $selected;
+        }
+
+        $default = trim((string) $this->effective()->elevenLabsVoiceId);
+
+        return in_array($default, ElevenLabsVoiceCatalog::ids(), true)
+            ? $default
+            : ElevenLabsVoiceCatalog::defaultId();
+    }
+
+    /**
+     * @return array{voice_id: string, voices: list<array{id: string, name: string, gender: 'female'|'male', style: string}>}
+     */
+    public function userVoicePayload(User $user): array
+    {
+        return [
+            'voice_id' => $this->voiceIdFor($user),
+            'voices' => ElevenLabsVoiceCatalog::options(),
+        ];
     }
 
     public function defaultSttModel(?VoiceSttProvider $provider = null): string
@@ -278,7 +306,6 @@ final class VoiceSettingsService
             'elevenlabs_configured' => $elevenConfigured,
             'elevenlabs_key_source' => $this->elevenLabsKeySource(),
             'elevenlabs_voice_id' => $effective->elevenLabsVoiceId,
-            'elevenlabs_voices' => ElevenLabsVoiceCatalog::options(),
             'limits' => [
                 'max_audio_chunk_bytes' => (int) config('voice.max_audio_chunk_bytes'),
                 'max_utterance_seconds' => (int) config('voice.max_utterance_seconds'),

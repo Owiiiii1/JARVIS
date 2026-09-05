@@ -511,9 +511,13 @@ final class VoiceRuntimeService
         ]);
         $latency['tts_start_at'] = now()->toIso8601String();
         $ttsStarted = microtime(true);
+        $session->loadMissing('user');
+        $voiceId = $session->user !== null
+            ? $this->settings->voiceIdFor($session->user)
+            : null;
 
         try {
-            $speech = $this->tts->synthesize($spoken);
+            $speech = $this->tts->synthesize($spoken, $voiceId);
         } catch (VoiceException $exception) {
             $this->metrics->record('tts.failed', $this->sessionContext($session, [
                 'error_code' => $exception->error,

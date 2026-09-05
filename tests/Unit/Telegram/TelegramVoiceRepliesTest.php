@@ -14,6 +14,7 @@ use App\Services\Telegram\TelegramVoiceDeliveryDecision;
 use App\Services\Telegram\TelegramVoiceSuitabilityPolicy;
 use App\Services\Users\ResolvesTelegramResponseMode;
 use App\Services\Voice\Contracts\RecordsVoiceMetrics;
+use App\Services\Voice\Contracts\ResolvesUserVoice;
 use App\Services\Voice\Contracts\SpeechSynthesizer;
 use App\Services\Voice\Contracts\StoresEphemeralVoiceAudio;
 use App\Services\Voice\DTO\SynthesizedSpeech;
@@ -179,6 +180,22 @@ class TelegramVoiceRepliesTest extends TestCase
         $this->assertSame(['text'], $textOut->sent);
     }
 
+    public function test_each_users_voice_is_passed_to_tts(): void
+    {
+        $tts = new FakeSpeechSynthesizer(configured: true, speech: new SynthesizedSpeech('mp3-bytes', 'audio/mpeg', 'v'));
+        $firstUser = $this->user(1);
+        $firstUser->voice_id = 'female-voice';
+        $secondUser = $this->user(2);
+        $secondUser->voice_id = 'male-voice';
+
+        $this->service($tts, TelegramResponseMode::Voice)
+            ->deliver($this->recordingOutbound(), $firstUser, 'Первый ответ', null, 'text');
+        $this->service($tts, TelegramResponseMode::Voice)
+            ->deliver($this->recordingOutbound(), $secondUser, 'Второй ответ', null, 'text');
+
+        $this->assertSame(['female-voice', 'male-voice'], $tts->voiceIds);
+    }
+
     public function test_pending_confirmation_forces_text(): void
     {
         $tts = new FakeSpeechSynthesizer(configured: true, speech: new SynthesizedSpeech('mp3-bytes', 'audio/mpeg', 'v'));
@@ -225,6 +242,13 @@ class TelegramVoiceRepliesTest extends TestCase
     ): TelegramReplyDeliveryService {
         return new TelegramReplyDeliveryService(
             $prefs,
+            new class implements ResolvesUserVoice
+            {
+                public function voiceIdFor(User $user): string
+                {
+                    return (string) ($user->voice_id ?: 'default-voice');
+                }
+            },
             $tts,
             new FakeVoiceTempStore,
             new TelegramVoiceSuitabilityPolicy(new SpokenTextNormalizer, 2000, 400, 4),
@@ -246,6 +270,9 @@ final class FakeSpeechSynthesizer implements SpeechSynthesizer
 {
     public int $calls = 0;
 
+    /** @var list<string|null> */
+    public array $voiceIds = [];
+
     public function __construct(
         private readonly bool $configured,
         private readonly ?SynthesizedSpeech $speech = null,
@@ -260,6 +287,7 @@ final class FakeSpeechSynthesizer implements SpeechSynthesizer
     public function synthesize(string $text, ?string $voiceId = null): SynthesizedSpeech
     {
         $this->calls++;
+        $this->voiceIds[] = $voiceId;
 
         if ($this->exception !== null) {
             throw $this->exception;

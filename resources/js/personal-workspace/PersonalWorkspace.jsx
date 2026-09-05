@@ -43,6 +43,15 @@ const USER_SUGGESTIONS = [
     'Поищи в интернете',
 ];
 
+const VOICE_STYLE_LABELS = {
+    playful_warm: 'playful, bright, warm',
+    calm_confident: 'calm, reassuring, confident',
+    velvety_expressive: 'velvety and expressive',
+    smooth_trustworthy: 'smooth and trustworthy',
+    warm_storyteller: 'warm storyteller',
+    natural_friendly: 'natural and friendly',
+};
+
 const VoiceSession = lazy(() => import('@/Components/Jarvis/VoiceSession'));
 
 function csrfToken() {
@@ -239,6 +248,9 @@ export default function PersonalWorkspace() {
     };
 
     const timezone = user.timezone || undefined;
+    const voiceOptions = settings.voice?.voices ?? [];
+    const femaleVoices = voiceOptions.filter((option) => option.gender === 'female');
+    const maleVoices = voiceOptions.filter((option) => option.gender === 'male');
     const imageAccept = chatAttachments?.accept
         ? `${chatAttachments.accept},image/*`
         : 'image/*,.jpg,.jpeg,.png,.webp';
@@ -295,6 +307,7 @@ export default function PersonalWorkspace() {
     const profileForm = useForm({
         name: settings.name ?? user.name ?? '',
         timezone: settings.timezone ?? user.timezone ?? '',
+        voice_id: settings.voice?.voice_id ?? '',
     });
     const passwordForm = useForm({
         current_password: '',
@@ -332,8 +345,9 @@ export default function PersonalWorkspace() {
         profileForm.setData({
             name: settings.name ?? user.name ?? '',
             timezone: settings.timezone ?? user.timezone ?? '',
+            voice_id: settings.voice?.voice_id ?? '',
         });
-    }, [settings.general_prompt, settings.name, settings.timezone, context?.settings?.general_prompt, user.name, user.timezone]);
+    }, [settings.general_prompt, settings.name, settings.timezone, settings.voice?.voice_id, context?.settings?.general_prompt, user.name, user.timezone]);
 
     useEffect(() => {
         setAssistantProfile(assistantProfileProp ?? {});
@@ -1447,6 +1461,33 @@ export default function PersonalWorkspace() {
                                     <option key={zone} value={zone}>{zone}</option>
                                 ))}
                             </select>
+                        </div>
+                        <div>
+                            <label className="text-xs uppercase tracking-[0.14em] text-slate-500" htmlFor="workspace-voice">
+                                Assistant voice
+                            </label>
+                            <select
+                                id="workspace-voice"
+                                value={profileForm.data.voice_id}
+                                onChange={(event) => profileForm.setData('voice_id', event.target.value)}
+                                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100 outline-none focus:border-sky-400/40"
+                            >
+                                <optgroup label="Female voices">
+                                    {femaleVoices.map((option) => (
+                                        <option key={option.id} value={option.id}>
+                                            {option.name} — {VOICE_STYLE_LABELS[option.style] ?? option.style}
+                                        </option>
+                                    ))}
+                                </optgroup>
+                                <optgroup label="Male voices">
+                                    {maleVoices.map((option) => (
+                                        <option key={option.id} value={option.id}>
+                                            {option.name} — {VOICE_STYLE_LABELS[option.style] ?? option.style}
+                                        </option>
+                                    ))}
+                                </optgroup>
+                            </select>
+                            {profileForm.errors.voice_id ? <p className="mt-1 text-xs text-red-400">{profileForm.errors.voice_id}</p> : null}
                         </div>
                         <div className="border-t border-white/10 pt-4">
                             <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Change password</p>

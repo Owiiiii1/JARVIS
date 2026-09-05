@@ -4,6 +4,8 @@ namespace App\Services\Voice;
 
 final class ElevenLabsVoiceCatalog
 {
+    private const DEFAULT_VOICE_ID = 'cjVigY5qzO86Huf0OWal';
+
     /**
      * @var list<array{id: string, name: string, gender: 'female'|'male', style: string}>
      */
@@ -60,5 +62,10 @@ final class ElevenLabsVoiceCatalog
     public static function ids(): array
     {
         return array_column(self::VOICES, 'id');
+    }
+
+    public static function defaultId(): string
+    {
+        return self::DEFAULT_VOICE_ID;
     }
 }
