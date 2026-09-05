@@ -42,7 +42,7 @@ final class ConversationAiService
 
     public const ONBOARDING_GREETING_EVENT = 'Начни знакомство: поприветствуй пользователя и мягко спроси, как тебя называть. Не используй анкету. Не завершай знакомство в этом первом сообщении.';
 
-    public const AI_FAILURE = AiFailureFallback::ANSWER_UNAVAILABLE;
+    public const AI_FAILURE = 'Произошла техническая ошибка при обращении к AI. Попробуйте ещё раз позже.';
 
     public const VISION_NOT_SUPPORTED = 'Этот AI-провайдер не принимает изображения. Смените модель в Admin или отправьте текст.';
 

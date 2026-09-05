@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Services\Ai\AiFailureFallback;
 use App\Services\Ai\DTO\ToolResult;
+use App\Services\Ai\Exceptions\AiEmptyResponseException;
 use App\Services\Ai\Exceptions\AiProviderException;
 use App\Services\Ai\Exceptions\AiSafetyException;
 use App\Services\Tools\CompleteAssistantOnboardingTool;
@@ -39,7 +40,7 @@ class AiFailureFallbackTest extends TestCase
     public function test_successful_onboarding_tool_gets_completion_fallback(): void
     {
         $fallback = (new AiFailureFallback)->resolve(
-            new AiProviderException('empty response'),
+            new AiEmptyResponseException,
             [
                 ToolResult::success('call-1', UpdateAssistantProfileTool::NAME, [
                     'success' => true,
@@ -56,13 +57,40 @@ class AiFailureFallbackTest extends TestCase
         );
     }
 
-    public function test_plain_provider_failure_without_completed_tools_has_no_false_success(): void
+    public function test_empty_response_asks_user_to_try_again(): void
+    {
+        $fallback = (new AiFailureFallback)->resolve(
+            new AiEmptyResponseException,
+            [],
+        );
+
+        $this->assertSame(AiFailureFallback::ANSWER_UNAVAILABLE, $fallback);
+    }
+
+    public function test_technical_provider_failure_is_not_hidden(): void
     {
         $fallback = (new AiFailureFallback)->resolve(
             new AiProviderException('upstream unavailable'),
             [],
         );
 
-        $this->assertSame(AiFailureFallback::ANSWER_UNAVAILABLE, $fallback);
+        $this->assertNull($fallback);
+    }
+
+    public function test_completed_tool_reports_follow_up_technical_failure(): void
+    {
+        $fallback = (new AiFailureFallback)->resolve(
+            new AiProviderException('upstream unavailable'),
+            [
+                ToolResult::success('call-1', UpdateAssistantProfileTool::NAME, [
+                    'success' => true,
+                ]),
+            ],
+        );
+
+        $this->assertSame(
+            'Готово, настройки ассистента сохранены. Но при формировании ответа произошла техническая ошибка.',
+            $fallback,
+        );
     }
 }

@@ -4,6 +4,7 @@ namespace App\Services\Ai;
 
 use App\Services\Ai\DTO\ToolResult;
 use App\Services\Ai\Exceptions\AiConfigurationException;
+use App\Services\Ai\Exceptions\AiEmptyResponseException;
 use App\Services\Ai\Exceptions\AiProviderException;
 use App\Services\Ai\Exceptions\AiSafetyException;
 use App\Services\Tools\CompleteAssistantOnboardingTool;
@@ -33,10 +34,11 @@ final class AiFailureFallback
 
             if ($result->success) {
                 $text = trim((string) ($result->payload['text'] ?? ''));
-
-                return $text === ''
+                $reply = $text === ''
                     ? 'Хорошо, напоминание создано.'
                     : 'Хорошо, напомню: '.$text.'.';
+
+                return $this->completedToolResponse($reply, $exception);
             }
 
             if (($result->payload['error'] ?? null) === 'telegram_not_connected') {
@@ -49,20 +51,22 @@ final class AiFailureFallback
                 continue;
             }
 
-            return match ($result->name) {
+            $reply = match ($result->name) {
                 CompleteAssistantOnboardingTool::NAME => 'Готово, знакомство завершено. Я запомнил настройки и информацию о тебе.',
                 UpdateAssistantProfileTool::NAME => 'Готово, настройки ассистента сохранены.',
                 GetAssistantProfileTool::NAME => 'Профиль ассистента загружен.',
                 SetTelegramResponseModeTool::NAME => $this->telegramModeFallback($result),
                 default => 'Готово.',
             };
+
+            return $this->completedToolResponse($reply, $exception);
         }
 
         if ($exception instanceof AiSafetyException) {
             return $this->safetyResponse($userText);
         }
 
-        if ($exception instanceof AiProviderException || $exception instanceof AiConfigurationException) {
+        if ($exception instanceof AiEmptyResponseException) {
             return self::ANSWER_UNAVAILABLE;
         }
 
@@ -77,6 +81,22 @@ final class AiFailureFallback
             'text' => 'Готово. В Telegram буду отвечать текстом.',
             default => 'Готово. Режим ответа в Telegram обновлён.',
         };
+    }
+
+    private function completedToolResponse(string $reply, Throwable $exception): string
+    {
+        if (
+            $exception instanceof AiEmptyResponseException
+            || $exception instanceof AiSafetyException
+        ) {
+            return $reply;
+        }
+
+        if ($exception instanceof AiProviderException || $exception instanceof AiConfigurationException) {
+            return $reply.' Но при формировании ответа произошла техническая ошибка.';
+        }
+
+        return $reply;
     }
 
     private function safetyResponse(?string $userText): string
