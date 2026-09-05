@@ -6,6 +6,7 @@ use App\Enums\VoiceSttProvider;
 use App\Enums\VoiceTtsProvider;
 use App\Http\Controllers\Controller;
 use App\Services\Users\UserCapability;
+use App\Services\Voice\ElevenLabsVoiceCatalog;
 use App\Services\Voice\VoiceSettingsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,7 +30,12 @@ class VoiceSettingsController extends Controller
             'stt_provider' => ['required', Rule::enum(VoiceSttProvider::class)],
             'tts_provider' => ['required', Rule::enum(VoiceTtsProvider::class)],
             'spoken_style_enabled' => ['required', 'boolean'],
-            'elevenlabs_voice_id' => ['nullable', 'string', 'max:64'],
+            'elevenlabs_voice_id' => [
+                'required_if:tts_provider,elevenlabs',
+                'nullable',
+                'string',
+                Rule::in(ElevenLabsVoiceCatalog::ids()),
+            ],
             'stt_model' => ['nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9._-]*$/'],
         ]);
 

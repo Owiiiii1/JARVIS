@@ -278,6 +278,7 @@ final class VoiceSettingsService
             'elevenlabs_configured' => $elevenConfigured,
             'elevenlabs_key_source' => $this->elevenLabsKeySource(),
             'elevenlabs_voice_id' => $effective->elevenLabsVoiceId,
+            'elevenlabs_voices' => ElevenLabsVoiceCatalog::options(),
             'limits' => [
                 'max_audio_chunk_bytes' => (int) config('voice.max_audio_chunk_bytes'),
                 'max_utterance_seconds' => (int) config('voice.max_utterance_seconds'),
