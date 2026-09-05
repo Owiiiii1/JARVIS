@@ -137,6 +137,7 @@ Validation status:
 - User creation, login, `/chat`, and normal requests: **MANUAL PASS**.
 - M25U.2 administration/isolation controls: **IMPLEMENTED**, with the core flow **MANUAL PASS**.
 - Prepared cross-user/IDOR and hostile authorization campaign: **NOT EXECUTED**. Existing tests were not rerun against production during this audit.
+- `tests/Unit/UserCapabilitiesTest.php` still lists `storage`, `web_research`, and `voice` as denied regular-user capabilities, but `UserCapability::forRegularUser()` includes them. This is committed test/product drift, not a live capability denial.
 
 Potential gaps, not proven vulnerabilities:
 
@@ -162,6 +163,7 @@ Committed implementation:
 - M24 Three.js/WebGL Orb plus CSS fallback: **IMPLEMENTED**.
 - M24.1 hands-free local VAD and M24.1.1 silence hotfix were implemented and Owner-confirmed, but are now **historical/superseded**, not the current capture UX.
 - Current `VoiceSession` uses only push-to-talk («Рация»): hold to capture, release/cancel/lost pointer to submit; pressing while speaking/thinking interrupts first. The hands-free mode selector was removed.
+- Historical VAD helpers (`VoiceTurnDetector`, `voiceTurnDetection.js`) remain in the tree, but the current `VoiceSession` loop does not use silence `end_of_turn` as the product boundary.
 - Orb intensity is raised on desktop and further on narrow mobile Web; fallback CSS has matching brightness/saturation.
 - Web TTS now resolves `users.voice_id` through `VoiceSettingsService`; six curated ElevenLabs voices are offered in Workspace settings.
 - Voice session/controller ownership checks user, conversation, session UUID, capability, and active state.
@@ -223,7 +225,7 @@ Actual path:
 - Persisted inbound body is the transcript. Metadata includes `modality=voice`, `source=telegram`, resolved MIME, and duration. `file_id` is not persisted.
 - `ChannelContext.inboundModality` is explicitly `voice`, enabling `auto` mode voice-in → voice-out.
 - Idempotency checks `(channel, conversation_id, channel_message_id)` before download/STT.
-- Duplicate with an assistant child reply is skipped. A persisted inbound without assistant reply resumes from stored text without repeating STT.
+- Duplicate with an assistant child reply is skipped. A persisted inbound without assistant reply resumes from stored text without repeating STT. Committed unit tests cover duplicate-with-assistant skip, not the resume-without-assistant path.
 - Database also has a unique index on `(channel, conversation_id, channel_message_id)`.
 - Application limits are 30 seconds and 2,000,000 bytes; Telegram API ceiling is recorded as 20,000,000 bytes.
 - Duration/file-size preflight occurs before download where metadata exists; actual downloaded bytes are checked again.
@@ -253,6 +255,8 @@ Actual implementation:
 - Both owner and regular user capability sets include reminders.
 - Routes exist for `GET /{jarvis|chat}/reminders` and `POST /{jarvis|chat}/reminders/{id}/cancel`.
 - `PersonalWorkspace` renders a Bell when `capabilities.reminders` is true and mounts `RemindersPanel`.
+- The header control is icon-only (`aria-label="Напоминания"`), not a labeled «Напоминания» button. Docs (`CLIENTS/WEB_WORKSPACE.md`) still describe a labeled header.
+- A second labeled «Reminders / Open panel» entry exists only in the owner context drawer (`capabilities.ownerContext`). Regular `/chat` users have only the Bell.
 - `JarvisWorkspaceController` supplies `capabilities.reminders` and `activeReminderCount`.
 - The production bundle contains the reminders panel labels.
 
@@ -260,7 +264,7 @@ Answers to the required questions:
 
 1. **Can a reminder currently be created without Telegram?** No.
 2. **Where is it blocked?** `ReminderService::assertCanCreate()` calls `ChannelIdentity::findTelegramForUser()` and throws `ReminderException('telegram_not_connected')` before `Reminder::create()`. `ConversationContextBuilder` and `AiFailureFallback` also tell the model/user that Telegram is required.
-3. **Why can the panel be invisible?** The committed controller, capability map, React Bell, routes, and deployed bundle all contain it. Static audit found no missing capability or missing bundle code. Therefore the documented live symptom cannot honestly be assigned a code root cause from this audit. The Bell is conditional on the received `capabilities.reminders`; stale page props/cache, an older observed deployment/session, layout/runtime failure, or a still-unreproduced client issue remain hypotheses only. Keep **KNOWN BUG** until an authenticated browser validation identifies or clears it.
+3. **Why can the panel be invisible?** Capability gating is not the cause: owner and regular users both receive `capabilities.reminders`. Routes, the Bell, `RemindersPanel`, and the deployed bundle exist. The live symptom still has no authenticated browser root cause. Concrete UX evidence that can explain Owner reports: the header control is icon-only, and regular users have no second labeled entry because the context-drawer reminders block is owner-only. Stale session/deploy remains possible until live reproduction. Keep **KNOWN BUG**.
 4. **What exists but is not working/confirmed in UI?** The Bell/panel, own-reminder active/history JSON, active badge, Telegram warning, “create in chat” action, and own-reminder cancellation are implemented. Owner reported the panel itself not visible, so none of those panel interactions are MANUAL PASS.
 5. **What is required for M25U.3.1?** Reproduce/fix panel visibility; remove the Telegram identity precondition from creation; preserve reminder rows as Core objects; keep own list/cancel; make Telegram delivery conditional rather than the existence condition; define how due no-Telegram reminders remain visible in Web without being mislabeled as a failed reminder; add focused tests and then validate owner and regular-user flows.
 6. **Is a migration required?** Not strictly for a minimal implementation: the existing table can persist channel-independent reminders and `metadata` can carry transitional delivery information. A normalized multi-channel delivery-attempt/outbox table would require a migration, but that is a broader Notification Center/Web Push design and is not mandatory for the documented M25U.3.1 scope.
@@ -385,13 +389,14 @@ Gemini Google Search Web Research is separate from Google OAuth integration; its
 
 ## Known bugs
 
-1. **Reminder panel visibility:** Owner reports the panel is absent in the real workspace. Code, routes, capability props, and built JS contain it, so root cause remains unconfirmed and requires authenticated browser reproduction.
+1. **Reminder panel visibility:** Owner reports the panel is absent in the real workspace. Code, routes, capability props, and built JS contain it. Root cause is unconfirmed; the most concrete code/docs mismatch is icon-only Bell plus no labeled second entry for regular users.
 2. **Reminder existence still Telegram-gated:** `ReminderService::assertCanCreate()` rejects users without Telegram before persistence.
 3. **Repository/runtime drift:** production checkout has uncommitted Voice provider and dependency/rules changes. A clean `origin/main` deployment omits them.
 4. **Committed Gemini STT request-shape risk:** `origin/main` can encode empty `audioTranscriptionConfig` as `[]`; the local uncommitted fix changes it to `{}`. No live Gemini test was allowed.
 5. **Uncommitted ElevenLabs fallback:** selected-voice diagnostic/fallback behavior exists only locally, not in GitHub. Per-user curated voices therefore need live validation against the actual ElevenLabs account/catalog.
 6. **Failed async work retained:** 34 failed Memory jobs/runs, four failed group analysis runs, and one failed attachment summary are present in aggregate production state. Payloads/content were not inspected, so causes are not asserted.
 7. **Onboarding E2E incomplete:** entry is confirmed, but profile collection/completion/injection has not received Owner MANUAL PASS.
+8. **Stale capability unit test:** `UserCapabilitiesTest` denies regular-user `storage`, `web_research`, and `voice` even though the product capability set includes them.
 
 ## Documentation drift
 
@@ -401,10 +406,19 @@ Files were inspected but not changed. Drift found:
 - `CURRENT_STATE.md` row counts are stale: it records two users, nine conversations, 145 messages, one assistant profile, and 11 voice sessions; current aggregates are four users, 12 conversations, 261 messages, three profiles, and 24 voice sessions.
 - `CURRENT_STATE.md` places push-to-talk and personal voice bullets inside a “PASS — Voice pipeline” block, while `ROADMAP.md` and `IMPLEMENTATION_PLAN.md` correctly call these newer changes only IMPLEMENTED. This can overstate their manual validation.
 - `CHANNELS.md` and `TELEGRAM_VOICE.md` say “Web Voice: MANUAL PASS” without distinguishing the historically validated hands-free pipeline from the newer unvalidated push-to-talk UI.
+- `CHANNELS.md` §Future / cancelled still lists Telegram Voice Input/Replies even though they are shipped current surfaces.
+- `VOICE_ARCHITECTURE.md` §Telegram voice delivery header says IMPLEMENTED / NOT VALIDATED for the whole section, while the same section body correctly splits Replies MANUAL PASS vs Input IMPLEMENTED / NOT VALIDATED.
 - `ROADMAP.md` still lists “better short-pause policy” under future Voice work although current capture is explicit push-to-talk. It should be framed only as a future, separately scoped return to hands-free detection.
+- `ROADMAP.md` Phase A includes omit Telegram Voice Replies/Input, `user_channel_preferences`, and the Sep-2026 AI fallback hardening as delivered items.
 - `IMPLEMENTATION_PLAN.md` correctly adds current push-to-talk and per-user voice rows, but the M24.1/M24.1.1 rows remain visually “completed” without saying in those rows that the shipped hands-free UX is now superseded.
+- `IMPLEMENTATION_PLAN.md` §D still lists Telegram Voice Replies/Input as deferred strategic items even though they also appear in §A Completed.
+- `IMPLEMENTATION_PLAN.md` still says “Do not implement in M26D” for M25U.3.1 after M26D is complete.
 - `DECISIONS.md` is internally usable: ADR-256 explicitly supersedes automatic-capture portions of ADR-220/221/223/224, and ADR-257 supersedes instance-only Voice ID clauses in ADR-248/254. Older ADR bodies remain historical and must be read with their status notes.
-- `REMINDERS.md` accurately separates current Telegram-gated code from target architecture, but its live panel bug has no established root cause.
+- `DECISIONS.md` ADR-253 still sequences Telegram Voice Replies after M25U.3.1, but those replies shipped first (`a8e05d5`).
+- `DECISIONS.md` ADR-250 still describes `auto` as a recommended default candidate; shipped default is `text`.
+- `REMINDERS.md` accurately separates current Telegram-gated code from target architecture. `CLIENTS/WEB_WORKSPACE.md` still describes a labeled header «Напоминания»; the UI is an icon-only Bell.
+- `MEMORY_ARCHITECTURE.md` still frames a full memory engine as future Phase 2, while turn analysis/summaries/topics/memories/retrieval are already wired.
+- `INTEGRATIONS.md` still implies ordinary users lack `web_research`; `UserCapability::forRegularUser()` includes it.
 - `ASSISTANT_PERSONALIZATION.md` reflects per-user cross-channel TTS voice and General Prompt separation.
 - `USERS_AND_CABINET.md` reflects push-to-talk and personal voice. Its broad wording that ElevenLabs is owner-only should be read as provider/integration administration; ordinary users now select a curated voice.
 - `TASKS_AND_PRODUCTIVITY.md` is consistent: Tasks, Notification Center, Web Push, and proactive features remain planned, not shipped.
@@ -418,7 +432,7 @@ Files were inspected but not changed. Drift found:
    - Why: Web users cannot create reminders without Telegram, and the panel has a recorded live visibility bug.
    - Blockers: authenticated reproduction of the panel issue; decision for due reminders with no delivery adapter.
    - Dependencies: current Reminder model/tool/scheduler/panel and Telegram delivery adapter.
-   - Scope: remove create gate, preserve Core reminder lifecycle, fix panel visibility, keep own list/cancel, make Telegram optional, add focused tests.
+   - Scope: remove create gate, preserve Core reminder lifecycle, fix panel visibility (including labeled/user-visible entry beyond the icon-only Bell), keep own list/cancel, make Telegram optional, add focused tests including panel HTTP routes.
    - Migration: not required for the minimal milestone; required only if normalized delivery attempts/channels are introduced.
    - Live validation: required for owner and regular user, with and without Telegram.
 
