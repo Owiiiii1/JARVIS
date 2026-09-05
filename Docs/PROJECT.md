@@ -103,5 +103,5 @@ Production Laravel app: Core, Admin, Web Personal Workspace, Telegram adapter, V
 - [INTEGRATIONS.md](INTEGRATIONS.md)
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 - [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md)
-- [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md) — planned Telegram `sendVoice` delivery
+- [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md) — Telegram DM voice inbound (STT) and `sendVoice` delivery
 - [CURRENT_STATE.md](CURRENT_STATE.md) — только факт кода

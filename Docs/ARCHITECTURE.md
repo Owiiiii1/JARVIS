@@ -47,7 +47,7 @@ Desktop client: CANCELLED. Not a node in this architecture.
 
 Voice is a **modality** of that workspace over an existing `conversation_id`. It is not a separate client or assistant.
 
-Telegram is a **secondary messaging channel / adapter**. Same Conversation Engine, same catalog. Optional voice **delivery** (`sendVoice`) of canonical assistant text — not a second assistant. Default Telegram replies remain text. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
+Telegram is a **secondary messaging channel / adapter**. Same Conversation Engine, same catalog. Optional voice inbound (STT) and voice **delivery** (`sendVoice`) of canonical assistant text — not a second assistant. Default Telegram replies remain text. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
 Mobile is a **future optional companion**. Same Core. Not required for Phase A/B.
 

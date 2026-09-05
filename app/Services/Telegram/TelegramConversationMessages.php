@@ -30,6 +30,20 @@ final class TelegramConversationMessages
 
     public const LIST_TRUNCATED = 'Показаны последние 20 чатов.';
 
+    public const VOICE_TOO_LONG = 'Голосовое слишком длинное. Отправьте короче (до 30 секунд) или напишите текстом.';
+
+    public const VOICE_TOO_LARGE = 'Голосовое слишком большое. Отправьте короче или напишите текстом.';
+
+    public const VOICE_UNSUPPORTED = 'Этот формат голосового не поддерживается. Попробуйте ещё раз или напишите текстом.';
+
+    public const VOICE_STT_UNAVAILABLE = 'Распознавание речи сейчас недоступно. Напишите текстом.';
+
+    public const VOICE_STT_FAILED = 'Не удалось распознать голосовое. Попробуйте ещё раз или напишите текстом.';
+
+    public const VOICE_EMPTY = 'Не удалось разобрать голосовое сообщение. Попробуйте ещё раз.';
+
+    public const VOICE_DOWNLOAD_FAILED = 'Не удалось получить голосовое сообщение. Попробуйте ещё раз.';
+
     public static function connectedWithChat(string $title): string
     {
         return sprintf(self::CONNECTED_WITH_CHAT, $title);

@@ -27,13 +27,13 @@ final class SetTelegramResponseModeTool implements JarvisTool
     {
         return new ToolDefinition(
             name: self::NAME,
-            description: 'Sets how Jarvis replies in Telegram for the current user. Call when the user asks to be answered by voice, by text, or automatically (voice notes get voice replies later; text stays text). Modes: text, voice, auto. Never pass user_id. No confirmation modal.',
+            description: 'Sets how Jarvis replies in Telegram for the current user. Call when the user asks to be answered by voice, by text, or automatically. Modes: text, voice, auto. Never pass user_id. No confirmation modal.',
             parameters: [
                 'type' => 'OBJECT',
                 'properties' => [
                     'mode' => [
                         'type' => 'STRING',
-                        'description' => 'text: always Telegram text. voice: Telegram native voice message when possible. auto: voice inbound → voice reply (inbound voice not implemented yet, so auto currently behaves as text for text inbound).',
+                        'description' => 'text: always Telegram text. voice: Telegram native voice message when possible. auto: voice note → voice reply; text → text reply.',
                         'enum' => ['text', 'voice', 'auto'],
                     ],
                 ],

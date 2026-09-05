@@ -7,6 +7,7 @@ use App\Services\Voice\DTO\VoiceAudioChunk;
 use App\Services\Voice\Exceptions\VoiceException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 final class VoiceTempAudioStore implements StoresEphemeralVoiceAudio
 {
@@ -89,25 +90,37 @@ final class VoiceTempAudioStore implements StoresEphemeralVoiceAudio
 
     public function putBytes(string $relativePath, string $bytes): string
     {
-        $relative = $this->guardedRelative($relativePath);
-        Storage::disk((string) config('voice.audio_disk', 'local'))->put($relative, $bytes);
+        $relative = $this->guardedRelative($relativePath, $this->outboundDirectory());
+        $absolute = $this->diskPath($relative);
+        $directory = dirname($absolute);
+
+        if (! is_dir($directory) && ! @mkdir($directory, 0775, true) && ! is_dir($directory)) {
+            throw VoiceException::runtimeFailed();
+        }
+
+        $written = @file_put_contents($absolute, $bytes);
+
+        if ($written === false || ! is_file($absolute) || filesize($absolute) < 1) {
+            throw VoiceException::runtimeFailed();
+        }
+
+        @chmod($absolute, 0664);
 
         return $relative;
     }
 
     public function absolutePath(string $relativePath): string
     {
-        return Storage::disk((string) config('voice.audio_disk', 'local'))
-            ->path($this->guardedRelative($relativePath));
+        return $this->diskPath($this->guardedRelative($relativePath, $this->rootFor($relativePath)));
     }
 
     public function deleteRelative(string $relativePath): void
     {
-        $relative = $this->guardedRelative($relativePath);
+        $relative = $this->guardedRelative($relativePath, $this->rootFor($relativePath));
         $disk = Storage::disk((string) config('voice.audio_disk', 'local'));
         $disk->delete($relative);
 
-        $absolute = $disk->path($relative);
+        $absolute = $this->diskPath($relative);
 
         if (is_file($absolute)) {
             @unlink($absolute);
@@ -116,26 +129,10 @@ final class VoiceTempAudioStore implements StoresEphemeralVoiceAudio
 
     public function purgeStale(): int
     {
-        $disk = Storage::disk((string) config('voice.audio_disk', 'local'));
-        $root = trim((string) config('voice.temp_directory', 'voice-temp'), '/');
-        $retry = max(30, (int) config('voice.temp_retry_seconds', 120));
-        $cutoff = now()->subSeconds($retry)->getTimestamp();
-        $deleted = 0;
+        $cutoff = now()->subSeconds(max(30, (int) config('voice.temp_retry_seconds', 120)))->getTimestamp();
 
-        if (! $disk->exists($root)) {
-            return 0;
-        }
-
-        foreach ($disk->allFiles($root) as $path) {
-            $modified = $disk->lastModified($path);
-
-            if ($modified !== false && $modified < $cutoff) {
-                $disk->delete($path);
-                $deleted++;
-            }
-        }
-
-        return $deleted;
+        return $this->purgeRoot($this->tempDirectory(), $cutoff)
+            + $this->purgeRoot($this->outboundDirectory(), $cutoff);
     }
 
     public function normalizeMime(string $mime): string
@@ -148,9 +145,82 @@ final class VoiceTempAudioStore implements StoresEphemeralVoiceAudio
         return VoiceAudioMime::isAllowed($mime);
     }
 
-    private function guardedRelative(string $relativePath): string
+    private function purgeRoot(string $root, int $cutoff): int
     {
-        $root = trim((string) config('voice.temp_directory', 'voice-temp'), '/');
+        $disk = Storage::disk((string) config('voice.audio_disk', 'local'));
+        $deleted = 0;
+
+        try {
+            if (! $disk->exists($root)) {
+                return 0;
+            }
+
+            foreach ($disk->allFiles($root) as $path) {
+                $modified = $disk->lastModified($path);
+
+                if ($modified !== false && $modified < $cutoff) {
+                    $disk->delete($path);
+                    $deleted++;
+                }
+            }
+        } catch (Throwable) {
+            return $this->purgeRootNative($root, $cutoff);
+        }
+
+        return $deleted;
+    }
+
+    private function purgeRootNative(string $root, int $cutoff): int
+    {
+        $absoluteRoot = $this->diskPath($root);
+
+        if (! is_dir($absoluteRoot) || ! is_readable($absoluteRoot)) {
+            return 0;
+        }
+
+        $deleted = 0;
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($absoluteRoot, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST,
+        );
+
+        foreach ($iterator as $file) {
+            if (! $file->isFile()) {
+                continue;
+            }
+
+            if ($file->getMTime() < $cutoff) {
+                @unlink($file->getPathname());
+                $deleted++;
+            }
+        }
+
+        return $deleted;
+    }
+
+    private function tempDirectory(): string
+    {
+        return trim((string) config('voice.temp_directory', 'voice-temp'), '/');
+    }
+
+    private function outboundDirectory(): string
+    {
+        return trim((string) config('voice.outbound_directory', 'voice-outbound'), '/');
+    }
+
+    private function rootFor(string $relativePath): string
+    {
+        $relative = str_replace('\\', '/', ltrim($relativePath, '/'));
+        $outbound = $this->outboundDirectory();
+
+        return str_starts_with($relative, $outbound.'/')
+            ? $outbound
+            : $this->tempDirectory();
+    }
+
+    private function guardedRelative(string $relativePath, ?string $root = null): string
+    {
+        $root ??= $this->tempDirectory();
         $relative = str_replace('\\', '/', ltrim($relativePath, '/'));
 
         if (str_starts_with($relative, $root.'/')) {
@@ -166,9 +236,14 @@ final class VoiceTempAudioStore implements StoresEphemeralVoiceAudio
         return $relative;
     }
 
+    private function diskPath(string $relative): string
+    {
+        return Storage::disk((string) config('voice.audio_disk', 'local'))->path($relative);
+    }
+
     private function relativePath(string $absolute): ?string
     {
-        $diskRoot = Storage::disk((string) config('voice.audio_disk', 'local'))->path('');
+        $diskRoot = $this->diskPath('');
         $diskRoot = rtrim($diskRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
 
         if (! str_starts_with($absolute, $diskRoot)) {

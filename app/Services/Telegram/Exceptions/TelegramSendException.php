@@ -16,7 +16,7 @@ class TelegramSendException extends RuntimeException
         parent::__construct($message);
     }
 
-    public static function fromResponse(Response $response): self
+    public static function fromResponse(Response $response, string $message = 'Telegram send failed'): self
     {
         $description = (string) ($response->json('description') ?? $response->body());
         $code = $response->json('error_code');
@@ -24,7 +24,7 @@ class TelegramSendException extends RuntimeException
         $class = self::classify($description, $code);
 
         return new self(
-            'Telegram sendMessage failed',
+            $message,
             $code,
             $description !== '' ? $description : null,
             $class,

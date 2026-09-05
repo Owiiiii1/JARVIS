@@ -4,6 +4,7 @@ namespace App\Services\Voice;
 
 use App\Enums\VoiceSttProvider;
 use App\Services\Voice\Contracts\SpeechToTextProvider;
+use App\Services\Voice\Contracts\TranscribesSpeech;
 use App\Services\Voice\DTO\SpeechTranscript;
 use App\Services\Voice\DTO\VoiceAudioChunk;
 use App\Services\Voice\Exceptions\VoiceException;
@@ -11,7 +12,7 @@ use App\Services\Voice\Providers\GeminiSpeechToTextProvider;
 use App\Services\Voice\Providers\NullSpeechToTextProvider;
 use App\Services\Voice\Providers\OpenAiSpeechToTextProvider;
 
-final class SpeechToTextManager
+final class SpeechToTextManager implements TranscribesSpeech
 {
     public function __construct(
         private readonly VoiceSettingsService $settings,

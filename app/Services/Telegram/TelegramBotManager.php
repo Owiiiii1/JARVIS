@@ -192,6 +192,46 @@ class TelegramBotManager
     }
 
     /**
+     * Native Telegram voice bubble. MP3 / OGG / M4A. No reply keyboard (the DM menu is persistent).
+     *
+     * @return array{message_id: string}
+     */
+    public function sendVoiceMessage(string $chatId, string $absolutePath, string $filename, string $mime = 'audio/mpeg'): array
+    {
+        $token = (string) $this->setting()->bot_token;
+
+        if (! filled($token)) {
+            throw new RuntimeException('Telegram bot token is missing.');
+        }
+
+        if (! is_file($absolutePath) || filesize($absolutePath) < 1) {
+            throw new RuntimeException('Telegram voice temp file is missing.');
+        }
+
+        $contents = file_get_contents($absolutePath);
+
+        if (! is_string($contents) || $contents === '') {
+            throw new RuntimeException('Telegram voice temp file is empty.');
+        }
+
+        $response = Http::timeout(30)
+            ->attach('voice', $contents, $filename, ['Content-Type' => $mime])
+            ->post($this->apiUrl($token, 'sendVoice'), [
+                'chat_id' => $chatId,
+            ]);
+
+        if (! $response->successful() || $response->json('ok') !== true) {
+            throw TelegramSendException::fromResponse($response, 'Telegram sendVoice failed');
+        }
+
+        $messageId = $response->json('result.message_id');
+
+        return [
+            'message_id' => $messageId === null || $messageId === '' ? '' : (string) $messageId,
+        ];
+    }
+
+    /**
      * @return 'connected'|'restricted'|'left'|'unknown'
      */
     public function botMembershipStatus(string $chatId): string

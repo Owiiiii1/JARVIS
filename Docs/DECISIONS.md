@@ -2460,7 +2460,17 @@
 
 **Решение.** MVP sends ElevenLabs MP3 bytes with Nutgram `sendVoice`. No ffmpeg. Preference lives in `user_channel_preferences` (not Memory / General Prompt / assistant profile). Default mode is **text** so deploy does not change Telegram behavior. TTS Voice ID remains instance Voice settings. Delivery failures fall back to a single `sendMessage`.
 
-**Следствие.** Status IMPLEMENTED / NOT VALIDATED until Owner confirms a live voice bubble. Telegram Voice Input remains unimplemented.
+**Следствие.** Owner confirmed a live voice bubble (MANUAL PASS). Telegram Voice Input is a separate adapter inbound path (ADR-255).
+
+---
+
+## ADR-255 — Telegram Voice Input reuses Gemini STT; DM voice notes only
+
+**Контекст.** Paired DM previously rejected non-text. Web Voice already has a working Gemini STT provider. A second Telegram-specific transcriber or `voice_sessions` path would split Core.
+
+**Решение.** Telegram Voice Input is adapter inbound: `Message.voice` in a paired private DM → Nutgram `getFile`/`downloadFile` → existing `SpeechToTextManager` / `GeminiSpeechToTextProvider` → transcript → `ConversationTurnService` → existing `TelegramReplyDeliveryService` with explicit `inboundModality=voice`. Same identity, active-user, and `channel_message_id` idempotency as text. Application limits stay at Web STT bounds (30 s / 2 MB), not the Telegram 20 MB `getFile` ceiling. Typical OGG/Opus is accepted without ffmpeg. Groups, video notes, audio files, and documents are unchanged. Empty transcript and STT errors send text only and do not create an AI turn. Gemini model/credentials are unchanged.
+
+**Следствие.** `auto` response mode becomes voice-in → voice-out and text-in → text-out. Status IMPLEMENTED / NOT VALIDATED until Owner manual checklist.
 
 ---
 

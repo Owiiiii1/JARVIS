@@ -11,6 +11,7 @@ use App\Services\Conversations\ConversationService;
 use App\Services\Conversations\ConversationTurnService;
 use App\Services\Groups\TelegramGroupInboundService;
 use App\Services\Groups\TelegramGroupMembershipService;
+use App\Services\Telegram\DTO\TelegramVoiceNote;
 use App\Services\Telegram\Pairing\TelegramInboundContext;
 use App\Services\Telegram\Pairing\TelegramPairingMessages;
 use App\Services\Telegram\Pairing\TelegramPairingOutcome;
@@ -18,7 +19,10 @@ use App\Services\Telegram\Pairing\TelegramPairingService;
 use App\Services\Telegram\TelegramChatKeyboard;
 use App\Services\Telegram\TelegramConversationMessages;
 use App\Services\Telegram\TelegramIdentityState;
+use App\Services\Telegram\TelegramNutgramVoiceDownloader;
 use App\Services\Telegram\TelegramReplyDeliveryService;
+use App\Services\Telegram\TelegramVoiceInboundService;
+use App\Services\Telegram\TelegramVoiceInboundStatus;
 use DateTimeImmutable;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Properties\ChatType;
@@ -40,6 +44,7 @@ final class TelegramUpdateHandler
         private readonly TelegramGroupInboundService $groupInbound,
         private readonly TelegramGroupMembershipService $groupMembership,
         private readonly TelegramReplyDeliveryService $replyDelivery,
+        private readonly TelegramVoiceInboundService $voiceInbound,
     ) {}
 
     public function handleMessage(Nutgram $bot): void
@@ -204,6 +209,12 @@ final class TelegramUpdateHandler
             return;
         }
 
+        if ($message->getType() === TelegramMessageType::VOICE && $message->voice !== null) {
+            $this->handlePairedVoice($bot, $message, $identity, $conversation);
+
+            return;
+        }
+
         if ($message->getType() !== TelegramMessageType::TEXT || ! filled($message->text)) {
             $this->reply($bot, TelegramPairingMessages::UNSUPPORTED_MESSAGE_TYPE, $identity);
 
@@ -243,6 +254,59 @@ final class TelegramUpdateHandler
         }
 
         $this->persistPairedText($bot, $message, $identity, $conversation, $text);
+    }
+
+    private function handlePairedVoice(
+        Nutgram $bot,
+        Message $message,
+        ChannelIdentity $identity,
+        Conversation $conversation,
+    ): void {
+        $voice = $message->voice;
+
+        if ($voice === null || ! filled($voice->file_id)) {
+            $this->reply($bot, TelegramPairingMessages::UNSUPPORTED_MESSAGE_TYPE, $identity);
+
+            return;
+        }
+
+        $occurredAt = isset($message->date)
+            ? (new DateTimeImmutable)->setTimestamp((int) $message->date)
+            : null;
+
+        $result = $this->voiceInbound->handle(
+            $identity->user,
+            $conversation,
+            new TelegramVoiceNote(
+                fileId: (string) $voice->file_id,
+                channelMessageId: (string) $message->message_id,
+                durationSeconds: max(0, (int) ($voice->duration ?? 0)),
+                fileUniqueId: $voice->file_unique_id !== null ? (string) $voice->file_unique_id : null,
+                mimeType: $voice->mime_type,
+                fileSize: $voice->file_size !== null ? (int) $voice->file_size : null,
+                occurredAt: $occurredAt,
+            ),
+            new TelegramNutgramVoiceDownloader($bot),
+        );
+
+        if (in_array($result->status, [TelegramVoiceInboundStatus::Duplicate, TelegramVoiceInboundStatus::Ignored], true)) {
+            return;
+        }
+
+        if ($result->status === TelegramVoiceInboundStatus::UserNotice) {
+            $this->reply($bot, (string) $result->userText, $identity);
+
+            return;
+        }
+
+        $turn = $result->turn;
+
+        if ($turn === null || (! $turn->created && $turn->skipped)) {
+            return;
+        }
+
+        $reply = $turn->replyText() ?? ConversationAiService::AI_FAILURE;
+        $this->deliverAssistantReply($bot, $identity, $reply, $turn->assistantMessage, 'voice');
     }
 
     private function handleNewChatTitle(Nutgram $bot, ChannelIdentity $identity, string $text): void

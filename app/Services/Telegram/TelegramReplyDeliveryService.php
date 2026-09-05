@@ -6,12 +6,14 @@ use App\Models\ChannelIdentity;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\Telegram\Contracts\TelegramDmOutbound;
+use App\Services\Telegram\Exceptions\TelegramSendException;
 use App\Services\Users\ResolvesTelegramResponseMode;
 use App\Services\Voice\Contracts\RecordsVoiceMetrics;
 use App\Services\Voice\Contracts\SpeechSynthesizer;
 use App\Services\Voice\Contracts\StoresEphemeralVoiceAudio;
 use App\Services\Voice\DTO\SynthesizedSpeech;
 use App\Services\Voice\Exceptions\VoiceException;
+use Illuminate\Support\Str;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
@@ -26,6 +28,7 @@ final class TelegramReplyDeliveryService
         private readonly TelegramVoiceSuitabilityPolicy $suitability,
         private readonly TelegramChatKeyboard $keyboard,
         private readonly RecordsVoiceMetrics $metrics,
+        private readonly ?TelegramBotManager $telegram = null,
         private readonly int $maxAudioBytes = 2_000_000,
     ) {}
 
@@ -37,7 +40,7 @@ final class TelegramReplyDeliveryService
         ?Message $assistant,
         string $inboundModality = 'text',
     ): TelegramReplyDeliveryOutcome {
-        $outbound = new TelegramNutgramDmOutbound($bot, $identity);
+        $outbound = new TelegramNutgramDmOutbound($bot, $identity, $this->telegram ?? app(TelegramBotManager::class));
 
         return $this->deliver(
             $outbound,
@@ -135,8 +138,8 @@ final class TelegramReplyDeliveryService
             $this->sendTextSafely($outbound, $canonicalText, $markup);
 
             return TelegramReplyDeliveryOutcome::VoiceFallbackText;
-        } catch (Throwable) {
-            $this->recordFallback($user, 'send_or_temp_failed');
+        } catch (Throwable $exception) {
+            $this->recordFallback($user, 'send_or_temp_failed', $exception);
             $this->sendTextSafely($outbound, $canonicalText, $markup);
 
             return TelegramReplyDeliveryOutcome::VoiceFallbackText;
@@ -179,11 +182,22 @@ final class TelegramReplyDeliveryService
         }
     }
 
-    private function recordFallback(User $user, string $reason): void
+    private function recordFallback(User $user, string $reason, ?Throwable $exception = null): void
     {
-        $this->metrics->record('telegram.voice.fallback', [
+        $context = [
             'user_id' => $user->id,
             'reason' => $reason,
-        ]);
+        ];
+
+        if ($exception !== null) {
+            $context['exception'] = $exception::class;
+            $context['error'] = Str::limit($exception->getMessage(), 180);
+        }
+
+        if ($exception instanceof TelegramSendException) {
+            $context['telegram'] = Str::limit((string) $exception->telegramDescription, 180);
+        }
+
+        $this->metrics->record('telegram.voice.fallback', $context);
     }
 }

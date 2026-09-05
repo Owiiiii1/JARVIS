@@ -1,10 +1,12 @@
-# Telegram Voice Replies
+# Telegram Voice
 
-**Status.** IMPLEMENTED / NOT VALIDATED. Outbound only. Owner has not confirmed a live Telegram voice bubble yet.
+**Telegram Voice Replies:** MANUAL PASS (Owner confirmed a live `sendVoice` bubble).  
+**Telegram Voice Input:** IMPLEMENTED / NOT VALIDATED.  
+**Web Voice:** MANUAL PASS.
 
-Web Voice (hands-free STT/TTS in Personal Workspace) remains **MANUAL PASS**. That does **not** mean Telegram Voice Input exists.
+Not a second Voice Core. No `voice_sessions` for Telegram. Same Conversation Engine, Memory, tools, Assistant Profile, General Prompt.
 
-Related: [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md), [CHANNELS.md](CHANNELS.md), [ASSISTANT_PERSONALIZATION.md](ASSISTANT_PERSONALIZATION.md).
+Related: [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md), [CHANNELS.md](CHANNELS.md).
 
 ---
 
@@ -12,110 +14,97 @@ Related: [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md), [CHANNELS.md](CHANNELS.
 
 | | Direction | Status |
 | --- | --- | --- |
-| **A. Telegram Voice Input** | User voice note → STT → Core | **NOT IMPLEMENTED.** Paired DM still rejects non-text. Groups store `[voice]` placeholder. Separate future milestone. |
-| **B. Telegram Voice Reply** | Assistant text → TTS → `sendVoice` | **IMPLEMENTED / NOT VALIDATED** |
-
-This milestone is **B** only.
+| **A. Telegram Voice Input** | User voice note → existing Gemini STT → Core | **IMPLEMENTED / NOT VALIDATED** |
+| **B. Telegram Voice Reply** | Assistant text → existing ElevenLabs TTS → `sendVoice` | **MANUAL PASS** |
 
 ---
 
 ## Architecture
 
-Not a second Voice Core. No `voice_sessions` for this path.
-
 ```
-Telegram inbound text (DM)
-  → TelegramUpdateHandler
-  → ConversationTurnService
-  → assistant text persisted (canonical)
-  → TelegramReplyDeliveryService
+Telegram DM voice note (Message.voice only)
+  → TelegramUpdateHandler (same pairing / active / identity checks as text)
+  → duplicate channel_message_id? skip download/STT
+  → TelegramNutgramVoiceDownloader (Nutgram getFile + downloadFile)
+  → SpeechToTextManager → GeminiSpeechToTextProvider
+  → transcript (trimmed)
+  → ConversationTurnService::handleUserMessage
+  → TelegramReplyDeliveryService (inboundModality = voice)
        text | unsuitable | TTS fail | sendVoice fail → sendMessage
        voice success → sendVoice (no duplicate text)
+
+Telegram DM text
+  → same handler / turn / delivery with inboundModality = text
 ```
 
-Same user, `conversation_id`, Memory, tools, Assistant Profile, General Prompt.
+Groups: unchanged. Voice notes persist as `[voice]` placeholder. No STT. No auto-reply.
 
-Web Voice = interactive session.  
-Telegram Voice Reply = one-shot delivery of already-generated assistant text.
+Reminders: unchanged.
 
 ---
 
 ## Preference
 
 Table `user_channel_preferences` (`user_id` + `channel`, unique).  
-`response_mode`: `text` | `voice` | `auto`.
+`response_mode`: `text` | `voice` | `auto`. **Default: `text`.**
 
-**Default: `text`.** Missing row = text. Existing users do not change behavior after deploy.
+| Mode | Text inbound | Voice inbound |
+| --- | --- | --- |
+| `text` | text reply | text reply |
+| `voice` | voice reply when suitable | voice reply when suitable |
+| `auto` | text reply | voice reply when suitable |
 
-| Mode | Behavior now |
-| --- | --- |
-| `text` | `sendMessage` only. No TTS. |
-| `voice` | TTS + `sendVoice` when suitable; otherwise text fallback. |
-| `auto` | Voice inbound → voice reply. **Inbound voice is not implemented**, so auto currently matches text for text inbound. Ready for later STT. |
+`auto` uses the explicit inbound modality (`text` \| `voice`), not “whether a transcript exists”.
 
-Tools (current user only, capability `telegram_dm`, no `user_id` from the model, no confirmation modal):
-
-- `get_telegram_response_mode`
-- `set_telegram_response_mode`
-
-Chat examples: «Отвечай голосом», «Отвечай текстом», «На голосовые отвечай голосом».
-
-Not stored in Memory, General Prompt, or `user_assistant_profiles`.
+Tools (current user only, capability `telegram_dm`): `get_telegram_response_mode`, `set_telegram_response_mode`.
 
 ---
 
-## Format
+## Voice Input (A)
 
-Telegram `sendVoice` accepts OGG/OPUS, **MP3**, M4A.
+**Scope.** Paired private DM `Message.voice` only. Not `video_note`, not audio/music, not documents, not groups.
 
-ElevenLabs TTS (same instance Voice settings as Web) returns **MP3** (`audio/mpeg`, `mp3_44100_128`).
+**Official Telegram:** Voice has `file_id`, `file_unique_id`, `duration`, optional `mime_type` / `file_size`. `getFile` then download. Cloud Bot API download limit is **20 MB**. Application limits are stricter.
 
-**MVP: MP3 → `sendVoice` directly. ffmpeg was not installed.**
+**Application limits (aligned with current Web/Gemini STT):**
+
+| Bound | Value | Config |
+| --- | --- | --- |
+| Duration | **30 seconds** | `voice.telegram_voice.max_inbound_seconds` |
+| Size | **2_000_000 bytes** | `voice.telegram_voice.max_inbound_bytes` |
+| Telegram API ceiling | 20 MB | `voice.telegram_voice.api_download_max_bytes` (not the product limit) |
+
+Oversize / too long: short **text** error. Audio is not truncated. STT is not started.
+
+**MIME.** Canonicalize Telegram `mime_type` if sane; otherwise finfo on the downloaded file; typical Telegram voice note falls back to `audio/ogg`. `audio/opus` / `application/ogg` alias to `audio/ogg`. Gemini STT already lists `audio/ogg`. **No ffmpeg.**
+
+**STT.** `SpeechToTextManager` → configured provider (`GeminiSpeechToTextProvider`). Same encrypted Gemini credential and model as Web Voice. Not `AiChatGateway`. Model ID was not changed for Telegram.
+
+**Transcript.** Trim only. Empty / whitespace → text retry (`VOICE_EMPTY`). No LLM “cleanup”, no translation. Canonical persisted user body is the transcript. Metadata (no migration): `modality=voice`, `source=telegram`, `source_mime`, `duration_seconds`. `file_id` is not stored.
+
+**Idempotency.** `messages` unique (`channel`, `conversation_id`, `channel_message_id`). Lookup runs **before** download/STT. Duplicate with an assistant reply: silent skip. Duplicate user row without assistant: resume `ConversationTurnService` from stored transcript (no second STT). Job: `ProcessTelegramUpdate` `tries=2`, `timeout=75` on queue `telegram`. STT manager has its own 2-attempt retry for connection/5xx only.
+
+**Temp audio.** Private `voice-outbound/telegram/inbound/{userId}/{random}.ogg` (queue worker writable). Deleted after STT success or failure. Stale: `jarvis:voice:cleanup-temp`. Not StoredFile / MessageAttachment / public disk.
+
+**Errors.** Always text. No voice error bubble. No bogus AI turn. Download/STT failures do not fail the webhook worker.
+
+**Webhook ACK.** Unchanged: controller dispatches `ProcessTelegramUpdate`; download+STT run on the telegram queue, not in the HTTP request.
 
 ---
 
-## Fallback
+## Voice Reply (B)
 
-One text `sendMessage` if:
+Telegram `sendVoice` accepts OGG/OPUS, **MP3**, M4A. ElevenLabs returns MP3. HTTP multipart `sendVoice` via `TelegramBotManager` (no reply keyboard on the voice file). Fallback: one `sendMessage`. Canonical assistant text is never deleted.
 
-- mode is text / auto+text inbound
-- pending tool confirmation (buttons need text)
-- unsuitable payload (large fenced code > 400 chars, markdown tables ≥ 4 rows, `artifact` fences, spoken length > **2000** characters)
-- TTS unconfigured / TTS error
-- incompatible MIME
-- audio larger than `voice.max_audio_chunk_bytes` (2_000_000)
-- temp write or `sendVoice` fails
-
-Canonical assistant **text is never deleted**. No second assistant message. No duplicate success (voice + text).
-
-Spoken rendering for TTS strips markdown locally (no extra LLM call). Persisted body stays unchanged.
-
----
-
-## Temp audio
-
-`voice-temp/telegram/{userId}/{random}.mp3` on the private voice disk. Deleted after send (success or fail). Stale files: existing `jarvis:voice:cleanup-temp`.
-
-Not StoredFile. No archive.
+Outbound temp: `voice-outbound/` (deploy queue worker). Web inbound chunks still use `voice-temp/` (php-fpm).
 
 ---
 
 ## Out of scope (unchanged)
 
-- Telegram Groups (no voice replies)
-- Reminder dispatch (`⏰` still text via `TelegramBotManager::sendTextMessage`)
-- Disabled users (existing reject path)
-- Onboarding auto-enable
+- Telegram Groups STT / auto-reply
+- Reminder dispatch
+- Disabled users (existing reject path; no STT)
 - Desktop / Mobile / Client API
-
----
-
-## Owner manual checklist
-
-1. Telegram: «Отвечай мне голосом» → Jarvis confirms the setting.  
-2. Short test question → native voice bubble.  
-3. Another question → still voice.  
-4. «Отвечай текстом» → later replies text.  
-5. Optional: if TTS is misconfigured, text fallback, answer not lost.
-
-Default for Owner remains **text** until explicitly changed.
+- ffmpeg
+- Raw audio archive

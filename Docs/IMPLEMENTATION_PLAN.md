@@ -42,7 +42,8 @@ Do not start a listed “completed” milestone again. Do not treat Desktop as u
 | M25U.1 | Shared `/chat` Personal Workspace | MANUAL PASS (core user workflow) |
 | M25U.2 | User administration / isolation | MANUAL PASS (core user workflow) |
 | M25U.3 | Assistant profiles, onboarding UI, reminders panel code | MANUAL PARTIAL (onboarding entry); panel LIVE BUG |
-| Telegram Voice Replies | DM `sendVoice` via existing TTS; default text | IMPLEMENTED / NOT VALIDATED |
+| Telegram Voice Replies | DM `sendVoice` via existing TTS; default text | MANUAL PASS |
+| Telegram Voice Input | DM voice note → existing Gemini STT → Core | IMPLEMENTED / NOT VALIDATED |
 
 Historical detailed “implement this” write-ups for M0–M24 are obsolete as instructions. Git history remains the archive.
 
@@ -61,7 +62,7 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 | A/B isolation campaign | Prepared, not executed |
 | Web Push / Tasks / Daily Brief | Not implemented |
 | Versioned Client API | Not implemented; **not** current work |
-| Telegram Voice Input (STT) | NOT IMPLEMENTED |
+| Telegram Voice Input (STT) | IMPLEMENTED / NOT VALIDATED |
 | Desktop | CANCELLED |
 
 ---
@@ -94,13 +95,11 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 - Selected Google / GitHub manual validation if Owner wants
 - Optional A/B isolation campaign
 
-### Telegram Voice Replies
+### Telegram Voice Replies / Input
 
-**Status.** IMPLEMENTED / NOT VALIDATED. Not the next Owner-priority product milestone (that remains M25U.3.1). Live Telegram/`sendVoice` confirmation is Owner manual.
+**Replies.** MANUAL PASS. DM `sendVoice` via existing TTS; default text.
 
-Shipped: DM delivery policy, `user_channel_preferences` (default `text`), tools, ElevenLabs MP3 → Nutgram `sendVoice`, text fallback, no ffmpeg.
-
-Still not implemented: Telegram Voice Input.
+**Input.** IMPLEMENTED / NOT VALIDATED. Paired DM `Message.voice` → existing Gemini STT → `ConversationTurnService` → existing delivery. Groups unchanged. Next Owner-priority product milestone remains M25U.3.1.
 
 Detail: [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
@@ -115,7 +114,8 @@ Detail: [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 | Tasks domain + relations | B |
 | Daily Brief / Weekly Review | B |
 | Streaming STT/TTS, richer barge-in | C |
-| Telegram Voice Replies (`sendVoice`) | IMPLEMENTED / NOT VALIDATED |
+| Telegram Voice Replies (`sendVoice`) | MANUAL PASS |
+| Telegram Voice Input (STT) | IMPLEMENTED / NOT VALIDATED |
 | Wake word | research only, not mandatory |
 | Mobile companion | D |
 | Versioned Client API | if/when Mobile (or similar) starts |

@@ -64,9 +64,8 @@ Voice stage is **CLOSED**.
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD (origin/main at M26D) | `ef6ed9cc7121ee7a9b07f2d4c6a8e9cc16c9e9e2` |
-| Message | `fix: improve voice activity silence detection` |
-| Previous | `de7d579` M25U.3; `7d9c83f` M24.1; `72b4e3c` M25U.2; `00b54e0` Gemini STT |
+| HEAD (origin/main at Telegram Voice Input) | this commit: `feat: add Telegram voice input` |
+| Previous | `a8e05d5` Telegram Voice Replies; `e4f3ea1` voice reply docs; `6e18325` M26D |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 
 This documentation commit does **not** include uncommitted Voice client experiments that may exist in the working tree.
@@ -150,8 +149,8 @@ Regular user capabilities: chat, memory, telegram_dm, reminders, cabinet, person
 
 Committed path: hands-free VAD, Gemini STT, ElevenLabs TTS, Orb. Owner MANUAL PASS. Admin Voice settings under Integrations. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
 
-Telegram Voice Replies (`sendVoice`): **IMPLEMENTED / NOT VALIDATED**.  
-Telegram Voice Input (user voice note → STT): **NOT IMPLEMENTED** (DM rejects non-text; groups store `[voice]` placeholder). Web Voice PASS does not cover Telegram audio. Default Telegram reply mode is **text**. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
+Telegram Voice Replies (`sendVoice`): **MANUAL PASS**.  
+Telegram Voice Input (DM `Message.voice` → existing Gemini STT → Core): **IMPLEMENTED / NOT VALIDATED**. Groups still store `[voice]` placeholder (no STT). Default Telegram reply mode remains **text**. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
 ---
 
@@ -183,4 +182,4 @@ Code: Google OAuth (Gmail + Calendar tools; **no Drive**), GitHub OAuth + tools,
 - Knowledge Graph
 - Proactive engine
 - Wake word
-- Telegram Voice Input (STT)
+- Telegram Voice Input live Owner checklist (code shipped)

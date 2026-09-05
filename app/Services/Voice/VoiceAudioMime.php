@@ -32,6 +32,8 @@ final class VoiceAudioMime
         'audio/x-m4a' => 'audio/mp4',
         'audio/m4a' => 'audio/mp4',
         'audio/x-aac' => 'audio/aac',
+        'audio/opus' => 'audio/ogg',
+        'application/ogg' => 'audio/ogg',
     ];
 
     /**
@@ -199,6 +201,61 @@ final class VoiceAudioMime
             'extension' => self::extension($canonical),
             'filename' => self::filename($canonical),
             'allowed' => self::isAllowed($canonical),
+        ];
+    }
+
+    /**
+     * Telegram Voice.mime_type is optional and untrusted. Prefer a sane declared type,
+     * then filesystem detection, then OGG (typical Telegram voice note).
+     *
+     * @param  list<string>|null  $allowed
+     * @return array{canonical: string, raw: string, extension: string, allowed: bool}
+     */
+    public static function resolveTelegramVoice(?string $declaredMime, ?string $absolutePath = null, ?array $allowed = null): array
+    {
+        $allowed ??= self::allowed();
+        $isAllowed = static fn (string $mime): bool => $mime !== '' && in_array($mime, $allowed, true);
+
+        $declaredRaw = trim((string) $declaredMime);
+        $declared = self::canonicalize($declaredRaw);
+        $detectedRaw = '';
+        $detected = '';
+
+        if (is_string($absolutePath) && $absolutePath !== '' && is_file($absolutePath)) {
+            $finfo = new \finfo(FILEINFO_MIME_TYPE);
+            $detectedRaw = trim((string) $finfo->file($absolutePath));
+            $detected = self::canonicalize($detectedRaw);
+        }
+
+        $canonical = $declared;
+
+        if (! $isAllowed($canonical) && $isAllowed($detected)) {
+            $canonical = $detected;
+        }
+
+        if (in_array($canonical, ['application/octet-stream', 'application/ogg', ''], true)) {
+            if ($isAllowed($detected)) {
+                $canonical = $detected;
+            } elseif ($isAllowed('audio/ogg')) {
+                $canonical = 'audio/ogg';
+            }
+        }
+
+        if (! $isAllowed($canonical) && $isAllowed('audio/ogg') && (
+            $declared === ''
+            || str_contains($declared, 'ogg')
+            || str_contains($declared, 'opus')
+        )) {
+            $canonical = 'audio/ogg';
+        }
+
+        $raw = $declaredRaw !== '' ? $declaredRaw : $detectedRaw;
+
+        return [
+            'canonical' => $canonical,
+            'raw' => $raw,
+            'extension' => self::extension($canonical !== '' ? $canonical : 'audio/ogg'),
+            'allowed' => $isAllowed($canonical),
         ];
     }
 

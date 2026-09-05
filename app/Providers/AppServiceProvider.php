@@ -13,14 +13,23 @@ use App\Services\Integrations\Providers\ElevenLabsIntegrationProvider;
 use App\Services\Integrations\Providers\GitHubIntegrationProvider;
 use App\Services\Integrations\Providers\GoogleIntegrationProvider;
 use App\Services\Integrations\Providers\TelegramIntegrationProvider;
+use App\Services\Telegram\Contracts\CompletesTelegramUserTurn;
+use App\Services\Telegram\Contracts\LooksUpTelegramInbound;
+use App\Services\Telegram\SpokenTextNormalizer;
+use App\Services\Telegram\TelegramBotManager;
+use App\Services\Telegram\TelegramChatKeyboard;
+use App\Services\Telegram\TelegramConversationTurnBridge;
+use App\Services\Telegram\TelegramInboundLookup;
+use App\Services\Telegram\TelegramReplyDeliveryService;
+use App\Services\Telegram\TelegramVoiceInboundService;
+use App\Services\Telegram\TelegramVoiceSuitabilityPolicy;
 use App\Services\Tools\CancelToolActionTool;
 use App\Services\Tools\CompleteAssistantOnboardingTool;
 use App\Services\Tools\ConfirmToolActionTool;
 use App\Services\Tools\CreateReminderTool;
-use App\Services\Tools\GetTelegramResponseModeTool;
-use App\Services\Tools\SetTelegramResponseModeTool;
 use App\Services\Tools\GetAssistantProfileTool;
 use App\Services\Tools\GetProjectContextTool;
+use App\Services\Tools\GetTelegramResponseModeTool;
 use App\Services\Tools\GitHub\CommentGitHubIssueTool;
 use App\Services\Tools\GitHub\CompareGitHubRefsTool;
 use App\Services\Tools\GitHub\CreateGitHubBranchTool;
@@ -58,6 +67,7 @@ use App\Services\Tools\Google\SendGmailMessageTool;
 use App\Services\Tools\Google\UpdateCalendarEventTool;
 use App\Services\Tools\SearchConversationHistoryTool;
 use App\Services\Tools\SearchGroupKnowledgeTool;
+use App\Services\Tools\SetTelegramResponseModeTool;
 use App\Services\Tools\Storage\DeleteStorageFileTool;
 use App\Services\Tools\Storage\GetStorageFileTool;
 use App\Services\Tools\Storage\ListStorageFilesTool;
@@ -68,21 +78,18 @@ use App\Services\Tools\ToolRegistry;
 use App\Services\Tools\UpdateAssistantProfileTool;
 use App\Services\Tools\WebResearch\FetchWebPageTool;
 use App\Services\Tools\WebResearch\SearchWebTool;
-use App\Services\Telegram\SpokenTextNormalizer;
-use App\Services\Telegram\TelegramChatKeyboard;
-use App\Services\Telegram\TelegramReplyDeliveryService;
-use App\Services\Telegram\TelegramVoiceSuitabilityPolicy;
 use App\Services\Users\ResolvesTelegramResponseMode;
 use App\Services\Users\UserChannelPreferenceService;
 use App\Services\Voice\Contracts\RecordsVoiceMetrics;
 use App\Services\Voice\Contracts\SpeechSynthesizer;
 use App\Services\Voice\Contracts\SpeechToTextProvider;
 use App\Services\Voice\Contracts\StoresEphemeralVoiceAudio;
-use App\Services\Voice\VoiceMetricsLogger;
-use App\Services\Voice\VoiceTempAudioStore;
 use App\Services\Voice\Contracts\TextToSpeechProvider;
+use App\Services\Voice\Contracts\TranscribesSpeech;
 use App\Services\Voice\SpeechToTextManager;
 use App\Services\Voice\TextToSpeechManager;
+use App\Services\Voice\VoiceMetricsLogger;
+use App\Services\Voice\VoiceTempAudioStore;
 use App\Services\WebResearch\Contracts\WebSearchProvider;
 use App\Services\WebResearch\WebSearchManager;
 use Illuminate\Support\Facades\Gate;
@@ -99,6 +106,22 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(SpeechSynthesizer::class, TextToSpeechManager::class);
         $this->app->bind(StoresEphemeralVoiceAudio::class, VoiceTempAudioStore::class);
         $this->app->bind(RecordsVoiceMetrics::class, VoiceMetricsLogger::class);
+        $this->app->bind(TranscribesSpeech::class, SpeechToTextManager::class);
+        $this->app->bind(LooksUpTelegramInbound::class, TelegramInboundLookup::class);
+        $this->app->bind(CompletesTelegramUserTurn::class, TelegramConversationTurnBridge::class);
+
+        $this->app->singleton(TelegramVoiceInboundService::class, function ($app): TelegramVoiceInboundService {
+            return new TelegramVoiceInboundService(
+                $app->make(LooksUpTelegramInbound::class),
+                $app->make(TranscribesSpeech::class),
+                $app->make(StoresEphemeralVoiceAudio::class),
+                $app->make(CompletesTelegramUserTurn::class),
+                $app->make(RecordsVoiceMetrics::class),
+                max(1024, (int) config('voice.telegram_voice.max_inbound_bytes', 2_000_000)),
+                max(1, (int) config('voice.telegram_voice.max_inbound_seconds', 30)),
+                max(1024, (int) config('voice.telegram_voice.api_download_max_bytes', 20_000_000)),
+            );
+        });
 
         $this->app->singleton(TelegramReplyDeliveryService::class, function ($app): TelegramReplyDeliveryService {
             return new TelegramReplyDeliveryService(
@@ -108,6 +131,7 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(TelegramVoiceSuitabilityPolicy::class),
                 $app->make(TelegramChatKeyboard::class),
                 $app->make(RecordsVoiceMetrics::class),
+                $app->make(TelegramBotManager::class),
                 max(1024, (int) config('voice.max_audio_chunk_bytes', 2_000_000)),
             );
         });

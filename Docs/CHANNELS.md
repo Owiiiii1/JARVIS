@@ -10,20 +10,20 @@
 | --- | --- | --- |
 | Web text | Web Personal Workspace `/jarvis` or `/chat` | PRIMARY |
 | Web voice | Modality over the same conversation (`metadata.modality = voice`, `messages.channel = web`) | MANUAL PASS |
-| Telegram DM | Adapter — **text** inbound; outbound text or `sendVoice` per user preference | IMPLEMENTED / voice outbound NOT VALIDATED |
+| Telegram DM | Adapter — text or voice-note inbound; outbound text or `sendVoice` per user preference | IMPLEMENTED / inbound voice NOT VALIDATED |
 | Telegram Groups | Owner-only group persist / analysis | IMPLEMENTED / NOT VALIDATED as a full campaign |
 
 ## Future / cancelled
 
 | Surface | Status |
 | --- | --- |
-| Telegram Voice Input (user voice note → STT) | NOT IMPLEMENTED |
-| Telegram Voice Reply (`sendVoice` TTS delivery) | IMPLEMENTED / NOT VALIDATED |
+| Telegram Voice Input (user voice note → STT) | IMPLEMENTED / NOT VALIDATED |
+| Telegram Voice Reply (`sendVoice` TTS delivery) | MANUAL PASS |
 | Mobile companion | DEFERRED |
 | Desktop | CANCELLED |
 | Client API as a product | DEFERRED |
 
-Voice is **not** a standalone channel identity. Web Voice is a modality of Web over Conversation Core. Telegram Voice Reply, if built, is **adapter delivery** of the same assistant text — not a new channel-brain. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
+Voice is **not** a standalone channel identity. Web Voice is a modality of Web over Conversation Core. Telegram voice is adapter inbound (STT) and adapter delivery (`sendVoice`) of the same Core — not a new channel-brain. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
 Admin Panel is **not** a conversation channel.
 
@@ -79,12 +79,12 @@ Reminder **delivery** today uses Telegram. That is a delivery adapter, not a cha
 
 **Current**
 
-- Inbound: text only (non-text is rejected for paired DM)
+- Inbound: text, or paired DM `Message.voice` → existing Gemini STT → same Conversation Engine
 - Outbound: text (`sendMessage`) by default
-- Outbound voice: `sendVoice` when the user’s Telegram response mode is `voice` and delivery succeeds ([TELEGRAM_VOICE.md](TELEGRAM_VOICE.md))
+- Outbound voice: `sendVoice` when response mode is `voice`, or `auto` with voice inbound ([TELEGRAM_VOICE.md](TELEGRAM_VOICE.md))
 
-**Future (not implemented)**
+**Not in this slice**
 
-- Voice input: user Telegram voice note → STT → same Conversation Engine
+- Groups / `video_note` / arbitrary audio files / documents
 
 Telegram remains a **secondary** messaging adapter. Web remains the primary interactive client. Desktop stays CANCELLED.

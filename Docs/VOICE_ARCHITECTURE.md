@@ -193,10 +193,12 @@ Errors: `voice_session_not_found`, `voice_session_invalid_state`, `voice_session
 
 This is **not** Web Voice. It does **not** use the `voice_sessions` state machine.
 
-Telegram inbound text → Conversation Engine → persist assistant **text** → `TelegramReplyDeliveryService` → existing `TextToSpeechManager` (ElevenLabs MP3) → Nutgram `sendVoice`. ffmpeg is not used.
+Telegram DM text or voice note → Conversation Engine → persist canonical **text** → `TelegramReplyDeliveryService` → existing `TextToSpeechManager` (ElevenLabs MP3) → `sendVoice` when the delivery policy says so. ffmpeg is not used.
 
-Default mode `text`. Tools: `get_telegram_response_mode` / `set_telegram_response_mode`.
+Voice notes use existing `SpeechToTextManager` / Gemini STT. No `voice_sessions`.
 
-Canonical content is text. Audio is a temporary delivery representation.
+Default mode `text`. Tools: `get_telegram_response_mode` / `set_telegram_response_mode`. `auto` = voice-in → voice-out, text-in → text-out.
 
-**Telegram Voice Input** (user voice note → STT) remains **not implemented**.
+Canonical content is text. Audio is temporary (inbound STT or outbound TTS).
+
+**Telegram Voice Input** is IMPLEMENTED / NOT VALIDATED. **Telegram Voice Replies** are MANUAL PASS.

@@ -31,6 +31,10 @@ return [
         'max_spoken_chars' => (int) env('TELEGRAM_VOICE_MAX_SPOKEN_CHARS', 2000),
         'max_code_fence_chars' => (int) env('TELEGRAM_VOICE_MAX_CODE_FENCE_CHARS', 400),
         'max_table_rows' => (int) env('TELEGRAM_VOICE_MAX_TABLE_ROWS', 4),
+        // Same conservative STT bounds as Web Voice. Telegram getFile allows 20 MB; we do not.
+        'max_inbound_bytes' => (int) env('TELEGRAM_VOICE_MAX_INBOUND_BYTES', 2_000_000),
+        'max_inbound_seconds' => (int) env('TELEGRAM_VOICE_MAX_INBOUND_SECONDS', 30),
+        'api_download_max_bytes' => 20_000_000,
     ],
 
     'stt_timeout_seconds' => (int) env('VOICE_STT_TIMEOUT', 20),
@@ -42,6 +46,10 @@ return [
     'audio_disk' => env('VOICE_AUDIO_DISK', 'local'),
 
     'temp_directory' => 'voice-temp',
+
+    // Telegram TTS temp. Separate from voice-temp: php-fpm creates that as 0700 www-data,
+    // while ProcessTelegramUpdate runs as the deploy queue worker.
+    'outbound_directory' => 'voice-outbound',
 
     'allowed_mimes' => [
         'audio/webm',
