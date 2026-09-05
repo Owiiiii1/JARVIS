@@ -10,6 +10,7 @@ use App\Services\Ai\DTO\AiChatRequest;
 use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\DTO\ToolResult;
 use App\Services\Ai\Exceptions\AiProviderException;
+use App\Services\Ai\Exceptions\AiSafetyException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -177,6 +178,29 @@ class AiProviderChatClientTest extends TestCase
                 && str_contains($payload, 'signature-test-token')
                 && ! str_contains($payload, 'gemini-key');
         });
+    }
+
+    public function test_gemini_exposes_safety_block_without_leaking_prompt(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'promptFeedback' => [
+                    'blockReason' => 'SAFETY',
+                ],
+                'usageMetadata' => [
+                    'promptTokenCount' => 12,
+                    'totalTokenCount' => 12,
+                ],
+            ], 200),
+        ]);
+
+        try {
+            (new GeminiClient)->chat('gemini-key', $this->request('gemini-test'));
+            $this->fail('Gemini safety block should throw.');
+        } catch (AiSafetyException $exception) {
+            $this->assertSame('SAFETY', $exception->reason);
+            $this->assertStringNotContainsString('Hi', $exception->getMessage());
+        }
     }
 
     public function test_openai_and_anthropic_refuse_tool_requests(): void

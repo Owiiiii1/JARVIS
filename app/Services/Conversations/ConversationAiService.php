@@ -12,6 +12,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\Ai\AiConfigurationResolver;
+use App\Services\Ai\AiFailureFallback;
 use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\DTO\AiChatMessage;
 use App\Services\Ai\DTO\AiChatRequest;
@@ -25,7 +26,6 @@ use App\Services\Context\ContextDiagnosticsLogger;
 use App\Services\Context\ToolResultBudgetManager;
 use App\Services\Memory\MemoryTurnDispatcher;
 use App\Services\Tools\ConfirmationIntentParser;
-use App\Services\Tools\CreateReminderTool;
 use App\Services\Tools\ToolConfirmationService;
 use App\Services\Tools\ToolExecutionContext;
 use App\Services\Tools\ToolRegistry;
@@ -60,6 +60,7 @@ final class ConversationAiService
         private readonly ToolResultBudgetManager $toolResultBudgets,
         private readonly ContextDiagnosticsLogger $contextLogs,
         private readonly VoiceSettingsService $voiceSettings,
+        private readonly AiFailureFallback $failureFallback,
     ) {}
 
     public function completeUserTurn(Message $inbound): ConversationAiTurnResult
@@ -211,18 +212,19 @@ final class ConversationAiService
                     $diagnostics,
                 );
             } catch (Throwable $exception) {
-                $fallback = $this->fallbackTextFromToolResults($toolResults);
+                $fallback = $this->failureFallback->resolve($exception, $toolResults);
 
                 if ($fallback === null) {
                     throw $exception;
                 }
 
                 try {
-                    Log::warning('AI follow-up after tool failed; using fallback reply', [
+                    Log::warning('AI response failed; using safe fallback reply', [
                         'configuration' => $configuration->roleKey()->value,
                         'provider' => $configuration->provider,
                         'model' => $configuration->model,
                         'error_class' => $exception::class,
+                        'tool_results_count' => count($toolResults),
                     ]);
                 } catch (Throwable) {
                 }
@@ -448,32 +450,6 @@ final class ConversationAiService
                     ? (string) $result->payload['expires_at']
                     : null,
             ];
-        }
-
-        return null;
-    }
-
-    /**
-     * @param  list<ToolResult>  $results
-     */
-    private function fallbackTextFromToolResults(array $results): ?string
-    {
-        foreach (array_reverse($results) as $result) {
-            if ($result->name !== CreateReminderTool::NAME) {
-                continue;
-            }
-
-            if ($result->success) {
-                $text = trim((string) ($result->payload['text'] ?? ''));
-
-                return $text === ''
-                    ? 'Хорошо, напоминание создано.'
-                    : 'Хорошо, напомню: '.$text.'.';
-            }
-
-            if (($result->payload['error'] ?? null) === 'telegram_not_connected') {
-                return 'Для получения напоминаний сначала подключите Telegram.';
-            }
         }
 
         return null;

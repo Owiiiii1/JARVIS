@@ -11,6 +11,7 @@ use App\Services\Ai\DTO\AiContentPart;
 use App\Services\Ai\DTO\ToolCall;
 use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\Exceptions\AiProviderException;
+use App\Services\Ai\Exceptions\AiSafetyException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -128,8 +129,16 @@ class GeminiClient implements AiProviderClient
             );
 
         if (! $response->successful()) {
+            $providerMessage = (string) $response->json('error.message', '');
+
+            if ($this->looksLikeSafetyBlock($providerMessage)) {
+                throw new AiSafetyException(
+                    reason: (string) ($response->json('error.status') ?: 'SAFETY'),
+                );
+            }
+
             throw new AiProviderException(
-                $response->json('error.message')
+                $providerMessage
                     ?: 'Gemini chat request failed with status '.$response->status()
             );
         }
@@ -176,6 +185,15 @@ class GeminiClient implements AiProviderClient
         $text = trim(implode("\n", array_filter($chunks)));
 
         if ($text === '' && $toolCalls === []) {
+            $blockReason = (string) ($body['promptFeedback']['blockReason'] ?? '');
+            $finishReason = (string) ($body['candidates'][0]['finishReason'] ?? '');
+
+            if ($blockReason !== '' || $this->isSafetyFinishReason($finishReason)) {
+                throw new AiSafetyException(
+                    reason: $blockReason !== '' ? $blockReason : $finishReason,
+                );
+            }
+
             throw new AiProviderException('Gemini returned an empty assistant response.');
         }
 
@@ -197,6 +215,26 @@ class GeminiClient implements AiProviderClient
             ],
             toolCalls: $toolCalls,
         );
+    }
+
+    private function looksLikeSafetyBlock(string $message): bool
+    {
+        $message = strtolower($message);
+
+        return str_contains($message, 'safety')
+            || str_contains($message, 'prohibited content')
+            || str_contains($message, 'blocked');
+    }
+
+    private function isSafetyFinishReason(string $reason): bool
+    {
+        return in_array(strtoupper($reason), [
+            'SAFETY',
+            'BLOCKLIST',
+            'PROHIBITED_CONTENT',
+            'IMAGE_SAFETY',
+            'RECITATION',
+        ], true);
     }
 
     /**
