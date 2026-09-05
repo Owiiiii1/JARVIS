@@ -37,19 +37,74 @@ export function resumeSharedAudioContext() {
     return Promise.resolve();
 }
 
-export async function requestMicrophoneStream() {
+function audioConstraints(deviceId = null) {
+    const audio = { ...MIC_CONSTRAINTS.audio };
+
+    if (deviceId) {
+        audio.deviceId = { exact: deviceId };
+    }
+
+    return { audio };
+}
+
+export async function requestMicrophoneStream(deviceId = null) {
     if (! navigator.mediaDevices?.getUserMedia) {
         throw new Error('voice_microphone_unavailable');
     }
 
     try {
-        return await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+        return await navigator.mediaDevices.getUserMedia(audioConstraints(deviceId));
     } catch (first) {
+        if (deviceId) {
+            try {
+                return await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        ...MIC_CONSTRAINTS.audio,
+                        deviceId: { ideal: deviceId },
+                    },
+                });
+            } catch {
+                // Fall through to unconstrained audio.
+            }
+        }
+
         if (first?.name === 'OverconstrainedError' || first?.name === 'ConstraintNotSatisfiedError') {
             return navigator.mediaDevices.getUserMedia({ audio: true });
         }
 
         throw first;
+    }
+}
+
+export async function listAudioDevices() {
+    if (! navigator.mediaDevices?.enumerateDevices) {
+        return { inputs: [], outputs: [] };
+    }
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+
+    return {
+        inputs: devices.filter((device) => device.kind === 'audioinput' && device.deviceId),
+        outputs: devices.filter((device) => device.kind === 'audiooutput' && device.deviceId),
+    };
+}
+
+export function canSelectAudioOutput() {
+    return typeof HTMLMediaElement !== 'undefined'
+        && typeof HTMLMediaElement.prototype.setSinkId === 'function';
+}
+
+export async function applyAudioOutput(element, deviceId) {
+    if (! element || typeof element.setSinkId !== 'function') {
+        return false;
+    }
+
+    try {
+        await element.setSinkId(deviceId || '');
+
+        return true;
+    } catch {
+        return false;
     }
 }
 

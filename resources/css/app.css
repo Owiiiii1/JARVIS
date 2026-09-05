@@ -214,12 +214,80 @@
 
 .jarvis-voice-mode__controls {
     display: flex;
-    max-width: 28rem;
+    max-width: 36rem;
     margin: 0 auto;
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
     gap: 0.65rem;
+}
+
+.jarvis-voice-btn--ptt {
+    width: min(22rem, 100%);
+    height: 3.4rem;
+    margin-top: 0.55rem;
+    border-radius: 1.1rem;
+    border-color: rgba(251, 191, 36, 0.35);
+    background: rgba(251, 191, 36, 0.12);
+    color: rgb(254 243 199);
+    font-weight: 600;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.jarvis-voice-btn--ptt.is-hold {
+    border-color: rgb(56 189 248);
+    background: rgba(56, 189, 248, 0.28);
+    color: rgb(224 242 254);
+    transform: scale(0.98);
+}
+
+.jarvis-voice-settings {
+    position: absolute;
+    right: 0.75rem;
+    bottom: 9.2rem;
+    z-index: 6;
+    width: min(18.5rem, calc(100% - 1.5rem));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.85rem;
+    background: rgba(8, 13, 24, 0.94);
+    padding: 0.7rem 0.8rem 0.85rem;
+    color: rgb(203 213 225);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.jarvis-voice-settings__title {
+    margin-bottom: 0.55rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: rgb(226 232 240);
+}
+
+.jarvis-voice-settings label {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.7rem;
+    color: rgb(148 163 184);
+}
+
+.jarvis-voice-settings select {
+    display: block;
+    width: 100%;
+    margin-top: 0.28rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.5rem;
+    background: rgba(15, 23, 42, 0.9);
+    padding: 0.4rem 0.5rem;
+    color: rgb(226 232 240);
+    font-size: 0.78rem;
+}
+
+.jarvis-voice-settings__hint {
+    margin-top: 0.45rem;
+    font-size: 0.68rem;
+    line-height: 1.4;
+    color: rgb(148 163 184);
 }
 
 .jarvis-voice-btn {

@@ -1,9 +1,13 @@
-import { Loader2, Mic, MicOff, PhoneOff, Square, Type } from 'lucide-react';
+import { Loader2, Mic, MicOff, PhoneOff, Settings2, Square, Type } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { VoiceAudioAnalyzer } from '@/voice/audio/VoiceAudioAnalyzer';
 import { describeBlobMime, pickRecorderMime } from '@/voice/audio/mime';
+import { prepareUtteranceBlob } from '@/voice/audio/transcodeToWav';
 import { quietBands, syntheticSpeaking } from '@/voice/audio/syntheticOutput';
 import {
+    applyAudioOutput,
+    canSelectAudioOutput,
+    listAudioDevices,
     requestMicrophoneStream,
     resumeSharedAudioContext,
     setStreamEnabled,
@@ -11,7 +15,6 @@ import {
     takePendingMicrophoneStream,
 } from '@/voice/audio/voiceMedia';
 import { VoiceTurnDetector } from '@/voice/audio/VoiceTurnDetector';
-import { VOICE_TURN_DETECTION, maybeLogVoiceVad } from '@/voice/audio/voiceTurnDetection';
 import VoiceDemoDrawer from '@/voice/components/VoiceDemoDrawer';
 import { isVoiceDemoEnabled } from '@/voice/demo';
 import { prefersReducedMotion } from '@/voice/visualization/capabilities';
@@ -144,8 +147,41 @@ function canInterruptStatus(status) {
     return status === 'speaking' || status === 'thinking';
 }
 
+const STORAGE_KEYS = {
+    mic: 'jarvis.voice.micDeviceId',
+    speaker: 'jarvis.voice.speakerDeviceId',
+};
+
+function readStorage(key, fallback) {
+    try {
+        return window.localStorage.getItem(key) || fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+function writeStorage(key, value) {
+    try {
+        if (value) {
+            window.localStorage.setItem(key, value);
+        } else {
+            window.localStorage.removeItem(key);
+        }
+    } catch {
+        // ignore
+    }
+}
+
+function deviceLabel(device, index, kind) {
+    if (device?.label) {
+        return device.label;
+    }
+
+    return `${kind} ${index + 1}`;
+}
+
 /**
- * Hands-free Workspace Voice client. One mic control = mute. VAD ends turns.
+ * Push-to-talk Workspace Voice client.
  */
 export default function VoiceSession({
     conversationId,
@@ -167,6 +203,12 @@ export default function VoiceSession({
     const [assistantText, setAssistantText] = useState('');
     const [micCta, setMicCta] = useState(false);
     const [audioCta, setAudioCta] = useState(false);
+    const [pttHolding, setPttHolding] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [micId, setMicId] = useState(() => readStorage(STORAGE_KEYS.mic, ''));
+    const [speakerId, setSpeakerId] = useState(() => readStorage(STORAGE_KEYS.speaker, ''));
+    const [audioInputs, setAudioInputs] = useState([]);
+    const [audioOutputs, setAudioOutputs] = useState([]);
 
     const sessionIdRef = useRef(null);
     const recorderRef = useRef(null);
@@ -190,8 +232,9 @@ export default function VoiceSession({
     const sessionPresentRef = useRef(false);
     const opRef = useRef(null);
     const genRef = useRef(0);
-    const playbackStartedAtRef = useRef(0);
-    const bargeLockRef = useRef(false);
+    const pttHoldingRef = useRef(false);
+    const micIdRef = useRef(micId);
+    const speakerIdRef = useRef(speakerId);
     const maxUtteranceMs = Math.max(5, Number(voiceClient.max_utterance_seconds || 30)) * 1000;
     const vizRef = useRef(createVoiceVisualizationState({ state: 'idle' }));
 
@@ -209,6 +252,26 @@ export default function VoiceSession({
     useEffect(() => {
         sessionPresentRef.current = Boolean(sessionId);
     }, [sessionId]);
+    useEffect(() => {
+        micIdRef.current = micId;
+    }, [micId]);
+    useEffect(() => {
+        speakerIdRef.current = speakerId;
+    }, [speakerId]);
+    useEffect(() => {
+        if (! settingsOpen || ! navigator.mediaDevices?.addEventListener) {
+            return undefined;
+        }
+
+        const onChange = () => {
+            refreshDevices();
+        };
+        navigator.mediaDevices.addEventListener('devicechange', onChange);
+
+        return () => navigator.mediaDevices.removeEventListener('devicechange', onChange);
+        // refreshDevices is a render-local helper.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [settingsOpen]);
 
     useEffect(() => {
         setUnsupported(! browserSupported());
@@ -265,8 +328,6 @@ export default function VoiceSession({
                 reducedMotion: prefersReducedMotion(),
             });
 
-            runVad(now, analysis.rawInputRms ?? analysis.inputAmplitude);
-
             if (capturingRef.current && recordStartedAt.current && now - recordStartedAt.current >= maxUtteranceMs) {
                 if (vadRef.current?.speechDetected) {
                     finalizeCapture('max_utterance');
@@ -313,45 +374,6 @@ export default function VoiceSession({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [conversationId, demoEnabled, surface]);
 
-    const runVad = (now, rms) => {
-        if (endingRef.current || mutedRef.current || visualOnlyRef.current || sendingRef.current) {
-            return;
-        }
-
-        const state = statusRef.current;
-
-        if (state === 'speaking') {
-            if (now - playbackStartedAtRef.current < VOICE_TURN_DETECTION.postTtsGuardMs) {
-                return;
-            }
-            if (bargeLockRef.current) {
-                return;
-            }
-            const result = vadRef.current.tick(rms, now, 'barge-in');
-            maybeLogVoiceVad(result);
-            if (result.event === 'barge_in') {
-                bargeLockRef.current = true;
-                handleInterrupt({ fromVad: true });
-            }
-
-            return;
-        }
-
-        bargeLockRef.current = false;
-
-        if (state !== 'listening' || ! capturingRef.current) {
-            return;
-        }
-
-        const result = vadRef.current.tick(rms, now, 'listen');
-        maybeLogVoiceVad(result);
-        if (result.event === 'end_of_turn' || result.event === 'max_utterance') {
-            finalizeCapture(result.event);
-        } else if (result.event === 'recycle') {
-            recycleCapture();
-        }
-    };
-
     const applySnapshot = (payload, clientMessageId = null) => {
         const code = eventError(payload);
 
@@ -394,8 +416,6 @@ export default function VoiceSession({
 
         if (payload?.audio?.base64) {
             playAudio(payload.audio.base64, payload.audio.mime);
-        } else if (payload?.status === 'listening' && ! mutedRef.current && ! payload?.audio) {
-            startCapture();
         }
 
         return payload?.status ?? statusRef.current;
@@ -411,8 +431,8 @@ export default function VoiceSession({
             const audio = new Audio(url);
             audio.crossOrigin = 'anonymous';
             playbackRef.current = audio;
-            playbackStartedAtRef.current = performance.now();
             analyserRef.current?.connectOutputAudio(audio);
+            applyAudioOutput(audio, speakerIdRef.current);
             audio.onended = () => {
                 URL.revokeObjectURL(url);
                 playbackRef.current = null;
@@ -440,7 +460,6 @@ export default function VoiceSession({
 
         try {
             await ensureListening();
-            startCapture();
         } catch (caught) {
             await recoverFrom(caught);
         }
@@ -473,28 +492,53 @@ export default function VoiceSession({
         recordStartedAt.current = null;
     };
 
+    const refreshDevices = async () => {
+        try {
+            const { inputs, outputs } = await listAudioDevices();
+            setAudioInputs(inputs);
+            setAudioOutputs(outputs);
+        } catch {
+            // ignore
+        }
+    };
+
     const acquireStream = async () => {
+        const wanted = micIdRef.current || null;
         const pending = takePendingMicrophoneStream();
         if (pending) {
-            streamRef.current = pending;
-            setStreamEnabled(pending, true);
-            analyserRef.current?.connectInputStream(pending);
-            setMicCta(false);
+            const currentId = pending.getAudioTracks()[0]?.getSettings?.()?.deviceId;
+            if (! wanted || currentId === wanted) {
+                streamRef.current = pending;
+                setStreamEnabled(pending, true);
+                analyserRef.current?.connectInputStream(pending);
+                setMicCta(false);
+                refreshDevices();
 
-            return pending;
+                return pending;
+            }
+
+            stopStream(pending);
         }
 
         if (streamRef.current && streamRef.current.getAudioTracks().some((track) => track.readyState === 'live')) {
-            setStreamEnabled(streamRef.current, true);
-            analyserRef.current?.connectInputStream(streamRef.current);
+            const currentId = streamRef.current.getAudioTracks()[0]?.getSettings?.()?.deviceId;
+            if (! wanted || currentId === wanted) {
+                setStreamEnabled(streamRef.current, true);
+                analyserRef.current?.connectInputStream(streamRef.current);
+                refreshDevices();
 
-            return streamRef.current;
+                return streamRef.current;
+            }
+
+            stopStream(streamRef.current);
+            streamRef.current = null;
         }
 
-        const stream = await requestMicrophoneStream();
+        const stream = await requestMicrophoneStream(wanted);
         streamRef.current = stream;
         analyserRef.current?.connectInputStream(stream);
         setMicCta(false);
+        refreshDevices();
 
         return stream;
     };
@@ -562,7 +606,7 @@ export default function VoiceSession({
         return applySnapshot(payload);
     };
 
-    const startCapture = () => {
+    const startCapture = ({ forceSpeech = false } = {}) => {
         if (endingRef.current || mutedRef.current || sendingRef.current) {
             return;
         }
@@ -578,6 +622,9 @@ export default function VoiceSession({
         stopRecorder(true);
         skipSendRef.current = false;
         vadRef.current.reset(performance.now());
+        if (forceSpeech) {
+            vadRef.current.enterSpeech(performance.now());
+        }
         setStreamEnabled(stream, true);
         analyserRef.current?.connectInputStream(stream);
 
@@ -619,7 +666,11 @@ export default function VoiceSession({
         recorderRef.current = recorder;
         recordStartedAt.current = performance.now();
         capturingRef.current = true;
-        recorder.start();
+        try {
+            recorder.start(100);
+        } catch {
+            recorder.start();
+        }
     };
 
     const finalizeCapture = (reason) => {
@@ -647,8 +698,12 @@ export default function VoiceSession({
     const recycleCapture = () => {
         skipSendRef.current = true;
         stopRecorder(true);
-        if (! endingRef.current && ! mutedRef.current && statusRef.current === 'listening') {
-            startCapture();
+        if (endingRef.current || mutedRef.current || statusRef.current !== 'listening') {
+            return;
+        }
+
+        if (pttHoldingRef.current) {
+            startCapture({ forceSpeech: true });
         }
     };
 
@@ -658,13 +713,28 @@ export default function VoiceSession({
             return;
         }
 
-        const parsed = describeBlobMime(blob, rawMime || mimeRef.current?.raw);
         sendingRef.current = true;
+        setBusy(true);
         sequenceRef.current += 1;
         const clientMessageId = newClientId();
         const durationMs = recordStartedAt.current ? Math.round(performance.now() - recordStartedAt.current) : null;
+        let parsed;
+        let audioBlob = blob;
+        try {
+            const prepared = await prepareUtteranceBlob(blob, rawMime || mimeRef.current?.raw, voiceClient.stt_provider);
+            audioBlob = prepared.blob;
+            parsed = describeBlobMime(prepared.blob, prepared.rawMime);
+        } catch {
+            sendingRef.current = false;
+            sequenceRef.current -= 1;
+            setBusy(false);
+            setError(friendlyError('voice_audio_format_unsupported'));
+
+            return;
+        }
+
         const form = new FormData();
-        form.append('audio', blob, parsed.filename);
+        form.append('audio', audioBlob, parsed.filename);
         form.append('sequence', String(sequenceRef.current));
         form.append('is_final', '1');
         form.append('client_message_id', clientMessageId);
@@ -710,7 +780,6 @@ export default function VoiceSession({
             skipSendRef.current = true;
             setProviderNotice('Speech providers not configured.');
             setStatus('listening');
-            startCapture();
 
             return;
         }
@@ -721,11 +790,8 @@ export default function VoiceSession({
             try {
                 const snapshot = await getSnapshot(sessionIdRef.current);
                 const next = applySnapshot(snapshot);
-                if (next === 'listening' && ! mutedRef.current) {
-                    startCapture();
-                } else if (next === 'idle' && ! mutedRef.current) {
+                if (next === 'idle' && ! mutedRef.current) {
                     await ensureListening();
-                    startCapture();
                 } else if (next === 'ended' || next === 'error') {
                     await restartSession();
                 }
@@ -739,7 +805,6 @@ export default function VoiceSession({
         if (RECOVERABLE_CODES.has(code) && sessionIdRef.current && ! mutedRef.current && ! endingRef.current) {
             try {
                 await ensureListening();
-                startCapture();
             } catch {
                 await restartSession();
             }
@@ -801,7 +866,6 @@ export default function VoiceSession({
                     return;
                 }
                 applySnapshot(listening);
-                startCapture();
             } catch (caught) {
                 if (caught?.name === 'NotAllowedError' || caught?.name === 'NotFoundError' || caught?.message === 'voice_microphone_unavailable') {
                     setMicCta(true);
@@ -811,7 +875,6 @@ export default function VoiceSession({
                     visualOnlyRef.current = true;
                     setProviderNotice('Speech providers not configured.');
                     setStatus('listening');
-                    startCapture();
                 } else {
                     setError(friendlyError(caught.message || 'voice_runtime_failed'));
                     setStatus('error');
@@ -848,7 +911,6 @@ export default function VoiceSession({
                         const listening = await postJson(route(`${surface}.voice.sessions.listen`, id));
                         applySnapshot(listening);
                     }
-                    startCapture();
                 } else {
                     skipSendRef.current = true;
                     stopPlayback();
@@ -865,7 +927,7 @@ export default function VoiceSession({
         });
     };
 
-    const handleInterrupt = async ({ fromVad = false } = {}) => {
+    const handleInterrupt = async () => {
         if (demoEnabled && demoState) {
             setDemoState('listening');
             stopPlayback();
@@ -884,15 +946,92 @@ export default function VoiceSession({
                 const payload = await postJson(route(`${surface}.voice.sessions.interrupt`, id));
                 applySnapshot(payload);
                 await ensureListening();
-                startCapture();
             } catch (caught) {
-                if (fromVad) {
-                    await recoverFrom(caught);
-                } else {
-                    setError(friendlyError(caught.message || 'voice_runtime_failed'));
-                }
+                setError(friendlyError(caught.message || 'voice_runtime_failed'));
             }
         });
+    };
+
+    const handlePttDown = async (event) => {
+        event.preventDefault();
+        if (mutedRef.current || endingRef.current || sendingRef.current || unsupported) {
+            return;
+        }
+        if (! sessionIdRef.current && ! demoEnabled) {
+            return;
+        }
+
+        try {
+            event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+            // ignore
+        }
+
+        pttHoldingRef.current = true;
+        setPttHolding(true);
+
+        if (canInterruptStatus(statusRef.current)) {
+            await handleInterrupt();
+        }
+
+        if (! pttHoldingRef.current) {
+            return;
+        }
+
+        startCapture({ forceSpeech: true });
+    };
+
+    const handlePttUp = (event) => {
+        if (event?.currentTarget && event.pointerId != null) {
+            try {
+                event.currentTarget.releasePointerCapture(event.pointerId);
+            } catch {
+                // ignore
+            }
+        }
+
+        if (! pttHoldingRef.current) {
+            return;
+        }
+
+        pttHoldingRef.current = false;
+        setPttHolding(false);
+        finalizeCapture('ptt_release');
+    };
+
+    const applyMicDevice = async (nextId) => {
+        micIdRef.current = nextId;
+        setMicId(nextId);
+        writeStorage(STORAGE_KEYS.mic, nextId);
+        const holding = pttHoldingRef.current;
+        stopRecorder(true);
+        stopStream(streamRef.current);
+        streamRef.current = null;
+
+        try {
+            await acquireStream();
+            if (holding) {
+                startCapture({ forceSpeech: true });
+            }
+        } catch {
+            setMicCta(true);
+            setError(friendlyError('voice_microphone_unavailable'));
+        }
+    };
+
+    const applySpeakerDevice = async (nextId) => {
+        speakerIdRef.current = nextId;
+        setSpeakerId(nextId);
+        writeStorage(STORAGE_KEYS.speaker, nextId);
+        await applyAudioOutput(playbackRef.current, nextId);
+    };
+
+    const handleOpenSettings = async () => {
+        const next = ! settingsOpen;
+        setSettingsOpen(next);
+        if (next) {
+            await refreshDevices();
+        }
     };
 
     const endSession = async () => {
@@ -907,6 +1046,8 @@ export default function VoiceSession({
         setSessionId(null);
         setStatus('ended');
         setMuted(false);
+        pttHoldingRef.current = false;
+        setPttHolding(false);
 
         if (id) {
             try {
@@ -968,9 +1109,12 @@ export default function VoiceSession({
         }
     };
 
+    const listeningLike = orbState === 'listening' || orbState === 'idle';
     const stateLabel = unsupported
         ? 'Browser not supported'
-        : STATE_LABELS[orbState] ?? 'Voice';
+        : listeningLike && ! muted
+            ? (pttHolding ? 'Говорите…' : 'Рация — зажмите кнопку')
+            : STATE_LABELS[orbState] ?? 'Voice';
 
     const notice = unsupported
         ? 'This browser cannot capture microphone audio. Use a recent Chrome, Edge, or Firefox, or stay in Text mode.'
@@ -993,7 +1137,9 @@ export default function VoiceSession({
                     {transcript ? (
                         <p className="jarvis-voice-mode__user">{transcript}</p>
                     ) : (
-                        <p className="jarvis-voice-mode__placeholder">Listening</p>
+                        <p className="jarvis-voice-mode__placeholder">
+                            {pttHolding ? 'Запись…' : 'Зажмите кнопку, чтобы говорить'}
+                        </p>
                     )}
                     {assistantText ? (
                         <p className="jarvis-voice-mode__assistant">{assistantText}</p>
@@ -1039,6 +1185,15 @@ export default function VoiceSession({
                     </button>
                     <button
                         type="button"
+                        className={`jarvis-voice-btn ${settingsOpen ? 'is-active' : ''}`}
+                        onClick={handleOpenSettings}
+                        aria-label="Настройки микрофона и динамика"
+                        aria-pressed={settingsOpen}
+                    >
+                        <Settings2 className="h-4 w-4" />
+                    </button>
+                    <button
+                        type="button"
                         disabled={! sessionId && ! demoEnabled}
                         onClick={handleEnd}
                         className="jarvis-voice-btn"
@@ -1056,7 +1211,62 @@ export default function VoiceSession({
                         Text
                     </button>
                 </div>
+                <div className="flex justify-center">
+                    <button
+                        type="button"
+                        disabled={(! sessionId && ! demoEnabled) || busy || unsupported || muted}
+                        className={`jarvis-voice-btn jarvis-voice-btn--ptt ${pttHolding ? 'is-hold' : ''}`}
+                        onPointerDown={handlePttDown}
+                        onPointerUp={handlePttUp}
+                        onPointerCancel={handlePttUp}
+                        onLostPointerCapture={handlePttUp}
+                        onContextMenu={(event) => event.preventDefault()}
+                        aria-label="Push to talk"
+                    >
+                        {pttHolding ? 'Говорю… отпустите' : 'Держите, чтобы говорить'}
+                    </button>
+                </div>
             </div>
+
+            {settingsOpen ? (
+                <div className="jarvis-voice-settings">
+                    <p className="jarvis-voice-settings__title">Устройства</p>
+                    <label>
+                        Микрофон
+                        <select
+                            value={micId}
+                            onChange={(event) => applyMicDevice(event.target.value)}
+                        >
+                            <option value="">По умолчанию</option>
+                            {audioInputs.map((device, index) => (
+                                <option key={device.deviceId} value={device.deviceId}>
+                                    {deviceLabel(device, index, 'Микрофон')}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                    {canSelectAudioOutput() ? (
+                        <label>
+                            Динамик
+                            <select
+                                value={speakerId}
+                                onChange={(event) => applySpeakerDevice(event.target.value)}
+                            >
+                                <option value="">По умолчанию</option>
+                                {audioOutputs.map((device, index) => (
+                                    <option key={device.deviceId} value={device.deviceId}>
+                                        {deviceLabel(device, index, 'Динамик')}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                    ) : (
+                        <p className="jarvis-voice-settings__hint">
+                            Выбор динамика недоступен в этом браузере. Используйте системный вывод.
+                        </p>
+                    )}
+                </div>
+            ) : null}
 
             <VoiceDemoDrawer
                 enabled={demoEnabled}
