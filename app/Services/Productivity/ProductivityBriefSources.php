@@ -17,6 +17,10 @@ final class ProductivityBriefSources
      * @param  list<BriefItem>  $projects
      * @param  list<BriefItem>  $notifications
      * @param  list<string>  $attention
+     * @param  list<array<string, mixed>>  $waitingFor
+     * @param  list<array<string, mixed>>  $commitments
+     * @param  list<array<string, mixed>>  $recentChanges
+     * @param  list<array<string, mixed>>  $synthesisAttention
      */
     public function __construct(
         public readonly string $mode,
@@ -31,6 +35,10 @@ final class ProductivityBriefSources
         public readonly array $projects = [],
         public readonly array $notifications = [],
         public readonly array $attention = [],
+        public readonly array $waitingFor = [],
+        public readonly array $commitments = [],
+        public readonly array $recentChanges = [],
+        public readonly array $synthesisAttention = [],
     ) {}
 
     /**
@@ -51,6 +59,10 @@ final class ProductivityBriefSources
             'projects' => $this->projects,
             'notifications' => $this->notifications,
             'attention' => $this->attention,
+            'waiting_for' => $this->waitingFor,
+            'commitments' => $this->commitments,
+            'recent_changes' => $this->recentChanges,
+            'synthesis_attention' => $this->synthesisAttention,
         ];
     }
 }

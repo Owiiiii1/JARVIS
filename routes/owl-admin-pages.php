@@ -12,6 +12,7 @@ use App\Http\Controllers\Jarvis\JarvisPushSubscriptionController;
 use App\Http\Controllers\Jarvis\JarvisRealtimeVoiceController;
 use App\Http\Controllers\Jarvis\JarvisReminderController;
 use App\Http\Controllers\Jarvis\JarvisStorageController;
+use App\Http\Controllers\Jarvis\JarvisSynthesisController;
 use App\Http\Controllers\Jarvis\JarvisTaskController;
 use App\Http\Controllers\Jarvis\JarvisVoiceController;
 use App\Http\Controllers\Jarvis\JarvisWatcherController;
@@ -93,6 +94,15 @@ $registerPersonalWorkspace = static function (string $prefix, string $as, array 
         Route::get('/knowledge/entities/{entity}', [JarvisKnowledgeController::class, 'show'])
             ->middleware('throttle:30,1')
             ->name('knowledge.entities.show');
+        Route::get('/synthesis', [JarvisSynthesisController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('synthesis.index');
+        Route::get('/synthesis/project/{project}', [JarvisSynthesisController::class, 'project'])
+            ->middleware('throttle:30,1')
+            ->name('synthesis.project');
+        Route::get('/synthesis/entity/{entity}', [JarvisSynthesisController::class, 'entity'])
+            ->middleware('throttle:30,1')
+            ->name('synthesis.entity');
         Route::post('/chats', [JarvisWorkspaceController::class, 'store'])->name('chats.store');
         Route::get('/chats/{conversation}', [JarvisWorkspaceController::class, 'show'])->name('chats.show');
         Route::patch('/chats/{conversation}', [JarvisWorkspaceController::class, 'update'])->name('chats.update');

@@ -133,6 +133,11 @@ final class KnowledgeExtractionParser
                 'kind' => mb_strtolower((string) ($row['kind'] ?? 'explicit')),
                 'confidence' => isset($row['confidence']) && is_numeric($row['confidence']) ? (float) $row['confidence'] : null,
                 'confidence_label' => isset($row['confidence_label']) ? (string) $row['confidence_label'] : null,
+                'actor' => isset($row['actor']) ? (string) $row['actor'] : null,
+                'side' => isset($row['side']) ? (string) $row['side'] : null,
+                'action' => isset($row['action']) ? (string) $row['action'] : null,
+                'due_at' => isset($row['due_at']) ? (string) $row['due_at'] : null,
+                'explicit' => (bool) ($row['explicit'] ?? false),
             ];
         }
 

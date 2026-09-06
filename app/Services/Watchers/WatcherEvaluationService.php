@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\Watcher;
 use App\Models\WatcherOccurrence;
 use App\Services\Reliability\AsyncFailureClassifier;
+use App\Services\Synthesis\SynthesisCache;
 use App\Services\Watchers\DTO\WatcherObservation;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -277,6 +278,11 @@ final class WatcherEvaluationService
             'last_error_category' => null,
             'status' => $watcher->mode === WatcherMode::OneShot ? WatcherStatus::Completed : WatcherStatus::Active,
         ])->save();
+
+        try {
+            app(SynthesisCache::class)->bumpUserId((int) $watcher->user_id);
+        } catch (Throwable) {
+        }
     }
 
     private function markHealthy(Watcher $watcher, CarbonImmutable $now): void

@@ -14,6 +14,8 @@ enum KnowledgeRelationType: string
     case RelatedTo = 'related_to';
     case Owns = 'owns';
     case ParticipatesIn = 'participates_in';
+    case WaitingOn = 'waiting_on';
+    case CommittedTo = 'committed_to';
 
     public static function tryFromLoose(mixed $value): ?self
     {
@@ -32,6 +34,8 @@ enum KnowledgeRelationType: string
             'related_to', 'relatedto', 'related' => self::RelatedTo,
             'owns', 'owner_of' => self::Owns,
             'participates_in', 'participatesin', 'participates' => self::ParticipatesIn,
+            'waiting_on', 'waiting_for', 'waiting' => self::WaitingOn,
+            'committed_to', 'committed', 'promised' => self::CommittedTo,
             default => self::tryFrom($raw),
         };
     }

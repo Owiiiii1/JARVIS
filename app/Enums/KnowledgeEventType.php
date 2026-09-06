@@ -19,6 +19,9 @@ enum KnowledgeEventType: string
     case KnowledgeLinked = 'knowledge_linked';
     case RelationshipSuperseded = 'relationship_superseded';
     case WatcherTriggered = 'watcher_triggered';
+    case CommitmentMade = 'commitment_made';
+    case CommitmentFulfilled = 'commitment_fulfilled';
+    case CommitmentCancelled = 'commitment_cancelled';
 
     public static function tryFromLoose(mixed $value): ?self
     {
@@ -28,6 +31,8 @@ enum KnowledgeEventType: string
         return match ($raw) {
             'github_commit', 'commit_seen' => self::GithubCommitSeen,
             'note', 'manual' => self::ManualNote,
+            'commitment', 'promise', 'promised' => self::CommitmentMade,
+            'commitment_done', 'promise_kept' => self::CommitmentFulfilled,
             default => self::tryFrom($raw),
         };
     }

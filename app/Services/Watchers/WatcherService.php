@@ -20,11 +20,13 @@ use App\Models\Watcher;
 use App\Models\WatcherOccurrence;
 use App\Services\Knowledge\KnowledgeEntityResolver;
 use App\Services\Knowledge\KnowledgeNameNormalizer;
+use App\Services\Synthesis\SynthesisCache;
 use App\Services\Users\UserCapability;
 use App\Services\Watchers\Exceptions\WatcherException;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Throwable;
 
 final class WatcherService
 {
@@ -116,6 +118,7 @@ final class WatcherService
         ]);
 
         EvaluateWatcherJob::dispatch((int) $watcher->id);
+        $this->bumpSynthesis((int) $user->id);
 
         return $watcher;
     }
@@ -205,6 +208,7 @@ final class WatcherService
             'status' => WatcherStatus::Paused,
             'health' => WatcherHealth::Paused,
         ])->save();
+        $this->bumpSynthesis((int) $user->id);
 
         return $watcher;
     }
@@ -221,6 +225,7 @@ final class WatcherService
             'last_error_category' => null,
         ])->save();
         EvaluateWatcherJob::dispatch((int) $watcher->id);
+        $this->bumpSynthesis((int) $user->id);
 
         return $watcher;
     }
@@ -232,6 +237,7 @@ final class WatcherService
             'status' => WatcherStatus::Cancelled,
             'health' => WatcherHealth::Paused,
         ])->save();
+        $this->bumpSynthesis((int) $user->id);
 
         return $watcher;
     }
@@ -359,6 +365,14 @@ final class WatcherService
             ->map(fn (WatcherOccurrence $row): array => $this->serializeOccurrence($row))
             ->values()
             ->all();
+    }
+
+    private function bumpSynthesis(int $userId): void
+    {
+        try {
+            app(SynthesisCache::class)->bumpUserId($userId);
+        } catch (Throwable) {
+        }
     }
 
     private function assertCanUse(User $user): void

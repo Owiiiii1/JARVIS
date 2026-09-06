@@ -73,7 +73,7 @@ Per-user opt-in in Workspace settings (Productivity). Defaults: **all off**, inc
 | Evening Review | 20:00 | same |
 | Weekly Review | Sunday 18:00 (`weekday=7`) | same |
 
-Sources gathered first (owned tasks, reminders, Owner projects, recent notifications). Optional bounded LLM phrasing. If AI fails: deterministic fallback text is still delivered.
+Sources gathered first (owned tasks, reminders, Owner projects, recent notifications). Phase E.3 optionally adds bounded synthesis: waiting-for, commitments, project changes, top attention items. Optional bounded LLM phrasing. If AI fails: deterministic fallback text is still delivered. No second Daily Brief system. [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
 
 Calendar events may appear in a Daily Brief only when Google Calendar capability exists; a disconnected calendar does not break Tasks. Brief dispatch does **not** poll Google every 5 minutes.
 
@@ -87,6 +87,8 @@ Allowed B.2 triggers:
 
 - open task becomes overdue
 - high/urgent task due within 2 hours
+
+E.3 may add closed extra types through the same dispatcher: `follow_up`, `project_blocked`, `waiting_too_long`, `deadline_risk`, `stale_project`, `commitment_due`. Same opt-in, daily cap, cooldown, quiet hours. No new notification stream.
 
 Anti-spam (actual values):
 

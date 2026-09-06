@@ -137,6 +137,49 @@ export default function KnowledgeSettings({ surface }) {
                             <li key={event.id}>{event.title}</li>
                         ))}
                     </ul>
+                    {entity.synthesis ? (
+                        <>
+                            <h4 className="mt-3 text-xs font-semibold text-slate-300">Сейчас</h4>
+                            {(entity.synthesis.blockers || []).length > 0 ? (
+                                <p className="mt-1 text-sm text-amber-200">
+                                    Блокеры: {entity.synthesis.blockers.map((item) => item.title).join('; ')}
+                                </p>
+                            ) : null}
+                            {(entity.synthesis.waiting_for || []).length > 0 ? (
+                                <p className="mt-1 text-sm text-slate-300">
+                                    Жду: {entity.synthesis.waiting_for.map((item) => item.title).join('; ')}
+                                </p>
+                            ) : null}
+                            {(entity.synthesis.commitments || []).length > 0 ? (
+                                <p className="mt-1 text-sm text-slate-300">
+                                    Обязательства: {entity.synthesis.commitments.map((item) => item.title).join('; ')}
+                                </p>
+                            ) : null}
+                            {(entity.synthesis.open_loops || []).length > 0 ? (
+                                <p className="mt-1 text-sm text-slate-300">
+                                    Open loops: {entity.synthesis.open_loops.map((item) => item.title).join('; ')}
+                                </p>
+                            ) : null}
+                            {(entity.synthesis.people || []).length > 0 ? (
+                                <p className="mt-1 text-sm text-slate-300">
+                                    Люди: {entity.synthesis.people.map((item) => item.title).join('; ')}
+                                </p>
+                            ) : null}
+                            {(entity.synthesis.open_work || []).length > 0 ? (
+                                <p className="mt-1 text-sm text-slate-300">
+                                    Открытая работа: {entity.synthesis.open_work.map((item) => item.title).join('; ')}
+                                </p>
+                            ) : null}
+                            {entity.synthesis.person?.last_activity ? (
+                                <p className="mt-1 text-xs text-slate-500">
+                                    Последняя активность:{' '}
+                                    {entity.synthesis.person.last_activity.at
+                                        ? new Date(entity.synthesis.person.last_activity.at).toLocaleString()
+                                        : 'неизвестно'}
+                                </p>
+                            ) : null}
+                        </>
+                    ) : null}
                 </SettingsCard>
             ) : null}
         </div>

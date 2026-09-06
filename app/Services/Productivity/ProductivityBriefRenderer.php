@@ -39,6 +39,22 @@ final class ProductivityBriefRenderer
             $lines[] = $this->section('Проекты', $sources->projects);
         }
 
+        if ($sources->waitingFor !== []) {
+            $lines[] = $this->section('Жду', $sources->waitingFor);
+        }
+
+        if ($sources->commitments !== []) {
+            $lines[] = $this->section('Обязательства', $sources->commitments);
+        }
+
+        if ($mode === ProductivityBriefMode::Weekly && $sources->recentChanges !== []) {
+            $lines[] = $this->section('Что сдвинулось', $sources->recentChanges);
+        }
+
+        if ($sources->synthesisAttention !== []) {
+            $lines[] = $this->section('Топ внимания', $sources->synthesisAttention);
+        }
+
         if ($sources->attention !== []) {
             $lines[] = 'Требует внимания: '.implode('; ', $sources->attention);
         }

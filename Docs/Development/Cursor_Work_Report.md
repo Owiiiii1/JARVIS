@@ -1,121 +1,182 @@
-# Phase E.2 — Watchers & Event-driven Automation
+# Phase E.3 — Cross-source Synthesis & Intelligence
 
 ## Starting HEAD
 
-`ab12ab54f52f0991f9cc5ff80cc1bce798068828` (`feat: add personal knowledge layer`). Working tree was clean. `HEAD` == `origin/main`.
+`bd10769e044327796db739b2187450afa1f67a0a` (`feat: add event-driven watchers`). Working tree was clean and equal to `origin/main` before this milestone.
 
-## Existing Knowledge/Productivity architecture
+## Existing domains
 
-E.1 already persisted `knowledge_events` through `KnowledgeIngestionService`. B.2 Tasks / Reminders / Notification Center / Web Push / `jarvis:proactive:dispatch` were already the delivery and heuristic layers. Integrations (Gmail, Calendar, GitHub) were Owner tools with confirmation policy. E.2 adds **explicit persisted conditions** on top of that stack. It does not replace Memory, Knowledge, Tasks, Reminders, or B.2 proactive.
+Jarvis already stored Memory, Knowledge entities/relations/events, People/Projects links, Tasks, Reminders, Watchers, conversation summaries, Gmail/Calendar/GitHub observations from tools/watchers, Notification Center, and B.2 Daily Brief / Weekly Review / proactive heuristics.
 
-## Watcher domain
+Those domains remain authoritative. E.3 does not replace them.
 
-Additive tables `watchers` and `watcher_occurrences`. User-scoped. Statuses `active` / `paused` / `completed` / `failed` / `cancelled`. Health `healthy` / `waiting` / `blocked` / `paused` / `failed`. Mode `one_shot` or `recurring`. Capability `watchers` for regular users (internal sources); Gmail/Calendar/GitHub remain Owner.
+## Synthesis architecture
 
-## Trigger model
+`CrossSourceSynthesisService` is a read-only pipeline:
 
-Closed set: `knowledge_event`, `task_state`, `reminder_state`, `time_condition`, `calendar_event`, `gmail_message`, `github_event`. No arbitrary trigger strings.
+scope → FactPack → dedupe → waiting / commitments / blockers / attention → rank → conflicts → optional Analysis AI narrative → bounded `SynthesisResult`.
 
-## Condition model
+Split services (not one 2000-line class): `SynthesisFactCollector`, `SynthesisDeduplicator`, `WaitingForResolver`, `CommitmentResolver`, `CommitmentLanguage`, `CommitmentLifecycle`, `ProjectAttentionResolver`, `SynthesisChangeAssembler`, `SynthesisRanker`, `SynthesisConflictDetector`, `SynthesisNarrativeService`, `SynthesisCache`, `SynthesisClock`.
 
-Closed evaluators in `WatcherConditionEvaluator` (event exists, status, deadline/overdue, sender/subject/thread, calendar changed, GitHub commit/PR/workflow). No `eval()`, no dynamic SQL, no model-invented executable predicates at runtime.
+Typed DTOs: `SynthesisScope`, `FactPack`, `SynthesisResult`, `SynthesisItem`, `SourceRef`. Closed `SynthesisType` vocabulary (nine types). Config: `config/synthesis.php`.
 
-## Source adapters
+## Fact collection
 
-`WatcherSourceAdapter` implementations: Knowledge, Task, Reminder, Time, Gmail, Calendar, GitHub. Live clients sit behind contracts; tests bind fakes. Adapters return bounded `WatcherObservation` DTOs.
+Collector reads the user’s own Tasks, Reminders (via task project), Watchers/occurrences, Knowledge entities/events/relations, conversation summaries, and Owner Projects when the user has `projects`.
 
-## Internal event dispatch
+It never instantiates Gmail/Calendar/GitHub clients. Fresh live data stays behind existing tools when the user asks.
 
-`WatcherEvaluationDispatcher` runs on new Knowledge events (not `watcher_triggered`, not idempotent hits), Task mutations, and Reminder status changes. Dispatches `EvaluateWatcherJob` on the existing `default` queue.
+FactPack caps are config-driven (projects 5, people 10, events 30, tasks 30, waiting 20, commitments 20, …). Bounded titles/ids/timestamps only — no raw bodies.
 
-## External polling
+## Deduplication
 
-Only active watchers with Gmail/Calendar/GitHub sources are checked, using their stored bounded query. No global inbox/repo/calendar sync. Cadence is config-driven (about 5–8 minutes).
+Deterministic. Prefer `fp:{source_fingerprint}`, then knowledge event id, then watcher occurrence link, then temporal + entity identity. The same GitHub commit indexed as a Knowledge event and a watcher occurrence is one change item.
 
-## Baseline / cursor semantics
+## Project intelligence
 
-The first evaluation stores seen ids/fingerprints and does **not** fire. Later identical fingerprints are skipped. Updating source/condition resets the cursor and takes a new baseline so history is not replayed. `run_watcher_now` is a check only.
+`get_project_status` (capability `projects`) returns summary, recent changes, open work, blockers, waiting-for, people, upcoming, attention/risks as explicit labels (Blocked / Waiting external / Deadline risk / Active / No recent activity), freshness, sources.
 
-## Occurrences / dedupe
+`get_project_context` is unchanged. Project row still wins on name/status.
 
-Unique `(watcher_id, trigger_fingerprint)`. Cooldown, per-watcher daily cap, global daily notification cap, optional aggregation window. One-shot completes after a successful occurrence. Recurring stays active.
+## People intelligence
 
-## Reactions
+`get_person_status` resolves a Knowledge person in the caller’s graph. Output: who, context, last activity (unknown if no indexed interaction — not `updated_at`), open loops, waiting for them / they may be waiting, related projects, recent changes. Foreign entity ids are `not_found`. No CRM scoring. Regular users never receive Owner project-derived slices.
 
-`WatcherReactionExecutor`: notify / notification inbox, create reminder, create task, bounded Analysis-AI brief, or `propose_action`. Idempotent on occurrence status.
+## Waiting-for
 
-## Confirmation safety
+Derived. No `waiting_items` table. Sources: one-shot watchers still waiting, open external-dependency tasks, `waiting_on` relations, explicit open commitments from others.
 
-Watcher create/pause/resume/cancel are Core writes (`provider` null) when the user asked to watch. Reactions never send Gmail, write Calendar, or write GitHub. External intent becomes a Notification Center `pending_action` for later foreground confirmation.
+When the watcher completes, the item disappears on the next compute. Suggested follow-up timing is a recommendation only.
 
-## Gmail watcher
+## Commitments
 
-Thread/sender/subject/query required. Fake-tested: old messages baseline, new message fires once. Live client uses existing Gmail integration; not live-validated.
+Explicit language only (`I'll send`, `обещаю`, `Marco обещал`). Vague phrases are not commitments. Stored as Knowledge events (`commitment_made` / `fulfilled` / `cancelled`) and relations (`waiting_on` / `committed_to`) with metadata actor/action/due/status. Completing a Task fulfills a commitment only when `metadata.task_id` matches. Extraction schema extended minimally; inference skipped.
 
-## Calendar watcher
+## Blockers
 
-Event id / calendar / query required. Detects new / etag change / cancelled via normalized observations. Fake-tested time/etag change.
+Grounded: overdue prerequisite, waiting-for external, blocked watcher, unresolved project task, explicit blocked-by relation, approaching deadline with incomplete prerequisite. Task volume is not a blocker.
 
-## GitHub watcher
+## Recent changes
 
-Repository required. New commit, PR state, workflow failure (conclusion `failure`). Fake-tested new commit. Polling only; no webhook receiver.
+Default 7-day window, user timezone. Combines Knowledge events, task/reminder/watcher/project/summary changes, already-indexed integration observations. Deduped as above.
 
-## Task / time watcher
+## Attention ranking
 
-Cheap internal checks. Deadline-within and overdue-by use task due timestamps. Scheduler handles time crossing; task mutations dispatch immediately.
+Deterministic scores: overdue, deadline proximity (24h/48h), watcher-triggered, explicit blocker, waiting age, project relevance, user priority, recency. Analysis AI is optional narrative / grouping, not reorder-the-world.
 
-## Knowledge watcher
+Active project + open work + no activity beyond `inactivity_days` can be attention. Archived/dormant projects are not.
 
-Subscribes to entity/project/event-type allowlists. Local dispatch when E.1 records a **new** event. Optional semantic importance is not a default LLM classify-everything path.
+## Daily Brief integration
 
-## Notification delivery
+Existing `jarvis:briefs:dispatch` and Productivity opt-in clocks. Collector adds bounded waiting-for, project changes, top 3 attention items. No second Daily Brief system.
 
-Existing Notification Center + B.1 Web Push. Core occurrence is channel-independent. Telegram is not a watcher existence requirement.
+## Weekly Review integration
 
-## Anti-spam / cooldown
+Same scheduler. Sections consume synthesis (moved / completed / stalled / waiting / commitments / next-week deadlines / follow-ups / watchers). Not an event dump.
 
-Per-watcher cooldown, fingerprint uniqueness, daily caps, aggregation, one reconnect notification for blocked integrations, quiet existing productivity settings untouched.
+## Proactive integration
 
-## Scheduler / queue
+`jarvis:proactive:dispatch` may emit closed types `follow_up`, `project_blocked`, `waiting_too_long`, `deadline_risk`, `stale_project`, `commitment_due` through existing `ProactivePolicy` (opt-in, 3/day, cooldown, quiet hours, dedupe keys). E.3 does not bypass B.2.
 
-`jarvis:watchers:dispatch` every 5 minutes, `withoutOverlapping`. Claims `next_check_at` before dispatching the unique job. Queue: `default` (already consumed). `jarvis:watchers:prune` dry-run by default.
+## AI narrative layer
 
-## Reliability
+`SynthesisNarrativeService` receives the FactPack, not databases. Compact summary / grouping / suggested next step. Conversation AI is not used for authoritative state.
 
-Auth → health `blocked`, long cadence, one reconnect notification. Transient → backoff without hammering. Classified via Core Reliability; report includes watcher status/health counts.
+## Deterministic fallback
 
-## Ownership / privacy
+If Analysis AI throws, structured facts still return. Briefs still render deterministic text. Tests cover the failure path.
 
-Refs checked at create and execution. No tokens in config/occurrences. Bounded summaries only. Test teardown deletes occurrences then watchers.
+## Freshness / conflict handling
+
+Each result has `generated_at`, timezone, `data_freshness`, last-known external observation. Stale GitHub/Gmail/Calendar observations tell the model to use the live tool.
+
+Authority: Task > Project > Reminder > Watcher > explicit live fetch > Knowledge > Memory. Unresolved conflicts surface “Есть противоречивые данные” plus source refs. Task-open beats stale Knowledge `task_completed` and still records the conflict as resolved-by-authority.
+
+## Tools
+
+`get_synthesis`, `get_project_status`, `get_person_status`, `list_waiting_for`, `list_commitments` (`mine` / `others` / `all`). Read-only. Compact JSON. Tool prompt maps natural questions (“что по YFS?”, “что я обещал?”) without auto-injecting full synthesis every turn.
 
 ## Workspace UI
 
-Main chrome **Автоматизации** (not Settings), mirrors `/jarvis/watchers` and `/chat/watchers`. List, simple create, pause/resume/cancel, recent triggers. Foreground chat refreshes via existing workspace status token. `?watchers=1` opens the panel.
+Compact **Обзор** panel (Today / Needs attention / Waiting / Recent changes). Knowledge person/project cards show bounded synthesis. Routes: `GET /jarvis/synthesis`, `/synthesis/project/{project}`, `/synthesis/entity/{entity}` and `/chat` mirrors. Not a BI dashboard.
 
-## AI tools
+## Ownership / privacy
 
-`create_watcher`, `list_watchers`, `get_watcher`, `update_watcher`, `pause_watcher`, `resume_watcher`, `cancel_watcher`, `list_watcher_occurrences`, `run_watcher_now`. Prompt distinguishes Reminder vs Watcher vs Task vs B.2 proactive.
+Per-user only. Regular users: own tasks/reminders/knowledge/watchers/conversations. Owner: plus Projects and integration-derived knowledge. No cross-user joins, no admin bypass in Personal Workspace, no secrets/tokens/full bodies.
+
+## Context budget
+
+New slice `synthesis_context` (~220 tokens) only when C.1 has an active project. Dropped first on overflow — before knowledge and memories. Current turn and Memory are never crowded out. Tools remain the primary retrieval path.
 
 ## Migrations
 
-Additive `2026_09_06_161626_create_watchers_tables`. Applied. No destructive changes. No historical watcher backfill.
+None. Waiting-for is derived. Commitments reuse Knowledge string enums. Cache is Laravel Cache (TTL 90s, per-user version bump on Task/Reminder/Knowledge/Watcher/Project changes). No historical narrative archive.
 
 ## Automated tests
 
-`tests/Feature/WatchersTest.php` (isolated users, fakes only): creation, foreign refs, Gmail/GitHub/Calendar baseline vs new item, fingerprint uniqueness, one-shot vs recurring, cooldown, pause/cancel, task deadline, knowledge event dispatch + ingest dedupe, auth block without hammering, transient backoff, notifications, internal reaction idempotence, proposed external action, scheduler claim, prune dry-run, tool guidance, B.2 remains separate, no implicit watcher on task create. `WorkspaceUxCleanupTest` covers WatchersPanel `refreshToken`.
+`tests/Feature/CrossSourceSynthesisTest.php` (isolated/fakes) covers spec §68 in 11 tests: project combine + fingerprint dedupe; one-shot waiting resolve; overdue + external-dependency blockers; explicit vs vague commitment + fulfill only with task link; person own-graph / foreign denied / unknown activity; Owner project excluded for regular user; Task authority vs Knowledge + unresolved claim conflict; freshness/stale GitHub window/timezone/archived-not-stale + active-no-activity attention; briefs + proactive caps + AI fallback + cache bump + no auto watcher/mail; context budget clips synthesis first; HTTP scoped.
+
+Related Knowledge / Watchers / ProductivityEngine tests still pass. No live providers.
 
 ## Production safety
 
-No live Gmail/Calendar/GitHub polling in tests. No production `jarvis:watchers:prune` without dry-run. No public webhooks. `QUEUE_CONNECTION=sync` in phpunit.
+No live Gmail/Calendar/GitHub from synthesis. No historical knowledge backfill. No live Analysis AI campaign. No production proactive notifications or watcher fires as “validation.” Tools cannot mutate external systems.
 
 ## Deferred validation
 
-E.2 added to [DEFERRED_VALIDATION.md](../DEFERRED_VALIDATION.md) as **IMPLEMENTED / NOT VALIDATED**. Owner is not asked to test now. Not MANUAL PASS.
+Owner continues to defer live campaigns. E.1, E.2, and E.3 are **IMPLEMENTED / NOT VALIDATED**. Recorded in [DEFERRED_VALIDATION.md](../DEFERRED_VALIDATION.md).
 
-## Known limitations
+## Remaining product gaps
 
-No GitHub/Gmail push/webhooks (polling). No Zapier builder. No silent external writes. Semantic “importance” is allowlisted + optional bounded analysis, not a full classifier. Aggregation is a simple time window. Phase E is not complete.
+Meaningful Jarvis capabilities still missing **after E.3**, excluding deferred validation:
 
-## Next Phase
+**A. Missing product functionality**
 
-**E.3** (not this milestone): cross-source synthesis / people intelligence depth / richer project intelligence, or confirmed external actions, based on remaining gaps. E.1 and E.2 stay IMPLEMENTED / NOT VALIDATED until Owner live campaigns.
+- Confirmed **external writes** from watchers (Gmail send / Calendar write / GitHub write still proposed-only; no silent or auto execute).
+- A first-party **non-Web client** (Mobile) and the versioned Client API that would serve it.
+- Deeper **people merge/alias** UX beyond E.1 high-confidence auto-link (still manual/alias, not a CRM).
+- **Voice-native** presentation of synthesis (spoken brevity exists; no dedicated spoken overview flow).
+- **Group-conversation** synthesis as a first-class scope (group knowledge remains tool/search, not E.3 FactPack).
+- User-triggered **refresh** of a stale integration observation from the Overview UI (chat tools can already fetch live).
+
+**B. Optional enhancements**
+
+- Richer Overview layout / filters without becoming a BI dashboard.
+- Watcher-suggestion UX (“поставить watcher на ответы Apple”) as a one-click confirm, still not auto-create.
+- Broader commitment language packs; supersede/cancel from chat without a Knowledge write tool today.
+- Cache warming / longer TTL for Owner-only heavy FactPacks.
+- Telegram delivery of the compact Overview (briefs already exist).
+- Semantic tie-break ranking when deterministic scores collide (Analysis AI is already optional narrative).
+
+**C. Deferred clients**
+
+- Mobile app and versioned Client API — not current work; built only if Mobile starts.
+- Desktop / Tauri — CANCELLED (ADR-235).
+
+**D. Deferred validation**
+
+- Live E.1 Knowledge (extraction quality, Settings UI, chat-delete provenance).
+- Live E.2 Watchers against real Gmail/Calendar/GitHub.
+- Live E.3 synthesis questions on real Owner projects.
+- Live B.2 Tasks / Notification Center / briefs / proactive (including new suggestion types).
+- Google Calendar / Gmail / GitHub campaigns, Telegram Voice Input, C.1/C.2, onboarding E2E, A/B isolation, Tavily, destructive Storage, reliability prune.
+
+Phase E is **not** complete. There is **no Phase E.4** invented to continue numbering.
+
+## Optional enhancements
+
+See B above. None of these are required to call E.3 implemented in code.
+
+## Deferred clients
+
+See C above.
+
+## Next recommendation
+
+Do **not** start an E.4. Pick from:
+
+1. **Owner live validation** of E.1–E.3 plus B.2 (highest product-risk reduction; no new code required to “finish Phase E” as a claim).
+2. **Confirmed external actions** (the remaining E.2 automation gap: execute a proposed Gmail/Calendar/GitHub write after explicit confirmation).
+3. **Mobile / Client API** only if that client is actually starting.
+
+Until Owner chooses, treat E.1 / E.2 / E.3 as IMPLEMENTED / NOT VALIDATED and keep shipping from the gap list, not from a new letter.

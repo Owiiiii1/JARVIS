@@ -4,6 +4,7 @@ import { workspaceRoute } from '@/personal-workspace/named';
 import RemindersPanel from '@/personal-workspace/RemindersPanel';
 import TasksPanel from '@/personal-workspace/TasksPanel';
 import WatchersPanel from '@/personal-workspace/WatchersPanel';
+import OverviewPanel from '@/personal-workspace/OverviewPanel';
 import NotificationsPanel from '@/personal-workspace/NotificationsPanel';
 import ConversationDeleteDialog from '@/personal-workspace/ConversationDeleteDialog';
 import ConversationSidebarItem from '@/personal-workspace/ConversationSidebarItem';
@@ -20,6 +21,7 @@ import {
     FolderKanban,
     HardDrive,
     Inbox,
+    LayoutDashboard,
     Loader2,
     Menu,
     MessageSquarePlus,
@@ -284,6 +286,7 @@ export default function PersonalWorkspace() {
     const [remindersOpen, setRemindersOpen] = useState(false);
     const [tasksOpen, setTasksOpen] = useState(false);
     const [watchersOpen, setWatchersOpen] = useState(false);
+    const [overviewOpen, setOverviewOpen] = useState(false);
     const [notificationsOpen, setNotificationsOpen] = useState(false);
     const [assistantProfile, setAssistantProfile] = useState(assistantProfileProp);
     const [settingsContext, setSettingsContext] = useState(settingsContextProp);
@@ -1185,6 +1188,17 @@ export default function PersonalWorkspace() {
                         Admin
                     </Link>
                 ) : null}
+                {capabilities.knowledge || capabilities.tasks ? (
+                    <button
+                        type="button"
+                        onClick={() => setOverviewOpen(true)}
+                        className="relative inline-flex items-center gap-2 rounded-lg p-2 text-slate-300 hover:bg-white/10 sm:px-3"
+                        aria-label="Обзор"
+                    >
+                        <LayoutDashboard className="h-4 w-4" />
+                        <span className="hidden text-xs font-medium sm:inline">Обзор</span>
+                    </button>
+                ) : null}
                 {capabilities.tasks ? (
                     <button
                         type="button"
@@ -1686,6 +1700,12 @@ export default function PersonalWorkspace() {
                     setDraft((current) => (current?.trim() ? current : 'Напомни мне '));
                     requestAnimationFrame(() => focusComposer(composerRef.current, { forceDesktopOnly: false }));
                 }}
+            />
+            <OverviewPanel
+                open={overviewOpen}
+                surface={surface}
+                refreshToken={productivityRefreshToken}
+                onClose={() => setOverviewOpen(false)}
             />
             <TasksPanel
                 open={tasksOpen}

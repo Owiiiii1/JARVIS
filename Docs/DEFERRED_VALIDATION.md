@@ -22,6 +22,7 @@ Runtime snapshot: [CURRENT_STATE.md](CURRENT_STATE.md). Plan: [IMPLEMENTATION_PL
 | Core Reliability historical retry/prune | IMPLEMENTED / CLASSIFIED | Owner decides later; not run |
 | Phase E.1 Knowledge Layer | IMPLEMENTED | Deferred |
 | Phase E.2 Watchers & Event-driven Automation | IMPLEMENTED | Deferred |
+| Phase E.3 Cross-source Synthesis & Intelligence | IMPLEMENTED | Deferred |
 
 Telegram Voice **Replies** remain MANUAL PASS. Web **Рация** pipeline remains MANUAL PASS. Desktop remains CANCELLED.
 

@@ -9,6 +9,7 @@ use App\Models\ChannelIdentity;
 use App\Models\Conversation;
 use App\Models\ConversationSummary;
 use App\Models\IntegrationAccount;
+use App\Models\JarvisNotification;
 use App\Models\KnowledgeAnalysisRun;
 use App\Models\KnowledgeEntity;
 use App\Models\KnowledgeEntityAlias;
@@ -37,6 +38,7 @@ use App\Models\Topic;
 use App\Models\User;
 use App\Models\UserAiSetting;
 use App\Models\UserAssistantProfile;
+use App\Models\UserProductivitySetting;
 use App\Models\UserProfile;
 use App\Models\VoiceSession;
 use App\Models\Watcher;
@@ -107,6 +109,12 @@ trait CleansTemporaryJarvisRecords
         }
         if (Schema::hasTable('watchers')) {
             Watcher::query()->where('user_id', $user->id)->delete();
+        }
+        if (Schema::hasTable('jarvis_notifications')) {
+            JarvisNotification::query()->where('user_id', $user->id)->delete();
+        }
+        if (Schema::hasTable('user_productivity_settings')) {
+            UserProductivitySetting::query()->where('user_id', $user->id)->delete();
         }
         if (Schema::hasTable('knowledge_entities')) {
             $eventIds = KnowledgeEvent::query()->where('user_id', $user->id)->pluck('id');

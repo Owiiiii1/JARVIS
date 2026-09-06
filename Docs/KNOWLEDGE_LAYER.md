@@ -1,6 +1,6 @@
 # Knowledge Layer
 
-**Status.** Phase E.1 **IMPLEMENTED / NOT VALIDATED**. Not MANUAL PASS. Watchers are Phase E.2 ([WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md)).
+**Status.** Phase E.1 **IMPLEMENTED / NOT VALIDATED**. Not MANUAL PASS. Watchers are Phase E.2 ([WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md)). Cross-source synthesis is Phase E.3 ([CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md)).
 
 Knowledge is a structured, source-grounded index on top of Memory, Projects, Tasks, Reminders, Storage, conversation history, and (during normal tool use) compact integration facts.
 
@@ -49,7 +49,7 @@ All writes go through `KnowledgeIngestionService`.
 
 **Deterministic** (no LLM): task created/completed, reminder created, project created/archived, stored file ready. Optional compact ingest from Gmail/Calendar/GitHub **tool results during a user turn** (`KnowledgeToolResultIngestor`). E.2 watchers may ingest a **new** matching external observation as a Knowledge event with a distinct fingerprint; they do not poll the whole mailbox/repo/calendar. Newly recorded events dispatch matching knowledge watchers locally.
 
-**AI extraction** (Analysis AI, not Conversation AI): bounded text from a newly written Memory or conversation summary. Job: `ExtractKnowledgeFromSourceJob` on the memory/knowledge queue. Explicit vs inference; low-confidence relations are not auto-created. No production-wide historical scan.
+**AI extraction** (Analysis AI, not Conversation AI): bounded text from a newly written Memory or conversation summary. Job: `ExtractKnowledgeFromSourceJob` on the memory/knowledge queue. Explicit vs inference; low-confidence relations are not auto-created. Explicit commitments may be stored as `commitment_made` events and `waiting_on` / `committed_to` relations; vague language is skipped. No production-wide historical scan.
 
 Command `jarvis:knowledge:backfill` is dry-run by default (`--user` required, `--conversation` / `--project` / `--limit` / `--since`). Do not run a live backfill as part of this milestone.
 
@@ -73,7 +73,7 @@ Defaults: 3 entities, 5 relations/entity, 5 events/entity, high-confidence only.
 
 ## Tools
 
-Read: `search_knowledge`, `get_entity`, `get_entity_timeline`, `get_entity_relationships`, `list_related_entities`.
+Read: `search_knowledge`, `get_entity`, `get_entity_timeline`, `get_entity_relationships`, `list_related_entities`. E.3 synthesis tools (`get_synthesis`, `get_person_status`, `list_waiting_for`, `list_commitments`) read this graph plus Tasks/Watchers; they do not write Knowledge. [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
 
 Write (non-destructive, core confirmation policy): `remember_entity`, `link_entities`, `add_knowledge_note`.
 
@@ -83,7 +83,7 @@ No merge/delete AI tools. Foreign entity ids fail as `not_found`.
 
 ## Workspace UI
 
-Settings → **Knowledge** (distinct from Memory): search, People, Projects, recent activity, entity detail (summary, relationships, timeline, source count). No force-directed graph.
+Settings → **Knowledge** (distinct from Memory): search, People, Projects, recent activity, entity detail (summary, relationships, timeline, source count). Person/project cards may show bounded synthesis (open loops, waiting, commitments, blockers, recent activity). No force-directed graph.
 
 JSON: `GET /jarvis/knowledge`, `GET /jarvis/knowledge/entities/{entity}` and `/chat` mirrors. User-scoped. No public graph API.
 
@@ -105,4 +105,4 @@ Same Core Reliability pattern as Memory: classified failures, bounded retries, s
 
 ## Not in E.1
 
-Mass historical extraction, CRM/address-book mirror, graph visualization, destructive knowledge tools. Watchers shipped separately in E.2.
+Mass historical extraction, CRM/address-book mirror, graph visualization, destructive knowledge tools. Watchers shipped separately in E.2. Cross-source synthesis shipped in E.3.

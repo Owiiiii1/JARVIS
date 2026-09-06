@@ -30,6 +30,7 @@ use App\Services\Reminders\MinishlinkWebPushSender;
 use App\Services\Reminders\PushPayloadBuilder;
 use App\Services\Reminders\PushSubscriptionService;
 use App\Services\Reminders\TelegramReminderSender;
+use App\Services\Synthesis\CrossSourceSynthesisService;
 use App\Services\Telegram\Contracts\CompletesTelegramUserTurn;
 use App\Services\Telegram\Contracts\LooksUpTelegramInbound;
 use App\Services\Telegram\SpokenTextNormalizer;
@@ -111,6 +112,11 @@ use App\Services\Tools\Storage\ListStorageFilesTool;
 use App\Services\Tools\Storage\ReadStorageFileChunksTool;
 use App\Services\Tools\Storage\SearchStorageFileContentsTool;
 use App\Services\Tools\Storage\SearchStorageFilesTool;
+use App\Services\Tools\Synthesis\GetPersonStatusTool;
+use App\Services\Tools\Synthesis\GetProjectStatusTool;
+use App\Services\Tools\Synthesis\GetSynthesisTool;
+use App\Services\Tools\Synthesis\ListCommitmentsTool;
+use App\Services\Tools\Synthesis\ListWaitingForTool;
 use App\Services\Tools\ToolRegistry;
 use App\Services\Tools\UpdateAssistantProfileTool;
 use App\Services\Tools\UpdateReminderTool;
@@ -256,7 +262,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(ProductivityBriefService::class, function ($app): ProductivityBriefService {
             return new ProductivityBriefService(
-                new ProductivityBriefCollector,
+                $app->make(ProductivityBriefCollector::class),
                 new ProductivityBriefRenderer,
                 $app->make(SynthesizesProductivityBrief::class),
             );
@@ -269,6 +275,7 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(JarvisNotificationService::class),
                 new NotificationUrlPolicy,
                 $app->make(SynthesizesProductivityBrief::class),
+                $app->make(CrossSourceSynthesisService::class),
             );
         });
 
@@ -304,6 +311,11 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(LinkEntitiesTool::class),
                 $app->make(AddKnowledgeNoteTool::class),
                 $app->make(GetProjectContextTool::class),
+                $app->make(GetProjectStatusTool::class),
+                $app->make(GetSynthesisTool::class),
+                $app->make(GetPersonStatusTool::class),
+                $app->make(ListWaitingForTool::class),
+                $app->make(ListCommitmentsTool::class),
                 $app->make(SearchGroupKnowledgeTool::class),
                 $app->make(CreateWatcherTool::class),
                 $app->make(ListWatchersTool::class),

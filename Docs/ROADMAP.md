@@ -146,7 +146,7 @@ Versioned Client API is built **only if** Mobile (or another first-party non-Web
 
 ## PHASE E — Knowledge & Proactive Jarvis
 
-**Status.** E.1 Knowledge Layer: **IMPLEMENTED / NOT VALIDATED**. E.2 Watchers: **IMPLEMENTED / NOT VALIDATED**. Phase E as a whole is **not** complete.
+**Status.** E.1 Knowledge Layer: **IMPLEMENTED / NOT VALIDATED**. E.2 Watchers: **IMPLEMENTED / NOT VALIDATED**. E.3 Cross-source Synthesis: **IMPLEMENTED / NOT VALIDATED**. Phase E as a whole is **not** complete.
 
 - Personal Knowledge Layer (structured entities / relations / events with provenance over Memory / Projects / local Core actions — does **not** replace Memory Engine) — E.1 IMPLEMENTED / NOT VALIDATED
 - People intelligence (semantic, not a CRM) — E.1
@@ -155,17 +155,16 @@ Versioned Client API is built **only if** Mobile (or another first-party non-Web
 - Cross-source entity relationships — E.1
 - Event-triggered workflows / watchers — E.2 IMPLEMENTED / NOT VALIDATED
 - Controlled automations — E.2 notify / internal create / proposed external action (no silent external writes)
-- Proactive assistant (event/condition driven, not unsolicited chatter) — later E.3+
-- Daily / Weekly synthesis — later
-- Conditional alerts — E.2 covers explicit watchers; richer cross-source synthesis is E.3+
+- Cross-source synthesis (project/person status, waiting-for, commitments, blockers, attention, daily/weekly consumption of B.2 briefs) — E.3 IMPLEMENTED / NOT VALIDATED
+- Proactive assistant (event/condition driven, not unsolicited chatter) — B.2 + E.3 consume attention items under existing caps; still not unsolicited chatter
+- Daily / Weekly synthesis — E.3 upgrades existing B.2 brief content; no second cron
+- Conditional alerts — E.2 explicit watchers; E.3 derived attention / waiting-for
 
-[KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md). [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
+[KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md). [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md). [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
 
 E.2 examples now in code (fakes only, not live-validated): “When Apple replies, read the mail and say what to do.” “When a GitHub commit lands on this project, notify me.” “If the deadline is tomorrow and the task is open — remind me.”
 
-Strict permissions, confirmation, and audit required. Watchers poll only their own bounded queries. Do not mark all of Phase E complete.
-
-Potential **E.3**: cross-source synthesis / people intelligence depth / richer project intelligence, or controlled external actions after confirmation — based on remaining gaps.
+Strict permissions, confirmation, and audit required. Watchers poll only their own bounded queries. Do not mark all of Phase E complete. Next work is chosen from remaining product gaps (confirmed external actions, clients, live validation of E.1–E.3), not by inventing an E.4 number.
 
 ---
 

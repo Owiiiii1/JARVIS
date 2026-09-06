@@ -10,6 +10,8 @@ M13 runtime: conversations, topics, memories. M11 добавил `project_groups
 
 Phase E.1 adds a Knowledge Layer **index** for a Project (`knowledge_entities.project_id`). People, systems, files, conversations, tasks, and recent events may attach to that index. The Project row remains canonical. Knowledge does not duplicate project status/name as competing truth. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
 
+Phase E.3 `get_project_status` is cross-source synthesis (blockers, waiting-for, open work, people, recent changes, freshness). `get_project_context` remains the raw/derived project tool. Project domain still wins on name/status. No magic health percentage — labels are explicit facts (Blocked, Waiting external, Deadline risk, Active, No recent activity). Archived projects are not flagged stale. [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
+
 ---
 
 ## Relations

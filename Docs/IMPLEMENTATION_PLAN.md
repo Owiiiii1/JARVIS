@@ -52,6 +52,7 @@ Do not start a listed “completed” milestone again. Do not treat Desktop as u
 | Core Reliability | Async jobs, classification, retry/recover commands | IMPLEMENTED; historical failures CLASSIFIED |
 | Phase E.1 | Knowledge Layer (entities, relations, timeline, provenance, bounded context, tools, Settings UI) | IMPLEMENTED / NOT VALIDATED |
 | Phase E.2 | Watchers & event-driven automation | IMPLEMENTED / NOT VALIDATED |
+| Phase E.3 | Cross-source synthesis & intelligence | IMPLEMENTED / NOT VALIDATED |
 
 Historical detailed “implement this” write-ups for M0–M24 are obsolete as instructions. Git history remains the archive.
 
@@ -162,11 +163,21 @@ Detail: [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
 
 Detail: [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
 
-### Phase E.3 — next Knowledge/automation gap
+### Phase E.3 — Cross-source Synthesis & Intelligence
 
-**Status.** NEXT. Not implemented.
+**Status.** IMPLEMENTED / NOT VALIDATED. Not MANUAL PASS. Do not mark all of Phase E complete.
 
-Cross-source synthesis / people intelligence depth / richer project intelligence, or confirmed external actions, based on remaining gaps after E.1+E.2.
+**In code:** `CrossSourceSynthesisService` pipeline (FactPack → dedupe → waiting/commitments/blockers/attention → optional Analysis AI narrative). Tools `get_synthesis` / `get_project_status` / `get_person_status` / `list_waiting_for` / `list_commitments`. Compact Workspace **Обзор**. Daily Brief / Weekly Review / B.2 proactive consume synthesis under existing caps. No migration. No integration polling. Fakes only in tests.
+
+**Not in this milestone:** second Memory/Knowledge/Tasks/Project system; auto watchers/tasks/mail; live Gmail/Calendar/GitHub; live Analysis AI; production proactive/watchers as validation.
+
+Detail: [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
+
+### After E.3 — choose from remaining gaps
+
+**Status.** Not a numbered E.4. Next work should come from gap analysis (missing product vs optional vs deferred clients vs deferred validation), not from continuing the E.n sequence.
+
+Confirmed external writes after user confirmation, first-party Mobile / Client API, and Owner live validation of E.1–E.3 remain the meaningful forks.
 
 ---
 

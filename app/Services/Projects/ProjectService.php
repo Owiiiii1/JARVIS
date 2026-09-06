@@ -13,9 +13,11 @@ use App\Models\Topic;
 use App\Models\User;
 use App\Services\Knowledge\KnowledgeDeterministicIngestor;
 use App\Services\Projects\Exceptions\ProjectException;
+use App\Services\Synthesis\SynthesisCache;
 use App\Services\Users\UserCapability;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 final class ProjectService
 {
@@ -58,6 +60,7 @@ final class ProjectService
         ]);
 
         $this->knowledge->projectCreated($project);
+        $this->bumpSynthesis((int) $user->id);
 
         return $project;
     }
@@ -75,6 +78,8 @@ final class ProjectService
             'description' => $this->normalizeDescription($description),
         ])->save();
 
+        $this->bumpSynthesis((int) $user->id);
+
         return $project->refresh();
     }
 
@@ -85,6 +90,7 @@ final class ProjectService
         $project->forceFill(['status' => ProjectStatus::Archived])->save();
         $project = $project->refresh();
         $this->knowledge->projectArchived($project);
+        $this->bumpSynthesis((int) $user->id);
 
         return $project;
     }
@@ -94,6 +100,7 @@ final class ProjectService
         $this->assertOwns($user, $project);
 
         $project->forceFill(['status' => ProjectStatus::Active])->save();
+        $this->bumpSynthesis((int) $user->id);
 
         return $project->refresh();
     }
@@ -201,6 +208,14 @@ final class ProjectService
                 'attached_at' => now(),
             ]);
         });
+    }
+
+    private function bumpSynthesis(int $userId): void
+    {
+        try {
+            app(SynthesisCache::class)->bumpUserId($userId);
+        } catch (Throwable) {
+        }
     }
 
     private function normalizedName(string $name): string

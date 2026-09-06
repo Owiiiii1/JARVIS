@@ -3,12 +3,15 @@
 namespace App\Services\Productivity;
 
 use App\Enums\JarvisNotificationType;
+use App\Enums\SynthesisType;
 use App\Models\JarvisNotification;
 use App\Models\Task;
 use App\Models\User;
 use App\Models\UserProductivitySetting;
 use App\Services\Notifications\JarvisNotificationService;
 use App\Services\Notifications\NotificationUrlPolicy;
+use App\Services\Synthesis\CrossSourceSynthesisService;
+use App\Services\Synthesis\DTO\SynthesisScope;
 use App\Services\Tasks\TaskLifecycle;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Schema;
@@ -21,6 +24,7 @@ final class ProactiveDispatchService
         private readonly JarvisNotificationService $inbox = new JarvisNotificationService,
         private readonly NotificationUrlPolicy $urls = new NotificationUrlPolicy,
         private readonly ?SynthesizesProductivityBrief $phrasing = null,
+        private readonly ?CrossSourceSynthesisService $synthesis = null,
     ) {}
 
     public function dispatchDue(int $limit = 80): int
@@ -115,9 +119,80 @@ final class ProactiveDispatchService
                     }
                 }
             }
+
+            $this->dispatchSynthesis($user, $settings, $todayCount, $now, $created);
         }
 
         return $created;
+    }
+
+    private function dispatchSynthesis(
+        User $user,
+        UserProductivitySetting $settings,
+        int &$todayCount,
+        CarbonImmutable $now,
+        int &$created,
+    ): void {
+        if ($this->synthesis === null) {
+            return;
+        }
+
+        try {
+            $result = $this->synthesis->synthesize(new SynthesisScope(
+                user: $user,
+                type: SynthesisType::AttentionNeeded,
+                withNarrative: false,
+                now: $now,
+            ));
+        } catch (\Throwable) {
+            return;
+        }
+
+        foreach ($this->triggers->forSynthesis($result) as $event) {
+            $existing = JarvisNotification::query()
+                ->where('user_id', $user->id)
+                ->where('dedupe_key', $event['dedupe_key'])
+                ->first();
+            $lastSame = JarvisNotification::query()
+                ->where('user_id', $user->id)
+                ->where('type', JarvisNotificationType::ProactiveSuggestion)
+                ->where('source_type', $event['source_type'])
+                ->where('source_id', $event['source_id'])
+                ->orderByDesc('occurred_at')
+                ->first();
+
+            if (! $this->policy->mayEmit(
+                $settings,
+                $todayCount,
+                $lastSame?->occurred_at,
+                $now,
+                $existing !== null,
+            )) {
+                continue;
+            }
+
+            $row = $this->inbox->record(
+                $user,
+                JarvisNotificationType::ProactiveSuggestion,
+                $event['title'],
+                $event['body'],
+                $event['dedupe_key'],
+                $event['source_type'],
+                $event['source_id'],
+                $this->urls->workspacePath($user),
+                [
+                    'trigger' => $event['trigger'],
+                    'source_id' => $event['source_id'],
+                    'ai_phrased' => false,
+                ],
+                false,
+            );
+
+            if ($row !== null) {
+                $created++;
+                $todayCount++;
+            }
+        }
     }
 
     private function todayCount(User $user, CarbonImmutable $now): int

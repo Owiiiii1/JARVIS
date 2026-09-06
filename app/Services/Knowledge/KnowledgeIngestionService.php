@@ -16,6 +16,7 @@ use App\Models\Project;
 use App\Models\User;
 use App\Services\Knowledge\DTO\KnowledgeSourceRef;
 use App\Services\Knowledge\Exceptions\KnowledgeException;
+use App\Services\Synthesis\CommitmentLanguage;
 use App\Services\Watchers\WatcherEvaluationDispatcher;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -242,6 +243,7 @@ final class KnowledgeIngestionService
         array $entities = [],
         ?CarbonImmutable $occurredAt = null,
         array $roles = [],
+        array $metadata = [],
     ): KnowledgeEvent {
         $title = KnowledgeNameNormalizer::displayName($title);
 
@@ -264,7 +266,7 @@ final class KnowledgeIngestionService
                 'source_type' => $source->type,
                 'conversation_id' => $source->conversationId,
                 'confidence' => KnowledgeConfidence::clamp($source->confidence),
-                'metadata' => KnowledgeNameNormalizer::boundMetadata($this->eventMetadata($source)),
+                'metadata' => KnowledgeNameNormalizer::boundMetadata(array_merge($this->eventMetadata($source), $metadata)),
             ]);
             $event->save();
         }
@@ -495,7 +497,31 @@ final class KnowledgeIngestionService
                 observedAt: $source->observedAt,
             );
 
-            $this->recordEvent($user, $eventType, $title, $itemSource, $related);
+            $extra = [];
+
+            if ($eventType === KnowledgeEventType::CommitmentMade) {
+                $kind = mb_strtolower((string) ($row['kind'] ?? 'explicit'));
+                $titleCheck = $title;
+
+                if ($kind === 'inference' || CommitmentLanguage::isVague($titleCheck) || (! CommitmentLanguage::isExplicit($titleCheck) && ($row['explicit'] ?? false) !== true)) {
+                    $stats['skipped']++;
+
+                    continue;
+                }
+
+                $extra = array_filter([
+                    'kind' => 'explicit',
+                    'explicit' => true,
+                    'actor' => isset($row['actor']) ? (string) $row['actor'] : null,
+                    'side' => isset($row['side']) ? (string) $row['side'] : null,
+                    'action' => isset($row['action']) ? (string) $row['action'] : $title,
+                    'due_at' => isset($row['due_at']) ? (string) $row['due_at'] : null,
+                    'status' => 'open',
+                    'task_id' => isset($row['task_id']) ? (int) $row['task_id'] : null,
+                ], static fn (mixed $value): bool => $value !== null && $value !== '');
+            }
+
+            $this->recordEvent($user, $eventType, $title, $itemSource, $related, metadata: $extra);
             $stats['events']++;
         }
 

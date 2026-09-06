@@ -104,6 +104,8 @@ Phase C.1 adds a bounded **working context** slice (current topic, recent entiti
 
 Phase E.1 may add a bounded **knowledge_context** slice when C.1 names an entity or active project. It is a compact index (few entities, relations, events), never the full graph. Detail stays behind `search_knowledge` / `get_entity` and existing source tools. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
 
+Phase E.3 is tools-first. `get_synthesis` / `get_project_status` / `get_person_status` / `list_waiting_for` / `list_commitments` answer cross-source questions. A tiny **synthesis_context** slice may appear only when C.1 has an active project (summary, top blockers, waiting, recent changes). It is dropped before knowledge and memories on overflow. Indexed synthesis is not live Gmail/Calendar/GitHub — if the user asks “что сейчас”, use the live integration tool when observations are stale. [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
+
 Tool policy: **Reminder** = known time (`create_reminder`). **Watcher** = future condition/event (`create_watcher`). **Task** = work item (`create_task`). B.2 proactive suggestions are separate heuristics — do not recreate them as watchers. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
 
 Web Workspace text send: the composer stays usable while a turn is thinking. A newer fetch generation discards a stale previous JSON body so an old assistant reply cannot overwrite the newer turn in the UI. The PHP turn is not aborted; already executed tool writes are not rolled back.
@@ -187,6 +189,8 @@ Tools:
 - `get_assistant_profile` / `update_assistant_profile` / `complete_assistant_onboarding` — current user’s assistant profile only. Never `user_id` from the model. [ASSISTANT_PERSONALIZATION.md](ASSISTANT_PERSONALIZATION.md).
 - `search_conversation_history` — targeted raw-on-demand по **текущему** user.
 - `get_project_context` — owner-only (`projects` capability). Derived project context including bounded ACTIVE group knowledge for attached groups, не raw dump. Не подмешивается в обычный prompt.
+- `get_project_status` — owner-only (`projects`). Cross-source current state (blockers, waiting, open work). Does not replace `get_project_context`.
+- `get_synthesis`, `get_person_status`, `list_waiting_for`, `list_commitments` — read-only synthesis over the user’s own indexed domains. [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
 - `search_group_knowledge` — owner-only (`group_analysis`). Explicit group search only.
 - Google Calendar tools — owner-only (`google_calendar`). Live Google is the source of truth. [INTEGRATIONS.md](INTEGRATIONS.md).
 - Gmail tools — owner-only (`gmail`). Live Gmail is the source of truth; no local mailbox. Search/list/read/thread/labels/draft/send/modify. Send always requires persisted confirmation. [INTEGRATIONS.md](INTEGRATIONS.md).

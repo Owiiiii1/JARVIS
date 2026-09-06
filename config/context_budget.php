@@ -45,6 +45,8 @@ return [
 
     'knowledge_context' => (int) env('CONTEXT_KNOWLEDGE_TOKENS', 500),
 
+    'synthesis_context' => (int) env('CONTEXT_SYNTHESIS_TOKENS', 220),
+
     'attachment_summaries' => (int) env('CONTEXT_ATTACHMENT_SUMMARY_TOKENS', 400),
 
     'storage_context' => (int) env('CONTEXT_STORAGE_TOKENS', 800),

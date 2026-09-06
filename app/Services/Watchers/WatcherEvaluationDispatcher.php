@@ -11,6 +11,7 @@ use App\Models\Reminder;
 use App\Models\Task;
 use App\Models\User;
 use App\Models\Watcher;
+use App\Services\Synthesis\SynthesisCache;
 
 final class WatcherEvaluationDispatcher
 {
@@ -35,6 +36,8 @@ final class WatcherEvaluationDispatcher
         foreach ($query->orderBy('id')->limit(40)->get() as $watcher) {
             EvaluateWatcherJob::dispatch((int) $watcher->id);
         }
+
+        $this->bumpSynthesis((int) $user->id);
     }
 
     public function afterTaskChanged(Task $task): void
@@ -51,6 +54,8 @@ final class WatcherEvaluationDispatcher
         foreach ($watchers as $watcher) {
             EvaluateWatcherJob::dispatch((int) $watcher->id);
         }
+
+        $this->bumpSynthesis((int) $task->user_id);
     }
 
     public function afterReminderChanged(Reminder $reminder): void
@@ -66,6 +71,16 @@ final class WatcherEvaluationDispatcher
 
         foreach ($watchers as $watcher) {
             EvaluateWatcherJob::dispatch((int) $watcher->id);
+        }
+
+        $this->bumpSynthesis((int) $reminder->user_id);
+    }
+
+    private function bumpSynthesis(int $userId): void
+    {
+        try {
+            app(SynthesisCache::class)->bumpUserId($userId);
+        } catch (\Throwable) {
         }
     }
 }

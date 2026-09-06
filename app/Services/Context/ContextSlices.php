@@ -26,5 +26,6 @@ final class ContextSlices
         public ?string $workingContext = null,
         public ?string $conversationalPolicy = null,
         public ?string $knowledgeBlock = null,
+        public ?string $synthesisBlock = null,
     ) {}
 }

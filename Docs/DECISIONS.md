@@ -2574,6 +2574,16 @@
 
 ---
 
+## ADR-265 — Cross-source synthesis is a derived view, not a second domain
+
+**Контекст.** After E.1 and E.2, Jarvis could store Memory, Knowledge, Tasks, Reminders, Watchers, Projects, and integration observations, but could not answer “what is happening on YFS?”, “who am I waiting on?”, or “what stalled this week?” without dumping search hits. A second graph, dashboard database, or autonomous agent would compete with canonical domains.
+
+**Решение.** Add a read-only `CrossSourceSynthesisService` that builds a bounded FactPack, dedupes by fingerprint, derives waiting-for and explicit commitments from Watchers/Tasks/Knowledge, ranks deterministically, and optionally asks Analysis AI for a narrative. Authoritative domains win on conflict; unresolved conflicts are surfaced. Cache is a short TTL plus per-user version bump — no `waiting_items` migration. Tools-first; tiny `synthesis_context` only when C.1 has an active project, dropped first on overflow. Daily Brief / Weekly Review / B.2 proactive consume synthesis under existing caps. No Gmail/Calendar/GitHub polling inside synthesis. No auto watcher/task/mail.
+
+**Следствие.** E.3 IMPLEMENTED / NOT VALIDATED. Phase E is not complete. Do not invent E.4 by numbering. [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
+
+---
+
 - Алфавит generated access_code (кроме зарезервированного 2000).
 - 403 vs redirect когда user открывает admin URL.
 - Auth схема future Mobile (token flavour) — only if Mobile is built; Desktop auth cancelled.

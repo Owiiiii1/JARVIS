@@ -1,6 +1,6 @@
 # Jarvis — current implementation snapshot
 
-**Date:** 2026-09-06 (Phase E.2 Watchers)
+**Date:** 2026-09-06 (Phase E.3 Cross-source Synthesis)
 **Host path:** `/var/www/jarvis`  
 **Public URL:** https://jarvis.owlsolutions.net  
 **GitHub:** https://github.com/Owiiiii1/JARVIS.git
@@ -65,7 +65,7 @@ The former hands-free «Диалог» VAD capture was removed from Рация. 
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | `main`, aligned with `origin/main` after Phase E.2 Watchers |
+| HEAD | `main`, aligned with `origin/main` after Phase E.3 Cross-source Synthesis |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 
 Production checkout is the GitHub source of truth. Gemini STT request-shape and bounded ElevenLabs voice fallback are committed. Laravel Boost is require-dev tooling in a separate commit. `.env` stays gitignored.
@@ -137,7 +137,7 @@ See [DATABASE.md](DATABASE.md).
 
 Frontend: `resources/js/personal-workspace/PersonalWorkspace.jsx` shared, with Settings split into `resources/js/personal-workspace/settings/*`. Capabilities are presentation flags; backend ownership is authoritative.
 
-Main Workspace is chat + Task / Reminder / Watcher / Notification centers + Voice + compact **Настройки**. Memory and Integrations are **not** on the main screen; they live in Settings.
+Main Workspace is chat + Task / Reminder / Watcher / Notification centers + compact **Обзор** (Today / attention / waiting / recent changes) + Voice + compact **Настройки**. Memory and Integrations are **not** on the main screen; they live in Settings.
 
 Workspace conversation delete is implemented for Owner and ordinary users. Sidebar overflow menu → confirmation dialog → `DELETE /jarvis/chats/{conversation}` or `DELETE /chat/chats/{conversation}`. Own personal conversations only (`ensureOwned`; Owner is not a bypass for someone else’s chat). Group conversations are 404. Hard delete of the chat and child messages/ephemeral screenshots; tasks, reminders, projects, persistent Storage files, durable memories, and Knowledge entities survive with sources detached. Deleting the open chat switches to the latest remaining personal chat, or creates `Основной` if none remain. No full page reload.
 
@@ -147,7 +147,9 @@ Phase C.2 Beta (ElevenLabs realtime Web voice) is **IMPLEMENTED / NOT VALIDATED*
 
 Phase E.1 Knowledge Layer is **IMPLEMENTED / NOT VALIDATED**. Relational entities/relations/events with provenance. Settings → Knowledge. Bounded conversation slice. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
 
-Phase E.2 Watchers is **IMPLEMENTED / NOT VALIDATED**. Explicit persisted conditions; Notification Center / Web Push delivery; no silent external writes. Workspace Center **Автоматизации**. Phase E as a whole is **not** complete. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
+Phase E.2 Watchers is **IMPLEMENTED / NOT VALIDATED**. Explicit persisted conditions; Notification Center / Web Push delivery; no silent external writes. Workspace Center **Автоматизации**. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
+
+Phase E.3 Cross-source Synthesis is **IMPLEMENTED / NOT VALIDATED**. Derived FactPack over Knowledge / Tasks / Reminders / Watchers / Projects / conversation summaries. Tools-first; tiny `synthesis_context` only with an active project. No integration polling. No `waiting_items` table. Phase E as a whole is **not** complete. [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
 
 Workspace Settings sections: Profile, Assistant, Memory, Knowledge, Productivity, Voice, Integrations. Desktop: nav + detail. Mobile: list → detail. Direct section: `?settings=memory` / `?settings=knowledge` / `?settings=integrations` on first load (allowlist only). Opening Settings from the UI does not rewrite `history.state`, so the chat list stays intact.
 

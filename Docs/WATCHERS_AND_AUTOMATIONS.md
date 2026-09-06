@@ -1,6 +1,6 @@
 # Watchers and event-driven automations
 
-**Status.** Phase E.2 **IMPLEMENTED / NOT VALIDATED**. Not MANUAL PASS. Phase E as a whole is **not** complete.
+**Status.** Phase E.2 **IMPLEMENTED / NOT VALIDATED**. Not MANUAL PASS. Phase E.3 synthesis consumes watcher occurrences as indexed evidence ([CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md)). Phase E as a whole is **not** complete.
 
 Watchers are explicit, bounded, user-scoped conditions: “when X happens, notify / remind / propose Y.” They are **not** an unrestricted autonomous agent, not B.2 proactive heuristics, and not Reminders.
 
@@ -96,3 +96,5 @@ Tool prompt: Reminder = known time; Watcher = future condition; Task = work item
 ## Not in E.2
 
 Generic agent loop. Public webhooks. Zapier UI. Automatic external writes. Live provider validation. Production prune. Marking all of Phase E complete.
+
+Synthesis may **suggest** a watcher (“Ты регулярно ждёшь ответы Apple”) but must not auto-create one. Watcher occurrences feed recent-changes / waiting-for; the same real-world event is deduped with Knowledge.

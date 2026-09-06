@@ -26,6 +26,8 @@ use App\Services\Memory\PersonalMemoryRetriever;
 use App\Services\Productivity\ProductivitySnapshot;
 use App\Services\Reminders\ReminderToolPrompt;
 use App\Services\Storage\StoredFileService;
+use App\Services\Synthesis\CrossSourceSynthesisService;
+use App\Services\Synthesis\SynthesisToolPrompt;
 use App\Services\Tasks\TaskToolPrompt;
 use App\Services\Tools\CompleteAssistantOnboardingTool;
 use App\Services\Tools\GetAssistantProfileTool;
@@ -64,6 +66,7 @@ final class ConversationContextBuilder
         private readonly PersonalityPresentationBuilder $personality,
         private readonly KnowledgeRetriever $knowledge,
         private readonly ?ProductivitySnapshot $productivity = null,
+        private readonly ?CrossSourceSynthesisService $synthesis = null,
     ) {}
 
     /**
@@ -142,11 +145,18 @@ final class ConversationContextBuilder
         $identity = $this->personalityIdentity($user, $working, $spokenHint);
 
         $knowledgeBlock = null;
+        $synthesisBlock = null;
 
         try {
             $knowledgeBlock = $this->knowledge->contextBlock($user, $working, $currentInbound?->body);
         } catch (Throwable) {
             $knowledgeBlock = null;
+        }
+
+        try {
+            $synthesisBlock = $this->synthesis?->contextBlock($user, $working);
+        } catch (Throwable) {
+            $synthesisBlock = null;
         }
 
         $assembled = $this->budgets->assemble($configuration, new ContextSlices(
@@ -163,6 +173,7 @@ final class ConversationContextBuilder
             workingContext: $working->promptBlock(),
             conversationalPolicy: implode("\n", ConversationalPolicyPrompt::lines()),
             knowledgeBlock: $knowledgeBlock,
+            synthesisBlock: $synthesisBlock,
         ));
 
         $workingTokens = (int) (($assembled['diagnostics']['sources']['working_context']['tokens'] ?? 0));
@@ -278,6 +289,10 @@ final class ConversationContextBuilder
 
         if (array_intersect(KnowledgeToolPrompt::toolNames(), $names) !== []) {
             $lines = array_merge($lines, KnowledgeToolPrompt::lines());
+        }
+
+        if (array_intersect(SynthesisToolPrompt::toolNames(), $names) !== []) {
+            $lines = array_merge($lines, SynthesisToolPrompt::lines());
         }
 
         if (in_array(GetProjectContextTool::NAME, $names, true)) {

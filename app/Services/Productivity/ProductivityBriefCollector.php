@@ -3,6 +3,7 @@
 namespace App\Services\Productivity;
 
 use App\Enums\ProductivityBriefMode;
+use App\Enums\SynthesisType;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Models\JarvisNotification;
@@ -11,6 +12,8 @@ use App\Models\Reminder;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Reminders\ReminderLifecycle;
+use App\Services\Synthesis\CrossSourceSynthesisService;
+use App\Services\Synthesis\DTO\SynthesisScope;
 use App\Services\Tasks\TaskLifecycle;
 use App\Services\Users\UserCapability;
 use Carbon\CarbonImmutable;
@@ -19,6 +22,10 @@ use Exception;
 
 final class ProductivityBriefCollector
 {
+    public function __construct(
+        private readonly ?CrossSourceSynthesisService $synthesis = null,
+    ) {}
+
     /**
      * @param  list<Task>  $tasks
      * @param  list<Reminder>  $reminders
@@ -122,6 +129,35 @@ final class ProductivityBriefCollector
 
         $ownedCalendar = $user->canUseCapability(UserCapability::GOOGLE_CALENDAR) ? $calendar : [];
 
+        $waitingFor = [];
+        $commitments = [];
+        $recentChanges = [];
+        $synthesisAttention = [];
+
+        if ($this->synthesis !== null) {
+            try {
+                $type = $mode === ProductivityBriefMode::Weekly
+                    ? SynthesisType::WeeklyDigest
+                    : SynthesisType::DailyDigest;
+                $result = $this->synthesis->synthesize(new SynthesisScope(
+                    user: $user,
+                    type: $type,
+                    windowDays: $mode === ProductivityBriefMode::Weekly ? 7 : 1,
+                    withNarrative: false,
+                    now: $now,
+                ));
+                $waitingFor = array_map(static fn ($item) => $item->toArray(), array_slice($result->waitingFor, 0, 8));
+                $commitments = array_map(static fn ($item) => $item->toArray(), array_slice($result->commitments, 0, 8));
+                $recentChanges = array_map(static fn ($item) => $item->toArray(), array_slice($result->recentChanges, 0, 8));
+                $synthesisAttention = array_map(static fn ($item) => $item->toArray(), array_slice($result->attention, 0, 3));
+
+                foreach (array_slice($result->attention, 0, 3) as $item) {
+                    $attention[] = $item->title;
+                }
+            } catch (Exception) {
+            }
+        }
+
         return new ProductivityBriefSources(
             mode: $mode->value,
             timezone: $timezone,
@@ -135,6 +171,10 @@ final class ProductivityBriefCollector
             projects: array_slice($projectItems, 0, 8),
             notifications: array_slice($notificationItems, 0, 5),
             attention: array_values(array_unique(array_slice($attention, 0, 8))),
+            waitingFor: $waitingFor,
+            commitments: $commitments,
+            recentChanges: $recentChanges,
+            synthesisAttention: $synthesisAttention,
         );
     }
 

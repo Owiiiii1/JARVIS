@@ -12,6 +12,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\Knowledge\KnowledgeDeterministicIngestor;
 use App\Services\Reminders\ReminderLifecycle;
+use App\Services\Synthesis\CommitmentLifecycle;
 use App\Services\Users\UserCapability;
 use App\Services\Watchers\WatcherEvaluationDispatcher;
 use Carbon\CarbonImmutable;
@@ -183,6 +184,11 @@ final class TaskService
         $fresh = $task->fresh(['reminders', 'subtasks', 'project', 'sourceConversation']) ?? $task;
         $this->knowledge->taskCompleted($fresh);
         $this->notifyWatchers($fresh);
+
+        try {
+            app(CommitmentLifecycle::class)->fulfillLinked($user, $fresh);
+        } catch (Throwable) {
+        }
 
         return $fresh;
     }
