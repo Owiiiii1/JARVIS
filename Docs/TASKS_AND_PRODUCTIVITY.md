@@ -1,10 +1,22 @@
 # Tasks, productivity, and proactive Jarvis
 
-**Status.** PLANNED (Phase B.2 / E). Tasks are **not** implemented. No task tables.
+**Status.** Phase B.2 **IMPLEMENTED / NOT VALIDATED**. Not MANUAL PASS until Owner live test.
 
-Related: [REMINDERS.md](REMINDERS.md), [ROADMAP.md](ROADMAP.md).
+Related: [TASKS.md](TASKS.md), [NOTIFICATIONS.md](NOTIFICATIONS.md), [REMINDERS.md](REMINDERS.md), [ROADMAP.md](ROADMAP.md).
 
-Phase B.1 (Reminders 2.0) is IMPLEMENTED / NOT VALIDATED: Web Push, Reminder Center v2, edit/snooze/done/cancel, recurrence. It does **not** include Tasks, Notification Center, Daily Brief, or proactive suggestions.
+---
+
+## Phase B.1 Reminders 2.0
+
+Owner confirmed the live core flow works: **MANUAL PASS for confirmed live core flow**.
+
+That covers:
+
+- Web Push live works
+- Reminder Center live works
+- basic Reminder 2.0 user flow works
+
+It does **not** claim MANUAL PASS for every DST / recurrence / multi-device / delivery-failure edge case.
 
 ---
 
@@ -13,117 +25,108 @@ Phase B.1 (Reminders 2.0) is IMPLEMENTED / NOT VALIDATED: Web Push, Reminder Cen
 | | Reminder | Task |
 | --- | --- | --- |
 | Question | When should Jarvis notify me? | What do I need to accomplish? |
-| Today | Core table `reminders`; Web Push + optional Telegram; Reminder Center v2; recurrence | **Does not exist** |
-| Target | Channel-independent; Web + optional Telegram / Push | Own domain with status, deadline, relations |
+| Table | `reminders` | `tasks` |
+| Status | scheduled / processing / delivered / completed / cancelled / failed | open / in_progress / completed / cancelled |
+| Relation | optional `reminders.task_id` | may have zero, one, or many reminders |
 
-A task may have:
-
-- status
-- deadline
-- subtasks
-- related conversation
-- project
-- files
-- one or more reminders
-
-A reminder may later point at a task. They are not the same row.
+A task is **not** a reminder row. Completing or cancelling a task cancels **future open** linked reminders and keeps history (`reminder_occurrences`, delivered rows).
 
 ---
 
-## Notification Center (future)
+## Tasks
 
-A single in-workspace inbox for:
+Statuses: `open`, `in_progress`, `completed`, `cancelled`.
+Priorities: `low`, `normal`, `high`, `urgent`.
 
-- due reminders
-- tool/watch events the user opted into
-- brief summaries the user requested
+Subtasks: `tasks.parent_task_id`, one level, same user. Completing a parent with open children returns `open_subtasks` unless `force=true`. Children are not destroyed.
 
-Web Push / browser notifications are a **transport** (Phase B.1, reminder-scoped). The Notification Center itself is still future (B.2). Mobile push is Phase D.
+Optional relations:
 
----
+- `source_conversation_id` / `source_message_id` (owned conversation only)
+- `project_id` (Owner + owned project; ordinary users always null)
+- calendar reference `calendar_provider` / `calendar_id` / `calendar_event_id` (optional; not a Calendar mirror)
 
-## Calendar ↔ Tasks ↔ Reminders
-
-Google Calendar is a live Owner integration today. It is not the Reminder Engine.
-
-Target: explicit relationships (event ↔ task ↔ reminder) without mirroring Google into a second calendar database.
+Task Center: header **Задачи** on `/jarvis` and `/chat`. Sections: Просрочено, Сегодня, Предстоящие, Без срока, Выполненные.
 
 ---
 
-## Daily Brief / Weekly Review (future)
+## Notification Center
 
-**Daily Brief** may synthesize, grounded in sources:
+In-app inbox table `jarvis_notifications`. **Not** a second Web Push stack.
 
-- calendar
-- active tasks
-- reminders
-- project state
-- relevant overnight / new events
+Types: `reminder_due`, `task_due`, `task_overdue`, `brief_ready`, `proactive_suggestion`.
 
-**Weekly Review:**
+Dedupe: unique `(user_id, dedupe_key)`. Scheduler ticks do not spam.
 
-- completed work
-- unresolved tasks
-- project changes
-- upcoming deadlines
-
-Must be source-grounded, not a freeform invented recap.
+Web Push may accompany task/brief/proactive rows via existing VAPID infrastructure. Push failure does not delete the inbox row. Telegram is **not** used for Notification Center events by default. Reminders keep current Telegram behavior.
 
 ---
 
-## Proactive Engine (future)
+## Briefs and reviews
 
-Proactive does **not** mean unsolicited generic AI chatter.
+Per-user opt-in in Workspace settings (Productivity). Defaults: **all off**, including Owner.
 
-Driven by:
+| Mode | Default local time | Command |
+| --- | --- | --- |
+| Daily Brief | 08:00 | `jarvis:briefs:dispatch` every minute |
+| Evening Review | 20:00 | same |
+| Weekly Review | Sunday 18:00 (`weekday=7`) | same |
 
-- deadlines
-- reminders
-- tasks
-- calendar events
-- monitored external events
-- explicit user opt-in
-- meaningful detected changes
+Sources gathered first (owned tasks, reminders, Owner projects, recent notifications). Optional bounded LLM phrasing. If AI fails: deterministic fallback text is still delivered.
 
-Must have:
-
-- anti-spam rules
-- user controls
-- auditability
-- permissions
-- a clear trigger source
-
-Risky external writes still require confirmation.
+Calendar events may appear in a Daily Brief only when Google Calendar capability exists; a disconnected calendar does not break Tasks. Brief dispatch does **not** poll Google every 5 minutes.
 
 ---
 
-## Personal Knowledge Graph (future, optional)
+## Proactive Engine
 
-Optional structured layer over existing Memory Engine and raw sources. **Does not replace** Memory or conversation history.
+Deterministic Core decides the trigger. LLM may only rephrase.
 
-Potential entities: Person, Company, Project, Event, Task, File, Conversation, Reminder.
+Allowed B.2 triggers:
 
-Relationships and provenance must trace to source data.
+- open task becomes overdue
+- high/urgent task due within 2 hours
+
+Anti-spam (actual values):
+
+- `proactive_enabled` default **false**
+- max **3** `proactive_suggestion` rows per local day (excludes reminders and briefs)
+- cooldown **4 hours** per task source
+- unique `dedupe_key` (e.g. `proactive:task_overdue:{id}`)
+
+Scheduler: `jarvis:proactive:dispatch` every 5 minutes.
+
+No unsolicited chatter. No external writes.
 
 ---
 
-## People / Contacts (future)
+## Schedulers
 
-A Person entity may later aggregate: saved contact, conversation mentions, projects, meetings, email relations, tasks.
+| Command | Frequency |
+| --- | --- |
+| `jarvis:reminders:dispatch` | every minute |
+| `jarvis:tasks:dispatch` | every 5 minutes (due / overdue inbox) |
+| `jarvis:briefs:dispatch` | every minute (opt-in clocks) |
+| `jarvis:proactive:dispatch` | every 5 minutes |
 
-Not implemented. Do not invent a contacts product from `user_profiles.summary`.
+Task due keys: `task_due:{id}:{Y-m-d}`, `task_overdue:{id}`.
 
 ---
 
-## Automations / watchers (future)
+## AI tools
 
-Event-driven layer. Examples: email arrival, GitHub change, deadline approaching, reminder condition.
+`create_task`, `list_tasks`, `get_task`, `update_task`, `start_task`, `complete_task`, `cancel_task`, `create_subtask`, `link_task_reminder`.
 
-Prefer:
+Conservative create policy: explicit request or unambiguous commitment. Ambiguous matches return candidates. Never pass `user_id`.
 
-- webhook / event sources where possible
-- scheduled watches where necessary
-- explicit opt-in
-- confirmation for risky external writes
+Context injection: bounded snapshot (overdue count, due-today count, up to 3 high/urgent titles) only when those counts are non-zero. Deep queries use tools. Tasks are **not** written to Memory.
 
-Do not implement uncontrolled polling everywhere.
+---
+
+## Ordinary user vs Owner
+
+Ordinary user: personal Tasks, subtasks, linked reminders, Task Center, Notification Center, opt-in briefs, opt-in proactive.
+
+Ordinary user **does not** get Owner Projects, Gmail, Calendar, GitHub, groups/admin.
+
+Owner may link a task to an owned Project and optionally store a Google event reference. Calendar **writes** stay on existing Google tools + confirmation policy.

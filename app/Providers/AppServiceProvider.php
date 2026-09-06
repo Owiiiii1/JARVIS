@@ -13,9 +13,22 @@ use App\Services\Integrations\Providers\ElevenLabsIntegrationProvider;
 use App\Services\Integrations\Providers\GitHubIntegrationProvider;
 use App\Services\Integrations\Providers\GoogleIntegrationProvider;
 use App\Services\Integrations\Providers\TelegramIntegrationProvider;
+use App\Services\Notifications\JarvisNotificationService;
+use App\Services\Notifications\NotificationInbox;
+use App\Services\Notifications\NotificationUrlPolicy;
+use App\Services\Productivity\ProactiveDispatchService;
+use App\Services\Productivity\ProactivePolicy;
+use App\Services\Productivity\ProactiveTriggerDetector;
+use App\Services\Productivity\ProductivityBriefAiSynthesizer;
+use App\Services\Productivity\ProductivityBriefCollector;
+use App\Services\Productivity\ProductivityBriefRenderer;
+use App\Services\Productivity\ProductivityBriefService;
+use App\Services\Productivity\SynthesizesProductivityBrief;
 use App\Services\Reminders\Contracts\SendsReminderTelegram;
 use App\Services\Reminders\Contracts\SendsWebPush;
 use App\Services\Reminders\MinishlinkWebPushSender;
+use App\Services\Reminders\PushPayloadBuilder;
+use App\Services\Reminders\PushSubscriptionService;
 use App\Services\Reminders\TelegramReminderSender;
 use App\Services\Telegram\Contracts\CompletesTelegramUserTurn;
 use App\Services\Telegram\Contracts\LooksUpTelegramInbound;
@@ -28,13 +41,18 @@ use App\Services\Telegram\TelegramReplyDeliveryService;
 use App\Services\Telegram\TelegramVoiceInboundService;
 use App\Services\Telegram\TelegramVoiceSuitabilityPolicy;
 use App\Services\Tools\CancelReminderTool;
+use App\Services\Tools\CancelTaskTool;
 use App\Services\Tools\CancelToolActionTool;
 use App\Services\Tools\CompleteAssistantOnboardingTool;
 use App\Services\Tools\CompleteReminderTool;
+use App\Services\Tools\CompleteTaskTool;
 use App\Services\Tools\ConfirmToolActionTool;
 use App\Services\Tools\CreateReminderTool;
+use App\Services\Tools\CreateSubtaskTool;
+use App\Services\Tools\CreateTaskTool;
 use App\Services\Tools\GetAssistantProfileTool;
 use App\Services\Tools\GetProjectContextTool;
+use App\Services\Tools\GetTaskTool;
 use App\Services\Tools\GetTelegramResponseModeTool;
 use App\Services\Tools\GitHub\CommentGitHubIssueTool;
 use App\Services\Tools\GitHub\CompareGitHubRefsTool;
@@ -71,11 +89,14 @@ use App\Services\Tools\Google\SearchCalendarEventsTool;
 use App\Services\Tools\Google\SearchGmailTool;
 use App\Services\Tools\Google\SendGmailMessageTool;
 use App\Services\Tools\Google\UpdateCalendarEventTool;
+use App\Services\Tools\LinkTaskReminderTool;
 use App\Services\Tools\ListRemindersTool;
+use App\Services\Tools\ListTasksTool;
 use App\Services\Tools\SearchConversationHistoryTool;
 use App\Services\Tools\SearchGroupKnowledgeTool;
 use App\Services\Tools\SetTelegramResponseModeTool;
 use App\Services\Tools\SnoozeReminderTool;
+use App\Services\Tools\StartTaskTool;
 use App\Services\Tools\Storage\DeleteStorageFileTool;
 use App\Services\Tools\Storage\GetStorageFileTool;
 use App\Services\Tools\Storage\ListStorageFilesTool;
@@ -85,6 +106,7 @@ use App\Services\Tools\Storage\SearchStorageFilesTool;
 use App\Services\Tools\ToolRegistry;
 use App\Services\Tools\UpdateAssistantProfileTool;
 use App\Services\Tools\UpdateReminderTool;
+use App\Services\Tools\UpdateTaskTool;
 use App\Services\Tools\WebResearch\FetchWebPageTool;
 use App\Services\Tools\WebResearch\SearchWebTool;
 use App\Services\Users\ResolvesTelegramResponseMode;
@@ -174,6 +196,35 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->bind(SendsReminderTelegram::class, TelegramReminderSender::class);
         $this->app->bind(SendsWebPush::class, MinishlinkWebPushSender::class);
+        $this->app->bind(SynthesizesProductivityBrief::class, ProductivityBriefAiSynthesizer::class);
+
+        $this->app->singleton(JarvisNotificationService::class, function ($app): JarvisNotificationService {
+            return new JarvisNotificationService(
+                new NotificationInbox,
+                new NotificationUrlPolicy,
+                new PushPayloadBuilder,
+                $app->make(PushSubscriptionService::class),
+                $app->make(SendsWebPush::class),
+            );
+        });
+
+        $this->app->singleton(ProductivityBriefService::class, function ($app): ProductivityBriefService {
+            return new ProductivityBriefService(
+                new ProductivityBriefCollector,
+                new ProductivityBriefRenderer,
+                $app->make(SynthesizesProductivityBrief::class),
+            );
+        });
+
+        $this->app->singleton(ProactiveDispatchService::class, function ($app): ProactiveDispatchService {
+            return new ProactiveDispatchService(
+                new ProactivePolicy,
+                new ProactiveTriggerDetector,
+                $app->make(JarvisNotificationService::class),
+                new NotificationUrlPolicy,
+                $app->make(SynthesizesProductivityBrief::class),
+            );
+        });
 
         $this->app->singleton(ToolRegistry::class, function ($app): ToolRegistry {
             return new ToolRegistry([
@@ -183,6 +234,15 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(SnoozeReminderTool::class),
                 $app->make(CompleteReminderTool::class),
                 $app->make(CancelReminderTool::class),
+                $app->make(CreateTaskTool::class),
+                $app->make(ListTasksTool::class),
+                $app->make(GetTaskTool::class),
+                $app->make(UpdateTaskTool::class),
+                $app->make(StartTaskTool::class),
+                $app->make(CompleteTaskTool::class),
+                $app->make(CancelTaskTool::class),
+                $app->make(CreateSubtaskTool::class),
+                $app->make(LinkTaskReminderTool::class),
                 $app->make(GetAssistantProfileTool::class),
                 $app->make(UpdateAssistantProfileTool::class),
                 $app->make(CompleteAssistantOnboardingTool::class),

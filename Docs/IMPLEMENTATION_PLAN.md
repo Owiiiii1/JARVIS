@@ -62,7 +62,7 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 | Onboarding E2E | Entry confirmed; completion/profile update not Owner-confirmed |
 | Google / GitHub live smoke | Code present; not Owner-validated as a campaign |
 | A/B isolation campaign | Prepared, not executed |
-| Web Push / Tasks / Daily Brief | Not implemented |
+| Web Push / Tasks / Daily Brief | B.1 Web Push MANUAL PASS (live core). B.2 Tasks/Notification Center/briefs/proactive IMPLEMENTED / NOT VALIDATED |
 | Versioned Client API | Not implemented; **not** current work |
 | Telegram Voice Input (STT) | IMPLEMENTED / NOT VALIDATED |
 | Desktop | CANCELLED |
@@ -99,13 +99,19 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 
 ### Phase B.1 — Reminders 2.0
 
+**Status.** Owner **MANUAL PASS for confirmed live core flow**. Not exhaustive DST/recurrence/multi-device MANUAL PASS.
+
+**In code and live core:** Web Push, Reminder Center v2, edit / snooze / done / cancel, recurrence, per-channel `reminder_deliveries`.
+
+### Phase B.2 — Tasks & Proactive
+
 **Status.** IMPLEMENTED / NOT VALIDATED. Do not treat as MANUAL PASS until Owner live test.
 
-**In code:** Web Push, Reminder Center v2, edit / snooze / done / cancel, recurrence (`daily`/`weekdays`/`weekly`/`monthly`), per-channel `reminder_deliveries`.
+**In code:** Tasks domain, Task Center, Notification Center, Daily/Evening/Weekly briefs (opt-in), bounded proactive engine, task↔reminder/conversation/project/calendar-reference.
 
-**Not in this milestone:** Tasks, Notification Center, Daily Brief, proactive suggestions, mobile app (Phase B.2).
+**Not in this milestone:** mobile, knowledge graph, contacts, watchers, unrestricted autonomy.
 
-Detail: [REMINDERS.md](REMINDERS.md), [Docs/Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+Detail: [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md), [Docs/Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
 
 ### Telegram Voice Replies / Input
 

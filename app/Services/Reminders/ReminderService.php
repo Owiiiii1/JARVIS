@@ -31,6 +31,7 @@ final class ReminderService
         ?Conversation $conversation = null,
         ?Message $sourceMessage = null,
         ?string $recurrence = null,
+        ?int $taskId = null,
     ): Reminder {
         $rule = $this->normalizeRecurrence($recurrence);
         $this->validateCreate($user, $text, $runAt, $timezone);
@@ -42,6 +43,7 @@ final class ReminderService
             'user_id' => $user->id,
             'source_conversation_id' => $conversation?->id,
             'source_message_id' => $sourceMessage?->id,
+            'task_id' => $taskId,
             'text' => $text,
             'run_at' => $utc,
             'timezone' => $timezone,
@@ -201,7 +203,7 @@ final class ReminderService
         $now = CarbonImmutable::now('UTC');
 
         $open = Reminder::query()
-            ->with(['sourceConversation:id,user_id,title', 'deliveries'])
+            ->with(['sourceConversation:id,user_id,title', 'deliveries', 'task:id,user_id,title'])
             ->where('user_id', $user->id)
             ->whereIn('status', ReminderLifecycle::openStatuses())
             ->orderBy('run_at')
@@ -209,7 +211,7 @@ final class ReminderService
             ->get();
 
         $history = Reminder::query()
-            ->with(['sourceConversation:id,user_id,title', 'deliveries'])
+            ->with(['sourceConversation:id,user_id,title', 'deliveries', 'task:id,user_id,title'])
             ->where('user_id', $user->id)
             ->whereIn('status', [
                 ReminderStatus::Delivered,
@@ -399,6 +401,15 @@ final class ReminderService
             ->first();
     }
 
+    public function linkOwnedTask(User $user, int $reminderId, int $taskId): Reminder
+    {
+        $reminder = $this->assertOwnedEditable($user, $this->findOwned($user, $reminderId));
+        $reminder->task_id = $taskId;
+        $reminder->save();
+
+        return $reminder->fresh() ?? $reminder;
+    }
+
     public function assertOwnedCancellable(User $user, ?Reminder $reminder): Reminder
     {
         $reminder = $this->assertOwnedOpen($user, $reminder, 'not_cancellable', 'This reminder cannot be cancelled.');
@@ -496,6 +507,7 @@ final class ReminderService
             'snoozable' => ReminderLifecycle::isSnoozable($reminder),
             'completable' => ReminderLifecycle::isCompletable($reminder),
             'source_conversation' => $source,
+            'task' => $this->taskPayload($reminder, $user),
             'created_at' => optional($reminder->created_at)?->toIso8601String(),
             'delivered_at' => optional($reminder->delivered_at)?->toIso8601String(),
             'cancelled_at' => optional($reminder->cancelled_at)?->toIso8601String(),
@@ -621,6 +633,27 @@ final class ReminderService
         return [
             'id' => (int) $conversation->id,
             'title' => $title !== '' ? $title : 'Основной',
+        ];
+    }
+
+    /**
+     * @return array{id: int, title: string}|null
+     */
+    private function taskPayload(Reminder $reminder, ?User $user): ?array
+    {
+        $task = $reminder->task;
+
+        if ($task === null || $reminder->task_id === null) {
+            return null;
+        }
+
+        if ($user !== null && (int) $task->user_id !== (int) $user->id) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $task->id,
+            'title' => (string) $task->title,
         ];
     }
 

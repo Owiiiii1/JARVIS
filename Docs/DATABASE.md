@@ -40,13 +40,23 @@ Engine: MySQL. CRM leftover tables were dropped. Vector DB is not used.
 
 ## Reminders
 
-**reminders:** `user_id`, source conversation/message, text, `run_at` UTC, timezone, status scheduled\|processing\|delivered\|completed\|cancelled\|failed, `completed_at`, `recurrence_rule` (`daily`/`weekdays`/`weekly`/`monthly`).
+**reminders:** `user_id`, source conversation/message, optional `task_id`, text, `run_at` UTC, timezone, status scheduled\|processing\|delivered\|completed\|cancelled\|failed, `completed_at`, `recurrence_rule` (`daily`/`weekdays`/`weekly`/`monthly`).
 
 **reminder_deliveries:** per-channel (`telegram`/`web_push`) status, attempts, timestamps.
 
 **reminder_occurrences:** fired occurrence history for recurring series.
 
 **push_subscriptions:** user-owned Web Push endpoints; encrypted `p256dh`/`auth`.
+
+---
+
+## Tasks / Notification Center (Phase B.2)
+
+**tasks:** `user_id`, optional `parent_task_id`, title, description, status `open|in_progress|completed|cancelled`, priority `low|normal|high|urgent`, `due_at` UTC, timezone, source conversation/message, optional `project_id`, optional calendar reference (`calendar_provider`, `calendar_id`, `calendar_event_id`), `completed_at`, `cancelled_at`, metadata.
+
+**jarvis_notifications:** `user_id`, type, title, body, severity, source_type/id, unique `dedupe_key`, safe `action_url`, `read_at`, `dismissed_at`, `occurred_at`, `ai_phrased`, metadata.
+
+**user_productivity_settings:** per-user opt-in Daily/Evening/Weekly clocks and `proactive_enabled` (all default false).
 
 ---
 

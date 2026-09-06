@@ -52,8 +52,9 @@ The former hands-free «Диалог» mode was removed; only «Рация» rem
 
 - Onboarding / «Знакомство» **appears** (Owner)
 - Full onboarding conversation / completion / profile update: **not** MANUAL PASS
-- Reminders panel / Reminders 2.0: **IMPLEMENTED / NOT VALIDATED** (Web Push, Center v2, recurrence, edit/snooze/done)
-- `create_reminder` without Telegram: **IMPLEMENTED / NOT VALIDATED**
+- Reminders panel / Reminders 2.0: **MANUAL PASS for confirmed live core flow** (Web Push, Reminder Center, basic user flow). Not exhaustive DST/recurrence/multi-device MANUAL PASS.
+- `create_reminder` without Telegram: covered by that same live core flow
+- Phase B.2 Tasks / Notification Center / briefs / proactive: **IMPLEMENTED / NOT VALIDATED**
 
 **Not claimed:** A/B IDOR campaign; combined Google/GitHub live campaign; Tavily; `fetch_web_page` as a distinct Owner check; screenshot purge; destructive Storage delete.
 
@@ -64,7 +65,7 @@ The former hands-free «Диалог» mode was removed; only «Рация» rem
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | `main`, aligned with `origin/main` after Phase B.1 Reminders 2.0 |
+| HEAD | `main`, aligned with `origin/main` after Phase B.2 Tasks & Proactive |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 
 Production checkout is the GitHub source of truth. Gemini STT request-shape and bounded ElevenLabs voice fallback are committed. Laravel Boost is require-dev tooling in a separate commit. `.env` stays gitignored.
@@ -98,7 +99,7 @@ AI / Telegram / ElevenLabs credentials: encrypted DB columns, not `.env`. Do not
 | Domain | `jarvis.owlsolutions.net` |
 | nginx | `/var/www/jarvis/public`, HTTP→HTTPS |
 | TLS | Let's Encrypt |
-| Scheduler | crontab `schedule:run`; `jarvis:reminders:dispatch` every minute; attachment purge hourly; `jarvis:voice:cleanup-temp` every 5 minutes; `queue:work` for `memory,default` |
+| Scheduler | crontab `schedule:run`; `jarvis:reminders:dispatch` every minute; `jarvis:tasks:dispatch` / `jarvis:proactive:dispatch` every 5 minutes; `jarvis:briefs:dispatch` every minute; attachment purge hourly; `jarvis:voice:cleanup-temp` every 5 minutes; `queue:work` for `memory,default` |
 | Telegram queue | deploy-user crontab `flock` worker (host-specific) |
 
 Vite production build is generated on deploy (`public/build` gitignored).
@@ -107,13 +108,11 @@ Vite production build is generated on deploy (`public/build` gitignored).
 
 ## 4. Database
 
-Engine: MySQL. **48 tables** (including `migrations`). CRM tables were dropped (M0). App migrations listed as Ran, including `user_channel_preferences`.
+Engine: MySQL. CRM tables were dropped (M0). App migrations listed as Ran.
 
 ### Tables (product)
 
-`users`, `password_reset_tokens`, `sessions`, `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`, `ai_provider_settings`, `ai_role_settings`, `user_ai_settings`, `telegram_bot_settings`, `channel_identities`, `conversations`, `messages`, `message_attachments`, `reminders`, `conversation_summaries`, `topics`, `message_topic_relations`, `memories`, `memory_sources`, `memory_revisions`, `user_profiles`, `memory_analysis_runs`, `projects`, `project_conversations`, `project_topics`, `project_memories`, `project_groups`, `telegram_groups`, `telegram_group_participants`, `telegram_group_analysis_runs`, `telegram_group_knowledge`, `telegram_group_knowledge_sources`, `telegram_group_knowledge_revisions`, `integration_accounts`, `tool_execution_logs`, `tool_confirmations`, `stored_files`, `stored_file_chunks`, `message_stored_files`, `web_research_settings`, `voice_sessions`, `voice_settings`, `user_assistant_profiles`, `user_channel_preferences`.
-
-Row counts at audit (order of magnitude, not a metric): users 2 (1 owner + 1 user), conversations 9, messages 145, reminders 13, assistant profiles 1, voice_sessions 11, stored_files 1.
+Includes identity/conversation/memory/integration/voice tables plus `reminders`, `reminder_deliveries`, `reminder_occurrences`, `push_subscriptions`, `tasks`, `jarvis_notifications`, `user_productivity_settings`.
 
 See [DATABASE.md](DATABASE.md).
 
@@ -138,7 +137,7 @@ See [DATABASE.md](DATABASE.md).
 
 Frontend: `resources/js/personal-workspace/PersonalWorkspace.jsx` shared. Capabilities are presentation flags; backend ownership is authoritative.
 
-Regular user capabilities: chat, memory, telegram_dm, reminders, cabinet, personal_workspace, profile, web_research, voice, storage. **Not** projects, admin, Google, GitHub.
+Regular user capabilities: chat, memory, telegram_dm, reminders, tasks, notifications, cabinet, personal_workspace, profile, web_research, voice, storage. **Not** projects, admin, Google, GitHub.
 
 ---
 
@@ -161,7 +160,11 @@ Personal voice preference: nullable `users.voice_id`; effective fallback is the 
 
 ## 8. Reminders
 
-Phase B.1 Reminders 2.0 IMPLEMENTED / NOT VALIDATED. Core reminders remain channel-independent. Web Push, Reminder Center v2, edit/snooze/done/cancel, and simple recurrence are in code. Telegram remains an optional adapter. Tasks / Notification Center / Daily Brief are **not** implemented. [REMINDERS.md](REMINDERS.md).
+Phase B.1 Reminders 2.0: Owner **MANUAL PASS for confirmed live core flow** (Web Push, Reminder Center, basic user flow). Not exhaustive edge-case MANUAL PASS. Telegram remains an optional adapter.
+
+## 8.1 Tasks & productivity
+
+Phase B.2 **IMPLEMENTED / NOT VALIDATED**. Separate `tasks` domain, Task Center, Notification Center, opt-in Daily/Evening/Weekly briefs, bounded proactive suggestions. [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).
 
 ---
 

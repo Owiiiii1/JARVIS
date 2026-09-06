@@ -196,6 +196,11 @@ function ReminderList({ items, surface, busyId, onSnooze, onDone, onCancel, onEd
                                 </Link>
                             </p>
                         ) : null}
+                        {reminder.task ? (
+                            <p className="mt-1 text-[11px] text-slate-500">
+                                Связано с задачей: {reminder.task.title}
+                            </p>
+                        ) : null}
                         <ReminderActions
                             reminder={reminder}
                             busy={busyId === reminder.id}

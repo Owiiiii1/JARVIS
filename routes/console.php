@@ -12,6 +12,18 @@ Schedule::command('jarvis:reminders:dispatch')
     ->everyMinute()
     ->withoutOverlapping(10);
 
+Schedule::command('jarvis:tasks:dispatch')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(4);
+
+Schedule::command('jarvis:briefs:dispatch')
+    ->everyMinute()
+    ->withoutOverlapping(10);
+
+Schedule::command('jarvis:proactive:dispatch')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(4);
+
 Schedule::command('jarvis:attachments:purge-ephemeral')
     ->hourly()
     ->withoutOverlapping(55);

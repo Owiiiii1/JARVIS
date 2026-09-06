@@ -5,9 +5,12 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Jarvis\JarvisAttachmentController;
 use App\Http\Controllers\Jarvis\JarvisConfirmationController;
+use App\Http\Controllers\Jarvis\JarvisNotificationController;
+use App\Http\Controllers\Jarvis\JarvisProductivitySettingsController;
 use App\Http\Controllers\Jarvis\JarvisPushSubscriptionController;
 use App\Http\Controllers\Jarvis\JarvisReminderController;
 use App\Http\Controllers\Jarvis\JarvisStorageController;
+use App\Http\Controllers\Jarvis\JarvisTaskController;
 use App\Http\Controllers\Jarvis\JarvisVoiceController;
 use App\Http\Controllers\Jarvis\JarvisWorkspaceController;
 use App\Http\Controllers\ProfileController;
@@ -122,6 +125,44 @@ $registerPersonalWorkspace = static function (string $prefix, string $as, array 
         Route::post('/reminders/{reminder}/cancel', [JarvisReminderController::class, 'cancel'])
             ->middleware('throttle:30,1')
             ->name('reminders.cancel');
+        Route::get('/tasks', [JarvisTaskController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('tasks.index');
+        Route::post('/tasks', [JarvisTaskController::class, 'store'])
+            ->middleware('throttle:20,1')
+            ->name('tasks.store');
+        Route::patch('/tasks/{task}', [JarvisTaskController::class, 'update'])
+            ->middleware('throttle:30,1')
+            ->name('tasks.update');
+        Route::post('/tasks/{task}/start', [JarvisTaskController::class, 'start'])
+            ->middleware('throttle:30,1')
+            ->name('tasks.start');
+        Route::post('/tasks/{task}/complete', [JarvisTaskController::class, 'complete'])
+            ->middleware('throttle:30,1')
+            ->name('tasks.complete');
+        Route::post('/tasks/{task}/cancel', [JarvisTaskController::class, 'cancel'])
+            ->middleware('throttle:30,1')
+            ->name('tasks.cancel');
+        Route::post('/tasks/{task}/reopen', [JarvisTaskController::class, 'reopen'])
+            ->middleware('throttle:30,1')
+            ->name('tasks.reopen');
+        Route::post('/tasks/{task}/subtasks', [JarvisTaskController::class, 'storeSubtask'])
+            ->middleware('throttle:20,1')
+            ->name('tasks.subtasks.store');
+        Route::get('/notifications', [JarvisNotificationController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('notifications.index');
+        Route::post('/notifications/read-all', [JarvisNotificationController::class, 'markAllRead'])
+            ->middleware('throttle:20,1')
+            ->name('notifications.read-all');
+        Route::post('/notifications/{notification}/read', [JarvisNotificationController::class, 'markRead'])
+            ->middleware('throttle:30,1')
+            ->name('notifications.read');
+        Route::post('/notifications/{notification}/dismiss', [JarvisNotificationController::class, 'dismiss'])
+            ->middleware('throttle:30,1')
+            ->name('notifications.dismiss');
+        Route::patch('/settings/productivity', [JarvisProductivitySettingsController::class, 'update'])
+            ->name('settings.productivity.update');
         Route::post('/chats/{conversation}/voice/sessions', [JarvisVoiceController::class, 'store'])
             ->middleware('throttle:20,1')
             ->name('voice.sessions.store');

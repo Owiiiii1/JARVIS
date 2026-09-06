@@ -17,8 +17,10 @@ use App\Services\Context\ContextBudgetManager;
 use App\Services\Context\ContextSlices;
 use App\Services\Memory\DTO\MemoryContextPackage;
 use App\Services\Memory\PersonalMemoryRetriever;
+use App\Services\Productivity\ProductivitySnapshot;
 use App\Services\Reminders\ReminderToolPrompt;
 use App\Services\Storage\StoredFileService;
+use App\Services\Tasks\TaskToolPrompt;
 use App\Services\Tools\CompleteAssistantOnboardingTool;
 use App\Services\Tools\GetAssistantProfileTool;
 use App\Services\Tools\GetProjectContextTool;
@@ -50,6 +52,7 @@ final class ConversationContextBuilder
         private readonly StoredFileService $storedFiles,
         private readonly ContextBudgetManager $budgets,
         private readonly AssistantProfileService $assistantProfiles,
+        private readonly ?ProductivitySnapshot $productivity = null,
     ) {}
 
     /**
@@ -66,6 +69,11 @@ final class ConversationContextBuilder
     ): array {
         $platform = [trim((string) $configuration->system_prompt)];
         $platform[] = $this->currentTimeContext($user);
+        $snapshot = $this->productivity?->promptLines($user);
+
+        if ($snapshot !== null) {
+            $platform[] = $snapshot;
+        }
         $toolContext = $this->toolContext($tools);
 
         if ($toolContext !== null) {
@@ -164,6 +172,10 @@ final class ConversationContextBuilder
 
         if (array_intersect(ReminderToolPrompt::toolNames(), $names) !== []) {
             $lines = array_merge($lines, ReminderToolPrompt::lines());
+        }
+
+        if (array_intersect(TaskToolPrompt::toolNames(), $names) !== []) {
+            $lines = array_merge($lines, TaskToolPrompt::lines());
         }
 
         if (in_array(GetAssistantProfileTool::NAME, $names, true)

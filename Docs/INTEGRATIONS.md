@@ -21,7 +21,7 @@ Google / ElevenLabs / GitHub / Integrations admin — **owner only** (`integrati
 
 Обычный `user` не видит Integrations, не получает Gmail/Calendar/GitHub/Storage/web/voice tools, не читает credentials.
 
-**Reminders** — не этот слой и не Calendar. Core Reminder Engine доступен owner и users. [REMINDERS.md](REMINDERS.md).
+**Reminders / Tasks** — не этот слой и не Calendar. Core Reminder Engine и Task Engine доступны owner и users. [REMINDERS.md](REMINDERS.md), [TASKS.md](TASKS.md).
 
 Проверка permission в Tool Layer / Core, не в UI.
 

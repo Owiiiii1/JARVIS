@@ -8,8 +8,10 @@ use App\Services\Assistant\AssistantProfileService;
 use App\Services\ChatAttachments\ChatAttachmentConfig;
 use App\Services\Conversations\ConversationService;
 use App\Services\Conversations\PersonalChatSurfaceService;
+use App\Services\Notifications\JarvisNotificationService;
 use App\Services\Reminders\ReminderService;
 use App\Services\Storage\StoredFileConfig;
+use App\Services\Tasks\TaskService;
 use App\Services\Voice\ElevenLabsVoiceCatalog;
 use App\Services\Voice\VoiceAudioMime;
 use App\Services\Voice\VoiceSettingsService;
@@ -32,6 +34,8 @@ class JarvisWorkspaceController extends Controller
         private readonly OwnerWorkspaceContextService $context,
         private readonly AssistantProfileService $assistantProfiles,
         private readonly ReminderService $reminders,
+        private readonly TaskService $tasks,
+        private readonly JarvisNotificationService $notifications,
     ) {}
 
     public function index(Request $request): RedirectResponse
@@ -73,6 +77,8 @@ class JarvisWorkspaceController extends Controller
             ),
             'assistantProfile' => $this->assistantProfiles->workspacePayload($user),
             'activeReminderCount' => $this->reminders->activeCount($user),
+            'activeTaskCount' => $this->tasks->activeOpenCount($user),
+            'unreadNotificationCount' => $this->notifications->unreadCount($user),
         ]);
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Services\Reminders;
 
+use App\Enums\JarvisNotificationType;
 use App\Enums\ReminderChannel;
 use App\Enums\ReminderDeliveryStatus;
 use App\Enums\ReminderStatus;
@@ -10,6 +11,9 @@ use App\Models\PushSubscription;
 use App\Models\Reminder;
 use App\Models\ReminderDelivery;
 use App\Models\ReminderOccurrence;
+use App\Models\User;
+use App\Services\Notifications\JarvisNotificationService;
+use App\Services\Notifications\NotificationUrlPolicy;
 use App\Services\Reminders\Contracts\SendsReminderTelegram;
 use App\Services\Reminders\Contracts\SendsWebPush;
 use Carbon\CarbonImmutable;
@@ -28,6 +32,7 @@ final class ReminderDeliveryService
         private readonly PushPayloadBuilder $payloads,
         private readonly PushSubscriptionService $subscriptions,
         private readonly ReminderRecurrenceCalculator $recurrence,
+        private readonly ?JarvisNotificationService $inbox = null,
     ) {}
 
     public function deliver(Reminder $reminder): void
@@ -240,6 +245,8 @@ final class ReminderDeliveryService
         if ($reminder->exists) {
             $reminder->save();
         }
+
+        $this->recordInbox($reminder, $now);
     }
 
     public function persistChannel(Reminder $reminder, ChannelAttempt $attempt, CarbonImmutable $now): void
@@ -283,5 +290,54 @@ final class ReminderDeliveryService
             'status' => ReminderStatus::Cancelled->value,
             'error_class' => $reason,
         ]);
+    }
+
+    private function recordInbox(Reminder $reminder, CarbonImmutable $now): void
+    {
+        if ($this->inbox === null) {
+            return;
+        }
+
+        $user = $reminder->user;
+
+        if (! $user instanceof User || ! $user->isActive()) {
+            return;
+        }
+
+        $occurrence = $reminder->metadata['last_occurrence'] ?? null;
+        $delivered = $reminder->status === ReminderStatus::Delivered
+            || (is_array($occurrence) && ($occurrence['status'] ?? null) === ReminderStatus::Delivered->value);
+
+        if (! $delivered) {
+            return;
+        }
+
+        $stamp = is_array($occurrence) && isset($occurrence['run_at'])
+            ? (string) $occurrence['run_at']
+            : (optional($reminder->run_at)?->utc()->toIso8601String() ?? $now->utc()->toIso8601String());
+
+        try {
+            $this->inbox->record(
+                $user,
+                JarvisNotificationType::ReminderDue,
+                'Напоминание',
+                (string) $reminder->text,
+                'reminder_due:'.$reminder->id.':'.$stamp,
+                'reminder',
+                (int) $reminder->id,
+                (new NotificationUrlPolicy)->workspacePath(
+                    $user,
+                    'reminder='.$reminder->id,
+                    $reminder->source_conversation_id ? (int) $reminder->source_conversation_id : null,
+                ),
+                [
+                    'trigger' => 'reminder_due',
+                    'source_id' => (int) $reminder->id,
+                ],
+                false,
+                false,
+            );
+        } catch (Throwable) {
+        }
     }
 }

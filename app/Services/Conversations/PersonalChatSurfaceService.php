@@ -7,8 +7,11 @@ use App\Models\Conversation;
 use App\Models\User;
 use App\Services\Assistant\AssistantProfileService;
 use App\Services\ChatAttachments\Exceptions\ChatAttachmentException;
+use App\Services\Notifications\JarvisNotificationService;
+use App\Services\Productivity\ProductivitySettingsService;
 use App\Services\Reminders\ReminderService;
 use App\Services\Storage\Exceptions\StoredFileException;
+use App\Services\Tasks\TaskService;
 use App\Services\Tools\ToolConfirmationService;
 use App\Services\Users\UserCapability;
 use App\Services\Voice\VoiceSettingsService;
@@ -28,7 +31,10 @@ final class PersonalChatSurfaceService
         private readonly AssistantProfileService $assistantProfiles,
         private readonly ConversationAiService $conversationAi,
         private readonly ReminderService $reminders,
+        private readonly TaskService $tasks,
+        private readonly JarvisNotificationService $notifications,
         private readonly VoiceSettingsService $voiceSettings,
+        private readonly ProductivitySettingsService $productivity,
     ) {}
 
     /**
@@ -80,6 +86,8 @@ final class PersonalChatSurfaceService
             'storagePage' => $owner,
             'ownerContext' => $owner,
             'reminders' => $user->canUseCapability(UserCapability::REMINDERS),
+            'tasks' => $user->canUseCapability(UserCapability::TASKS),
+            'notifications' => $user->canUseCapability(UserCapability::NOTIFICATIONS),
         ];
     }
 
@@ -96,6 +104,7 @@ final class PersonalChatSurfaceService
             'general_prompt' => $user->aiSettings?->general_prompt,
             'timezones' => Timezones::options($user->timezone),
             'voice' => $this->voiceSettings->userVoicePayload($user),
+            'productivity' => $this->productivity->payload($user),
         ];
     }
 

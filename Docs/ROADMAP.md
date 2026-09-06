@@ -46,9 +46,10 @@ Includes (in code unless noted):
 | Push-to-talk-only Web capture + per-user voice choice | IMPLEMENTED |
 | Onboarding «Знакомство» entry | MANUAL PARTIAL |
 | Full onboarding completion / profile update E2E | IMPLEMENTED / NOT VALIDATED |
-| Reminders panel in live user workspace | IMPLEMENTED / NOT VALIDATED |
-| Reminder create without Telegram | IMPLEMENTED / NOT VALIDATED |
-| Reminders 2.0 (Web Push, Center v2, recurrence, edit/snooze/done) | IMPLEMENTED / NOT VALIDATED |
+| Reminders panel in live user workspace | MANUAL PASS (confirmed live core flow) |
+| Reminder create without Telegram | MANUAL PASS (confirmed live core flow) |
+| Reminders 2.0 (Web Push, Center v2, recurrence, edit/snooze/done) | MANUAL PASS for confirmed live core flow |
+| Tasks / Notification Center / Daily Brief / proactive | IMPLEMENTED / NOT VALIDATED |
 | Combined Google / GitHub live smoke | IMPLEMENTED / NOT VALIDATED |
 | A/B isolation campaign | PREPARED / NOT EXECUTED |
 
@@ -63,23 +64,23 @@ Includes (in code unless noted):
 
 ## PHASE B — Time & Productivity
 
-**Status.** B.1 Reminders 2.0 IMPLEMENTED / NOT VALIDATED. B.2 (Tasks / Notification Center / Daily Brief) still PLANNED.
+**Status.** B.1 Reminders 2.0: Owner **MANUAL PASS for confirmed live core flow**. B.2 Tasks & Proactive: **IMPLEMENTED / awaiting Owner validation**.
 
 Jarvis should become time-aware and action-aware, not merely chat-aware.
 
 1. Reminder Core decoupled from Telegram (M25U.3.1)
-2. Web Reminder Center v2 — IMPLEMENTED / NOT VALIDATED
-3. Web Push / browser notifications — IMPLEMENTED / NOT VALIDATED
-4. Recurring reminders — IMPLEMENTED / NOT VALIDATED
-5. Snooze / done / edit — IMPLEMENTED / NOT VALIDATED
-6. Tasks (separate domain from reminders)
-7. Task ↔ Reminder relationships
-8. Task ↔ Conversation relationships
-9. Notification Center
-10. Calendar ↔ Tasks ↔ Reminders
-11. Daily Brief
-12. Evening / Weekly Review
-13. Controlled proactive suggestions
+2. Web Reminder Center v2 — MANUAL PASS (confirmed live core flow)
+3. Web Push / browser notifications — MANUAL PASS (confirmed live core flow)
+4. Recurring reminders — IMPLEMENTED (not separately Owner-validated for every DST/edge case)
+5. Snooze / done / edit — MANUAL PASS (confirmed live core flow)
+6. Tasks (separate domain from reminders) — IMPLEMENTED / NOT VALIDATED
+7. Task ↔ Reminder relationships — IMPLEMENTED / NOT VALIDATED
+8. Task ↔ Conversation relationships — IMPLEMENTED / NOT VALIDATED
+9. Notification Center — IMPLEMENTED / NOT VALIDATED
+10. Calendar ↔ Tasks ↔ Reminders (optional event reference; no mirror) — IMPLEMENTED / NOT VALIDATED
+11. Daily Brief — IMPLEMENTED / NOT VALIDATED
+12. Evening / Weekly Review — IMPLEMENTED / NOT VALIDATED
+13. Controlled proactive suggestions — IMPLEMENTED / NOT VALIDATED
 
 Detail: [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).
 

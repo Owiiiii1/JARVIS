@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'user_id',
     'source_conversation_id',
     'source_message_id',
+    'task_id',
     'text',
     'run_at',
     'timezone',
@@ -54,6 +55,11 @@ class Reminder extends Model
     public function sourceMessage(): BelongsTo
     {
         return $this->belongsTo(Message::class, 'source_message_id');
+    }
+
+    public function task(): BelongsTo
+    {
+        return $this->belongsTo(Task::class);
     }
 
     public function deliveries(): HasMany

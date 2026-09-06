@@ -2,14 +2,18 @@ import SafeMarkdown from '@/Components/Jarvis/SafeMarkdown';
 import JarvisWorkspaceLayout from '@/Layouts/JarvisWorkspaceLayout';
 import { workspaceRoute } from '@/personal-workspace/named';
 import RemindersPanel from '@/personal-workspace/RemindersPanel';
+import TasksPanel from '@/personal-workspace/TasksPanel';
+import NotificationsPanel from '@/personal-workspace/NotificationsPanel';
 import { primeVoiceMediaFromUserGesture } from '@/voice/audio/voiceMedia';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
 import {
     Bell,
     Check,
+    CheckSquare,
     FileText,
     FolderKanban,
     HardDrive,
+    Inbox,
     Loader2,
     Menu,
     MessageSquarePlus,
@@ -231,6 +235,8 @@ export default function PersonalWorkspace() {
         settings = {},
         assistantProfile: assistantProfileProp = {},
         activeReminderCount: activeReminderCountProp = 0,
+        activeTaskCount: activeTaskCountProp = 0,
+        unreadNotificationCount: unreadNotificationCountProp = 0,
     } = usePage().props;
     const surface = surfaceProp === 'chat' ? 'chat' : 'jarvis';
     const capabilities = {
@@ -244,6 +250,8 @@ export default function PersonalWorkspace() {
         storagePage: false,
         ownerContext: false,
         reminders: false,
+        tasks: false,
+        notifications: false,
         ...capabilityProps,
     };
 
@@ -284,8 +292,12 @@ export default function PersonalWorkspace() {
     const [promptOpen, setPromptOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [remindersOpen, setRemindersOpen] = useState(false);
+    const [tasksOpen, setTasksOpen] = useState(false);
+    const [notificationsOpen, setNotificationsOpen] = useState(false);
     const [assistantProfile, setAssistantProfile] = useState(assistantProfileProp);
     const [activeReminderCount, setActiveReminderCount] = useState(Number(activeReminderCountProp) || 0);
+    const [activeTaskCount, setActiveTaskCount] = useState(Number(activeTaskCountProp) || 0);
+    const [unreadNotificationCount, setUnreadNotificationCount] = useState(Number(unreadNotificationCountProp) || 0);
     const workspaceTitle = assistantProfile?.presentation_name
         || (user?.role === 'owner' ? productBrand : 'Assistant');
     const onboardingStatus = assistantProfile?.onboarding_status || 'not_started';
@@ -309,6 +321,16 @@ export default function PersonalWorkspace() {
         timezone: settings.timezone ?? user.timezone ?? '',
         voice_id: settings.voice?.voice_id ?? '',
     });
+    const productivityForm = useForm({
+        daily_brief_enabled: Boolean(settings.productivity?.daily_brief_enabled),
+        daily_brief_local_time: settings.productivity?.daily_brief_local_time || '08:00',
+        evening_review_enabled: Boolean(settings.productivity?.evening_review_enabled),
+        evening_review_local_time: settings.productivity?.evening_review_local_time || '20:00',
+        weekly_review_enabled: Boolean(settings.productivity?.weekly_review_enabled),
+        weekly_review_weekday: Number(settings.productivity?.weekly_review_weekday || 7),
+        weekly_review_local_time: settings.productivity?.weekly_review_local_time || '18:00',
+        proactive_enabled: Boolean(settings.productivity?.proactive_enabled),
+    });
     const passwordForm = useForm({
         current_password: '',
         password: '',
@@ -324,6 +346,14 @@ export default function PersonalWorkspace() {
 
         if (params.get('reminder')) {
             setRemindersOpen(true);
+        }
+
+        if (params.get('task')) {
+            setTasksOpen(true);
+        }
+
+        if (params.get('notifications')) {
+            setNotificationsOpen(true);
         }
 
         const onMessage = (event) => {
@@ -390,6 +420,14 @@ export default function PersonalWorkspace() {
     useEffect(() => {
         setActiveReminderCount(Number(activeReminderCountProp) || 0);
     }, [activeReminderCountProp]);
+
+    useEffect(() => {
+        setActiveTaskCount(Number(activeTaskCountProp) || 0);
+    }, [activeTaskCountProp]);
+
+    useEffect(() => {
+        setUnreadNotificationCount(Number(unreadNotificationCountProp) || 0);
+    }, [unreadNotificationCountProp]);
 
     useEffect(() => {
         if (!conversation?.id) {
@@ -948,6 +986,38 @@ export default function PersonalWorkspace() {
                         {activeReminderCount > 0 ? (
                             <span className="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-sky-500 px-1 text-[10px] font-semibold leading-4 text-white">
                                 {activeReminderCount > 99 ? '99+' : activeReminderCount}
+                            </span>
+                        ) : null}
+                    </button>
+                ) : null}
+                {capabilities.tasks ? (
+                    <button
+                        type="button"
+                        onClick={() => setTasksOpen(true)}
+                        className="relative inline-flex items-center gap-2 rounded-lg p-2 text-slate-300 hover:bg-white/10 sm:px-3"
+                        aria-label="Задачи"
+                    >
+                        <CheckSquare className="h-4 w-4" />
+                        <span className="hidden text-xs font-medium sm:inline">Задачи</span>
+                        {activeTaskCount > 0 ? (
+                            <span className="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-amber-500 px-1 text-[10px] font-semibold leading-4 text-white">
+                                {activeTaskCount > 99 ? '99+' : activeTaskCount}
+                            </span>
+                        ) : null}
+                    </button>
+                ) : null}
+                {capabilities.notifications ? (
+                    <button
+                        type="button"
+                        onClick={() => setNotificationsOpen(true)}
+                        className="relative inline-flex items-center gap-2 rounded-lg p-2 text-slate-300 hover:bg-white/10 sm:px-3"
+                        aria-label="Уведомления"
+                    >
+                        <Inbox className="h-4 w-4" />
+                        <span className="hidden text-xs font-medium sm:inline">Уведомления</span>
+                        {unreadNotificationCount > 0 ? (
+                            <span className="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-rose-500 px-1 text-[10px] font-semibold leading-4 text-white">
+                                {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
                             </span>
                         ) : null}
                     </button>
@@ -1524,6 +1594,86 @@ export default function PersonalWorkspace() {
                             </select>
                             {profileForm.errors.voice_id ? <p className="mt-1 text-xs text-red-400">{profileForm.errors.voice_id}</p> : null}
                         </div>
+                        {capabilities.tasks ? (
+                            <div className="border-t border-white/10 pt-4">
+                                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Productivity</p>
+                                <p className="mt-1 text-[11px] text-slate-500">Сводки выключены по умолчанию. Часовой пояс — ваш текущий.</p>
+                                <div className="mt-3 space-y-2 text-sm text-slate-200">
+                                    <label className="flex items-center justify-between gap-3">
+                                        <span>Daily Brief</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={Boolean(productivityForm.data.daily_brief_enabled)}
+                                            onChange={(event) => productivityForm.setData('daily_brief_enabled', event.target.checked)}
+                                        />
+                                    </label>
+                                    <input
+                                        type="time"
+                                        value={productivityForm.data.daily_brief_local_time}
+                                        onChange={(event) => productivityForm.setData('daily_brief_local_time', event.target.value)}
+                                        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100"
+                                    />
+                                    <label className="flex items-center justify-between gap-3">
+                                        <span>Evening Review</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={Boolean(productivityForm.data.evening_review_enabled)}
+                                            onChange={(event) => productivityForm.setData('evening_review_enabled', event.target.checked)}
+                                        />
+                                    </label>
+                                    <input
+                                        type="time"
+                                        value={productivityForm.data.evening_review_local_time}
+                                        onChange={(event) => productivityForm.setData('evening_review_local_time', event.target.value)}
+                                        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100"
+                                    />
+                                    <label className="flex items-center justify-between gap-3">
+                                        <span>Weekly Review</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={Boolean(productivityForm.data.weekly_review_enabled)}
+                                            onChange={(event) => productivityForm.setData('weekly_review_enabled', event.target.checked)}
+                                        />
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <select
+                                            value={productivityForm.data.weekly_review_weekday}
+                                            onChange={(event) => productivityForm.setData('weekly_review_weekday', Number(event.target.value))}
+                                            className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100"
+                                        >
+                                            <option value={1}>Пн</option>
+                                            <option value={2}>Вт</option>
+                                            <option value={3}>Ср</option>
+                                            <option value={4}>Чт</option>
+                                            <option value={5}>Пт</option>
+                                            <option value={6}>Сб</option>
+                                            <option value={7}>Вс</option>
+                                        </select>
+                                        <input
+                                            type="time"
+                                            value={productivityForm.data.weekly_review_local_time}
+                                            onChange={(event) => productivityForm.setData('weekly_review_local_time', event.target.value)}
+                                            className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100"
+                                        />
+                                    </div>
+                                    <label className="flex items-center justify-between gap-3">
+                                        <span>Proactive suggestions</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={Boolean(productivityForm.data.proactive_enabled)}
+                                            onChange={(event) => productivityForm.setData('proactive_enabled', event.target.checked)}
+                                        />
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => productivityForm.patch(workspaceRoute(surface, 'settings.productivity.update'), { preserveScroll: true })}
+                                        className="rounded-lg bg-sky-500/90 px-3 py-1.5 text-xs font-medium text-white"
+                                    >
+                                        Save productivity
+                                    </button>
+                                </div>
+                            </div>
+                        ) : null}
                         <div className="border-t border-white/10 pt-4">
                             <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Change password</p>
                             <div className="mt-2 space-y-2">
@@ -1667,6 +1817,24 @@ export default function PersonalWorkspace() {
                     setDraft((current) => (current?.trim() ? current : 'Напомни мне '));
                     requestAnimationFrame(() => focusComposer(composerRef.current, { forceDesktopOnly: false }));
                 }}
+            />
+            <TasksPanel
+                open={tasksOpen}
+                surface={surface}
+                onClose={() => setTasksOpen(false)}
+                onCountChange={setActiveTaskCount}
+                onCreateInChat={() => {
+                    setTasksOpen(false);
+                    setMode('text');
+                    setDraft((current) => (current?.trim() ? current : 'Создай задачу '));
+                    requestAnimationFrame(() => focusComposer(composerRef.current, { forceDesktopOnly: false }));
+                }}
+            />
+            <NotificationsPanel
+                open={notificationsOpen}
+                surface={surface}
+                onClose={() => setNotificationsOpen(false)}
+                onCountChange={setUnreadNotificationCount}
             />
 
             {lightbox ? (

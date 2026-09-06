@@ -4,11 +4,11 @@
 
 Owner и Users создают reminders в **своём** space. Cross-user reminder обычному user недоступен.
 
-**Status.** Phase B.1 — Reminders 2.0: **IMPLEMENTED / NOT VALIDATED**. Not MANUAL PASS until Owner live validation.
+**Status.** Phase B.1 — Reminders 2.0: Owner **MANUAL PASS for confirmed live core flow** (Web Push, Reminder Center, basic user flow). Not exhaustive DST/recurrence/multi-device MANUAL PASS.
 
 M25U.3.1 remains the create-without-Telegram baseline. This milestone adds Web Push, Reminder Center v2, edit / snooze / done / cancel, recurrence, and per-channel delivery.
 
-Still **not** implemented (Phase B.2): Tasks, general Notification Center, Daily Brief, proactive suggestions, mobile app.
+Phase B.2 adds optional `reminders.task_id` and shows «Связано с задачей» in Reminder Center. Tasks remain a separate domain. [TASKS.md](TASKS.md).
 
 ---
 

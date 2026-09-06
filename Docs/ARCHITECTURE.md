@@ -20,13 +20,12 @@ Source of truth is production code plus Owner-confirmed validation. Phases: [ROA
      +-- Storage / attachments
      +-- Memory / Context Budget
      +-- Reminders (Core; Telegram + Web Push adapters)
+     +-- Tasks (Core; separate from reminders)
+     +-- Notification Center (in-app inbox; reuses Web Push transport)
      +-- Projects (Owner)
      |
  future (not current)
      +-- Mobile companion
-     +-- Tasks / Notification Center
-     +-- Web Push
-     +-- Proactive Engine
      +-- Knowledge Graph
 
 Desktop client: CANCELLED. Not a node in this architecture.
@@ -73,7 +72,8 @@ Mobile is a **future optional companion**. Same Core. Not required for Phase A/B
 - Tool / Integration Layer (Owner: Google, GitHub, ElevenLabs TTS config, Web Research)
 - Memory and topics
 - AI: Owner Conversation / Owner Analysis / Default User Conversation
-- Reminder Engine (existence should become channel-independent; **today** create/delivery still require Telegram)
+- Reminder Engine (channel-independent; Telegram + Web Push adapters)
+- Task Engine + Notification Center + opt-in briefs / bounded proactive
 - authorization / ownership
 
 Не отвечает за:

@@ -1,0 +1,49 @@
+<?php
+
+namespace Tests\Unit\Tasks;
+
+use Tests\TestCase;
+
+class TaskWorkspaceRoutesTest extends TestCase
+{
+    public function test_owner_and_user_workspace_expose_the_same_task_and_notification_routes(): void
+    {
+        $this->assertSame('/jarvis/tasks', route('jarvis.tasks.index', absolute: false));
+        $this->assertSame('/chat/tasks', route('chat.tasks.index', absolute: false));
+        $this->assertSame('/jarvis/tasks/9/complete', route('jarvis.tasks.complete', ['task' => 9], absolute: false));
+        $this->assertSame('/chat/tasks/9/cancel', route('chat.tasks.cancel', ['task' => 9], absolute: false));
+        $this->assertSame('/jarvis/notifications', route('jarvis.notifications.index', absolute: false));
+        $this->assertSame('/chat/notifications/4/read', route('chat.notifications.read', ['notification' => 4], absolute: false));
+        $this->assertSame('/jarvis/settings/productivity', route('jarvis.settings.productivity.update', absolute: false));
+        $this->assertSame('/chat/settings/productivity', route('chat.settings.productivity.update', absolute: false));
+    }
+
+    public function test_header_keeps_three_distinct_entries(): void
+    {
+        $workspace = file_get_contents(base_path('resources/js/personal-workspace/PersonalWorkspace.jsx'));
+        $tasks = file_get_contents(base_path('resources/js/personal-workspace/TasksPanel.jsx'));
+        $inbox = file_get_contents(base_path('resources/js/personal-workspace/NotificationsPanel.jsx'));
+
+        $this->assertStringContainsString('capabilities.tasks', $workspace);
+        $this->assertStringContainsString('capabilities.notifications', $workspace);
+        $this->assertStringContainsString('aria-label="Задачи"', $workspace);
+        $this->assertStringContainsString('aria-label="Уведомления"', $workspace);
+        $this->assertStringContainsString('aria-label="Напоминания"', $workspace);
+        $this->assertStringContainsString('canUseProjects', $tasks);
+        $this->assertStringContainsString('Сегодня', $tasks);
+        $this->assertStringContainsString('Просрочено', $tasks);
+        $this->assertStringContainsString('Без срока', $tasks);
+        $this->assertStringContainsString('Непрочитанные', $inbox);
+        $this->assertStringContainsString('Productivity', $workspace);
+        $this->assertStringNotContainsString('project_id && !capabilities.projects', $tasks);
+    }
+
+    public function test_ordinary_user_task_panel_hides_project_controls_without_capability_flag(): void
+    {
+        $tasks = file_get_contents(base_path('resources/js/personal-workspace/TasksPanel.jsx'));
+
+        $this->assertStringContainsString('canUseProjects', $tasks);
+        $this->assertStringContainsString('Без проекта', $tasks);
+        $this->assertStringContainsString('{canUseProjects ? (', $tasks);
+    }
+}

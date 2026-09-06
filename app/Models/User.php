@@ -74,6 +74,21 @@ class User extends Authenticatable
         return $this->hasMany(Reminder::class);
     }
 
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(Task::class);
+    }
+
+    public function jarvisNotifications(): HasMany
+    {
+        return $this->hasMany(JarvisNotification::class);
+    }
+
+    public function productivitySetting(): HasOne
+    {
+        return $this->hasOne(UserProductivitySetting::class);
+    }
+
     public function pushSubscriptions(): HasMany
     {
         return $this->hasMany(PushSubscription::class);

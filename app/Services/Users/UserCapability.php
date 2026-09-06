@@ -12,6 +12,10 @@ final class UserCapability
 
     public const REMINDERS = 'reminders';
 
+    public const TASKS = 'tasks';
+
+    public const NOTIFICATIONS = 'notifications';
+
     public const CABINET = 'cabinet';
 
     public const PERSONAL_WORKSPACE = 'personal_workspace';
@@ -56,6 +60,8 @@ final class UserCapability
             self::MEMORY,
             self::TELEGRAM_DM,
             self::REMINDERS,
+            self::TASKS,
+            self::NOTIFICATIONS,
             self::CABINET,
             self::PERSONAL_WORKSPACE,
             self::PROFILE,

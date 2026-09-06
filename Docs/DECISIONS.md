@@ -2510,7 +2510,27 @@
 
 **Решение.** Reminder remains the Core object. Telegram and Web Push are independent adapters with `reminder_deliveries` per channel. Missing channels is not a Core failure. Done (`completed`) is distinct from Delivered. Recurrence is a simple token (`daily`/`weekdays`/`weekly`/`monthly`) on the same row plus `reminder_occurrences` history; next fire uses local wall clock so DST keeps e.g. 09:00 Europe/Rome. Web Push uses instance VAPID env keys (`minishlink/web-push`), `push_subscriptions` owned by the authenticated user, and `/reminder-sw.js`. Permission only after a user gesture. Push payload is bounded and allowlisted. Tools: list/update/snooze/complete/cancel plus create; ambiguous matches do not mutate.
 
-**Следствие.** Supersedes ADR-242 (Web Push is no longer future). Tasks, Notification Center, Daily Brief remain Phase B.2 (ADR-243). [REMINDERS.md](REMINDERS.md).
+**Следствие.** Supersedes ADR-242 (Web Push is no longer future). Owner later confirmed the live core flow: MANUAL PASS for Web Push, Reminder Center, and basic Reminder 2.0 usage (ADR-259). Tasks, Notification Center, Daily Brief are Phase B.2 (ADR-260). [REMINDERS.md](REMINDERS.md).
+
+---
+
+## ADR-259 — Reminders 2.0 live core flow
+
+**Контекст.** Phase B.1 shipped Web Push and Reminder Center v2. Owner reported the live flow works.
+
+**Решение.** Record **MANUAL PASS for confirmed live core flow** only: Web Push, Reminder Center, basic Reminder 2.0 user flow. Do not claim exhaustive MANUAL PASS for DST, recurrence edge cases, multi-device, or delivery-failure paths unless separately confirmed.
+
+**Следствие.** [REMINDERS.md](REMINDERS.md).
+
+---
+
+## ADR-260 — Tasks, Notification Center, briefs, bounded proactive
+
+**Контекст.** Phase B needed commitments, deadlines, context links, summaries, and important-surface alerts without turning Jarvis into an autonomous external actor.
+
+**Решение.** Tasks are a separate Core table (`tasks`), not reminder rows. Optional `reminders.task_id`. Completing/cancelling a task cancels future open linked reminders and keeps history. Notification Center is `jarvis_notifications` with dedupe keys; Web Push is reused, Telegram is not used for inbox spam. Daily/Evening/Weekly briefs and proactive suggestions are per-user opt-in (default off). Proactive max 3/day, 4h cooldown, deterministic triggers only; LLM may phrase. Ordinary users get personal tasks/inbox/briefs; not Owner Projects/Gmail/Calendar/GitHub.
+
+**Следствие.** Phase B.2 IMPLEMENTED / NOT VALIDATED. Risky external writes stay on the current confirmation policy. [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).
 
 ---
 
