@@ -11,6 +11,7 @@ use App\Enums\WatcherSourceType;
 use App\Enums\WatcherStatus;
 use App\Enums\WatcherTriggerType;
 use App\Jobs\EvaluateWatcherJob;
+use App\Models\IntegrationAccount;
 use App\Models\KnowledgeEntity;
 use App\Models\Project;
 use App\Models\Reminder;
@@ -196,6 +197,10 @@ final class WatcherService
 
         if ($resetCursor) {
             EvaluateWatcherJob::dispatch((int) $watcher->id);
+        }
+
+        if ($updates !== []) {
+            $this->bumpSynthesis((int) $user->id);
         }
 
         return $watcher->fresh() ?? $watcher;
@@ -486,12 +491,23 @@ final class WatcherService
             $reminderId = null;
         }
 
+        $accountId = isset($input['integration_account_id']) ? (int) $input['integration_account_id'] : null;
+
+        if ($accountId !== null && $accountId > 0) {
+            $owned = IntegrationAccount::query()->where('user_id', $user->id)->whereKey($accountId)->exists();
+            if (! $owned) {
+                throw new WatcherException('not_found', 'Integration account was not found.');
+            }
+        } else {
+            $accountId = null;
+        }
+
         return [
             'project_id' => $projectId,
             'knowledge_entity_id' => $entityId,
             'task_id' => $taskId,
             'reminder_id' => $reminderId,
-            'integration_account_id' => isset($input['integration_account_id']) ? (int) $input['integration_account_id'] : null,
+            'integration_account_id' => $accountId,
         ];
     }
 

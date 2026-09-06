@@ -9,6 +9,7 @@ use App\Enums\KnowledgeEventType;
 use App\Enums\KnowledgeSourceType;
 use App\Enums\ProductivityBriefMode;
 use App\Enums\SynthesisType;
+use App\Enums\TaskStatus;
 use App\Enums\UserRole;
 use App\Enums\WatcherMode;
 use App\Enums\WatcherStatus;
@@ -206,6 +207,39 @@ class CrossSourceSynthesisTest extends TestCase
                 skipCache: true,
             ));
             $this->assertFalse(collect($after->waitingFor)->contains(fn ($item) => $item->title === 'Apple reply'));
+        } finally {
+            $this->deleteTemporaryUser($user);
+        }
+    }
+
+    public function test_waiting_for_ignores_a_watcher_whose_task_is_already_closed(): void
+    {
+        $user = null;
+
+        try {
+            $user = $this->createTemporaryUser();
+            $task = app(TaskService::class)->create($user, 'Check the new build');
+            $watcher = app(WatcherService::class)->create($user, [
+                'name' => 'Build still open',
+                'trigger_type' => 'task_state',
+                'condition_type' => 'overdue_by',
+                'mode' => 'one_shot',
+                'task_id' => $task->id,
+            ]);
+
+            // A watcher left Active by an earlier release, on a task that is already closed.
+            Task::query()->whereKey($task->id)->update(['status' => TaskStatus::Completed]);
+            $watcher->forceFill(['status' => WatcherStatus::Active])->save();
+
+            $result = app(CrossSourceSynthesisService::class)->synthesize(new SynthesisScope(
+                user: $user,
+                type: SynthesisType::WaitingFor,
+                withNarrative: false,
+                skipCache: true,
+            ));
+
+            $this->assertFalse(collect($result->waitingFor)->contains(fn ($item) => $item->title === 'Build still open'));
+            $this->assertFalse(collect($result->openLoops)->contains(fn ($item) => $item->title === 'Build still open'));
         } finally {
             $this->deleteTemporaryUser($user);
         }
@@ -644,6 +678,9 @@ class CrossSourceSynthesisTest extends TestCase
             $this->actingAs($user)
                 ->getJson(route('chat.synthesis.entity', $foreign->id))
                 ->assertNotFound();
+            $this->actingAs($user)
+                ->getJson(route('chat.synthesis.index', ['project_id' => 999999999]))
+                ->assertForbidden();
         } finally {
             $this->deleteTemporaryUser($user);
             $this->deleteTemporaryUser($other);

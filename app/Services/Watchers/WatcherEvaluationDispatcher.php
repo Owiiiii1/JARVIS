@@ -3,6 +3,9 @@
 namespace App\Services\Watchers;
 
 use App\Enums\KnowledgeEventType;
+use App\Enums\WatcherConditionType;
+use App\Enums\WatcherHealth;
+use App\Enums\WatcherMode;
 use App\Enums\WatcherStatus;
 use App\Enums\WatcherTriggerType;
 use App\Jobs\EvaluateWatcherJob;
@@ -12,6 +15,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Models\Watcher;
 use App\Services\Synthesis\SynthesisCache;
+use App\Services\Tasks\TaskLifecycle;
 
 final class WatcherEvaluationDispatcher
 {
@@ -52,6 +56,10 @@ final class WatcherEvaluationDispatcher
             ->get();
 
         foreach ($watchers as $watcher) {
+            if ($this->resolveWhenTaskClosed($task, $watcher)) {
+                continue;
+            }
+
             EvaluateWatcherJob::dispatch((int) $watcher->id);
         }
 
@@ -74,6 +82,44 @@ final class WatcherEvaluationDispatcher
         }
 
         $this->bumpSynthesis((int) $reminder->user_id);
+    }
+
+    /**
+     * A one-shot watcher whose condition can only match while the task is open never fires once the
+     * task is closed, so it is finished here instead of staying Active as a permanent waiting-for item.
+     */
+    private function resolveWhenTaskClosed(Task $task, Watcher $watcher): bool
+    {
+        if ($watcher->mode !== WatcherMode::OneShot || TaskLifecycle::isOpen($task)) {
+            return false;
+        }
+
+        if (! $this->requiresOpenTask($watcher)) {
+            return false;
+        }
+
+        $watcher->forceFill([
+            'status' => WatcherStatus::Completed,
+            'health' => WatcherHealth::Healthy,
+            'cursor' => array_merge(is_array($watcher->cursor) ? $watcher->cursor : [], [
+                'resolved_reason' => 'task_closed',
+            ]),
+        ])->save();
+
+        return true;
+    }
+
+    private function requiresOpenTask(Watcher $watcher): bool
+    {
+        return match ($watcher->condition_type) {
+            WatcherConditionType::OverdueBy, WatcherConditionType::DeadlineWithin => true,
+            WatcherConditionType::StatusEquals => in_array(
+                mb_strtolower((string) ($watcher->condition_config['status'] ?? $watcher->condition_config['expected'] ?? '')),
+                ['open', 'in_progress'],
+                true,
+            ),
+            default => false,
+        };
     }
 
     private function bumpSynthesis(int $userId): void

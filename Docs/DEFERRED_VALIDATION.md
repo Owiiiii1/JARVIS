@@ -24,6 +24,19 @@ Runtime snapshot: [CURRENT_STATE.md](CURRENT_STATE.md). Plan: [IMPLEMENTATION_PL
 | Phase E.2 Watchers & Event-driven Automation | IMPLEMENTED | Deferred |
 | Phase E.3 Cross-source Synthesis & Intelligence | IMPLEMENTED | Deferred |
 
+## Core Daily Workflow campaign
+
+A sequential manual runbook for the core end-to-end chain (Conversation → Task → Reminder → Watcher →
+Knowledge → Synthesis → Overview → state change) is prepared in
+[VALIDATION_CORE_WORKFLOW.md](VALIDATION_CORE_WORKFLOW.md). All ten scenarios are **READY FOR OWNER
+VALIDATION**; none are PASS. Cursor did not run them.
+
+If the campaign later passes in full, only these deferred rows may be narrowed to the flows it actually
+exercised: B.2 core productivity flow, E.1 core Knowledge flow, E.2 **internal** watcher flow, E.3 synthesis
+core flow, and the C.1 behaviours in Scenarios 1–2. External watcher campaigns, C.2, Google/GitHub, Telegram,
+DST/recurrence edges, destructive Storage, historical retry/prune, Mobile, and the two-user IDOR campaign stay
+deferred regardless of the outcome.
+
 Telegram Voice **Replies** remain MANUAL PASS. Web **Рация** pipeline remains MANUAL PASS. Desktop remains CANCELLED.
 
 When a campaign is run, record the result in CURRENT_STATE. Do not mark MANUAL PASS from code-only work.

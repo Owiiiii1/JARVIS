@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Services\Knowledge\DTO\KnowledgeSourceRef;
 use App\Services\Knowledge\Exceptions\KnowledgeException;
 use App\Services\Synthesis\CommitmentLanguage;
+use App\Services\Synthesis\SynthesisCache;
 use App\Services\Watchers\WatcherEvaluationDispatcher;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -53,7 +54,7 @@ final class KnowledgeIngestionService
         );
         $confidence = KnowledgeConfidence::clamp((float) ($attributes['confidence'] ?? $source->confidence));
 
-        return DB::transaction(function () use ($user, $type, $display, $normalized, $source, $projectId, $aliases, $summary, $metadata, $confidence): KnowledgeEntity {
+        $entity = DB::transaction(function () use ($user, $type, $display, $normalized, $source, $projectId, $aliases, $summary, $metadata, $confidence): KnowledgeEntity {
             $match = $this->resolver->findMatch(
                 $user,
                 $type,
@@ -94,6 +95,10 @@ final class KnowledgeIngestionService
 
             return $entity->fresh(['aliases']) ?? $entity;
         });
+
+        $this->bumpSynthesis($user);
+
+        return $entity;
     }
 
     public function requireOwnedEntity(User $user, int $entityId): KnowledgeEntity
@@ -228,7 +233,20 @@ final class KnowledgeIngestionService
             $now,
         );
 
+        $this->bumpSynthesis($user);
+
         return $row->fresh() ?? $row;
+    }
+
+    /**
+     * Knowledge writes change what synthesis can answer, so the cached per-user slices must expire.
+     */
+    private function bumpSynthesis(User $user): void
+    {
+        try {
+            app(SynthesisCache::class)->bumpUserId((int) $user->id);
+        } catch (Throwable) {
+        }
     }
 
     /**

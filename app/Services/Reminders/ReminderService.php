@@ -8,6 +8,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Reminder;
 use App\Models\ReminderOccurrence;
+use App\Models\Task;
 use App\Models\User;
 use App\Services\Knowledge\KnowledgeDeterministicIngestor;
 use App\Services\Users\UserCapability;
@@ -47,7 +48,7 @@ final class ReminderService
             'user_id' => $user->id,
             'source_conversation_id' => $conversation?->id,
             'source_message_id' => $sourceMessage?->id,
-            'task_id' => $taskId,
+            'task_id' => $this->ownedTaskId($user, $taskId),
             'text' => $text,
             'run_at' => $utc,
             'timezone' => $timezone,
@@ -404,8 +405,10 @@ final class ReminderService
         }
 
         $reminder->save();
+        $fresh = $reminder->fresh() ?? $reminder;
+        $this->notifyWatchers($fresh);
 
-        return $reminder->fresh() ?? $reminder;
+        return $fresh;
     }
 
     public function findOwned(User $user, int $reminderId): ?Reminder
@@ -419,10 +422,47 @@ final class ReminderService
     public function linkOwnedTask(User $user, int $reminderId, int $taskId): Reminder
     {
         $reminder = $this->assertOwnedEditable($user, $this->findOwned($user, $reminderId));
+
+        if ($this->ownedTaskId($user, $taskId) === null) {
+            throw new ReminderException('not_found', 'Task was not found.');
+        }
+
         $reminder->task_id = $taskId;
         $reminder->save();
+        $fresh = $reminder->fresh() ?? $reminder;
+        $this->notifyWatchers($fresh);
 
-        return $reminder->fresh() ?? $reminder;
+        return $fresh;
+    }
+
+    /**
+     * Reminders may only reference a task owned by the same user, whatever the caller passed.
+     */
+    private function ownedTaskId(User $user, ?int $taskId): ?int
+    {
+        if ($taskId === null || $taskId <= 0) {
+            return null;
+        }
+
+        $owned = Task::query()
+            ->where('user_id', $user->id)
+            ->whereKey($taskId)
+            ->exists();
+
+        if (! $owned) {
+            try {
+                Log::warning('reminder task link rejected', [
+                    'user_id' => (int) $user->id,
+                    'task_id' => $taskId,
+                    'reason' => 'not_owned',
+                ]);
+            } catch (Throwable) {
+            }
+
+            return null;
+        }
+
+        return $taskId;
     }
 
     public function assertOwnedCancellable(User $user, ?Reminder $reminder): Reminder

@@ -295,6 +295,7 @@ export default function PersonalWorkspace() {
     const [activeWatcherCount, setActiveWatcherCount] = useState(Number(activeWatcherCountProp) || 0);
     const [unreadNotificationCount, setUnreadNotificationCount] = useState(Number(unreadNotificationCountProp) || 0);
     const [productivityRefreshToken, setProductivityRefreshToken] = useState(0);
+    const [overviewRefreshToken, setOverviewRefreshToken] = useState(0);
     const [menuConversationId, setMenuConversationId] = useState(null);
     const [pendingDelete, setPendingDelete] = useState(null);
     const [deletingChat, setDeletingChat] = useState(false);
@@ -403,6 +404,10 @@ export default function PersonalWorkspace() {
             })
             .catch(() => {});
     }, [surface]);
+
+    const refreshOverview = useCallback(() => {
+        setOverviewRefreshToken((current) => current + 1);
+    }, []);
 
     useEffect(() => {
         if (!Array.isArray(conversations) || conversations.length === 0) {
@@ -1694,6 +1699,7 @@ export default function PersonalWorkspace() {
                 refreshToken={productivityRefreshToken}
                 onClose={() => setRemindersOpen(false)}
                 onCountChange={setActiveReminderCount}
+                onDataChange={refreshOverview}
                 onCreateInChat={() => {
                     setRemindersOpen(false);
                     setMode('text');
@@ -1704,7 +1710,7 @@ export default function PersonalWorkspace() {
             <OverviewPanel
                 open={overviewOpen}
                 surface={surface}
-                refreshToken={productivityRefreshToken}
+                refreshToken={productivityRefreshToken + overviewRefreshToken}
                 onClose={() => setOverviewOpen(false)}
             />
             <TasksPanel
@@ -1713,6 +1719,7 @@ export default function PersonalWorkspace() {
                 refreshToken={productivityRefreshToken}
                 onClose={() => setTasksOpen(false)}
                 onCountChange={setActiveTaskCount}
+                onDataChange={refreshOverview}
                 onCreateInChat={() => {
                     setTasksOpen(false);
                     setMode('text');
@@ -1726,6 +1733,7 @@ export default function PersonalWorkspace() {
                 refreshToken={productivityRefreshToken}
                 onClose={() => setWatchersOpen(false)}
                 onCountChange={setActiveWatcherCount}
+                onDataChange={refreshOverview}
                 onCreateInChat={() => {
                     setWatchersOpen(false);
                     setMode('text');

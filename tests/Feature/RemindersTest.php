@@ -20,6 +20,8 @@ use App\Services\Conversations\ConversationService;
 use App\Services\Reminders\ReminderDispatchService;
 use App\Services\Reminders\ReminderException;
 use App\Services\Reminders\ReminderService;
+use App\Services\Synthesis\SynthesisCache;
+use App\Services\Tasks\TaskService;
 use App\Services\Tools\CreateReminderTool;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Http;
@@ -110,6 +112,66 @@ class RemindersTest extends TestCase
             $this->assertSame(ReminderStatus::Scheduled, $reminder->status);
             $this->assertSame($user->id, $reminder->user_id);
             $this->assertSame(1, Reminder::query()->where('user_id', $user->id)->count());
+        } finally {
+            $this->deleteTemporaryUser($user);
+        }
+    }
+
+    public function test_reminder_only_links_to_a_task_owned_by_the_same_user(): void
+    {
+        $user = null;
+        $other = null;
+
+        try {
+            $user = $this->createTemporaryUser();
+            $other = $this->createTemporaryUser();
+            $foreign = app(TaskService::class)->create($other, 'Foreign build check');
+            $service = app(ReminderService::class);
+
+            $reminder = $service->create(
+                $user,
+                'check the build',
+                CarbonImmutable::now('UTC')->addHour(),
+                'Europe/Rome',
+                taskId: (int) $foreign->id,
+            );
+
+            $this->assertNull($reminder->task_id);
+
+            $error = null;
+
+            try {
+                $service->linkOwnedTask($user, (int) $reminder->id, (int) $foreign->id);
+            } catch (ReminderException $exception) {
+                $error = $exception->error;
+            }
+
+            $this->assertSame('not_found', $error);
+            $this->assertNull($reminder->fresh()?->task_id);
+        } finally {
+            $this->deleteTemporaryUser($user);
+            $this->deleteTemporaryUser($other);
+        }
+    }
+
+    public function test_editing_a_reminder_invalidates_cached_synthesis(): void
+    {
+        $user = null;
+
+        try {
+            $user = $this->createTemporaryUser();
+            $service = app(ReminderService::class);
+            $reminder = $service->create(
+                $user,
+                'check the build',
+                CarbonImmutable::now('UTC')->addHour(),
+                'Europe/Rome',
+            );
+            $before = app(SynthesisCache::class)->version($user);
+
+            $service->updateOwned($user, (int) $reminder->id, text: 'check the new build');
+
+            $this->assertGreaterThan($before, app(SynthesisCache::class)->version($user));
         } finally {
             $this->deleteTemporaryUser($user);
         }

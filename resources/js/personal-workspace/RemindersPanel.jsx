@@ -226,6 +226,7 @@ export default function RemindersPanel({
     onClose,
     onCreateInChat,
     onCountChange,
+    onDataChange,
 }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -324,6 +325,7 @@ export default function RemindersPanel({
         }
 
         applyPanel(payload, setters);
+        onDataChange?.();
         return payload;
     };
 

@@ -35,6 +35,12 @@ Health: `healthy`, `waiting`, `blocked`, `paused`, `failed`.
 
 Mode: `one_shot` (completes after a successful occurrence) or `recurring`.
 
+A `one_shot` watcher on a task source also completes when its condition can no longer match: closing the
+watched task finishes an `overdue_by`, `deadline_within`, or open-status `status_equals` watcher and records
+`cursor.resolved_reason = task_closed`. It does not finish a `status_changed` watcher, which legitimately
+fires on that transition. Synthesis additionally skips watchers whose linked task is already closed, so a
+watcher left Active by an earlier release never appears as a pending waiting-for item.
+
 Trigger types (closed set): `knowledge_event`, `task_state`, `reminder_state`, `time_condition`, `calendar_event`, `gmail_message`, `github_event`.
 
 Condition types (closed set): `event_exists`, `entity_event_type`, `status_equals`, `status_changed`, `deadline_within`, `overdue_by`, `new_item`, `sender_matches`, `subject_contains`, `thread_received_reply`, `calendar_changed`, `github_new_commit`, `github_pr_state_changed`, `github_workflow_failed`.

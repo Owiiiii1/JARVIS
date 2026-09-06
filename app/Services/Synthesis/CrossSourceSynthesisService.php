@@ -222,8 +222,13 @@ final class CrossSourceSynthesisService
     private function openLoops(array $waiting, array $commitments, FactPack $pack): array
     {
         $items = array_merge($waiting, $commitments);
+        $stale = $this->waiting->staleWatcherIds($pack->watchers);
 
         foreach ($pack->watchers as $watcher) {
+            if (isset($stale[(int) $watcher->id])) {
+                continue;
+            }
+
             if ($watcher->mode->value === 'one_shot' && $watcher->status->value === 'active') {
                 $items[] = new SynthesisItem(
                     kind: 'open_loop',

@@ -14,6 +14,8 @@ use App\Services\Synthesis\SynthesisClock;
 use App\Services\Users\UserCapability;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class JarvisSynthesisController extends Controller
 {
@@ -35,21 +37,20 @@ class JarvisSynthesisController extends Controller
         ]);
 
         $type = SynthesisType::tryFromLoose($validated['type'] ?? 'attention_needed') ?? SynthesisType::AttentionNeeded;
+        $projectId = isset($validated['project_id']) ? (int) $validated['project_id'] : null;
 
-        try {
-            $result = $this->synthesis->synthesize(new SynthesisScope(
-                user: $user,
-                type: $type,
-                projectId: isset($validated['project_id']) ? (int) $validated['project_id'] : null,
-                entityId: isset($validated['entity_id']) ? (int) $validated['entity_id'] : null,
-                windowDays: $this->clock->parseWindowDays($validated['window'] ?? 7),
-                withNarrative: false,
-            ));
-        } catch (SynthesisException $exception) {
-            return response()->json(['error' => $exception->error], $exception->error === 'not_found' ? 404 : 403);
+        if ($projectId !== null && ! $user->canUseCapability(UserCapability::PROJECTS)) {
+            abort(403);
         }
 
-        return response()->json($result->toArray());
+        return $this->respond($request, new SynthesisScope(
+            user: $user,
+            type: $type,
+            projectId: $projectId,
+            entityId: isset($validated['entity_id']) ? (int) $validated['entity_id'] : null,
+            windowDays: $this->clock->parseWindowDays($validated['window'] ?? 7),
+            withNarrative: false,
+        ));
     }
 
     public function project(Request $request, int $project): JsonResponse
@@ -67,18 +68,12 @@ class JarvisSynthesisController extends Controller
             return response()->json(['error' => 'not_found'], 404);
         }
 
-        try {
-            $result = $this->synthesis->synthesize(new SynthesisScope(
-                user: $user,
-                type: SynthesisType::ProjectStatus,
-                projectId: (int) $owned->id,
-                withNarrative: false,
-            ));
-        } catch (SynthesisException $exception) {
-            return response()->json(['error' => $exception->error], $exception->error === 'not_found' ? 404 : 403);
-        }
-
-        return response()->json($result->toArray());
+        return $this->respond($request, new SynthesisScope(
+            user: $user,
+            type: SynthesisType::ProjectStatus,
+            projectId: (int) $owned->id,
+            withNarrative: false,
+        ));
     }
 
     public function entity(Request $request, int $entity): JsonResponse
@@ -96,19 +91,37 @@ class JarvisSynthesisController extends Controller
             ? SynthesisType::PersonStatus
             : SynthesisType::ProjectStatus;
 
+        return $this->respond($request, new SynthesisScope(
+            user: $user,
+            type: $type,
+            entityId: (int) $owned->id,
+            projectId: $owned->project_id,
+            withNarrative: false,
+        ));
+    }
+
+    /**
+     * Unexpected failures return a bounded error code and log only non-sensitive identifiers, so a
+     * failed manual check can be reported without copying conversation or provider payloads.
+     */
+    private function respond(Request $request, SynthesisScope $scope): JsonResponse
+    {
         try {
-            $result = $this->synthesis->synthesize(new SynthesisScope(
-                user: $user,
-                type: $type,
-                entityId: (int) $owned->id,
-                projectId: $owned->project_id,
-                withNarrative: false,
-            ));
+            return response()->json($this->synthesis->synthesize($scope)->toArray());
         } catch (SynthesisException $exception) {
             return response()->json(['error' => $exception->error], $exception->error === 'not_found' ? 404 : 403);
-        }
+        } catch (Throwable $exception) {
+            Log::error('synthesis request failed', [
+                'route' => $request->route()?->getName(),
+                'user_id' => (int) $scope->user->id,
+                'type' => $scope->type->value,
+                'project_id' => $scope->projectId,
+                'entity_id' => $scope->entityId,
+                'exception' => $exception::class,
+            ]);
 
-        return response()->json($result->toArray());
+            return response()->json(['error' => 'synthesis_failed'], 500);
+        }
     }
 
     private function assertSynthesis($user): void

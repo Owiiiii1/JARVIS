@@ -470,6 +470,71 @@ class WatchersTest extends TestCase
     /**
      * @param  array<string, mixed>  $overrides
      */
+    public function test_one_shot_task_watcher_is_resolved_when_the_task_is_closed(): void
+    {
+        $user = null;
+
+        try {
+            $user = $this->createTemporaryUser();
+            $task = app(TaskService::class)->create($user, 'Check the new build');
+            $watcher = $this->createTaskWatcher($user, $task, [
+                'condition_type' => 'status_equals',
+                'condition' => ['status' => 'open'],
+                'mode' => 'one_shot',
+            ]);
+            $this->assertSame(WatcherStatus::Active, $watcher->status);
+
+            app(TaskService::class)->completeOwned($user, (int) $task->id);
+
+            $watcher->refresh();
+            $this->assertSame(WatcherStatus::Completed, $watcher->status);
+            $this->assertSame('task_closed', $watcher->cursor['resolved_reason'] ?? null);
+        } finally {
+            $this->deleteTemporaryUser($user);
+        }
+    }
+
+    public function test_status_changed_watcher_still_fires_on_task_completion(): void
+    {
+        $user = null;
+
+        try {
+            $user = $this->createTemporaryUser();
+            $task = app(TaskService::class)->create($user, 'Check the new build');
+            $watcher = $this->createTaskWatcher($user, $task, [
+                'condition_type' => 'status_changed',
+                'mode' => 'one_shot',
+            ]);
+
+            app(TaskService::class)->completeOwned($user, (int) $task->id);
+
+            $watcher->refresh();
+            $this->assertNotNull($watcher->last_triggered_at);
+            $this->assertArrayNotHasKey('resolved_reason', $watcher->cursor ?? []);
+        } finally {
+            $this->deleteTemporaryUser($user);
+        }
+    }
+
+    public function test_watcher_rejects_an_integration_account_the_user_does_not_own(): void
+    {
+        $user = null;
+
+        try {
+            $user = $this->createTemporaryUser();
+            $task = app(TaskService::class)->create($user, 'Check the new build');
+
+            try {
+                $this->createTaskWatcher($user, $task, ['integration_account_id' => 999999999]);
+                $this->fail('Foreign integration account must be denied.');
+            } catch (WatcherException $exception) {
+                $this->assertSame('not_found', $exception->error);
+            }
+        } finally {
+            $this->deleteTemporaryUser($user);
+        }
+    }
+
     private function createTaskWatcher(User $user, Task $task, array $overrides = []): Watcher
     {
         return app(WatcherService::class)->create($user, array_merge([

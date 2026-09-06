@@ -18,6 +18,7 @@ class ReminderServiceTest extends TestCase
 {
     public function test_user_without_telegram_can_pass_create_validation(): void
     {
+        $this->travelTo('2026-09-06 09:00:00');
         $user = $this->user(UserRole::User);
 
         (new ReminderService)->validateCreate(
@@ -32,6 +33,7 @@ class ReminderServiceTest extends TestCase
 
     public function test_owner_without_telegram_can_pass_create_validation(): void
     {
+        $this->travelTo('2026-09-06 09:00:00');
         $user = $this->user(UserRole::Owner);
 
         (new ReminderService)->validateCreate(

@@ -23,9 +23,14 @@ final class WaitingForResolver
     public function resolve(FactPack $pack): array
     {
         $items = [];
+        $stale = $this->staleWatcherIds($pack->watchers);
 
         foreach ($pack->watchers as $watcher) {
             if (! $watcher instanceof Watcher || $watcher->status !== WatcherStatus::Active) {
+                continue;
+            }
+
+            if (isset($stale[(int) $watcher->id])) {
                 continue;
             }
 
@@ -106,6 +111,45 @@ final class WaitingForResolver
         }
 
         return $items;
+    }
+
+    /**
+     * Watchers bound to a task that is no longer open can never fire again, so they must not be
+     * reported as something the user is still waiting for.
+     *
+     * @param  iterable<mixed>  $watchers
+     * @return array<int, true>
+     */
+    public function staleWatcherIds(iterable $watchers): array
+    {
+        $taskIds = [];
+
+        foreach ($watchers as $watcher) {
+            if ($watcher instanceof Watcher && $watcher->task_id !== null) {
+                $taskIds[(int) $watcher->task_id] = true;
+            }
+        }
+
+        if ($taskIds === []) {
+            return [];
+        }
+
+        $open = Task::query()
+            ->whereIn('id', array_keys($taskIds))
+            ->whereIn('status', TaskLifecycle::openStatuses())
+            ->pluck('id')
+            ->mapWithKeys(static fn (mixed $id): array => [(int) $id => true])
+            ->all();
+
+        $stale = [];
+
+        foreach ($watchers as $watcher) {
+            if ($watcher instanceof Watcher && $watcher->task_id !== null && ! isset($open[(int) $watcher->task_id])) {
+                $stale[(int) $watcher->id] = true;
+            }
+        }
+
+        return $stale;
     }
 
     private function ageScore(CarbonImmutable $since, CarbonImmutable $now): int

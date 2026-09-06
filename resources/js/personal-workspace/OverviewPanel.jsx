@@ -37,6 +37,7 @@ export default function OverviewPanel({ open, surface, refreshToken = 0, onClose
         const controller = new AbortController();
         setLoading(true);
         setError('');
+        setData(null);
 
         fetch(workspaceRoute(surface, 'synthesis.index') + '?type=attention_needed', {
             credentials: 'same-origin',
@@ -86,10 +87,15 @@ export default function OverviewPanel({ open, surface, refreshToken = 0, onClose
                         </p>
                     ) : null}
                     {error ? <p className="mb-3 text-xs text-rose-300">{error}</p> : null}
-                    <ItemList title="Нужно внимание" items={data?.attention} empty="Сейчас ничего срочного." />
-                    <ItemList title="Жду" items={data?.waiting_for} empty="Нет открытых ожиданий." />
-                    <ItemList title="Что изменилось" items={data?.recent_changes} empty="Нет недавних изменений." />
-                    <ItemList title="Открытая работа" items={data?.open_work} empty="Нет открытых задач в этом срезе." />
+                    {loading || error ? null : (
+                        <>
+                            <ItemList title="Сегодня и ближайшее" items={data?.upcoming} empty="На ближайшее время ничего не запланировано." />
+                            <ItemList title="Нужно внимание" items={data?.attention} empty="Сейчас ничего срочного." />
+                            <ItemList title="Жду" items={data?.waiting_for} empty="Нет открытых ожиданий." />
+                            <ItemList title="Что изменилось" items={data?.recent_changes} empty="Нет недавних изменений." />
+                            <ItemList title="Открытая работа" items={data?.open_work} empty="Нет открытых задач в этом срезе." />
+                        </>
+                    )}
                 </div>
             </aside>
         </div>

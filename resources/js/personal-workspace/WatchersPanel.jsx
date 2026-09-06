@@ -47,7 +47,7 @@ function applyPanel(payload, setters) {
     setters.onCountChange?.(Number(payload.active_count || 0));
 }
 
-export default function WatchersPanel({ open, surface, refreshToken = 0, onClose, onCountChange, onCreateInChat }) {
+export default function WatchersPanel({ open, surface, refreshToken = 0, onClose, onCountChange, onDataChange, onCreateInChat }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [items, setItems] = useState([]);
@@ -112,6 +112,7 @@ export default function WatchersPanel({ open, surface, refreshToken = 0, onClose
         }
 
         applyPanel(payload, setters);
+        onDataChange?.();
         return payload;
     };
 

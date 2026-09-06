@@ -1,6 +1,6 @@
 # Jarvis — current implementation snapshot
 
-**Date:** 2026-09-06 (Phase E.3 Cross-source Synthesis)
+**Date:** 2026-09-06 (Product Validation & Polish — Core Daily Workflow prepared)
 **Host path:** `/var/www/jarvis`  
 **Public URL:** https://jarvis.owlsolutions.net  
 **GitHub:** https://github.com/Owiiiii1/JARVIS.git
@@ -57,6 +57,11 @@ The former hands-free «Диалог» VAD capture was removed from Рация. 
 - Phase B.2 Tasks / Notification Center / briefs / proactive: **IMPLEMENTED / NOT VALIDATED**
 
 **Not claimed:** A/B IDOR campaign; combined Google/GitHub live campaign; Tavily; `fetch_web_page` as a distinct Owner check; screenshot purge; destructive Storage delete.
+
+**READY FOR OWNER VALIDATION — Core Daily Workflow campaign.** A sequential manual runbook covering the
+end-to-end chain (Conversation → Task → Reminder → internal Watcher → Knowledge → Synthesis → Overview →
+state change → chat delete) is prepared in [VALIDATION_CORE_WORKFLOW.md](VALIDATION_CORE_WORKFLOW.md). Ten
+scenarios, all `READY`, none PASS. Cursor did not execute them and did not create production records.
 
 ---
 
@@ -137,7 +142,7 @@ See [DATABASE.md](DATABASE.md).
 
 Frontend: `resources/js/personal-workspace/PersonalWorkspace.jsx` shared, with Settings split into `resources/js/personal-workspace/settings/*`. Capabilities are presentation flags; backend ownership is authoritative.
 
-Main Workspace is chat + Task / Reminder / Watcher / Notification centers + compact **Обзор** (Today / attention / waiting / recent changes) + Voice + compact **Настройки**. Memory and Integrations are **not** on the main screen; they live in Settings.
+Main Workspace is chat + Task / Reminder / Watcher / Notification centers + compact **Обзор** (Сегодня и ближайшее / Нужно внимание / Жду / Что изменилось / Открытая работа) + Voice + compact **Настройки**. Memory and Integrations are **not** on the main screen; they live in Settings.
 
 Workspace conversation delete is implemented for Owner and ordinary users. Sidebar overflow menu → confirmation dialog → `DELETE /jarvis/chats/{conversation}` or `DELETE /chat/chats/{conversation}`. Own personal conversations only (`ensureOwned`; Owner is not a bypass for someone else’s chat). Group conversations are 404. Hard delete of the chat and child messages/ephemeral screenshots; tasks, reminders, projects, persistent Storage files, durable memories, and Knowledge entities survive with sources detached. Deleting the open chat switches to the latest remaining personal chat, or creates `Основной` if none remain. No full page reload.
 
@@ -147,13 +152,13 @@ Phase C.2 Beta (ElevenLabs realtime Web voice) is **IMPLEMENTED / NOT VALIDATED*
 
 Phase E.1 Knowledge Layer is **IMPLEMENTED / NOT VALIDATED**. Relational entities/relations/events with provenance. Settings → Knowledge. Bounded conversation slice. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
 
-Phase E.2 Watchers is **IMPLEMENTED / NOT VALIDATED**. Explicit persisted conditions; Notification Center / Web Push delivery; no silent external writes. Workspace Center **Автоматизации**. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
+Phase E.2 Watchers is **IMPLEMENTED / NOT VALIDATED**. Explicit persisted conditions; Notification Center / Web Push delivery; no silent external writes. Workspace Center **Автоматизации**. A one-shot task watcher whose condition can only match while the task is open (`overdue_by`, `deadline_within`, `status_equals` on an open status) is finished with `cursor.resolved_reason = task_closed` when that task is completed or cancelled, instead of staying Active forever; `status_changed` watchers still fire on the closing transition. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
 
 Phase E.3 Cross-source Synthesis is **IMPLEMENTED / NOT VALIDATED**. Derived FactPack over Knowledge / Tasks / Reminders / Watchers / Projects / conversation summaries. Tools-first; tiny `synthesis_context` only with an active project. No integration polling. No `waiting_items` table. Phase E as a whole is **not** complete. [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
 
 Workspace Settings sections: Profile, Assistant, Memory, Knowledge, Productivity, Voice, Integrations. Desktop: nav + detail. Mobile: list → detail. Direct section: `?settings=memory` / `?settings=knowledge` / `?settings=integrations` on first load (allowlist only). Opening Settings from the UI does not rewrite `history.state`, so the chat list stays intact.
 
-After a successful foreground chat turn, badges and open panels refresh via `GET /jarvis/workspace/status` and `GET /chat/workspace/status` plus turn-payload counts. No page reload, no polling, no WebSocket. Scheduler events still appear on next open / Push / navigation.
+After a successful foreground chat turn, badges and open panels refresh via `GET /jarvis/workspace/status` and `GET /chat/workspace/status` plus turn-payload counts. A mutation made directly in the Tasks / Reminders / Watchers panel also refreshes an open **Обзор**. No page reload, no polling, no WebSocket. Scheduler events still appear on next open / Push / navigation.
 
 Regular user capabilities: chat, memory, knowledge, watchers, telegram_dm, reminders, tasks, notifications, cabinet, personal_workspace, profile, web_research, voice, storage. **Not** projects, admin, Google, GitHub. User Settings → Integrations shows Telegram pairing only. External (Gmail/Calendar/GitHub) watchers remain Owner-only.
 

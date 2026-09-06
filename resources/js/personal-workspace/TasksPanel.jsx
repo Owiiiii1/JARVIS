@@ -105,7 +105,7 @@ function TaskCard({ task, surface, busyId, canUseProjects, onStart, onComplete, 
     );
 }
 
-export default function TasksPanel({ open, surface, refreshToken = 0, onClose, onCountChange, onCreateInChat }) {
+export default function TasksPanel({ open, surface, refreshToken = 0, onClose, onCountChange, onDataChange, onCreateInChat }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [today, setToday] = useState([]);
@@ -175,6 +175,7 @@ export default function TasksPanel({ open, surface, refreshToken = 0, onClose, o
         }
 
         applyPanel(payload, setters);
+        onDataChange?.();
         return payload;
     };
 
