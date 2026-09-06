@@ -1,0 +1,71 @@
+<?php
+
+namespace Tests\Unit;
+
+use Tests\TestCase;
+
+class WorkspaceUxCleanupTest extends TestCase
+{
+    public function test_successful_chat_turn_triggers_productivity_refresh_without_reload_or_polling(): void
+    {
+        $workspace = (string) file_get_contents(base_path('resources/js/personal-workspace/PersonalWorkspace.jsx'));
+
+        $this->assertStringContainsString('refreshProductivity', $workspace);
+        $this->assertStringContainsString('workspace.status', $workspace);
+        $this->assertStringContainsString('refreshProductivity(payload)', $workspace);
+        $this->assertStringContainsString('productivityRefreshToken', $workspace);
+        $this->assertStringNotContainsString('window.location.reload', $workspace);
+        $this->assertStringNotContainsString('setInterval(', $workspace);
+        $this->assertStringNotContainsString('EventSource', $workspace);
+        $this->assertStringNotContainsString('new WebSocket', $workspace);
+    }
+
+    public function test_panels_reload_when_open_via_refresh_token(): void
+    {
+        $tasks = (string) file_get_contents(base_path('resources/js/personal-workspace/TasksPanel.jsx'));
+        $reminders = (string) file_get_contents(base_path('resources/js/personal-workspace/RemindersPanel.jsx'));
+        $inbox = (string) file_get_contents(base_path('resources/js/personal-workspace/NotificationsPanel.jsx'));
+
+        $this->assertStringContainsString('refreshToken = 0', $tasks);
+        $this->assertStringContainsString('[open, surface, refreshToken]', $tasks);
+        $this->assertStringContainsString('refreshToken = 0', $reminders);
+        $this->assertStringContainsString('refreshToken', $reminders);
+        $this->assertStringContainsString('refreshToken = 0', $inbox);
+        $this->assertStringContainsString('unreadOnly, refreshToken', $inbox);
+    }
+
+    public function test_memory_and_integrations_live_in_settings_not_main_workspace(): void
+    {
+        $workspace = (string) file_get_contents(base_path('resources/js/personal-workspace/PersonalWorkspace.jsx'));
+        $settings = (string) file_get_contents(base_path('resources/js/personal-workspace/settings/WorkspaceSettings.jsx'));
+        $memory = (string) file_get_contents(base_path('resources/js/personal-workspace/settings/MemorySettings.jsx'));
+        $integrations = (string) file_get_contents(base_path('resources/js/personal-workspace/settings/IntegrationsSettings.jsx'));
+        $productivity = (string) file_get_contents(base_path('resources/js/personal-workspace/settings/ProductivitySettings.jsx'));
+        $voice = (string) file_get_contents(base_path('resources/js/personal-workspace/settings/VoiceSettings.jsx'));
+
+        $this->assertStringNotContainsString('Last analysis:', $workspace);
+        $this->assertStringNotContainsString('<Plug', $workspace);
+        $this->assertStringNotContainsString('Integrations', $workspace);
+        $this->assertStringContainsString("id: 'memory'", $settings);
+        $this->assertStringContainsString("id: 'integrations'", $settings);
+        $this->assertStringContainsString('Память', $memory);
+        $this->assertStringContainsString('capabilities.integrations ? integrations : []', $integrations);
+        $this->assertStringContainsString('Daily Brief', $productivity);
+        $this->assertStringContainsString('Голос ассистента', $voice);
+        $this->assertStringContainsString('md:flex md:w-56', $settings);
+        $this->assertStringContainsString('mobileDetail', $settings);
+        $this->assertStringContainsString('aria-label="Настройки"', $workspace);
+        $this->assertStringContainsString('Настройки', $workspace);
+    }
+
+    public function test_settings_query_is_allowlisted(): void
+    {
+        $sections = (string) file_get_contents(base_path('resources/js/personal-workspace/settings/sections.js'));
+        $workspace = (string) file_get_contents(base_path('resources/js/personal-workspace/PersonalWorkspace.jsx'));
+
+        $this->assertStringContainsString("'memory'", $sections);
+        $this->assertStringContainsString("'integrations'", $sections);
+        $this->assertStringContainsString('allowedSettingsSection', $workspace);
+        $this->assertStringContainsString("url.searchParams.set('settings', allowed)", $sections);
+    }
+}

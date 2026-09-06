@@ -14,7 +14,7 @@
 - смена темы «заражает» ответ чужим контекстом;
 - схема не масштабируется.
 
-Personal memory retrieval is always scoped by the current `user_id`. M25U.2 does not add a new memory engine. User A never receives Owner or User B memory. Owner User Card memory diagnostics are a separate read-only admin path (`UserMemoryController`), not mixed into `/chat`. Impersonation uses the target user’s memory because Auth is that user.
+Personal memory retrieval is always scoped by the current `user_id`. M25U.2 does not add a new memory engine. User A never receives Owner or User B memory. Owner User Card memory diagnostics remain a separate read-only admin path (`UserMemoryController`). Workspace Settings → Memory shows counts (facts/topics, last analysis) for the current user, not raw internal tables. Impersonation uses the target user’s memory because Auth is that user.
 
 ---
 

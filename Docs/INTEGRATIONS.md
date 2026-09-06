@@ -59,7 +59,14 @@ Owner-only (`/settings?tab=integrations`, also `/settings/integrations`). Subsec
 
 Cards: Google (Connect / Reconnect / Disconnect / Enable Calendar / Enable Gmail; Identity vs Calendar vs Gmail capability states; Not configured if env missing), GitHub (Connect / Reconnect / Disconnect; login; scopes; Not configured if env missing), ElevenLabs (configured status from Voice settings; no key on the overview card). Connected Google is not automatically Gmail-enabled. No Gmail inbox admin UI. No GitHub PAT field. GitHub card does not call GitHub on page load.
 
-Normal user: 403. No user-facing Integrations admin.
+Normal user: 403 on Admin Integrations. No user-facing Integrations admin and no Google/GitHub/Web Research cards in Workspace Settings.
+
+Workspace Settings → Integrations:
+
+- **Owner:** compact status cards (Google, GitHub, Telegram bot, Web Research) with Connect/Manage into Admin. Personal Telegram pairing is a separate card.
+- **Regular user:** Telegram pairing / connected-as only. Owner integrations are omitted even if the user has `web_research` runtime capability.
+
+Backend capabilities remain authoritative. Secrets are never returned to Workspace.
 
 ---
 
@@ -354,7 +361,7 @@ Safe errors: `github_not_connected`, `github_scope_required`, `github_repository
 
 ### Web Research (M22.3 / M22.3.1)
 
-Owner-only capability `web_research`. Tools `search_web` and `fetch_web_page`. Search goes through `WebSearchManager` → `WebSearchProvider` (`gemini_google` / `tavily` / `disabled`). Admin: Settings → Integrations → Web Research. Runtime uses `WebResearchSettingsService` (DB → env/config → defaults, then hard ceilings). `gemini_google` uses the existing Gemini credential in `ai_provider_settings` (Google Search grounding for **discovery** only). Tavily remains an alternative; encrypted Admin key with `WEB_SEARCH_API_KEY` fallback. Fetch is always SSRF-guarded `WebPageFetchService`, never Gemini grounding. Disabled search → `web_search_disabled`. Fetch off → `web_fetch_disabled`. Secrets never returned to Inertia. Workspace shows read-only provider status only. Full spec: [WEB_RESEARCH.md](WEB_RESEARCH.md).
+Owner-only capability `web_research`. Tools `search_web` and `fetch_web_page`. Search goes through `WebSearchManager` → `WebSearchProvider` (`gemini_google` / `tavily` / `disabled`). Admin: Settings → Integrations → Web Research. Runtime uses `WebResearchSettingsService` (DB → env/config → defaults, then hard ceilings). `gemini_google` uses the existing Gemini credential in `ai_provider_settings` (Google Search grounding for **discovery** only). Tavily remains an alternative; encrypted Admin key with `WEB_SEARCH_API_KEY` fallback. Fetch is always SSRF-guarded `WebPageFetchService`, never Gemini grounding. Disabled search → `web_search_disabled`. Fetch off → `web_fetch_disabled`. Secrets never returned to Inertia. Workspace Settings → Integrations shows read-only provider status for Owner only. Full spec: [WEB_RESEARCH.md](WEB_RESEARCH.md).
 
 ### ElevenLabs / Voice Speech (M23 + M23.2)
 

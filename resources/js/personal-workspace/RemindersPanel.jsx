@@ -222,6 +222,7 @@ export default function RemindersPanel({
     surface,
     timezone,
     telegramHint,
+    refreshToken = 0,
     onClose,
     onCreateInChat,
     onCountChange,
@@ -302,7 +303,7 @@ export default function RemindersPanel({
         return () => {
             cancelled = true;
         };
-    }, [open, surface, onCountChange]);
+    }, [open, surface, onCountChange, refreshToken]);
 
     const mutate = async (url, options, failure) => {
         setError('');

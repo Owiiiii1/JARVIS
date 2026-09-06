@@ -1,141 +1,148 @@
-# Phase B.2 — Tasks & Proactive
+# Workspace UX Cleanup
 
 ## Starting HEAD
 
-- Baseline: `88854d7e7d1ade26f6e403de591a8cf269887c0d` `fix: restore GetAssistantProfileTool import for ToolRegistry`
-- Parent of Reminders 2.0: `1a76877` `feat: add Reminders 2.0 and Web Push`
+- Baseline: `75ac18d74755a8d154dab19dd6f3469ea64fcc9e` `feat: add Tasks and proactive productivity`
 - Working tree was clean; `HEAD == origin/main` before work.
+- No migrations. Production DB `jarvis` was not migrated, refreshed, or mass-updated.
 
-## Schema changes
+## Previous Workspace structure
 
-Additive only:
+Main Workspace mixed work surfaces with configuration:
 
-1. `tasks` — Core task rows (`user_id`, `parent_task_id`, title, description, status, priority, `due_at` UTC, timezone, source conversation/message, optional `project_id`, optional calendar reference columns, `completed_at`, `cancelled_at`, bounded metadata).
-2. `reminders.task_id` nullable FK → `tasks` (`nullOnDelete`).
-3. `jarvis_notifications` — in-app inbox with unique `(user_id, dedupe_key)`.
-4. `user_productivity_settings` — per-user opt-in brief/proactive clocks.
+- Header already had Reminders / Tasks / Notifications / a gear Settings control / Voice mode toggle.
+- Settings was one Modal stuffing profile, timezone, voice, productivity, password, onboarding, General Prompt, Admin Integrations link, logout.
+- Owner right context panel duplicated Reminders and also hosted Integrations status + Memory counts + General Prompt.
+- Ordinary `/chat` users never saw that context panel, but they still had the unstructured Settings modal.
 
-Migrations:
+Chat turns returned `active_reminder_count` only. Task badges, notification badges, and open panels stayed stale until F5.
 
-- `2026_09_06_111732_create_tasks_table`
-- `2026_09_06_111733_add_task_id_to_reminders_table`
-- `2026_09_06_111734_create_jarvis_notifications_table`
-- `2026_09_06_111735_create_user_productivity_settings_table`
+## Settings information architecture
 
-## Tasks domain
+Settings is now a Workspace panel (`WorkspaceSettings`), not a standalone admin page.
 
-Statuses: `open`, `in_progress`, `completed`, `cancelled`.
-Priorities: `low`, `normal`, `high`, `urgent`.
+Sections:
 
-`TaskService` / `TaskLifecycle`: create, list/search, get owned, update, start, complete, cancel, reopen (completed → open), priority, due date, project (Owner), calendar reference, subtasks.
+- Profile
+- Assistant
+- Memory (if `memory` capability)
+- Productivity (if tasks / reminders / notifications)
+- Voice (if `voice` capability)
+- Integrations (Owner admin integrations and/or Telegram DM)
 
-## Subtasks
+No empty Advanced section.
 
-`parent_task_id` self-FK. Same user. One level only. Completing a parent with unfinished children returns `open_subtasks` unless `force=true`. Children are not deleted or auto-completed.
+Desktop: left navigation, right current section. Mobile: section list → detail (not two columns at once). Direct section via allowlisted `?settings=memory` / `?settings=integrations` (and the other section keys). Arbitrary URLs are ignored.
 
-## Task ↔ Reminder
+## Main Workspace cleanup
 
-`reminders.task_id` nullable. A reminder without a task still works. Completing or cancelling a task cancels **future open** linked reminders (including a recurring series on that row). Delivered/history rows remain.
+Removed from main chrome:
 
-## Task ↔ Conversation
+- Owner context Integrations block
+- Owner context Memory block / General Prompt button
+- Duplicate Reminders mini-list in context
+- Monolithic Settings modal / separate General Prompt modal
 
-`source_conversation_id` / `source_message_id`. Only owned conversations. Task Center links to Workspace chat. Arbitrary client/LLM conversation ids are rejected.
+Main screen is conversations + current chat/voice + Task / Reminder / Notification centers. Header actions: Tasks, Reminders, Notifications, Text/Voice, **Настройки** (icon + label on desktop; icon + `aria-label` on mobile). Owner Admin and Projects context toggle remain compact.
 
-## Project / Calendar relations
+## Memory relocation
 
-- Owner: optional `project_id` of an owned project. Ordinary users cannot set or see project controls (`can_use_projects` false).
-- Optional Google event reference columns. Task create does not require Google. Calendar disconnected: Tasks still work. External Calendar writes stay on existing Google tools + confirmation policy. No local event mirror.
+Memory management lives in Settings → Memory.
 
-## Task Center
+It reuses the existing Memory Engine summary only: active facts count, active topics count, last completed analysis. No new Memory product. Regular users do not see raw internal tables. Owner/admin gets a diagnostics pointer to Admin Users (existing `UserMemoryController` path), not a second engine.
 
-Header **Задачи** (icon + active count; mobile icon/badge) on `/jarvis` and `/chat`. Drawer consistent with Reminder Center. Sections: Просрочено, Сегодня, Предстоящие, Без срока, Выполненные. Manual create (title, due, priority, description). Actions: Start, Complete, Edit, Cancel, add subtask.
+## Integrations relocation
 
-## Notification Center
+Integrations live in Settings → Integrations.
 
-Header **Уведомления** (Inbox icon + unread badge), distinct from **Напоминания**. All / Unread, mark read, dismiss, safe `/jarvis` or `/chat` action URL. Owner and ordinary users see only their rows.
+Owner: compact cards from the current Integration Registry + Web Research workspace summary, Connect/Manage → Admin Integrations. Personal Telegram pairing is a separate card.
 
-Reminder due also writes an inbox row **without** a second Telegram/Web Push (Reminders already deliver). Task/brief/proactive may optionally Web Push via existing `SendsWebPush`. Push failure does not delete the inbox row. Telegram is not used for Notification Center spam.
+Regular user: Telegram pairing / connected-as / response-mode hint only. Google, GitHub, and Web Research admin cards are not rendered without `integrations` capability. Backend authorization is unchanged.
 
-## Daily Brief
+## Profile / Assistant settings
 
-Opt-in. Default off. Local time default `08:00` in the user timezone. Source-grounded: owned tasks, reminders, Owner projects, recent notifications. Optional bounded LLM phrasing. AI failure → deterministic fallback (never empty). Delivery: Notification Center + optional Web Push. Not Telegram by default.
+Profile: name, email display, timezone, onboarding / Знакомство, password, logout. Existing `settings.profile.update` / `settings.password.update` / `onboarding.start`.
 
-## Evening / Weekly Review
+Assistant: current identity (name, personality, interaction style, about user) as already stored on `user_assistant_profiles` (still edited via chat tools) plus User General Prompt on the existing `settings.prompt.update` endpoint. Visually separated from Memory.
 
-Same `ProductivityBriefService` modes `evening` / `weekly`. Defaults off. Evening `20:00`. Weekly Sunday (`weekday=7`) `18:00`. Same opt-in + fallback rules.
+## Productivity settings
 
-## Proactive Engine
+Daily Brief, Evening Review, Weekly Review, proactive suggestions, Web Push enablement. Task Center and Reminder Center stay on the main screen; their preference forms moved here. Same `settings.productivity.update` and reminder push endpoints.
 
-Deterministic triggers only (overdue task; high/urgent due within 2 hours). LLM may rephrase; trigger is never “ask the model what to suggest”. AI failure still delivers the deterministic sentence. No external writes.
+## Voice settings
 
-## Anti-spam rules
+Curated six-voice catalog and `users.voice_id` via the existing profile update endpoint. Admin provider keys stay in Admin Integrations.
 
-- `proactive_enabled` default **false**
-- max **3** `proactive_suggestion` / local day (excludes `reminder_due` and `brief_ready`)
-- cooldown **4 hours** per task source
-- unique `dedupe_key`; identical suggestion is not repeated
+## Owner vs User visibility
 
-## AI tools
+Regular user sees Profile, Assistant, Memory, Productivity, Voice, Telegram pairing. They do not see Admin integration configuration, Owner Projects configuration, Gmail/GitHub cards, or provider secrets.
 
-`create_task`, `list_tasks`, `get_task`, `update_task`, `start_task`, `complete_task`, `cancel_task`, `create_subtask`, `link_task_reminder`. Conservative create policy. Ambiguity returns candidates. Never pass `user_id`.
+Owner sees the full allowed set, including Integrations status cards and the Projects context panel. UI gating does not replace backend authorization.
 
-LLM used for: optional brief phrasing, optional proactive phrasing. **Not** used for trigger decisions, due detection, or inbox persistence.
+## Live refresh root cause
 
-## Context integration
+`PersonalChatSurfaceService::turnPayload()` only returned `active_reminder_count`. Frontend `applyTurnPayload()` updated messages and that reminder count. It never refreshed `activeTaskCount`, `unreadNotificationCount`, or open panels after a successful foreground turn (chat send, confirmation resolve, Voice `onTurn`).
 
-Bounded Productivity snapshot in the conversation system prompt only when overdue/due-today/urgent exist (counts + up to 3 titles). Deep queries via tools. Tasks are not auto-written to Memory.
+The assistant reply text was never used as a mutation detector.
 
-## Ownership / isolation
+## Live refresh architecture
 
-Backend `user_id` is authoritative. Ordinary users: personal tasks/notifications/briefs/proactive. No Owner Projects / Gmail / Calendar / GitHub / groups. Foreign conversation, project, and task ids 404/`not_found`.
+After every successful completed foreground turn:
 
-## Migrations
+1. Turn JSON now includes `active_task_count` and `unread_notification_count` as well as reminder count and `assistant_profile`.
+2. `refreshProductivity()` applies those counts, bumps `productivityRefreshToken`, and fetches `GET …/workspace/status`.
+3. Open panels reload their payload; closed panels only get counts.
 
-See Schema changes. All `up()` additive.
+No `window.location.reload()`, no Inertia page reload, no `setInterval` polling, no WebSocket/SSE.
+
+Polling is unnecessary: the user is already waiting on the turn response, which is the exact moment a chat-driven mutation is known.
+
+Scheduler-side due tasks / briefs / reminders still appear via Web Push, next panel open, navigation, or reload.
+
+## Badge refresh
+
+Header badges bind to React state updated from the turn payload and then confirmed by `workspace.status`.
+
+## Panel refresh
+
+`TasksPanel`, `RemindersPanel`, and `NotificationsPanel` accept `refreshToken`. Their load effects depend on `open` + `refreshToken`, so a closed panel does not fetch full lists.
+
+## Routes/endpoints
+
+Added (both surfaces):
+
+- `GET /jarvis/workspace/status` → `jarvis.workspace.status`
+- `GET /chat/workspace/status` → `chat.workspace.status`
+
+Payload: `{ tasks.active_count, reminders.active_count, notifications.unread_count, assistant_profile, general_prompt, telegram (no access_code), memory }`. No secrets.
+
+Existing settings / task / reminder / notification / voice / prompt endpoints reused.
 
 ## Tests
 
-Isolated PHPUnit (in-memory models / fakes; no production `RefreshDatabase`):
+- `tests/Unit/WorkspaceUxCleanupTest.php` — static UI contracts: refresh hook, no reload/polling, Memory/Integrations not on main, Settings sections, allowlisted `?settings=`.
+- `tests/Unit/WorkspaceStatusRoutesTest.php` — dual-surface status routes + turn counts.
+- `tests/Feature/Http/Controllers/Jarvis/WorkspaceStatusControllerTest.php` — guest redirect; temporary user GET status (no RefreshDatabase).
+- Existing `TaskWorkspaceRoutesTest` updated for Productivity living in Settings.
 
-- `tests/Unit/Tasks/*`
-- `tests/Unit/Notifications/NotificationInboxTest.php`
-- `tests/Unit/Productivity/ProductivityEngineTest.php`
-- ToolRegistry includes task tools
+`php artisan test --compact` on those files: passed.
 
-## Build/static checks
+## Build
 
-`php -l`, Pint dirty, `composer validate`, `npm run build`, `git diff --check`, `route:list`, `migrate:status` after additive migrate. No live Telegram / Web Push / Gmail / Calendar writes / Gemini / ElevenLabs during implementation.
+`npm run build` succeeded. `vendor/bin/pint --dirty --format agent` passed. `composer validate` passed. `php -l` on touched PHP passed. `git diff --check` run at commit time.
 
 ## Production safety
 
-No `migrate:fresh`, no truncate, no mass delete of Owner data, no live provider calls from tests. Production DB `jarvis` received additive `php artisan migrate` only.
+No migrations. No `migrate:fresh` / `RefreshDatabase`. No mass deletes. No live Telegram / Web Push / Gmail / Calendar / AI calls. Status GET is read-only counts/summaries. Temporary-user feature test deletes only `@invalid.local` rows created by the test helper.
 
-## Documentation
+## Manual checklist
 
-Updated: TASKS_AND_PRODUCTIVITY.md, TASKS.md, NOTIFICATIONS.md, ROADMAP.md, CURRENT_STATE.md, IMPLEMENTATION_PLAN.md, DATABASE.md, ARCHITECTURE.md, CONVERSATION_ENGINE.md, REMINDERS.md, DECISIONS.md, this report.
+A. `/jarvis` main screen: chat + centers, one **Настройки**, no large Memory/Integrations blocks.
+B. Settings: Profile / Assistant / Memory / Productivity / Voice / Integrations as nav + detail, not one form wall.
+C. Memory works from Settings.
+D. Integrations work from Settings with current permissions (Owner Admin manage; user Telegram pairing).
+E–G. Chat-created task / complete task / reminder update badges and open panels without F5.
+H. Ordinary user Settings structured; Owner-only integration cards absent.
+I. Narrow viewport: Settings list → detail, no horizontal mash.
 
-## Known limitations
-
-- Calendar is not polled every 5 minutes for proactive conflict detection (avoids live Google spam); briefs remain source-grounded without requiring Calendar.
-- Repeatedly snoozed **task** rule is not a separate counter (tasks have no snooze); linked reminder snooze stays in the Reminder domain.
-- Subtasks are one level deep.
-- Phase B.2 is **not** Owner live-validated.
-
-## Phase status
-
-- Phase B.1 Reminders 2.0: Owner **MANUAL PASS for confirmed live core flow** (Web Push, Reminder Center, basic user flow). Not exhaustive edge-case MANUAL PASS.
-- Phase B.2: **IMPLEMENTED / NOT VALIDATED**
-- Phase B overall: **IMPLEMENTED / awaiting Owner validation**
-
-## Owner manual checklist
-
-A. TASK — «Создай задачу отправить отчёт завтра до 16:00» → appears in Task Center.
-B. LINKED REMINDER — «Напомни мне про эту задачу завтра в 10» → linked reminder.
-C. COMPLETE — «Я отправил отчёт» → task completed; future linked reminder no longer active; history remains.
-D. MANUAL UI — Create / Edit / Start / Complete / Cancel.
-E. SUBTASK — add a subtask; hierarchy visible; complete parent with open child requires confirm.
-F. NOTIFICATION CENTER — due task → one inbox row, not repeated every scheduler tick.
-G. DAILY BRIEF — enable → brief contains actual task/reminder data (or deterministic fallback).
-H. PROACTIVE — enable suggestions, create urgent near-due task → bounded alert (max 3/day).
-I. USER ISOLATION — ordinary user sees only own tasks/notifications.
-J. OWNER — Owner can link task to owned Project; ordinary user has no project controls.
+Owner live confirmation of E–I is still the product MANUAL PASS; this milestone is the code/UX refactor.

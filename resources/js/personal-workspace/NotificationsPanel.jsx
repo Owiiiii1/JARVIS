@@ -19,7 +19,7 @@ function formatWhen(iso) {
     }
 }
 
-export default function NotificationsPanel({ open, surface, onClose, onCountChange }) {
+export default function NotificationsPanel({ open, surface, refreshToken = 0, onClose, onCountChange }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [items, setItems] = useState([]);
@@ -59,7 +59,7 @@ export default function NotificationsPanel({ open, surface, onClose, onCountChan
         load(unreadOnly);
 
         return undefined;
-    }, [open, surface, unreadOnly]);
+    }, [open, surface, unreadOnly, refreshToken]);
 
     const mutate = async (name, id = null) => {
         setBusyId(id ?? name);

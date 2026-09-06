@@ -16,6 +16,7 @@ use App\Services\Voice\ElevenLabsVoiceCatalog;
 use App\Services\Voice\VoiceAudioMime;
 use App\Services\Voice\VoiceSettingsService;
 use App\Services\Workspace\OwnerWorkspaceContextService;
+use App\Services\Workspace\WorkspaceSurfaceStateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,6 +37,7 @@ class JarvisWorkspaceController extends Controller
         private readonly ReminderService $reminders,
         private readonly TaskService $tasks,
         private readonly JarvisNotificationService $notifications,
+        private readonly WorkspaceSurfaceStateService $workspaceState,
     ) {}
 
     public function index(Request $request): RedirectResponse
@@ -67,9 +69,10 @@ class JarvisWorkspaceController extends Controller
             'messages' => $page['messages'],
             'hasMore' => $page['has_more'],
             'oldestId' => $page['oldest_id'],
+            'settingsContext' => $this->workspaceState->settingsContext($user),
             'context' => $owner
                 ? $this->context->compact($user, $current)
-                : ['settings' => $settings],
+                : [],
             'chatAttachments' => ChatAttachmentConfig::publicLimits(),
             'jarvisStorage' => StoredFileConfig::publicLimits(),
             'voiceClient' => VoiceAudioMime::workspacePayload(

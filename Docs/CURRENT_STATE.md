@@ -1,6 +1,6 @@
 # Jarvis — current implementation snapshot
 
-**Date:** 2026-09-05 (M26D documentation realignment)  
+**Date:** 2026-09-06 (Workspace UX Cleanup)
 **Host path:** `/var/www/jarvis`  
 **Public URL:** https://jarvis.owlsolutions.net  
 **GitHub:** https://github.com/Owiiiii1/JARVIS.git
@@ -65,7 +65,7 @@ The former hands-free «Диалог» mode was removed; only «Рация» rem
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | `main`, aligned with `origin/main` after Phase B.2 Tasks & Proactive |
+| HEAD | `main`, aligned with `origin/main` after Workspace UX Cleanup |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 
 Production checkout is the GitHub source of truth. Gemini STT request-shape and bounded ElevenLabs voice fallback are committed. Laravel Boost is require-dev tooling in a separate commit. `.env` stays gitignored.
@@ -135,9 +135,15 @@ See [DATABASE.md](DATABASE.md).
 | Mobile | — | DEFERRED |
 | Versioned Client API | — | DEFERRED |
 
-Frontend: `resources/js/personal-workspace/PersonalWorkspace.jsx` shared. Capabilities are presentation flags; backend ownership is authoritative.
+Frontend: `resources/js/personal-workspace/PersonalWorkspace.jsx` shared, with Settings split into `resources/js/personal-workspace/settings/*`. Capabilities are presentation flags; backend ownership is authoritative.
 
-Regular user capabilities: chat, memory, telegram_dm, reminders, tasks, notifications, cabinet, personal_workspace, profile, web_research, voice, storage. **Not** projects, admin, Google, GitHub.
+Main Workspace is chat + Task / Reminder / Notification centers + Voice + compact **Настройки**. Memory and Integrations are **not** on the main screen; they live in Settings.
+
+Workspace Settings sections: Profile, Assistant, Memory, Productivity, Voice, Integrations. Desktop: nav + detail. Mobile: list → detail. Direct section: `?settings=memory` / `?settings=integrations` (allowlist only).
+
+After a successful foreground chat turn, badges and open panels refresh via `GET /jarvis/workspace/status` and `GET /chat/workspace/status` plus turn-payload counts. No page reload, no polling, no WebSocket. Scheduler events still appear on next open / Push / navigation.
+
+Regular user capabilities: chat, memory, telegram_dm, reminders, tasks, notifications, cabinet, personal_workspace, profile, web_research, voice, storage. **Not** projects, admin, Google, GitHub. User Settings → Integrations shows Telegram pairing only.
 
 ---
 
@@ -179,9 +185,7 @@ Code: Google OAuth (Gmail + Calendar tools; **no Drive**), GitHub OAuth + tools,
 - Desktop / Tauri / tray / hotkey
 - Mobile app
 - Public registration
-- Tasks domain
-- General Notification Center / Daily Brief
 - Knowledge Graph
-- Proactive engine
 - Wake word
+- Real-time WebSocket/SSE for scheduler events
 - Telegram Voice Input live Owner checklist (code shipped)

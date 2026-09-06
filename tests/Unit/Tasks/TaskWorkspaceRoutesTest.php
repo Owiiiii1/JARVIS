@@ -34,7 +34,7 @@ class TaskWorkspaceRoutesTest extends TestCase
         $this->assertStringContainsString('Просрочено', $tasks);
         $this->assertStringContainsString('Без срока', $tasks);
         $this->assertStringContainsString('Непрочитанные', $inbox);
-        $this->assertStringContainsString('Productivity', $workspace);
+        $this->assertStringContainsString('Daily Brief', file_get_contents(base_path('resources/js/personal-workspace/settings/ProductivitySettings.jsx')));
         $this->assertStringNotContainsString('project_id && !capabilities.projects', $tasks);
     }
 

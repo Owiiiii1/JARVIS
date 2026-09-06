@@ -13,6 +13,7 @@ use App\Http\Controllers\Jarvis\JarvisStorageController;
 use App\Http\Controllers\Jarvis\JarvisTaskController;
 use App\Http\Controllers\Jarvis\JarvisVoiceController;
 use App\Http\Controllers\Jarvis\JarvisWorkspaceController;
+use App\Http\Controllers\Jarvis\JarvisWorkspaceStatusController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\Settings\AiSettingsController;
@@ -80,6 +81,9 @@ Route::middleware(['web', 'auth', 'user.active'])->group(function () {
 $registerPersonalWorkspace = static function (string $prefix, string $as, array $middleware, bool $ownerStorage): void {
     Route::middleware($middleware)->prefix($prefix)->name($as.'.')->group(function () use ($ownerStorage): void {
         Route::get('/', [JarvisWorkspaceController::class, 'index'])->name('index');
+        Route::get('/workspace/status', [JarvisWorkspaceStatusController::class, 'show'])
+            ->middleware('throttle:30,1')
+            ->name('workspace.status');
         Route::post('/chats', [JarvisWorkspaceController::class, 'store'])->name('chats.store');
         Route::get('/chats/{conversation}', [JarvisWorkspaceController::class, 'show'])->name('chats.show');
         Route::patch('/chats/{conversation}', [JarvisWorkspaceController::class, 'update'])->name('chats.update');

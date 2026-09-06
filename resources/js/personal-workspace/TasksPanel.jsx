@@ -105,7 +105,7 @@ function TaskCard({ task, surface, busyId, canUseProjects, onStart, onComplete, 
     );
 }
 
-export default function TasksPanel({ open, surface, onClose, onCountChange, onCreateInChat }) {
+export default function TasksPanel({ open, surface, refreshToken = 0, onClose, onCountChange, onCreateInChat }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [today, setToday] = useState([]);
@@ -155,7 +155,7 @@ export default function TasksPanel({ open, surface, onClose, onCountChange, onCr
         load();
 
         return undefined;
-    }, [open, surface]);
+    }, [open, surface, refreshToken]);
 
     const mutate = async (url, options, failure) => {
         const response = await fetch(url, {

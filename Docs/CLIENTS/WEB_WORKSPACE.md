@@ -1,6 +1,6 @@
 # Personal Web Workspace
 
-**Status.** PRIMARY product UI. Core user workflow **MANUAL PASS**. Voice **MANUAL PASS**. M25U.3 onboarding entry **MANUAL PARTIAL**. Reminders panel **LIVE BUG**. `/cabinet` is compatibility only.
+**Status.** PRIMARY product UI. Core user workflow **MANUAL PASS**. Voice **MANUAL PASS**. M25U.3 onboarding entry **MANUAL PARTIAL**. Reminders 2.0 **MANUAL PASS for confirmed live core flow**. Tasks / Notification Center **IMPLEMENTED / NOT VALIDATED**. Workspace Settings structured; Memory and Integrations live in Settings. Foreground chat turn live-refreshes productivity badges/panels (no F5). `/cabinet` is compatibility only.
 
 Owner and ordinary users share **one Personal Workspace product**. Role/capabilities change available features, not the chat implementation.
 
@@ -15,7 +15,7 @@ Workspace is part of `Owiiiii1/JARVIS`: Laravel + Inertia/React, one deployment 
 | Surface | Route | For |
 | --- | --- | --- |
 | Admin Panel | `/dashboard` | technical management: users, AI providers, integrations, Telegram groups, diagnostics |
-| Owner Personal Workspace | `/jarvis` | Owner talking to Jarvis + owner context (projects, integrations, Storage link, Admin) |
+| Owner Personal Workspace | `/jarvis` | Owner talking to Jarvis + compact Projects context; Memory/Integrations in Settings |
 | User Personal Workspace | `/chat` | `role=user` talking to Jarvis (full chat, no owner chrome) |
 | Cabinet (deprecated) | `/cabinet` | redirects to `/chat` (owner → `/jarvis`) |
 
@@ -78,7 +78,7 @@ Workspace uses the existing Owner Space and engines:
 
 This is **not** a second chat engine and **not** a second owner memory.
 
-M25U.3: ordinary-user header shows the chosen assistant name (fallback **Assistant**). Owner header stays Jarvis. Onboarding is a normal **Знакомство** chat (optional, not a gate). Reminders: header **Напоминания** with active count; list is lazy-loaded; create remains conversational (`Создать в чате`). Same panel on `/jarvis` and `/chat`, scoped to the effective user. [ASSISTANT_PERSONALIZATION.md](../ASSISTANT_PERSONALIZATION.md).
+M25U.3: ordinary-user header shows the chosen assistant name (fallback **Assistant**). Owner header stays Jarvis. Onboarding is a normal **Знакомство** chat (optional, not a gate). Header actions: **Задачи**, **Напоминания**, **Уведомления**, Text/Voice, **Настройки**. Create remains conversational where needed. Same centers on `/jarvis` and `/chat`, scoped to the effective user. [ASSISTANT_PERSONALIZATION.md](../ASSISTANT_PERSONALIZATION.md).
 
 Telegram-created personal chats appear in `/jarvis`. New Chat creates a normal personal conversation (`kind=personal`). Default unused visit uses `ConversationService::latestOrDefault()` (existing recent chat, otherwise `Основной`).
 
@@ -107,6 +107,7 @@ Web inbound stays `channel=web` + client UUID idempotency. Channel is transport,
 | POST | `/jarvis/confirmations/{confirmation}/confirm` | `jarvis.confirmations.confirm` |
 | POST | `/jarvis/confirmations/{confirmation}/cancel` | `jarvis.confirmations.cancel` |
 | PATCH | `/jarvis/settings/general-prompt` | `jarvis.settings.prompt.update` |
+| GET | `/jarvis/workspace/status` | `jarvis.workspace.status` (lightweight tasks/reminders/notifications counts; `/chat/workspace/status` mirror) |
 
 Controllers authorize owner, resolve owned conversations, render Inertia, validate, and call Core services. Logic is not duplicated in the controller.
 
@@ -120,8 +121,10 @@ Shared application service: `PersonalChatSurfaceService` (Cabinet + Workspace). 
 
 - Left: conversations (New Chat, **Storage**, local search, title, last activity, selected, rename)
 - Center: thread + sticky composer
-- Right / mobile drawer: context (projects, reminders, integrations status including read-only **Web Search · Google / Tavily / Disabled**, memory counts, General Prompt)
-- Header: Jarvis, AI status dot, Text / Voice, conversation title, Admin, settings
+- Right / mobile drawer (Owner): compact **Projects** only
+- Header: assistant name, AI status dot, Text / Voice, conversation title, Tasks, Reminders, Notifications, **Настройки**, optional Admin / Projects toggle
+
+Memory, Integrations, General Prompt, productivity preference forms, and voice catalog live in **Settings**, not on the main chrome.
 
 Wide screens (1280–2560). Sidebar and context collapse on smaller widths. Composer stays usable on a phone browser.
 
@@ -153,12 +156,14 @@ Cards show action summary, provider/tool family, safe preview (Gmail recipients/
 
 ## Personal vs technical settings
 
-Workspace (personal):
+Workspace Settings (structured panel, `?settings=` allowlist):
 
-- General Prompt (`user_ai_settings`)
-- timezone display
-- personal assistant voice: six curated ElevenLabs choices, stored per user
-- integrations status + deep link to Admin
+- **Profile** — name, email display, timezone, onboarding / Знакомство, password, logout
+- **Assistant** — current identity/behavior (read-only from profile) + User General Prompt
+- **Memory** — facts/topics counts and last analysis; no raw tables for regular users
+- **Productivity** — Daily/Evening/Weekly briefs, proactive, Web Push
+- **Voice** — curated assistant voice (`users.voice_id`)
+- **Integrations** — Owner: Google / GitHub / Telegram / Web Research status cards linking to Admin; regular user: Telegram pairing only
 
 Admin (technical):
 
@@ -169,13 +174,15 @@ Admin (technical):
 
 Workspace does not reproduce OAuth forms or AI provider settings.
 
+Foreground chat turns refresh task/reminder/notification badges and open panels without F5 (`refreshProductivity` → `workspace.status`). Background scheduler events still rely on Push + next panel open.
+
 ---
 
 ## Voice (M23 runtime + Gemini STT + Orb + push-to-talk)
 
 Text / Voice toggle keeps the selected conversation. Clicking Voice primes microphone + AudioContext and creates the session. The only capture mode is «Рация»: hold the large button to record, release to send. Silence does not auto-submit. The separate mic button is mute. After TTS, the session waits for the next held turn. Same frontend on `/jarvis` and `/chat`.
 
-Workspace settings include **Assistant voice** for every owner/user. Six curated voices are grouped as three female (Jessica, Sarah, Lily) and three male (Eric, George, Chris). Selection is validated and stored in `users.voice_id`; it applies to both Web Voice and Telegram TTS. Provider/key configuration remains owner-only.
+Workspace settings include **Voice** for every owner/user. Six curated voices are grouped as three female (Jessica, Sarah, Lily) and three male (Eric, George, Chris). Selection is validated and stored in `users.voice_id`; it applies to both Web Voice and Telegram TTS. Provider/key configuration remains owner-only.
 
 `JarvisVoiceOrb` remains provider-neutral. Ordinary users do not see a Gemini vendor label.
 
@@ -191,7 +198,7 @@ See [VOICE_ARCHITECTURE.md](../VOICE_ARCHITECTURE.md) and [CLIENTS/VOICE_UI.md](
 
 ## Payload
 
-Initial Inertia props are bounded: safe user profile, compact conversation list, selected chat, recent messages, compact projects/reminders/integrations/memory counts, General Prompt text.
+Initial Inertia props are bounded: safe user profile, compact conversation list, selected chat, recent messages, compact Owner projects, `settingsContext` (memory summary, allowed integrations, Telegram pairing), personal settings, productivity counts.
 
 No credentials, system prompts, tool logs, or raw group archive.
 

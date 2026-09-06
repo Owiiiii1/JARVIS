@@ -4,8 +4,10 @@ import { workspaceRoute } from '@/personal-workspace/named';
 import RemindersPanel from '@/personal-workspace/RemindersPanel';
 import TasksPanel from '@/personal-workspace/TasksPanel';
 import NotificationsPanel from '@/personal-workspace/NotificationsPanel';
+import WorkspaceSettings from '@/personal-workspace/settings/WorkspaceSettings';
+import { allowedSettingsSection, writeSettingsQuery } from '@/personal-workspace/settings/sections';
 import { primeVoiceMediaFromUserGesture } from '@/voice/audio/voiceMedia';
-import { Link, router, useForm, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import {
     Bell,
     Check,
@@ -20,17 +22,14 @@ import {
     Mic,
     PanelRight,
     Pencil,
-    Plug,
     Paperclip,
     Search,
     Send,
     Settings2,
-    Sparkles,
     Type,
-    UserCircle2,
     X,
 } from 'lucide-react';
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const SUGGESTIONS = [
     'Что у меня сегодня?',
@@ -46,15 +45,6 @@ const USER_SUGGESTIONS = [
     'Найди в моих файлах',
     'Поищи в интернете',
 ];
-
-const VOICE_STYLE_LABELS = {
-    playful_warm: 'playful, bright, warm',
-    calm_confident: 'calm, reassuring, confident',
-    velvety_expressive: 'velvety and expressive',
-    smooth_trustworthy: 'smooth and trustworthy',
-    warm_storyteller: 'warm storyteller',
-    natural_friendly: 'natural and friendly',
-};
 
 const VoiceSession = lazy(() => import('@/Components/Jarvis/VoiceSession'));
 
@@ -203,19 +193,6 @@ function providerLabel(toolName) {
     return toolName.replaceAll('_', ' ');
 }
 
-function integrationDot(state) {
-    if (state === 'connected' || state === 'enabled') {
-        return 'bg-emerald-400';
-    }
-    if (state === 'error' || state === 'revoked') {
-        return 'bg-rose-400';
-    }
-    if (state === 'permission_required' || state === 'incomplete') {
-        return 'bg-amber-400';
-    }
-    return 'bg-slate-500';
-}
-
 export default function PersonalWorkspace() {
     const {
         conversation,
@@ -233,6 +210,7 @@ export default function PersonalWorkspace() {
         surface: surfaceProp = 'jarvis',
         capabilities: capabilityProps = {},
         settings = {},
+        settingsContext: settingsContextProp = {},
         assistantProfile: assistantProfileProp = {},
         activeReminderCount: activeReminderCountProp = 0,
         activeTaskCount: activeTaskCountProp = 0,
@@ -252,13 +230,12 @@ export default function PersonalWorkspace() {
         reminders: false,
         tasks: false,
         notifications: false,
+        memory: false,
+        telegramDm: false,
         ...capabilityProps,
     };
 
     const timezone = user.timezone || undefined;
-    const voiceOptions = settings.voice?.voices ?? [];
-    const femaleVoices = voiceOptions.filter((option) => option.gender === 'female');
-    const maleVoices = voiceOptions.filter((option) => option.gender === 'male');
     const imageAccept = chatAttachments?.accept
         ? `${chatAttachments.accept},image/*`
         : 'image/*,.jpg,.jpeg,.png,.webp';
@@ -289,15 +266,17 @@ export default function PersonalWorkspace() {
     const [error, setError] = useState('');
     const [editingTitle, setEditingTitle] = useState(false);
     const [titleDraft, setTitleDraft] = useState(conversation?.title ?? '');
-    const [promptOpen, setPromptOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [settingsSection, setSettingsSection] = useState('profile');
     const [remindersOpen, setRemindersOpen] = useState(false);
     const [tasksOpen, setTasksOpen] = useState(false);
     const [notificationsOpen, setNotificationsOpen] = useState(false);
     const [assistantProfile, setAssistantProfile] = useState(assistantProfileProp);
+    const [settingsContext, setSettingsContext] = useState(settingsContextProp);
     const [activeReminderCount, setActiveReminderCount] = useState(Number(activeReminderCountProp) || 0);
     const [activeTaskCount, setActiveTaskCount] = useState(Number(activeTaskCountProp) || 0);
     const [unreadNotificationCount, setUnreadNotificationCount] = useState(Number(unreadNotificationCountProp) || 0);
+    const [productivityRefreshToken, setProductivityRefreshToken] = useState(0);
     const workspaceTitle = assistantProfile?.presentation_name
         || (user?.role === 'owner' ? productBrand : 'Assistant');
     const onboardingStatus = assistantProfile?.onboarding_status || 'not_started';
@@ -313,29 +292,88 @@ export default function PersonalWorkspace() {
     const shouldStickToBottom = useRef(true);
     const pendingFilesRef = useRef([]);
 
-    const promptForm = useForm({
-        general_prompt: settings.general_prompt ?? context?.settings?.general_prompt ?? '',
-    });
-    const profileForm = useForm({
-        name: settings.name ?? user.name ?? '',
-        timezone: settings.timezone ?? user.timezone ?? '',
-        voice_id: settings.voice?.voice_id ?? '',
-    });
-    const productivityForm = useForm({
-        daily_brief_enabled: Boolean(settings.productivity?.daily_brief_enabled),
-        daily_brief_local_time: settings.productivity?.daily_brief_local_time || '08:00',
-        evening_review_enabled: Boolean(settings.productivity?.evening_review_enabled),
-        evening_review_local_time: settings.productivity?.evening_review_local_time || '20:00',
-        weekly_review_enabled: Boolean(settings.productivity?.weekly_review_enabled),
-        weekly_review_weekday: Number(settings.productivity?.weekly_review_weekday || 7),
-        weekly_review_local_time: settings.productivity?.weekly_review_local_time || '18:00',
-        proactive_enabled: Boolean(settings.productivity?.proactive_enabled),
-    });
-    const passwordForm = useForm({
-        current_password: '',
-        password: '',
-        password_confirmation: '',
-    });
+    const openSettings = (nextSection = 'profile') => {
+        const allowed = allowedSettingsSection(nextSection) || 'profile';
+        setSettingsSection(allowed);
+        setSettingsOpen(true);
+        writeSettingsQuery(allowed);
+    };
+
+    const closeSettings = () => {
+        setSettingsOpen(false);
+        writeSettingsQuery(null);
+    };
+
+    const changeSettingsSection = (nextSection) => {
+        const allowed = allowedSettingsSection(nextSection) || 'profile';
+        setSettingsSection(allowed);
+        writeSettingsQuery(allowed);
+    };
+
+    const applyProductivityCounts = (payload) => {
+        if (!payload || typeof payload !== 'object') {
+            return;
+        }
+
+        if (typeof payload.active_reminder_count === 'number') {
+            setActiveReminderCount(payload.active_reminder_count);
+        } else if (typeof payload.reminders?.active_count === 'number') {
+            setActiveReminderCount(payload.reminders.active_count);
+        }
+
+        if (typeof payload.active_task_count === 'number') {
+            setActiveTaskCount(payload.active_task_count);
+        } else if (typeof payload.tasks?.active_count === 'number') {
+            setActiveTaskCount(payload.tasks.active_count);
+        }
+
+        if (typeof payload.unread_notification_count === 'number') {
+            setUnreadNotificationCount(payload.unread_notification_count);
+        } else if (typeof payload.notifications?.unread_count === 'number') {
+            setUnreadNotificationCount(payload.notifications.unread_count);
+        }
+
+        if (payload.assistant_profile) {
+            setAssistantProfile(payload.assistant_profile);
+        }
+
+        setSettingsContext((current) => ({
+            ...current,
+            memory: payload.memory ?? current.memory,
+            telegram: payload.telegram
+                ? { ...current.telegram, ...payload.telegram }
+                : current.telegram,
+            general_prompt: payload.general_prompt !== undefined ? payload.general_prompt : current.general_prompt,
+            integrations: payload.integrations ?? current.integrations,
+        }));
+    };
+
+    const refreshProductivity = useCallback((turnPayload = null) => {
+        applyProductivityCounts(turnPayload);
+        setProductivityRefreshToken((current) => current + 1);
+
+        return fetch(workspaceRoute(surface, 'workspace.status'), {
+            credentials: 'same-origin',
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        })
+            .then(async (response) => {
+                const payload = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    return;
+                }
+
+                applyProductivityCounts(payload);
+            })
+            .catch(() => {});
+    }, [surface]);
+
+    useEffect(() => {
+        setSettingsContext(settingsContextProp);
+    }, [settingsContextProp]);
 
     useEffect(() => {
         if (typeof window === 'undefined') {
@@ -354,6 +392,13 @@ export default function PersonalWorkspace() {
 
         if (params.get('notifications')) {
             setNotificationsOpen(true);
+        }
+
+        const requestedSettings = allowedSettingsSection(params.get('settings'));
+
+        if (requestedSettings) {
+            setSettingsSection(requestedSettings);
+            setSettingsOpen(true);
         }
 
         const onMessage = (event) => {
@@ -403,15 +448,6 @@ export default function PersonalWorkspace() {
             setDraft('');
         }
     }, [conversation?.id, initialHasMore, initialMessages, initialOldestId, conversation?.title]);
-
-    useEffect(() => {
-        promptForm.setData('general_prompt', settings.general_prompt ?? context?.settings?.general_prompt ?? '');
-        profileForm.setData({
-            name: settings.name ?? user.name ?? '',
-            timezone: settings.timezone ?? user.timezone ?? '',
-            voice_id: settings.voice?.voice_id ?? '',
-        });
-    }, [settings.general_prompt, settings.name, settings.timezone, settings.voice?.voice_id, context?.settings?.general_prompt, user.name, user.timezone]);
 
     useEffect(() => {
         setAssistantProfile(assistantProfileProp ?? {});
@@ -521,9 +557,7 @@ export default function PersonalWorkspace() {
             setAssistantProfile(payload.assistant_profile);
         }
 
-        if (typeof payload.active_reminder_count === 'number') {
-            setActiveReminderCount(payload.active_reminder_count);
-        }
+        refreshProductivity(payload);
     };
 
     const firstError = (payload) => {
@@ -867,9 +901,6 @@ export default function PersonalWorkspace() {
 
     const empty = messages.length === 0;
     const projects = context.projects ?? [];
-    const reminders = context.reminders ?? [];
-    const integrations = context.integrations ?? [];
-    const memory = context.memory ?? {};
     const connected = Boolean(owlAdmin?.ai?.connected);
 
     const closeOverlaysFromBackdrop = (event) => {
@@ -974,22 +1005,6 @@ export default function PersonalWorkspace() {
                         Admin
                     </Link>
                 ) : null}
-                {capabilities.reminders ? (
-                    <button
-                        type="button"
-                        onClick={() => setRemindersOpen(true)}
-                        className="relative inline-flex items-center gap-2 rounded-lg p-2 text-slate-300 hover:bg-white/10 sm:px-3"
-                        aria-label="Напоминания"
-                    >
-                        <Bell className="h-4 w-4" />
-                        <span className="hidden text-xs font-medium sm:inline">Напоминания</span>
-                        {activeReminderCount > 0 ? (
-                            <span className="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-sky-500 px-1 text-[10px] font-semibold leading-4 text-white">
-                                {activeReminderCount > 99 ? '99+' : activeReminderCount}
-                            </span>
-                        ) : null}
-                    </button>
-                ) : null}
                 {capabilities.tasks ? (
                     <button
                         type="button"
@@ -1002,6 +1017,22 @@ export default function PersonalWorkspace() {
                         {activeTaskCount > 0 ? (
                             <span className="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-amber-500 px-1 text-[10px] font-semibold leading-4 text-white">
                                 {activeTaskCount > 99 ? '99+' : activeTaskCount}
+                            </span>
+                        ) : null}
+                    </button>
+                ) : null}
+                {capabilities.reminders ? (
+                    <button
+                        type="button"
+                        onClick={() => setRemindersOpen(true)}
+                        className="relative inline-flex items-center gap-2 rounded-lg p-2 text-slate-300 hover:bg-white/10 sm:px-3"
+                        aria-label="Напоминания"
+                    >
+                        <Bell className="h-4 w-4" />
+                        <span className="hidden text-xs font-medium sm:inline">Напоминания</span>
+                        {activeReminderCount > 0 ? (
+                            <span className="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-sky-500 px-1 text-[10px] font-semibold leading-4 text-white">
+                                {activeReminderCount > 99 ? '99+' : activeReminderCount}
                             </span>
                         ) : null}
                     </button>
@@ -1024,11 +1055,12 @@ export default function PersonalWorkspace() {
                 ) : null}
                 <button
                     type="button"
-                    onClick={() => setSettingsOpen(true)}
-                    className="rounded-lg p-2 text-slate-300 hover:bg-white/10"
-                    aria-label="Workspace settings"
+                    onClick={() => openSettings()}
+                    className="inline-flex items-center gap-2 rounded-lg p-2 text-slate-300 hover:bg-white/10 sm:px-3"
+                    aria-label="Настройки"
                 >
                     <Settings2 className="h-4 w-4" />
+                    <span className="hidden text-xs font-medium sm:inline">Настройки</span>
                 </button>
                 {capabilities.ownerContext ? (
                     <button
@@ -1200,97 +1232,6 @@ export default function PersonalWorkspace() {
                             ))}
                         </ul>
                     )}
-                </section>
-
-                <section className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                    <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                        <Bell className="h-3.5 w-3.5" />
-                        Напоминания
-                    </h2>
-                    <button
-                        type="button"
-                        onClick={() => setRemindersOpen(true)}
-                        className="mb-2 text-[11px] text-sky-300 hover:text-sky-200"
-                    >
-                        Open panel{activeReminderCount ? ` (${activeReminderCount})` : ''}
-                    </button>
-                    {reminders.length === 0 ? (
-                        <p className="text-xs text-slate-500">Ask Jarvis to remind you.</p>
-                    ) : (
-                        <ul className="space-y-2">
-                            {reminders.map((reminder) => (
-                                <li key={reminder.id} className="rounded-lg bg-black/20 px-2 py-2">
-                                    <p className="line-clamp-2 text-sm text-slate-200">{reminder.text}</p>
-                                    <p className="mt-1 text-[11px] text-slate-500">
-                                        {formatWhen(reminder.run_at, reminder.timezone || timezone)} · {reminder.status}
-                                    </p>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </section>
-
-                <section className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                        <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                            <Plug className="h-3.5 w-3.5" />
-                            Integrations
-                        </h2>
-                        <Link
-                            href={route('settings.index', { tab: 'integrations' })}
-                            className="text-[11px] text-sky-300 hover:text-sky-200"
-                        >
-                            Admin
-                        </Link>
-                    </div>
-                    <ul className="space-y-2">
-                        {integrations.map((item) => (
-                            <li key={item.provider} className="rounded-lg bg-black/20 px-2 py-2">
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="text-sm text-slate-200">{item.display_name}</span>
-                                    <span className={`h-2 w-2 rounded-full ${integrationDot(item.state)}`} />
-                                </div>
-                                <p className="mt-0.5 truncate text-[11px] text-slate-500">
-                                    {item.account_label || item.label}
-                                </p>
-                                {item.capabilities?.length ? (
-                                    <p className="mt-1 text-[11px] text-slate-400">
-                                        {item.capabilities
-                                            .map((capability) => `${capability.label}: ${capability.state}`)
-                                            .join(' · ')}
-                                    </p>
-                                ) : null}
-                            </li>
-                        ))}
-                    </ul>
-                </section>
-
-                <section className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                    <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                        <UserCircle2 className="h-3.5 w-3.5" />
-                        Memory
-                    </h2>
-                    <dl className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="rounded-lg bg-black/20 px-2 py-2">
-                            <dt className="text-slate-500">Facts</dt>
-                            <dd className="mt-0.5 text-sm text-white">{memory.facts_count ?? 0}</dd>
-                        </div>
-                        <div className="rounded-lg bg-black/20 px-2 py-2">
-                            <dt className="text-slate-500">Topics</dt>
-                            <dd className="mt-0.5 text-sm text-white">{memory.topics_count ?? 0}</dd>
-                        </div>
-                    </dl>
-                    <p className="mt-2 text-[11px] text-slate-500">
-                        Last analysis: {memory.last_analysis_at ? formatWhen(memory.last_analysis_at, timezone) : '—'}
-                    </p>
-                    <button
-                        type="button"
-                        onClick={() => setPromptOpen(true)}
-                        className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-white/10 text-xs font-medium text-slate-200 hover:bg-white/5"
-                    >
-                        <Sparkles className="h-3.5 w-3.5" />
-                        General Prompt
-                    </button>
                 </section>
             </div>
         </div>
@@ -1494,321 +1435,27 @@ export default function PersonalWorkspace() {
                 )}
             </JarvisWorkspaceLayout>
 
-            {promptOpen ? (
-                <Modal title="General Prompt" onClose={() => setPromptOpen(false)}>
-                    <p className="mb-3 text-sm text-slate-400">
-                        Additional explicit instructions for this account. Separate from assistant name, personality, and Memory.
-                    </p>
-                    <form
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            promptForm.patch(workspaceRoute(surface, 'settings.prompt.update'), {
-                                preserveScroll: true,
-                                onSuccess: () => setPromptOpen(false),
-                            });
-                        }}
-                    >
-                        <textarea
-                            value={promptForm.data.general_prompt ?? ''}
-                            onChange={(event) => promptForm.setData('general_prompt', event.target.value)}
-                            rows={10}
-                            className="w-full rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-slate-100 outline-none focus:border-sky-400/40"
-                        />
-                        <div className="mt-4 flex justify-end gap-2">
-                            <button type="button" onClick={() => setPromptOpen(false)} className="rounded-lg px-3 py-2 text-sm text-slate-400 hover:text-white">
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={promptForm.processing}
-                                className="rounded-lg bg-sky-500 px-3 py-2 text-sm font-medium text-white hover:bg-sky-400"
-                            >
-                                Save
-                            </button>
-                        </div>
-                    </form>
-                </Modal>
-            ) : null}
-
-            {settingsOpen ? (
-                <Modal title="Workspace settings" onClose={() => setSettingsOpen(false)}>
-                    <form
-                        className="space-y-4 text-sm"
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            profileForm.patch(workspaceRoute(surface, 'settings.profile.update'), {
-                                preserveScroll: true,
-                            });
-                        }}
-                    >
-                        <div>
-                            <label className="text-xs uppercase tracking-[0.14em] text-slate-500" htmlFor="workspace-name">
-                                Name
-                            </label>
-                            <input
-                                id="workspace-name"
-                                value={profileForm.data.name}
-                                onChange={(event) => profileForm.setData('name', event.target.value)}
-                                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100 outline-none focus:border-sky-400/40"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs uppercase tracking-[0.14em] text-slate-500" htmlFor="workspace-timezone">
-                                Timezone
-                            </label>
-                            <select
-                                id="workspace-timezone"
-                                value={profileForm.data.timezone}
-                                onChange={(event) => profileForm.setData('timezone', event.target.value)}
-                                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100 outline-none focus:border-sky-400/40"
-                            >
-                                {(settings.timezones?.length ? settings.timezones : [profileForm.data.timezone || 'Europe/Rome']).map((zone) => (
-                                    <option key={zone} value={zone}>{zone}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-xs uppercase tracking-[0.14em] text-slate-500" htmlFor="workspace-voice">
-                                Assistant voice
-                            </label>
-                            <select
-                                id="workspace-voice"
-                                value={profileForm.data.voice_id}
-                                onChange={(event) => profileForm.setData('voice_id', event.target.value)}
-                                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100 outline-none focus:border-sky-400/40"
-                            >
-                                <optgroup label="Female voices">
-                                    {femaleVoices.map((option) => (
-                                        <option key={option.id} value={option.id}>
-                                            {option.name} — {VOICE_STYLE_LABELS[option.style] ?? option.style}
-                                        </option>
-                                    ))}
-                                </optgroup>
-                                <optgroup label="Male voices">
-                                    {maleVoices.map((option) => (
-                                        <option key={option.id} value={option.id}>
-                                            {option.name} — {VOICE_STYLE_LABELS[option.style] ?? option.style}
-                                        </option>
-                                    ))}
-                                </optgroup>
-                            </select>
-                            {profileForm.errors.voice_id ? <p className="mt-1 text-xs text-red-400">{profileForm.errors.voice_id}</p> : null}
-                        </div>
-                        {capabilities.tasks ? (
-                            <div className="border-t border-white/10 pt-4">
-                                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Productivity</p>
-                                <p className="mt-1 text-[11px] text-slate-500">Сводки выключены по умолчанию. Часовой пояс — ваш текущий.</p>
-                                <div className="mt-3 space-y-2 text-sm text-slate-200">
-                                    <label className="flex items-center justify-between gap-3">
-                                        <span>Daily Brief</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={Boolean(productivityForm.data.daily_brief_enabled)}
-                                            onChange={(event) => productivityForm.setData('daily_brief_enabled', event.target.checked)}
-                                        />
-                                    </label>
-                                    <input
-                                        type="time"
-                                        value={productivityForm.data.daily_brief_local_time}
-                                        onChange={(event) => productivityForm.setData('daily_brief_local_time', event.target.value)}
-                                        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100"
-                                    />
-                                    <label className="flex items-center justify-between gap-3">
-                                        <span>Evening Review</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={Boolean(productivityForm.data.evening_review_enabled)}
-                                            onChange={(event) => productivityForm.setData('evening_review_enabled', event.target.checked)}
-                                        />
-                                    </label>
-                                    <input
-                                        type="time"
-                                        value={productivityForm.data.evening_review_local_time}
-                                        onChange={(event) => productivityForm.setData('evening_review_local_time', event.target.value)}
-                                        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100"
-                                    />
-                                    <label className="flex items-center justify-between gap-3">
-                                        <span>Weekly Review</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={Boolean(productivityForm.data.weekly_review_enabled)}
-                                            onChange={(event) => productivityForm.setData('weekly_review_enabled', event.target.checked)}
-                                        />
-                                    </label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <select
-                                            value={productivityForm.data.weekly_review_weekday}
-                                            onChange={(event) => productivityForm.setData('weekly_review_weekday', Number(event.target.value))}
-                                            className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100"
-                                        >
-                                            <option value={1}>Пн</option>
-                                            <option value={2}>Вт</option>
-                                            <option value={3}>Ср</option>
-                                            <option value={4}>Чт</option>
-                                            <option value={5}>Пт</option>
-                                            <option value={6}>Сб</option>
-                                            <option value={7}>Вс</option>
-                                        </select>
-                                        <input
-                                            type="time"
-                                            value={productivityForm.data.weekly_review_local_time}
-                                            onChange={(event) => productivityForm.setData('weekly_review_local_time', event.target.value)}
-                                            className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100"
-                                        />
-                                    </div>
-                                    <label className="flex items-center justify-between gap-3">
-                                        <span>Proactive suggestions</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={Boolean(productivityForm.data.proactive_enabled)}
-                                            onChange={(event) => productivityForm.setData('proactive_enabled', event.target.checked)}
-                                        />
-                                    </label>
-                                    <button
-                                        type="button"
-                                        onClick={() => productivityForm.patch(workspaceRoute(surface, 'settings.productivity.update'), { preserveScroll: true })}
-                                        className="rounded-lg bg-sky-500/90 px-3 py-1.5 text-xs font-medium text-white"
-                                    >
-                                        Save productivity
-                                    </button>
-                                </div>
-                            </div>
-                        ) : null}
-                        <div className="border-t border-white/10 pt-4">
-                            <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Change password</p>
-                            <div className="mt-2 space-y-2">
-                                <input
-                                    type="password"
-                                    placeholder="Current password"
-                                    value={passwordForm.data.current_password}
-                                    onChange={(event) => passwordForm.setData('current_password', event.target.value)}
-                                    className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100 outline-none"
-                                />
-                                <input
-                                    type="password"
-                                    placeholder="New password"
-                                    value={passwordForm.data.password}
-                                    onChange={(event) => passwordForm.setData('password', event.target.value)}
-                                    className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100 outline-none"
-                                />
-                                <input
-                                    type="password"
-                                    placeholder="Confirm new password"
-                                    value={passwordForm.data.password_confirmation}
-                                    onChange={(event) => passwordForm.setData('password_confirmation', event.target.value)}
-                                    className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-slate-100 outline-none"
-                                />
-                                {passwordForm.errors.current_password ? <p className="text-xs text-red-400">{passwordForm.errors.current_password}</p> : null}
-                                {passwordForm.errors.password ? <p className="text-xs text-red-400">{passwordForm.errors.password}</p> : null}
-                                <button
-                                    type="button"
-                                    disabled={passwordForm.processing}
-                                    onClick={() => passwordForm.put(workspaceRoute(surface, 'settings.password.update'), {
-                                        preserveScroll: true,
-                                        onSuccess: () => passwordForm.reset(),
-                                    })}
-                                    className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200 hover:bg-white/5"
-                                >
-                                    Update password
-                                </button>
-                            </div>
-                        </div>
-                        {showOnboarding ? (
-                            <div className="border-t border-white/10 pt-4">
-                                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Знакомство</p>
-                                <p className="mt-1 text-sm text-slate-200">{onboardingLabel}</p>
-                                {onboardingStatus === 'not_started' ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setSettingsOpen(false);
-                                            router.post(workspaceRoute(surface, 'onboarding.start'));
-                                        }}
-                                        className="mt-2 rounded-lg bg-sky-500 px-3 py-2 text-sm font-medium text-white hover:bg-sky-400"
-                                    >
-                                        Познакомиться
-                                    </button>
-                                ) : null}
-                                {onboardingStatus === 'in_progress' ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setSettingsOpen(false);
-                                            router.post(workspaceRoute(surface, 'onboarding.start'));
-                                        }}
-                                        className="mt-2 rounded-lg bg-sky-500 px-3 py-2 text-sm font-medium text-white hover:bg-sky-400"
-                                    >
-                                        Продолжить знакомство
-                                    </button>
-                                ) : null}
-                                {onboardingStatus === 'completed' ? (
-                                    <p className="mt-2 text-xs text-slate-500">Изменить имя или стиль можно в чате: «Теперь тебя зовут…», «Отвечай короче».</p>
-                                ) : null}
-                                <dl className="mt-3 space-y-2 text-xs text-slate-400">
-                                    <div>
-                                        <dt className="uppercase tracking-[0.12em] text-slate-500">Имя ассистента</dt>
-                                        <dd className="mt-0.5 text-sm text-slate-200">{assistantProfile?.assistant_name || '—'}</dd>
-                                    </div>
-                                    <div>
-                                        <dt className="uppercase tracking-[0.12em] text-slate-500">Характер</dt>
-                                        <dd className="mt-0.5 whitespace-pre-wrap text-sm text-slate-200">{assistantProfile?.personality || '—'}</dd>
-                                    </div>
-                                    <div>
-                                        <dt className="uppercase tracking-[0.12em] text-slate-500">Стиль взаимодействия</dt>
-                                        <dd className="mt-0.5 whitespace-pre-wrap text-sm text-slate-200">{assistantProfile?.interaction_style || '—'}</dd>
-                                    </div>
-                                    <div>
-                                        <dt className="uppercase tracking-[0.12em] text-slate-500">О пользователе</dt>
-                                        <dd className="mt-0.5 whitespace-pre-wrap text-sm text-slate-200">{assistantProfile?.about_user || '—'}</dd>
-                                    </div>
-                                </dl>
-                                <p className="mt-3 text-[11px] text-slate-600">
-                                    Профиль ассистента задаёт, кто он и как общается. General Prompt — отдельные явные инструкции. Memory — факты, накопленные со временем.
-                                </p>
-                            </div>
-                        ) : null}
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                type="submit"
-                                disabled={profileForm.processing}
-                                className="rounded-lg bg-sky-500 px-3 py-2 text-sm font-medium text-white hover:bg-sky-400"
-                            >
-                                Save profile
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setSettingsOpen(false);
-                                    setPromptOpen(true);
-                                }}
-                                className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200 hover:bg-white/5"
-                            >
-                                Edit General Prompt
-                            </button>
-                            {capabilities.integrations ? (
-                                <Link
-                                    href={route('settings.index', { tab: 'integrations' })}
-                                    className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200 hover:bg-white/5"
-                                >
-                                    Integrations in Admin
-                                </Link>
-                            ) : null}
-                            <button
-                                type="button"
-                                onClick={() => router.post(route('logout'))}
-                                className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200 hover:bg-white/5"
-                            >
-                                Log out
-                            </button>
-                        </div>
-                    </form>
-                </Modal>
-            ) : null}
+            <WorkspaceSettings
+                open={settingsOpen}
+                section={settingsSection}
+                onSectionChange={changeSettingsSection}
+                onClose={closeSettings}
+                surface={surface}
+                user={user}
+                settings={settings}
+                capabilities={capabilities}
+                assistantProfile={assistantProfile}
+                settingsContext={settingsContext}
+                showOnboarding={showOnboarding}
+                onboardingLabel={onboardingLabel}
+                onboardingStatus={onboardingStatus}
+            />
 
             <RemindersPanel
                 open={remindersOpen}
                 surface={surface}
                 timezone={timezone}
+                refreshToken={productivityRefreshToken}
                 onClose={() => setRemindersOpen(false)}
                 onCountChange={setActiveReminderCount}
                 onCreateInChat={() => {
@@ -1821,6 +1468,7 @@ export default function PersonalWorkspace() {
             <TasksPanel
                 open={tasksOpen}
                 surface={surface}
+                refreshToken={productivityRefreshToken}
                 onClose={() => setTasksOpen(false)}
                 onCountChange={setActiveTaskCount}
                 onCreateInChat={() => {
@@ -1833,6 +1481,7 @@ export default function PersonalWorkspace() {
             <NotificationsPanel
                 open={notificationsOpen}
                 surface={surface}
+                refreshToken={productivityRefreshToken}
                 onClose={() => setNotificationsOpen(false)}
                 onCountChange={setUnreadNotificationCount}
             />
@@ -1864,28 +1513,6 @@ export default function PersonalWorkspace() {
                     </button>
                 </div>
             ) : null}
-        </div>
-    );
-}
-
-function Modal({ title, onClose, children }) {
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-            <div
-                className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#10182a] p-5 shadow-2xl"
-                onClick={(event) => event.stopPropagation()}
-                role="dialog"
-                aria-modal="true"
-                aria-label={title}
-            >
-                <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-base font-semibold text-white">{title}</h2>
-                    <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:text-white" aria-label="Close">
-                        <X className="h-4 w-4" />
-                    </button>
-                </div>
-                {children}
-            </div>
         </div>
     );
 }

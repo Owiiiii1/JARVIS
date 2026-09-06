@@ -7,14 +7,12 @@ use App\Models\Conversation;
 use App\Models\User;
 use App\Services\Assistant\AssistantProfileService;
 use App\Services\ChatAttachments\Exceptions\ChatAttachmentException;
-use App\Services\Notifications\JarvisNotificationService;
 use App\Services\Productivity\ProductivitySettingsService;
-use App\Services\Reminders\ReminderService;
 use App\Services\Storage\Exceptions\StoredFileException;
-use App\Services\Tasks\TaskService;
 use App\Services\Tools\ToolConfirmationService;
 use App\Services\Users\UserCapability;
 use App\Services\Voice\VoiceSettingsService;
+use App\Services\Workspace\WorkspaceSurfaceStateService;
 use App\Support\Timezones;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\UploadedFile;
@@ -30,11 +28,9 @@ final class PersonalChatSurfaceService
         private readonly ToolConfirmationService $confirmations,
         private readonly AssistantProfileService $assistantProfiles,
         private readonly ConversationAiService $conversationAi,
-        private readonly ReminderService $reminders,
-        private readonly TaskService $tasks,
-        private readonly JarvisNotificationService $notifications,
         private readonly VoiceSettingsService $voiceSettings,
         private readonly ProductivitySettingsService $productivity,
+        private readonly WorkspaceSurfaceStateService $workspaceState,
     ) {}
 
     /**
@@ -88,6 +84,8 @@ final class PersonalChatSurfaceService
             'reminders' => $user->canUseCapability(UserCapability::REMINDERS),
             'tasks' => $user->canUseCapability(UserCapability::TASKS),
             'notifications' => $user->canUseCapability(UserCapability::NOTIFICATIONS),
+            'memory' => $user->canUseCapability(UserCapability::MEMORY),
+            'telegramDm' => $user->canUseCapability(UserCapability::TELEGRAM_DM),
         ];
     }
 
@@ -254,7 +252,7 @@ final class PersonalChatSurfaceService
                 'last_activity_at' => optional($fresh->last_activity_at)?->toIso8601String(),
             ],
             'assistant_profile' => $this->assistantProfiles->workspacePayload($user),
-            'active_reminder_count' => $this->reminders->activeCount($user),
+            ...$this->workspaceState->turnCounts($user),
         ];
     }
 }
