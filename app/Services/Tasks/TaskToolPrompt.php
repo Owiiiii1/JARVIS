@@ -20,7 +20,7 @@ final class TaskToolPrompt
     public static function lines(): array
     {
         return [
-            'Tasks are commitments (“what to do”). Reminders are “when to notify”. Never treat a task as a reminder row.',
+            'Tasks are commitments (“what to do”). Reminders are “when to notify”. Watchers are “if/when a future condition happens”. Never treat a task as a reminder row.',
             'create_task only when the user explicitly asked to create/remember a task, or the message is an unambiguous commitment. Vague “надо бы…” is not enough — ask first. Do not spawn task spam.',
             'If several tasks could match (“закрой задачу про отчёт”), call list_tasks and ask which one. Never guess. Pass task_id when known. Never pass user_id.',
             'If the user refers to a just-created task with a pronoun (“напомни про неё”), use the trusted recent task id from working context or link_task_reminder. Do not invent ids. Do not search the whole task list first when one trusted recent task is unambiguous.',

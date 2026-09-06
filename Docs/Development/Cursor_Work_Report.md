@@ -1,121 +1,121 @@
-# Phase E.1 — Knowledge Layer
+# Phase E.2 — Watchers & Event-driven Automation
 
 ## Starting HEAD
 
-`3a029a00c430fd50a51c9a004656fe4d696aa033` (`fix: harden async core reliability`). Working tree was clean. `HEAD` == `origin/main`.
+`ab12ab54f52f0991f9cc5ff80cc1bce798068828` (`feat: add personal knowledge layer`). Working tree was clean. `HEAD` == `origin/main`.
 
-No watchers. No live extraction. No historical graph backfill. No Google/Gmail/GitHub polling.
+## Existing Knowledge/Productivity architecture
 
-## Existing Memory / Projects architecture
+E.1 already persisted `knowledge_events` through `KnowledgeIngestionService`. B.2 Tasks / Reminders / Notification Center / Web Push / `jarvis:proactive:dispatch` were already the delivery and heuristic layers. Integrations (Gmail, Calendar, GitHub) were Owner tools with confirmation policy. E.2 adds **explicit persisted conditions** on top of that stack. It does not replace Memory, Knowledge, Tasks, Reminders, or B.2 proactive.
 
-Memory Engine remains independent: `memories` + sources + revisions, Analysis AI turn/summary jobs, `MemoryWriter`, personal retrieval into context.
+## Watcher domain
 
-Projects remain the canonical work container (`projects` table, Owner capability). Chat uses `get_project_context`; Projects are not auto-injected.
+Additive tables `watchers` and `watcher_occurrences`. User-scoped. Statuses `active` / `paused` / `completed` / `failed` / `cancelled`. Health `healthy` / `waiting` / `blocked` / `paused` / `failed`. Mode `one_shot` or `recurring`. Capability `watchers` for regular users (internal sources); Gmail/Calendar/GitHub remain Owner.
 
-C.1 `WorkingContext` already tracks recent entities and an active project name. Context Budget already trims slices so the current turn survives.
+## Trigger model
 
-## Knowledge data model
+Closed set: `knowledge_event`, `task_state`, `reminder_state`, `time_condition`, `calendar_event`, `gmail_message`, `github_event`. No arbitrary trigger strings.
 
-Additive MySQL tables: `knowledge_entities`, `knowledge_entity_aliases`, `knowledge_relationships`, `knowledge_events`, `knowledge_event_entities`, `knowledge_entity_sources`, `knowledge_analysis_runs`.
+## Condition model
 
-No Neo4j. No second Memory schema rewrite.
+Closed evaluators in `WatcherConditionEvaluator` (event exists, status, deadline/overdue, sender/subject/thread, calendar changed, GitHub commit/PR/workflow). No `eval()`, no dynamic SQL, no model-invented executable predicates at runtime.
 
-## Entities
+## Source adapters
 
-Types: person, project, organization, product, place, topic, system, file, custom.
+`WatcherSourceAdapter` implementations: Knowledge, Task, Reminder, Time, Gmail, Calendar, GitHub. Live clients sit behind contracts; tests bind fakes. Adapters return bounded `WatcherObservation` DTOs.
 
-A project-typed entity may store `project_id` as a semantic index. Project name/status stay on `projects`.
+## Internal event dispatch
 
-## People
+`WatcherEvaluationDispatcher` runs on new Knowledge events (not `watcher_triggered`, not idempotent hits), Task mutations, and Reminder status changes. Dispatches `EvaluateWatcherJob` on the existing `default` queue.
 
-Semantic people intelligence: name, aliases, sourced summary, relationships, provenance. Not a CRM. Contact details are not invented. Sensitive profiling attributes are not modeled.
+## External polling
 
-## Aliases / merging
+Only active watchers with Gmail/Calendar/GitHub sources are checked, using their stored bounded query. No global inbox/repo/calendar sync. Cadence is config-driven (about 5–8 minutes).
 
-Aliases live in `knowledge_entity_aliases`. Auto-link only for the same type + normalized name, a stored alias, the same Project, or an explicit external ref, at high confidence. `YFS` vs `Young Fashion Show` stay separate until aliased. No destructive merge tool.
+## Baseline / cursor semantics
 
-## Relationships
+The first evaluation stores seen ids/fingerprints and does **not** fire. Later identical fingerprints are skipped. Updating source/condition resets the cursor and takes a new baseline so history is not replayed. `run_watcher_now` is a check only.
 
-Controlled types (`works_on`, `works_for`, `uses`, …). Unique per user + pair + type. Updates upsert. Ended facts deactivate (`status`, `valid_to`, `superseded_at`). History stays on the timeline.
+## Occurrences / dedupe
 
-## Timeline
+Unique `(watcher_id, trigger_fingerprint)`. Cooldown, per-watcher daily cap, global daily notification cap, optional aggregation window. One-shot completes after a successful occurrence. Recurring stays active.
 
-`knowledge_events` with stable `source_fingerprint`. Pivot to related entities. Event types cover Core actions and compact integration facts. Watcher conditions can attach later; execution is not implemented.
+## Reactions
 
-## Provenance
+`WatcherReactionExecutor`: notify / notification inbox, create reminder, create task, bounded Analysis-AI brief, or `propose_action`. Idempotent on occurrence status.
 
-Every automatic fact attaches `knowledge_entity_sources` (conversation/message/memory/project/task/file/integration ref + fingerprint). Manual notes are explicit `manual` sources.
+## Confirmation safety
 
-## Memory integration
+Watcher create/pause/resume/cancel are Core writes (`provider` null) when the user asked to watch. Reactions never send Gmail, write Calendar, or write GitHub. External intent becomes a Notification Center `pending_action` for later foreground confirmation.
 
-New/reinforced Memory and completed conversation summaries may queue `ExtractKnowledgeFromSourceJob` (disabled in phpunit). Memory rows are never deleted because Knowledge exists. “Запомни…” may write Memory (existing engine) and Knowledge (explicit tools) without a second confirmation modal for core writes.
+## Gmail watcher
 
-## Project integration
+Thread/sender/subject/query required. Fake-tested: old messages baseline, new message fires once. Live client uses existing Gmail integration; not live-validated.
 
-`ProjectService::create` / `archive` deterministically upsert a project entity and a timeline event. Project CRUD does not move into knowledge tables.
+## Calendar watcher
 
-## Incremental ingestion
+Event id / calendar / query required. Detects new / etag change / cancelled via normalized observations. Fake-tested time/etag change.
 
-Central writer: `KnowledgeIngestionService`. Deterministic hooks: Task create/complete, Reminder create, Project create/archive, StoredFile ready. Optional compact ingest from Gmail/Calendar/GitHub **tool results on a user turn**. No production-wide scan.
+## GitHub watcher
 
-`jarvis:knowledge:backfill` is dry-run by default and requires `--user`. It was not run live.
+Repository required. New commit, PR state, workflow failure (conclusion `failure`). Fake-tested new commit. Polling only; no webhook receiver.
 
-## Deterministic vs AI extraction
+## Task / time watcher
 
-Structured Core data → no LLM. Unstructured Memory/summary text → Analysis AI, strict JSON, explicit vs inference. Low confidence does not auto-create relations.
+Cheap internal checks. Deadline-within and overdue-by use task due timestamps. Scheduler handles time crossing; task mutations dispatch immediately.
 
-## Context retrieval
+## Knowledge watcher
 
-`KnowledgeRetriever::contextBlock` uses C.1 active project / recent labels / current turn. At most 3 high-confidence entities, 5 relations and 5 events each.
+Subscribes to entity/project/event-type allowlists. Local dispatch when E.1 records a **new** event. Optional semantic importance is not a default LLM classify-everything path.
 
-## Context budget
+## Notification delivery
 
-New slice `knowledge_context` (default 500 tokens). Overflow drops knowledge after cross-chat summaries and **before** memories, so Knowledge never crowds out the current user turn.
+Existing Notification Center + B.1 Web Push. Core occurrence is channel-independent. Telegram is not a watcher existence requirement.
 
-## Knowledge tools
+## Anti-spam / cooldown
 
-Read: `search_knowledge`, `get_entity`, `get_entity_timeline`, `get_entity_relationships`, `list_related_entities`.
+Per-watcher cooldown, fingerprint uniqueness, daily caps, aggregation, one reconnect notification for blocked integrations, quiet existing productivity settings untouched.
 
-Write: `remember_entity`, `link_entities`, `add_knowledge_note`.
+## Scheduler / queue
 
-Foreign ids → `not_found`. No merge/delete tools. Compact payloads; `entity_id` is kept under tool-result compaction.
-
-## Workspace UI
-
-Settings → Knowledge, next to Memory. Search, People, Projects, recent activity, entity detail. JSON under `/jarvis/knowledge` and `/chat/knowledge`. No graph canvas.
-
-## Ownership / privacy
-
-`user_id` is the graph. Regular users get capability `knowledge`. Owner has `*` but still only their own rows in Personal Workspace. No cross-user index. No secrets, tokens, or full email bodies in metadata.
-
-## Source deletion behavior
-
-Chat delete detaches Knowledge provenance (null conversation/message ids) the same way as Memory. Entities survive if other sources remain. Auto-derived rows with zero live sources become `orphan_candidate`. No FK failure. Chat-delete MANUAL PASS contract is preserved.
+`jarvis:watchers:dispatch` every 5 minutes, `withoutOverlapping`. Claims `next_check_at` before dispatching the unique job. Queue: `default` (already consumed). `jarvis:watchers:prune` dry-run by default.
 
 ## Reliability
 
-`ExtractKnowledgeFromSourceJob` uses `HandlesClassifiedAsyncFailure`. Stale/missing source is terminal. Transient provider errors retry. Safety/auth are terminal. `knowledge_analysis_runs` plus stale recovery / reliability report.
+Auth → health `blocked`, long cadence, one reconnect notification. Transient → backoff without hammering. Classified via Core Reliability; report includes watcher status/health counts.
+
+## Ownership / privacy
+
+Refs checked at create and execution. No tokens in config/occurrences. Bounded summaries only. Test teardown deletes occurrences then watchers.
+
+## Workspace UI
+
+Main chrome **Автоматизации** (not Settings), mirrors `/jarvis/watchers` and `/chat/watchers`. List, simple create, pause/resume/cancel, recent triggers. Foreground chat refreshes via existing workspace status token. `?watchers=1` opens the panel.
+
+## AI tools
+
+`create_watcher`, `list_watchers`, `get_watcher`, `update_watcher`, `pause_watcher`, `resume_watcher`, `cancel_watcher`, `list_watcher_occurrences`, `run_watcher_now`. Prompt distinguishes Reminder vs Watcher vs Task vs B.2 proactive.
 
 ## Migrations
 
-One additive migration `create_knowledge_layer_tables`. No Memory rewrite. No data backfill in the migration.
+Additive `2026_09_06_161626_create_watchers_tables`. Applied. No destructive changes. No historical watcher backfill.
 
 ## Automated tests
 
-Isolated PHPUnit coverage for create/idempotency/aliases/unsafe merge, relationship upsert/supersede, provenance, isolation, project authority, chat-delete detach/orphan, stale/transient/safety extraction, context bounds, compact search, foreign tool ids, no watchers. phpunit disables live extraction and tool-result ingest.
+`tests/Feature/WatchersTest.php` (isolated users, fakes only): creation, foreign refs, Gmail/GitHub/Calendar baseline vs new item, fingerprint uniqueness, one-shot vs recurring, cooldown, pause/cancel, task deadline, knowledge event dispatch + ingest dedupe, auth block without hammering, transient backoff, notifications, internal reaction idempotence, proposed external action, scheduler claim, prune dry-run, tool guidance, B.2 remains separate, no implicit watcher on task create. `WorkspaceUxCleanupTest` covers WatchersPanel `refreshToken`.
 
 ## Production safety
 
-No live model calls, no historical extraction, no integration polling as part of this deploy. Queue reuses `memory` (configurable `KNOWLEDGE_QUEUE`).
+No live Gmail/Calendar/GitHub polling in tests. No production `jarvis:watchers:prune` without dry-run. No public webhooks. `QUEUE_CONNECTION=sync` in phpunit.
 
 ## Deferred validation
 
-Added to [DEFERRED_VALIDATION.md](../DEFERRED_VALIDATION.md): Phase E.1 Knowledge Layer — IMPLEMENTED / NOT VALIDATED. Owner is not asked to test now.
+E.2 added to [DEFERRED_VALIDATION.md](../DEFERRED_VALIDATION.md) as **IMPLEMENTED / NOT VALIDATED**. Owner is not asked to test now. Not MANUAL PASS.
 
 ## Known limitations
 
-No watchers. No CRM. No aggressive merge UI. No mass backfill. Integration facts only from in-turn tool results. Group Telegram knowledge stays on the group tables; it is not copied into the personal graph automatically.
+No GitHub/Gmail push/webhooks (polling). No Zapier builder. No silent external writes. Semantic “importance” is allowlisted + optional bounded analysis, not a full classifier. Aggregation is a simple time window. Phase E is not complete.
 
-## Next Phase E.2 foundation
+## Next Phase
 
-Event types, provenance fingerprints, and per-user entities are attachable conditions for later watchers. E.2 is **not** implemented. Phase E is **not** marked complete.
+**E.3** (not this milestone): cross-source synthesis / people intelligence depth / richer project intelligence, or confirmed external actions, based on remaining gaps. E.1 and E.2 stay IMPLEMENTED / NOT VALIDATED until Owner live campaigns.

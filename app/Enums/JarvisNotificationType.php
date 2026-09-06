@@ -9,4 +9,5 @@ enum JarvisNotificationType: string
     case TaskOverdue = 'task_overdue';
     case BriefReady = 'brief_ready';
     case ProactiveSuggestion = 'proactive_suggestion';
+    case WatcherTriggered = 'watcher_triggered';
 }

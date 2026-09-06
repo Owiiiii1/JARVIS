@@ -146,24 +146,26 @@ Versioned Client API is built **only if** Mobile (or another first-party non-Web
 
 ## PHASE E — Knowledge & Proactive Jarvis
 
-**Status.** E.1 Knowledge Layer: **IMPLEMENTED / NOT VALIDATED**. Phase E as a whole is **not** complete.
+**Status.** E.1 Knowledge Layer: **IMPLEMENTED / NOT VALIDATED**. E.2 Watchers: **IMPLEMENTED / NOT VALIDATED**. Phase E as a whole is **not** complete.
 
 - Personal Knowledge Layer (structured entities / relations / events with provenance over Memory / Projects / local Core actions — does **not** replace Memory Engine) — E.1 IMPLEMENTED / NOT VALIDATED
 - People intelligence (semantic, not a CRM) — E.1
 - Richer Project intelligence (index only; Project domain remains canonical) — E.1
 - Timeline / activity index — E.1
 - Cross-source entity relationships — E.1
-- Event-triggered workflows / watchers — **E.2, not implemented**
-- Controlled automations — E.2+
-- Proactive assistant (event/condition driven, not unsolicited chatter) — later
+- Event-triggered workflows / watchers — E.2 IMPLEMENTED / NOT VALIDATED
+- Controlled automations — E.2 notify / internal create / proposed external action (no silent external writes)
+- Proactive assistant (event/condition driven, not unsolicited chatter) — later E.3+
 - Daily / Weekly synthesis — later
-- Conditional alerts — E.2+
+- Conditional alerts — E.2 covers explicit watchers; richer cross-source synthesis is E.3+
 
-[KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
+[KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md). [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
 
-Examples for **E.2** (not built): “When Apple replies, read the mail and say what to do.” “When a GitHub commit lands on this project, review it.” “If the deadline is tomorrow and the task is open — remind me.”
+E.2 examples now in code (fakes only, not live-validated): “When Apple replies, read the mail and say what to do.” “When a GitHub commit lands on this project, notify me.” “If the deadline is tomorrow and the task is open — remind me.”
 
-Strict permissions, confirmation, and audit required. E.1 does not poll integrations and does not run watchers.
+Strict permissions, confirmation, and audit required. Watchers poll only their own bounded queries. Do not mark all of Phase E complete.
+
+Potential **E.3**: cross-source synthesis / people intelligence depth / richer project intelligence, or controlled external actions after confirmation — based on remaining gaps.
 
 ---
 

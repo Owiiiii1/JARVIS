@@ -24,6 +24,7 @@ final class AsyncReliabilityReport
             'attachments' => $this->attachments(),
             'stored_files' => $this->storedFiles(),
             'knowledge_runs' => $this->knowledgeRuns(),
+            'watchers' => $this->watchers(),
             'pending_jobs' => $this->pendingJobs(),
         ];
     }
@@ -148,6 +149,24 @@ final class AsyncReliabilityReport
                 ->where('status', KnowledgeAnalysisRunStatus::Processing->value)
                 ->min('updated_at'),
             'failed_categories' => $this->categories('knowledge_analysis_runs'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function watchers(): array
+    {
+        if (! Schema::hasTable('watchers')) {
+            return [];
+        }
+
+        return [
+            'by_status' => $this->counts('watchers', 'status'),
+            'by_health' => $this->counts('watchers', 'health'),
+            'blocked' => (int) DB::table('watchers')->where('health', 'blocked')->count(),
+            'failed' => (int) DB::table('watchers')->where('status', 'failed')->count(),
+            'last_checked_at' => DB::table('watchers')->max('last_checked_at'),
         ];
     }
 

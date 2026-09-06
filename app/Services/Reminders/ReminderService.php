@@ -11,11 +11,13 @@ use App\Models\ReminderOccurrence;
 use App\Models\User;
 use App\Services\Knowledge\KnowledgeDeterministicIngestor;
 use App\Services\Users\UserCapability;
+use App\Services\Watchers\WatcherEvaluationDispatcher;
 use Carbon\CarbonImmutable;
 use DateTimeZone;
 use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 final class ReminderService
 {
@@ -63,10 +65,11 @@ final class ReminderService
                 'user_id' => $user->id,
                 'status' => ReminderStatus::Scheduled->value,
             ]);
-        } catch (\Throwable) {
+        } catch (Throwable) {
         }
 
         $this->knowledge->reminderCreated($reminder);
+        $this->notifyWatchers($reminder);
 
         return $reminder;
     }
@@ -298,8 +301,10 @@ final class ReminderService
         $reminder = $this->assertOwnedCancellable($user, $reminder);
         ReminderLifecycle::markCancelled($reminder, CarbonImmutable::now('UTC'));
         $reminder->save();
+        $fresh = $reminder->fresh() ?? $reminder;
+        $this->notifyWatchers($fresh);
 
-        return $reminder->fresh() ?? $reminder;
+        return $fresh;
     }
 
     public function completeOwned(User $user, int $reminderId): Reminder
@@ -313,14 +318,18 @@ final class ReminderService
             ReminderLifecycle::advanceRecurring($reminder, $occurrenceAt, $now, $this->recurrence);
             $this->persistPendingOccurrence($reminder, $now);
             $reminder->save();
+            $fresh = $reminder->fresh() ?? $reminder;
+            $this->notifyWatchers($fresh);
 
-            return $reminder->fresh() ?? $reminder;
+            return $fresh;
         }
 
         ReminderLifecycle::markCompleted($reminder, $now);
         $reminder->save();
+        $completed = $reminder->fresh() ?? $reminder;
+        $this->notifyWatchers($completed);
 
-        return $reminder->fresh() ?? $reminder;
+        return $completed;
     }
 
     public function snoozeOwned(User $user, int $reminderId, string $preset, ?string $customLocal = null): Reminder
@@ -346,8 +355,10 @@ final class ReminderService
         ReminderLifecycle::snoozeTo($reminder, $runAt, $timezone);
         $this->clearDeliveries($reminder);
         $reminder->save();
+        $fresh = $reminder->fresh() ?? $reminder;
+        $this->notifyWatchers($fresh);
 
-        return $reminder->fresh() ?? $reminder;
+        return $fresh;
     }
 
     public function updateOwned(
@@ -449,6 +460,15 @@ final class ReminderService
     public function markCancelled(Reminder $reminder): void
     {
         ReminderLifecycle::markCancelled($reminder, CarbonImmutable::now('UTC'));
+        $this->notifyWatchers($reminder);
+    }
+
+    private function notifyWatchers(Reminder $reminder): void
+    {
+        try {
+            app(WatcherEvaluationDispatcher::class)->afterReminderChanged($reminder);
+        } catch (Throwable) {
+        }
     }
 
     /**

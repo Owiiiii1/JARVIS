@@ -51,6 +51,7 @@ Do not start a listed “completed” milestone again. Do not treat Desktop as u
 | Phase C.2 Beta | ElevenLabs realtime Web voice; Рация kept | IMPLEMENTED / validation deferred |
 | Core Reliability | Async jobs, classification, retry/recover commands | IMPLEMENTED; historical failures CLASSIFIED |
 | Phase E.1 | Knowledge Layer (entities, relations, timeline, provenance, bounded context, tools, Settings UI) | IMPLEMENTED / NOT VALIDATED |
+| Phase E.2 | Watchers & event-driven automation | IMPLEMENTED / NOT VALIDATED |
 
 Historical detailed “implement this” write-ups for M0–M24 are obsolete as instructions. Git history remains the archive.
 
@@ -155,9 +156,17 @@ Detail: [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
 
 ### Phase E.2 — Watchers & Event-driven Automation
 
+**Status.** IMPLEMENTED / NOT VALIDATED. Not MANUAL PASS. Do not mark all of Phase E complete.
+
+**In code:** `watchers` / `watcher_occurrences`, source adapters, deterministic conditions, reactions (notify / internal create / analysis / proposed external action), `jarvis:watchers:dispatch`, Workspace Center, AI tools. Baseline/cursor so history does not fire. Fakes only in tests.
+
+Detail: [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
+
+### Phase E.3 — next Knowledge/automation gap
+
 **Status.** NEXT. Not implemented.
 
-Condition-on-entity/project/source/event-type watchers. No execution in E.1.
+Cross-source synthesis / people intelligence depth / richer project intelligence, or confirmed external actions, based on remaining gaps after E.1+E.2.
 
 ---
 
@@ -176,5 +185,5 @@ Condition-on-entity/project/source/event-type watchers. No execution in E.1.
 | Mobile companion | D |
 | Versioned Client API | if/when Mobile (or similar) starts |
 | Knowledge Layer (entities / people / timeline / provenance) | E.1 IMPLEMENTED / NOT VALIDATED |
-| Watchers / event-driven automations | E.2 |
+| Watchers / event-driven automations | E.2 IMPLEMENTED / NOT VALIDATED |
 | Desktop / Tauri / tray / hotkey | CANCELLED |

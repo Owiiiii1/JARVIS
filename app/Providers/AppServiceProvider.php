@@ -115,6 +115,15 @@ use App\Services\Tools\ToolRegistry;
 use App\Services\Tools\UpdateAssistantProfileTool;
 use App\Services\Tools\UpdateReminderTool;
 use App\Services\Tools\UpdateTaskTool;
+use App\Services\Tools\Watchers\CancelWatcherTool;
+use App\Services\Tools\Watchers\CreateWatcherTool;
+use App\Services\Tools\Watchers\GetWatcherTool;
+use App\Services\Tools\Watchers\ListWatcherOccurrencesTool;
+use App\Services\Tools\Watchers\ListWatchersTool;
+use App\Services\Tools\Watchers\PauseWatcherTool;
+use App\Services\Tools\Watchers\ResumeWatcherTool;
+use App\Services\Tools\Watchers\RunWatcherNowTool;
+use App\Services\Tools\Watchers\UpdateWatcherTool;
 use App\Services\Tools\WebResearch\FetchWebPageTool;
 use App\Services\Tools\WebResearch\SearchWebTool;
 use App\Services\Users\ResolvesTelegramResponseMode;
@@ -131,6 +140,20 @@ use App\Services\Voice\TextToSpeechManager;
 use App\Services\Voice\VoiceMetricsLogger;
 use App\Services\Voice\VoiceSettingsService;
 use App\Services\Voice\VoiceTempAudioStore;
+use App\Services\Watchers\Adapters\CalendarWatcherSource;
+use App\Services\Watchers\Adapters\GitHubWatcherSource;
+use App\Services\Watchers\Adapters\GmailWatcherSource;
+use App\Services\Watchers\Adapters\KnowledgeWatcherSource;
+use App\Services\Watchers\Adapters\ReminderWatcherSource;
+use App\Services\Watchers\Adapters\TaskWatcherSource;
+use App\Services\Watchers\Adapters\TimeWatcherSource;
+use App\Services\Watchers\Clients\LiveCalendarWatcherClient;
+use App\Services\Watchers\Clients\LiveGitHubWatcherClient;
+use App\Services\Watchers\Clients\LiveGmailWatcherClient;
+use App\Services\Watchers\Contracts\CalendarWatcherClient;
+use App\Services\Watchers\Contracts\GitHubWatcherClient;
+use App\Services\Watchers\Contracts\GmailWatcherClient;
+use App\Services\Watchers\WatcherSourceRegistry;
 use App\Services\WebResearch\Contracts\WebSearchProvider;
 use App\Services\WebResearch\WebSearchManager;
 use Illuminate\Support\Facades\Gate;
@@ -205,6 +228,21 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(SendsReminderTelegram::class, TelegramReminderSender::class);
         $this->app->bind(SendsWebPush::class, MinishlinkWebPushSender::class);
         $this->app->bind(SynthesizesProductivityBrief::class, ProductivityBriefAiSynthesizer::class);
+        $this->app->bind(GmailWatcherClient::class, LiveGmailWatcherClient::class);
+        $this->app->bind(CalendarWatcherClient::class, LiveCalendarWatcherClient::class);
+        $this->app->bind(GitHubWatcherClient::class, LiveGitHubWatcherClient::class);
+
+        $this->app->singleton(WatcherSourceRegistry::class, function ($app): WatcherSourceRegistry {
+            return new WatcherSourceRegistry([
+                $app->make(KnowledgeWatcherSource::class),
+                $app->make(TaskWatcherSource::class),
+                $app->make(ReminderWatcherSource::class),
+                $app->make(TimeWatcherSource::class),
+                $app->make(GmailWatcherSource::class),
+                $app->make(CalendarWatcherSource::class),
+                $app->make(GitHubWatcherSource::class),
+            ]);
+        });
 
         $this->app->singleton(JarvisNotificationService::class, function ($app): JarvisNotificationService {
             return new JarvisNotificationService(
@@ -267,6 +305,15 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(AddKnowledgeNoteTool::class),
                 $app->make(GetProjectContextTool::class),
                 $app->make(SearchGroupKnowledgeTool::class),
+                $app->make(CreateWatcherTool::class),
+                $app->make(ListWatchersTool::class),
+                $app->make(GetWatcherTool::class),
+                $app->make(UpdateWatcherTool::class),
+                $app->make(PauseWatcherTool::class),
+                $app->make(ResumeWatcherTool::class),
+                $app->make(CancelWatcherTool::class),
+                $app->make(ListWatcherOccurrencesTool::class),
+                $app->make(RunWatcherNowTool::class),
                 $app->make(ListGoogleCalendarsTool::class),
                 $app->make(ListCalendarEventsTool::class),
                 $app->make(GetCalendarEventTool::class),

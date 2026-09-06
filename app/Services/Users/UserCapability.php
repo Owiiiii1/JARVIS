@@ -16,6 +16,8 @@ final class UserCapability
 
     public const TASKS = 'tasks';
 
+    public const WATCHERS = 'watchers';
+
     public const NOTIFICATIONS = 'notifications';
 
     public const CABINET = 'cabinet';
@@ -64,6 +66,7 @@ final class UserCapability
             self::TELEGRAM_DM,
             self::REMINDERS,
             self::TASKS,
+            self::WATCHERS,
             self::NOTIFICATIONS,
             self::CABINET,
             self::PERSONAL_WORKSPACE,

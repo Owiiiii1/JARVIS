@@ -18,6 +18,7 @@ enum KnowledgeEventType: string
     case ManualNote = 'manual_note';
     case KnowledgeLinked = 'knowledge_linked';
     case RelationshipSuperseded = 'relationship_superseded';
+    case WatcherTriggered = 'watcher_triggered';
 
     public static function tryFromLoose(mixed $value): ?self
     {

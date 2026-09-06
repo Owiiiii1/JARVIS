@@ -13,11 +13,13 @@ use App\Models\User;
 use App\Services\Knowledge\KnowledgeDeterministicIngestor;
 use App\Services\Reminders\ReminderLifecycle;
 use App\Services\Users\UserCapability;
+use App\Services\Watchers\WatcherEvaluationDispatcher;
 use Carbon\CarbonImmutable;
 use DateTimeZone;
 use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Throwable;
 
 final class TaskService
 {
@@ -78,6 +80,7 @@ final class TaskService
         ]);
 
         $this->knowledge->taskCreated($task);
+        $this->notifyWatchers($task);
 
         return $task;
     }
@@ -144,8 +147,10 @@ final class TaskService
         }
 
         $task->save();
+        $fresh = $task->fresh() ?? $task;
+        $this->notifyWatchers($fresh);
 
-        return $task->fresh() ?? $task;
+        return $fresh;
     }
 
     public function startOwned(User $user, int $taskId): Task
@@ -153,8 +158,10 @@ final class TaskService
         $task = $this->requireOwned($user, $taskId);
         TaskLifecycle::markStarted($task);
         $task->save();
+        $fresh = $task->fresh() ?? $task;
+        $this->notifyWatchers($fresh);
 
-        return $task->fresh() ?? $task;
+        return $fresh;
     }
 
     public function completeOwned(User $user, int $taskId, bool $force = false): Task
@@ -175,6 +182,7 @@ final class TaskService
 
         $fresh = $task->fresh(['reminders', 'subtasks', 'project', 'sourceConversation']) ?? $task;
         $this->knowledge->taskCompleted($fresh);
+        $this->notifyWatchers($fresh);
 
         return $fresh;
     }
@@ -194,7 +202,10 @@ final class TaskService
 
         $task->save();
 
-        return $task->fresh(['reminders', 'subtasks', 'project', 'sourceConversation']) ?? $task;
+        $fresh = $task->fresh(['reminders', 'subtasks', 'project', 'sourceConversation']) ?? $task;
+        $this->notifyWatchers($fresh);
+
+        return $fresh;
     }
 
     public function reopenOwned(User $user, int $taskId): Task
@@ -202,8 +213,10 @@ final class TaskService
         $task = $this->requireOwned($user, $taskId);
         TaskLifecycle::markReopened($task);
         $task->save();
+        $fresh = $task->fresh() ?? $task;
+        $this->notifyWatchers($fresh);
 
-        return $task->fresh() ?? $task;
+        return $fresh;
     }
 
     public function addSubtask(User $user, int $parentId, string $title, ?string $description = null): Task
@@ -585,6 +598,14 @@ final class TaskService
 
         return TaskPriority::tryFrom($raw)
             ?? throw new TaskException('invalid_priority', 'Priority is invalid.');
+    }
+
+    private function notifyWatchers(Task $task): void
+    {
+        try {
+            app(WatcherEvaluationDispatcher::class)->afterTaskChanged($task);
+        } catch (Throwable) {
+        }
     }
 
     private function assertCanUse(User $user): void

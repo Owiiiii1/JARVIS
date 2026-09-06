@@ -1,6 +1,6 @@
 # Knowledge Layer
 
-**Status.** Phase E.1 **IMPLEMENTED / NOT VALIDATED**. Not MANUAL PASS. Watchers and automations are **not** in this milestone.
+**Status.** Phase E.1 **IMPLEMENTED / NOT VALIDATED**. Not MANUAL PASS. Watchers are Phase E.2 ([WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md)).
 
 Knowledge is a structured, source-grounded index on top of Memory, Projects, Tasks, Reminders, Storage, conversation history, and (during normal tool use) compact integration facts.
 
@@ -47,7 +47,7 @@ People: name, aliases, sourced org/role/summary, relationships, provenance. No i
 
 All writes go through `KnowledgeIngestionService`.
 
-**Deterministic** (no LLM): task created/completed, reminder created, project created/archived, stored file ready. Optional compact ingest from Gmail/Calendar/GitHub **tool results during a user turn** (`KnowledgeToolResultIngestor`). No background polling.
+**Deterministic** (no LLM): task created/completed, reminder created, project created/archived, stored file ready. Optional compact ingest from Gmail/Calendar/GitHub **tool results during a user turn** (`KnowledgeToolResultIngestor`). E.2 watchers may ingest a **new** matching external observation as a Knowledge event with a distinct fingerprint; they do not poll the whole mailbox/repo/calendar. Newly recorded events dispatch matching knowledge watchers locally.
 
 **AI extraction** (Analysis AI, not Conversation AI): bounded text from a newly written Memory or conversation summary. Job: `ExtractKnowledgeFromSourceJob` on the memory/knowledge queue. Explicit vs inference; low-confidence relations are not auto-created. No production-wide historical scan.
 
@@ -105,4 +105,4 @@ Same Core Reliability pattern as Memory: classified failures, bounded retries, s
 
 ## Not in E.1
 
-Watchers, condition scheduler, autonomous alerts, mass historical extraction, live integration polling, CRM/address-book mirror, graph visualization, destructive knowledge tools.
+Mass historical extraction, CRM/address-book mirror, graph visualization, destructive knowledge tools. Watchers shipped separately in E.2.

@@ -199,6 +199,9 @@ final class JarvisNotificationService
             'generated_at' => $now->utc()->toIso8601String(),
             'ai_phrased' => (bool) ($metadata['ai_phrased'] ?? false),
             'mode' => $metadata['mode'] ?? null,
+            'watcher_id' => $metadata['watcher_id'] ?? null,
+            'occurrence_id' => $metadata['occurrence_id'] ?? null,
+            'pending_action' => $metadata['pending_action'] ?? null,
         ];
 
         return array_filter($allowed, static fn (mixed $value): bool => $value !== null);
@@ -208,7 +211,7 @@ final class JarvisNotificationService
     {
         return match ($type) {
             JarvisNotificationType::TaskOverdue, JarvisNotificationType::ProactiveSuggestion => JarvisNotificationSeverity::Urgent,
-            JarvisNotificationType::TaskDue => JarvisNotificationSeverity::Warning,
+            JarvisNotificationType::TaskDue, JarvisNotificationType::WatcherTriggered => JarvisNotificationSeverity::Warning,
             default => JarvisNotificationSeverity::Info,
         };
     }

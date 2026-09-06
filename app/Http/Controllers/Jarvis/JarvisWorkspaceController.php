@@ -16,6 +16,7 @@ use App\Services\Voice\ElevenLabsRealtimeSessionService;
 use App\Services\Voice\ElevenLabsVoiceCatalog;
 use App\Services\Voice\VoiceAudioMime;
 use App\Services\Voice\VoiceSettingsService;
+use App\Services\Watchers\WatcherService;
 use App\Services\Workspace\OwnerWorkspaceContextService;
 use App\Services\Workspace\WorkspaceSurfaceStateService;
 use Illuminate\Http\JsonResponse;
@@ -37,6 +38,7 @@ class JarvisWorkspaceController extends Controller
         private readonly AssistantProfileService $assistantProfiles,
         private readonly ReminderService $reminders,
         private readonly TaskService $tasks,
+        private readonly WatcherService $watchers,
         private readonly JarvisNotificationService $notifications,
         private readonly WorkspaceSurfaceStateService $workspaceState,
     ) {}
@@ -85,6 +87,7 @@ class JarvisWorkspaceController extends Controller
             'assistantProfile' => $this->assistantProfiles->workspacePayload($user),
             'activeReminderCount' => $this->reminders->activeCount($user),
             'activeTaskCount' => $this->tasks->activeOpenCount($user),
+            'activeWatcherCount' => $this->watchers->activeCount($user),
             'unreadNotificationCount' => $this->notifications->unreadCount($user),
         ]);
     }

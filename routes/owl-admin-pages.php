@@ -14,6 +14,7 @@ use App\Http\Controllers\Jarvis\JarvisReminderController;
 use App\Http\Controllers\Jarvis\JarvisStorageController;
 use App\Http\Controllers\Jarvis\JarvisTaskController;
 use App\Http\Controllers\Jarvis\JarvisVoiceController;
+use App\Http\Controllers\Jarvis\JarvisWatcherController;
 use App\Http\Controllers\Jarvis\JarvisWorkspaceController;
 use App\Http\Controllers\Jarvis\JarvisWorkspaceStatusController;
 use App\Http\Controllers\ProfileController;
@@ -162,6 +163,30 @@ $registerPersonalWorkspace = static function (string $prefix, string $as, array 
         Route::post('/tasks/{task}/subtasks', [JarvisTaskController::class, 'storeSubtask'])
             ->middleware('throttle:20,1')
             ->name('tasks.subtasks.store');
+        Route::get('/watchers', [JarvisWatcherController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('watchers.index');
+        Route::post('/watchers', [JarvisWatcherController::class, 'store'])
+            ->middleware('throttle:20,1')
+            ->name('watchers.store');
+        Route::get('/watchers/{watcher}', [JarvisWatcherController::class, 'show'])
+            ->middleware('throttle:30,1')
+            ->name('watchers.show');
+        Route::patch('/watchers/{watcher}', [JarvisWatcherController::class, 'update'])
+            ->middleware('throttle:20,1')
+            ->name('watchers.update');
+        Route::post('/watchers/{watcher}/pause', [JarvisWatcherController::class, 'pause'])
+            ->middleware('throttle:30,1')
+            ->name('watchers.pause');
+        Route::post('/watchers/{watcher}/resume', [JarvisWatcherController::class, 'resume'])
+            ->middleware('throttle:30,1')
+            ->name('watchers.resume');
+        Route::post('/watchers/{watcher}/cancel', [JarvisWatcherController::class, 'cancel'])
+            ->middleware('throttle:30,1')
+            ->name('watchers.cancel');
+        Route::get('/watchers/{watcher}/occurrences', [JarvisWatcherController::class, 'occurrences'])
+            ->middleware('throttle:30,1')
+            ->name('watchers.occurrences');
         Route::get('/notifications', [JarvisNotificationController::class, 'index'])
             ->middleware('throttle:30,1')
             ->name('notifications.index');

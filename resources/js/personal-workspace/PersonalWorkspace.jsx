@@ -3,6 +3,7 @@ import JarvisWorkspaceLayout from '@/Layouts/JarvisWorkspaceLayout';
 import { workspaceRoute } from '@/personal-workspace/named';
 import RemindersPanel from '@/personal-workspace/RemindersPanel';
 import TasksPanel from '@/personal-workspace/TasksPanel';
+import WatchersPanel from '@/personal-workspace/WatchersPanel';
 import NotificationsPanel from '@/personal-workspace/NotificationsPanel';
 import ConversationDeleteDialog from '@/personal-workspace/ConversationDeleteDialog';
 import ConversationSidebarItem from '@/personal-workspace/ConversationSidebarItem';
@@ -14,6 +15,7 @@ import {
     Bell,
     Check,
     CheckSquare,
+    Eye,
     FileText,
     FolderKanban,
     HardDrive,
@@ -219,6 +221,7 @@ export default function PersonalWorkspace() {
         assistantProfile: assistantProfileProp = {},
         activeReminderCount: activeReminderCountProp = 0,
         activeTaskCount: activeTaskCountProp = 0,
+        activeWatcherCount: activeWatcherCountProp = 0,
         unreadNotificationCount: unreadNotificationCountProp = 0,
     } = usePage().props;
     const surface = surfaceProp === 'chat' ? 'chat' : 'jarvis';
@@ -236,6 +239,8 @@ export default function PersonalWorkspace() {
         tasks: false,
         notifications: false,
         memory: false,
+        knowledge: false,
+        watchers: false,
         telegramDm: false,
         ...capabilityProps,
     };
@@ -278,11 +283,13 @@ export default function PersonalWorkspace() {
     const [settingsSection, setSettingsSection] = useState('profile');
     const [remindersOpen, setRemindersOpen] = useState(false);
     const [tasksOpen, setTasksOpen] = useState(false);
+    const [watchersOpen, setWatchersOpen] = useState(false);
     const [notificationsOpen, setNotificationsOpen] = useState(false);
     const [assistantProfile, setAssistantProfile] = useState(assistantProfileProp);
     const [settingsContext, setSettingsContext] = useState(settingsContextProp);
     const [activeReminderCount, setActiveReminderCount] = useState(Number(activeReminderCountProp) || 0);
     const [activeTaskCount, setActiveTaskCount] = useState(Number(activeTaskCountProp) || 0);
+    const [activeWatcherCount, setActiveWatcherCount] = useState(Number(activeWatcherCountProp) || 0);
     const [unreadNotificationCount, setUnreadNotificationCount] = useState(Number(unreadNotificationCountProp) || 0);
     const [productivityRefreshToken, setProductivityRefreshToken] = useState(0);
     const [menuConversationId, setMenuConversationId] = useState(null);
@@ -342,6 +349,12 @@ export default function PersonalWorkspace() {
             setActiveTaskCount(payload.active_task_count);
         } else if (typeof payload.tasks?.active_count === 'number') {
             setActiveTaskCount(payload.tasks.active_count);
+        }
+
+        if (typeof payload.active_watcher_count === 'number') {
+            setActiveWatcherCount(payload.active_watcher_count);
+        } else if (typeof payload.watchers?.active_count === 'number') {
+            setActiveWatcherCount(payload.watchers.active_count);
         }
 
         if (typeof payload.unread_notification_count === 'number') {
@@ -427,6 +440,10 @@ export default function PersonalWorkspace() {
             setTasksOpen(true);
         }
 
+        if (params.get('watchers')) {
+            setWatchersOpen(true);
+        }
+
         if (params.get('notifications')) {
             setNotificationsOpen(true);
         }
@@ -501,6 +518,10 @@ export default function PersonalWorkspace() {
     useEffect(() => {
         setActiveTaskCount(Number(activeTaskCountProp) || 0);
     }, [activeTaskCountProp]);
+
+    useEffect(() => {
+        setActiveWatcherCount(Number(activeWatcherCountProp) || 0);
+    }, [activeWatcherCountProp]);
 
     useEffect(() => {
         setUnreadNotificationCount(Number(unreadNotificationCountProp) || 0);
@@ -1180,6 +1201,22 @@ export default function PersonalWorkspace() {
                         ) : null}
                     </button>
                 ) : null}
+                {capabilities.watchers ? (
+                    <button
+                        type="button"
+                        onClick={() => setWatchersOpen(true)}
+                        className="relative inline-flex items-center gap-2 rounded-lg p-2 text-slate-300 hover:bg-white/10 sm:px-3"
+                        aria-label="Автоматизации"
+                    >
+                        <Eye className="h-4 w-4" />
+                        <span className="hidden text-xs font-medium sm:inline">Автоматизации</span>
+                        {activeWatcherCount > 0 ? (
+                            <span className="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-violet-500 px-1 text-[10px] font-semibold leading-4 text-white">
+                                {activeWatcherCount > 99 ? '99+' : activeWatcherCount}
+                            </span>
+                        ) : null}
+                    </button>
+                ) : null}
                 {capabilities.reminders ? (
                     <button
                         type="button"
@@ -1660,6 +1697,19 @@ export default function PersonalWorkspace() {
                     setTasksOpen(false);
                     setMode('text');
                     setDraft((current) => (current?.trim() ? current : 'Создай задачу '));
+                    requestAnimationFrame(() => focusComposer(composerRef.current, { forceDesktopOnly: false }));
+                }}
+            />
+            <WatchersPanel
+                open={watchersOpen}
+                surface={surface}
+                refreshToken={productivityRefreshToken}
+                onClose={() => setWatchersOpen(false)}
+                onCountChange={setActiveWatcherCount}
+                onCreateInChat={() => {
+                    setWatchersOpen(false);
+                    setMode('text');
+                    setDraft((current) => (current?.trim() ? current : 'Следи и сообщи, когда '));
                     requestAnimationFrame(() => focusComposer(composerRef.current, { forceDesktopOnly: false }));
                 }}
             />

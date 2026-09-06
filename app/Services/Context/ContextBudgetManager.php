@@ -548,7 +548,7 @@ final class ContextBudgetManager
      */
     private function compactToolPayload(array $payload): array
     {
-        $keep = ['success', 'error', 'truncated', 'retryable', 'id', 'file_id', 'confirmation_id', 'count', 'query', 'url', 'requested_url', 'final_url', 'title', 'domain', 'published_at', 'fetched_at', 'char_count', 'provider', 'task_id', 'reminder_id', 'project_id', 'entity_id'];
+        $keep = ['success', 'error', 'truncated', 'retryable', 'id', 'file_id', 'confirmation_id', 'count', 'query', 'url', 'requested_url', 'final_url', 'title', 'domain', 'published_at', 'fetched_at', 'char_count', 'provider', 'task_id', 'reminder_id', 'project_id', 'entity_id', 'watcher_id', 'occurrence_id'];
         $compact = [];
 
         foreach ($keep as $key) {

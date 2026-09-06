@@ -8,6 +8,7 @@ use App\Services\Ai\Exceptions\AiEmptyResponseException;
 use App\Services\Ai\Exceptions\AiProviderException;
 use App\Services\Ai\Exceptions\AiSafetyException;
 use App\Services\Groups\Exceptions\GroupAnalysisException;
+use App\Services\Integrations\Exceptions\IntegrationException;
 use App\Services\Knowledge\Exceptions\KnowledgeExtractionException;
 use App\Services\Memory\Exceptions\MemoryAnalysisException;
 use App\Services\Reliability\Exceptions\ClassifiedAsyncException;
@@ -53,6 +54,19 @@ final class AsyncFailureClassifier
             }
 
             return new AsyncFailure(AsyncFailureCategory::Unknown, 'max_attempts', false, $exception::class);
+        }
+
+        if ($exception instanceof IntegrationException) {
+            $haystack = mb_strtolower($exception->error.' '.$exception->getMessage());
+            if (str_contains($haystack, 'not_connected') || str_contains($haystack, 'not connected') || str_contains($haystack, 'unauthorized') || str_contains($haystack, 'unauthenticated')) {
+                return new AsyncFailure(AsyncFailureCategory::ProviderAuth, $exception->error !== '' ? $exception->error : 'provider_auth', false, $exception::class);
+            }
+
+            if ($exception->retryable) {
+                return new AsyncFailure(AsyncFailureCategory::Network, $exception->error !== '' ? $exception->error : 'network', true, $exception::class);
+            }
+
+            return new AsyncFailure(AsyncFailureCategory::Validation, $exception->error !== '' ? $exception->error : 'integration', false, $exception::class);
         }
 
         if ($exception instanceof ModelNotFoundException) {
@@ -158,7 +172,7 @@ final class AsyncFailureClassifier
             return new AsyncFailure(AsyncFailureCategory::ProviderSafety, 'provider_safety', false, $class);
         }
 
-        if ($this->contains($haystack, ['unauthenticated', 'unauthorized', 'invalid api key', 'api key not valid', 'permission denied', 'status 401', 'status 403'])) {
+        if ($this->contains($haystack, ['unauthenticated', 'unauthorized', 'invalid api key', 'api key not valid', 'permission denied', 'status 401', 'status 403', 'not_connected', 'not connected'])) {
             return new AsyncFailure(AsyncFailureCategory::ProviderAuth, 'provider_auth', false, $class);
         }
 

@@ -32,6 +32,10 @@ class WorkspaceUxCleanupTest extends TestCase
         $this->assertStringContainsString('refreshToken', $reminders);
         $this->assertStringContainsString('refreshToken = 0', $inbox);
         $this->assertStringContainsString('unreadOnly, refreshToken', $inbox);
+
+        $watchers = (string) file_get_contents(base_path('resources/js/personal-workspace/WatchersPanel.jsx'));
+        $this->assertStringContainsString('refreshToken = 0', $watchers);
+        $this->assertStringContainsString('[open, surface, refreshToken]', $watchers);
     }
 
     public function test_memory_and_integrations_live_in_settings_not_main_workspace(): void

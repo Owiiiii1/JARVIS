@@ -17,6 +17,7 @@ use App\Services\Reminders\ReminderService;
 use App\Services\Tasks\TaskService;
 use App\Services\Users\UserCapability;
 use App\Services\Users\UserChannelPreferenceService;
+use App\Services\Watchers\WatcherService;
 use App\Services\WebResearch\WebResearchSettingsService;
 
 final class WorkspaceSurfaceStateService
@@ -24,6 +25,7 @@ final class WorkspaceSurfaceStateService
     public function __construct(
         private readonly ReminderService $reminders,
         private readonly TaskService $tasks,
+        private readonly WatcherService $watchers,
         private readonly JarvisNotificationService $notifications,
         private readonly AssistantProfileService $assistantProfiles,
         private readonly IntegrationRegistry $integrations,
@@ -43,6 +45,9 @@ final class WorkspaceSurfaceStateService
         return [
             'tasks' => [
                 'active_count' => $this->tasks->activeOpenCount($user),
+            ],
+            'watchers' => [
+                'active_count' => $this->watchers->activeCount($user),
             ],
             'reminders' => [
                 'active_count' => $this->reminders->activeCount($user),
@@ -83,6 +88,7 @@ final class WorkspaceSurfaceStateService
         return [
             'active_reminder_count' => $this->reminders->activeCount($user),
             'active_task_count' => $this->tasks->activeOpenCount($user),
+            'active_watcher_count' => $this->watchers->activeCount($user),
             'unread_notification_count' => $user->canUseCapability(UserCapability::NOTIFICATIONS)
                 ? $this->notifications->unreadCount($user)
                 : 0,

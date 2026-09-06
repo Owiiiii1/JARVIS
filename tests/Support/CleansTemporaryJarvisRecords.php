@@ -39,6 +39,8 @@ use App\Models\UserAiSetting;
 use App\Models\UserAssistantProfile;
 use App\Models\UserProfile;
 use App\Models\VoiceSession;
+use App\Models\Watcher;
+use App\Models\WatcherOccurrence;
 use App\Services\Users\AccessCodeGenerator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -99,6 +101,12 @@ trait CleansTemporaryJarvisRecords
         }
         if (Schema::hasTable('integration_accounts')) {
             IntegrationAccount::query()->where('user_id', $user->id)->delete();
+        }
+        if (Schema::hasTable('watcher_occurrences')) {
+            WatcherOccurrence::query()->where('user_id', $user->id)->delete();
+        }
+        if (Schema::hasTable('watchers')) {
+            Watcher::query()->where('user_id', $user->id)->delete();
         }
         if (Schema::hasTable('knowledge_entities')) {
             $eventIds = KnowledgeEvent::query()->where('user_id', $user->id)->pluck('id');

@@ -40,6 +40,7 @@ use App\Services\Tools\Storage\SearchStorageFilesTool;
 use App\Services\Tools\UpdateAssistantProfileTool;
 use App\Services\Tools\WebResearch\FetchWebPageTool;
 use App\Services\Tools\WebResearch\SearchWebTool;
+use App\Services\Watchers\WatcherToolPrompt;
 use Carbon\CarbonImmutable;
 use DateTimeZone;
 use Exception;
@@ -245,6 +246,10 @@ final class ConversationContextBuilder
 
         if (array_intersect(TaskToolPrompt::toolNames(), $names) !== []) {
             $lines = array_merge($lines, TaskToolPrompt::lines());
+        }
+
+        if (array_intersect(WatcherToolPrompt::toolNames(), $names) !== []) {
+            $lines = array_merge($lines, WatcherToolPrompt::lines());
         }
 
         if (in_array(GetAssistantProfileTool::NAME, $names, true)

@@ -2560,7 +2560,17 @@
 
 **Решение.** Additive relational tables (`knowledge_entities`, aliases, relationships, events, sources, analysis runs). `user_id` is the graph. Projects remain canonical; knowledge may reference `project_id`. Deterministic ingest from Core actions; Analysis AI only for bounded unstructured text. C.1 may retrieve a tiny `knowledge_context` slice. Chat delete detaches provenance and keeps durable knowledge when other sources remain. No Neo4j, no mass backfill, no watchers in E.1.
 
-**Следствие.** E.1 IMPLEMENTED / NOT VALIDATED. E.2 watchers are next. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
+**Следствие.** E.1 IMPLEMENTED / NOT VALIDATED. E.2 watchers: [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md). [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
+
+---
+
+## ADR-264 — Watchers are explicit bounded conditions, not an agent loop
+
+**Контекст.** Users want “when X happens, tell me Y” (Gmail reply, GitHub commit, task still open, calendar moved). An unrestricted autonomous agent, generated code/SQL/HTTP, or silent external writes would violate confirmation, privacy, and anti-spam rules. B.2 already emits heuristic suggestions; Reminders already cover known times.
+
+**Решение.** Persist user-created watchers with a closed trigger/condition/reaction vocabulary. First check establishes a baseline so history does not fire. Source adapters normalize observations; a central evaluator and reaction executor stay provider-neutral. Notify / create task or reminder / bounded analysis / proposed external action only. External writes wait for foreground confirmation. Polling is per-watcher and bounded. Dedup, cooldown, daily caps, and aggregation prevent spam. Auth failures block without hammering. Core is channel-independent; Web Notification Center / Push deliver.
+
+**Следствие.** E.2 IMPLEMENTED / NOT VALIDATED. Phase E is not complete. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
 
 ---
 

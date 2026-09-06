@@ -16,8 +16,10 @@ use App\Models\Project;
 use App\Models\User;
 use App\Services\Knowledge\DTO\KnowledgeSourceRef;
 use App\Services\Knowledge\Exceptions\KnowledgeException;
+use App\Services\Watchers\WatcherEvaluationDispatcher;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 final class KnowledgeIngestionService
 {
@@ -252,7 +254,9 @@ final class KnowledgeIngestionService
             'source_fingerprint' => $source->fingerprint,
         ]);
 
-        if (! $event->exists) {
+        $created = ! $event->exists;
+
+        if ($created) {
             $event->fill([
                 'type' => $type,
                 'title' => mb_substr($title, 0, 240),
@@ -272,6 +276,13 @@ final class KnowledgeIngestionService
                 $entity->id => ['role' => mb_substr($role, 0, 32)],
             ]);
             $this->attachSource($entity, $source);
+        }
+
+        if ($created) {
+            try {
+                app(WatcherEvaluationDispatcher::class)->afterKnowledgeEvent($user, $event->fresh(['entities']) ?? $event);
+            } catch (Throwable) {
+            }
         }
 
         return $event->fresh(['entities']) ?? $event;

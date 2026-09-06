@@ -20,16 +20,17 @@ It does **not** claim MANUAL PASS for every DST / recurrence / multi-device / de
 
 ---
 
-## Reminder vs Task
+## Reminder vs Task vs Watcher vs Proactive
 
-| | Reminder | Task |
-| --- | --- | --- |
-| Question | When should Jarvis notify me? | What do I need to accomplish? |
-| Table | `reminders` | `tasks` |
-| Status | scheduled / processing / delivered / completed / cancelled / failed | open / in_progress / completed / cancelled |
-| Relation | optional `reminders.task_id` | may have zero, one, or many reminders |
+| | Reminder | Task | Watcher | B.2 Proactive |
+| --- | --- | --- | --- | --- |
+| Question | When should Jarvis notify me at a **known time**? | What do I need to accomplish? | Notify when a **future condition/event** is true | Bounded **heuristic** suggestion |
+| Table | `reminders` | `tasks` | `watchers` | `jarvis_notifications` (`proactive_suggestion`) |
+| Example | «напомни завтра в 9» | «сделай отчёт» | «если завтра всё ещё не готово» | overdue high-priority task |
 
-A task is **not** a reminder row. Completing or cancelling a task cancels **future open** linked reminders and keeps history (`reminder_occurrences`, delivered rows).
+A task is **not** a reminder row. Completing or cancelling a task cancels **future open** linked reminders and keeps history (`reminder_occurrences`, delivered rows). A watcher is **not** a reminder: it evaluates a condition. B.2 proactive remains a separate engine and must not be recreated as implicit watchers.
+
+Watchers: [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
 
 ---
 
@@ -96,6 +97,8 @@ Anti-spam (actual values):
 
 Scheduler: `jarvis:proactive:dispatch` every 5 minutes.
 
+Watchers are a different product: an **explicit** persisted condition over a source. They also deliver through Notification Center / Web Push. Do not duplicate B.2 heuristics as watchers. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
+
 No unsolicited chatter. No external writes.
 
 ---
@@ -108,6 +111,7 @@ No unsolicited chatter. No external writes.
 | `jarvis:tasks:dispatch` | every 5 minutes (due / overdue inbox) |
 | `jarvis:briefs:dispatch` | every minute (opt-in clocks) |
 | `jarvis:proactive:dispatch` | every 5 minutes |
+| `jarvis:watchers:dispatch` | every 5 minutes (due watchers only) |
 
 Task due keys: `task_due:{id}:{Y-m-d}`, `task_overdue:{id}`.
 

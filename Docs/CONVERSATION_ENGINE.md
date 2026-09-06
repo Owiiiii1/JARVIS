@@ -104,6 +104,8 @@ Phase C.1 adds a bounded **working context** slice (current topic, recent entiti
 
 Phase E.1 may add a bounded **knowledge_context** slice when C.1 names an entity or active project. It is a compact index (few entities, relations, events), never the full graph. Detail stays behind `search_knowledge` / `get_entity` and existing source tools. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
 
+Tool policy: **Reminder** = known time (`create_reminder`). **Watcher** = future condition/event (`create_watcher`). **Task** = work item (`create_task`). B.2 proactive suggestions are separate heuristics — do not recreate them as watchers. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
+
 Web Workspace text send: the composer stays usable while a turn is thinking. A newer fetch generation discards a stale previous JSON body so an old assistant reply cannot overwrite the newer turn in the UI. The PHP turn is not aborted; already executed tool writes are not rolled back.
 
 Phase C.2 Beta adds a Web-only Custom LLM adapter (`POST /api/voice/elevenlabs/chat/completions`) that resolves a signed local `voice_session` and calls this same `ConversationTurnService`. ElevenLabs conversation history is transport state, not canonical memory. Assistant streaming into ElevenLabs is the final Core text (tool loop first). Confirmations are unchanged.
@@ -181,6 +183,7 @@ Tools:
 
 - `create_reminder`, `list_reminders`, `update_reminder`, `snooze_reminder`, `complete_reminder`, `cancel_reminder` — Reminder Engine. [REMINDERS.md](REMINDERS.md).
 - `create_task`, `list_tasks`, `get_task`, `update_task`, `start_task`, `complete_task`, `cancel_task`, `create_subtask`, `link_task_reminder` — Task Engine. Conservative create; ambiguous matches do not mutate. [TASKS.md](TASKS.md).
+- `create_watcher`, `list_watchers`, `get_watcher`, `update_watcher`, `pause_watcher`, `resume_watcher`, `cancel_watcher`, `list_watcher_occurrences`, `run_watcher_now` — Watchers. Explicit future conditions only. External writes become proposed actions. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
 - `get_assistant_profile` / `update_assistant_profile` / `complete_assistant_onboarding` — current user’s assistant profile only. Never `user_id` from the model. [ASSISTANT_PERSONALIZATION.md](ASSISTANT_PERSONALIZATION.md).
 - `search_conversation_history` — targeted raw-on-demand по **текущему** user.
 - `get_project_context` — owner-only (`projects` capability). Derived project context including bounded ACTIVE group knowledge for attached groups, не raw dump. Не подмешивается в обычный prompt.
@@ -194,6 +197,6 @@ Gemini — production provider с function calling (`functionDeclarations` / `fu
 
 Current user local datetime и IANA timezone инжектятся в system context на каждом turn. Calendar naive times use the same owner timezone.
 
-Confirmation: read-only без confirm. Core reminder writes (`create_reminder`, `update_reminder`, `snooze_reminder`, `complete_reminder`, `cancel_reminder`), Core task writes (`create_task` / `update_task` / `start_task` / `complete_task` / `cancel_task` / `create_subtask` / `link_task_reminder`) and assistant profile writes remain allowed (provider null). External write + explicit user command = allowed except tools with `alwaysConfirm` (`send_gmail_message`). Model-proposed = confirmation_required. Destructive = always confirmation_required and is persisted in `tool_confirmations`. Conservative yes/cancel parser plus Web/Telegram buttons. Модель не может self-authorize. [INTEGRATIONS.md](INTEGRATIONS.md).
+Confirmation: read-only без confirm. Core reminder writes (`create_reminder`, `update_reminder`, `snooze_reminder`, `complete_reminder`, `cancel_reminder`), Core task writes (`create_task` / `update_task` / `start_task` / `complete_task` / `cancel_task` / `create_subtask` / `link_task_reminder`), Core watcher writes (`create_watcher` / `update_watcher` / `pause_watcher` / `resume_watcher` / `cancel_watcher`) and assistant profile writes remain allowed (provider null). External write + explicit user command = allowed except tools with `alwaysConfirm` (`send_gmail_message`). Watcher reactions never send Gmail, write Calendar, or write GitHub; they notify or propose. Model-proposed = confirmation_required. Destructive = always confirmation_required and is persisted in `tool_confirmations`. Conservative yes/cancel parser plus Web/Telegram buttons. Модель не может self-authorize. [INTEGRATIONS.md](INTEGRATIONS.md).
 
 Reminders: Reminder Tool → Reminder Engine, не Calendar. [REMINDERS.md](REMINDERS.md).
