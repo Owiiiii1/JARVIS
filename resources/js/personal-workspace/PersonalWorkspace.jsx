@@ -1160,11 +1160,16 @@ export default function PersonalWorkspace() {
                 <label className="mt-3 flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
                     <Search className="h-3.5 w-3.5 text-slate-500" />
                     <input
+                        type="search"
+                        name="chat-search"
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder="Search chats"
                         className="w-full bg-transparent text-sm text-slate-200 outline-none placeholder:text-slate-600"
                         aria-label="Search conversations"
+                        autoComplete="off"
+                        data-lpignore="true"
+                        data-1p-ignore=""
                     />
                 </label>
             </div>

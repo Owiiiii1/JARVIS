@@ -82,4 +82,17 @@ class WorkspaceUxCleanupTest extends TestCase
         $this->assertStringContainsString('return conversationItems;', $workspace);
         $this->assertStringNotContainsString('return conversations;', $workspace);
     }
+
+    public function test_settings_password_fields_do_not_capture_sidebar_search_autofill(): void
+    {
+        $workspace = (string) file_get_contents(base_path('resources/js/personal-workspace/PersonalWorkspace.jsx'));
+        $profile = (string) file_get_contents(base_path('resources/js/personal-workspace/settings/ProfileSettings.jsx'));
+
+        $this->assertStringContainsString('name="chat-search"', $workspace);
+        $this->assertStringContainsString('autoComplete="off"', $workspace);
+        $this->assertStringContainsString('data-lpignore="true"', $workspace);
+        $this->assertStringContainsString('autoComplete="username"', $profile);
+        $this->assertStringContainsString('autoComplete="current-password"', $profile);
+        $this->assertStringContainsString('autoComplete="new-password"', $profile);
+    }
 }
