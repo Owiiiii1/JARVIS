@@ -1,6 +1,6 @@
 # Jarvis — current implementation snapshot
 
-**Date:** 2026-09-06 (Workspace conversation delete)
+**Date:** 2026-09-06 (Phase C.1 Conversation Intelligence)
 **Host path:** `/var/www/jarvis`  
 **Public URL:** https://jarvis.owlsolutions.net  
 **GitHub:** https://github.com/Owiiiii1/JARVIS.git
@@ -141,6 +141,8 @@ Main Workspace is chat + Task / Reminder / Notification centers + Voice + compac
 
 Workspace conversation delete is implemented for Owner and ordinary users. Sidebar overflow menu → confirmation dialog → `DELETE /jarvis/chats/{conversation}` or `DELETE /chat/chats/{conversation}`. Own personal conversations only (`ensureOwned`; Owner is not a bypass for someone else’s chat). Group conversations are 404. Hard delete of the chat and child messages/ephemeral screenshots; tasks, reminders, projects, persistent Storage files, and durable memories survive with sources detached. Deleting the open chat switches to the latest remaining personal chat, or creates `Основной` if none remain. No full page reload.
 
+Phase C.1 Conversation Intelligence is **IMPLEMENTED / NOT VALIDATED**. Same Conversation Engine. Derived working context (topic mode, recent entities, trusted recent tool refs, temporary style) plus clarification/initiative policy. Mutation tools do not guess ids. Web composer can send a new message while a previous turn is thinking; stale JSON is ignored. Server generation is not cancelled. C.2 streaming/VAD remains PLANNED.
+
 Workspace Settings sections: Profile, Assistant, Memory, Productivity, Voice, Integrations. Desktop: nav + detail. Mobile: list → detail. Direct section: `?settings=memory` / `?settings=integrations` on first load (allowlist only). Opening Settings from the UI does not rewrite `history.state`, so the chat list stays intact.
 
 After a successful foreground chat turn, badges and open panels refresh via `GET /jarvis/workspace/status` and `GET /chat/workspace/status` plus turn-payload counts. No page reload, no polling, no WebSocket. Scheduler events still appear on next open / Push / navigation.
@@ -191,3 +193,4 @@ Code: Google OAuth (Gmail + Calendar tools; **no Drive**), GitHub OAuth + tools,
 - Wake word
 - Real-time WebSocket/SSE for scheduler events
 - Telegram Voice Input live Owner checklist (code shipped)
+- Phase C.1 live Owner checklist (code shipped; not MANUAL PASS)

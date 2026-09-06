@@ -100,6 +100,10 @@ Owner Conversation AI may call `search_web` then `fetch_web_page` (capability `w
 
 `ContextBudgetManager` trims one request before the provider call: platform and current turn stay; recent history is token-bounded; older history is summary-first; tool results share a global budget. [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md). Tool rounds are capped by `context_budget.max_tool_rounds` (default 8).
 
+Phase C.1 adds a bounded **working context** slice (current topic, recent entities, trusted recent Core tool ids, temporary style) plus a short conversational policy. It is assembled by `WorkingContextBuilder` / `PersonalityPresentationBuilder` and clipped by `ContextBudgetManager`. Failure falls back to the previous context behavior. Mutation tools may bind a **unique trusted** recent task for a pronoun; they still must not guess among several matches.
+
+Web Workspace text send: the composer stays usable while a turn is thinking. A newer fetch generation discards a stale previous JSON body so an old assistant reply cannot overwrite the newer turn in the UI. The PHP turn is not aborted; already executed tool writes are not rolled back.
+
 ---
 
 ## Asynchronous / post-processing path
@@ -157,7 +161,7 @@ LLM здесь не участвует, если администратор пр
 
 Final STT transcript = ordinary user `messages` row (`channel=web`, `metadata.modality=voice`, `voice_session_public_id`). Assistant reply = ordinary assistant row. Interrupt after persist does not delete the assistant message (`voice_playback_interrupted`).
 
-Voice uses the same User General Prompt plus an optional bounded spoken-style presentation hint. Same tools and confirmation policy. Same `ContextBudgetManager`: long voice sessions cannot grow an unbounded prompt because transcripts are normal messages.
+Voice uses the same User General Prompt plus an optional bounded spoken-style presentation hint. Same working context, same reference resolution, same clarification policy, same tools and confirmation policy. Same `ContextBudgetManager`: long voice sessions cannot grow an unbounded prompt because transcripts are normal messages. Spoken brevity is presentation only — not a second personality.
 
 Runtime: [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Orb UI: [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
 

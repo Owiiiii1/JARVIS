@@ -15,6 +15,10 @@ use App\Services\Assistant\AssistantProfileService;
 use App\Services\ChatAttachments\ChatAttachmentVisionLoader;
 use App\Services\Context\ContextBudgetManager;
 use App\Services\Context\ContextSlices;
+use App\Services\ConversationIntelligence\ConversationalPolicyPrompt;
+use App\Services\ConversationIntelligence\PersonalityPresentationBuilder;
+use App\Services\ConversationIntelligence\WorkingContext;
+use App\Services\ConversationIntelligence\WorkingContextBuilder;
 use App\Services\Memory\DTO\MemoryContextPackage;
 use App\Services\Memory\PersonalMemoryRetriever;
 use App\Services\Productivity\ProductivitySnapshot;
@@ -37,6 +41,7 @@ use App\Services\Tools\WebResearch\SearchWebTool;
 use Carbon\CarbonImmutable;
 use DateTimeZone;
 use Exception;
+use Throwable;
 
 final class ConversationContextBuilder
 {
@@ -52,12 +57,14 @@ final class ConversationContextBuilder
         private readonly StoredFileService $storedFiles,
         private readonly ContextBudgetManager $budgets,
         private readonly AssistantProfileService $assistantProfiles,
+        private readonly WorkingContextBuilder $workingContexts,
+        private readonly PersonalityPresentationBuilder $personality,
         private readonly ?ProductivitySnapshot $productivity = null,
     ) {}
 
     /**
      * @param  list<ToolDefinition>  $tools
-     * @return array{system_prompt: string, messages: list<AiChatMessage>, diagnostics: array<string, mixed>}
+     * @return array{system_prompt: string, messages: list<AiChatMessage>, diagnostics: array<string, mixed>, working: WorkingContext}
      */
     public function build(
         User $user,
@@ -66,6 +73,7 @@ final class ConversationContextBuilder
         ?Message $currentInbound = null,
         ?string $applicationEvent = null,
         array $tools = [],
+        ?WorkingContext $working = null,
     ): array {
         $platform = [trim((string) $configuration->system_prompt)];
         $platform[] = $this->currentTimeContext($user);
@@ -98,6 +106,22 @@ final class ConversationContextBuilder
             $lastIsCurrent = $last->role === 'user';
         }
 
+        $recentTexts = array_map(static fn (AiChatMessage $message): string => $message->content, $recent);
+
+        if ($working === null) {
+            try {
+                $working = $this->workingContexts->buildSafe(
+                    $user,
+                    $conversation,
+                    $currentInbound,
+                    $memory,
+                    $recentTexts,
+                );
+            } catch (Throwable) {
+                $working = WorkingContext::unavailable();
+            }
+        }
+
         $events = [];
 
         if (filled($applicationEvent)) {
@@ -110,9 +134,12 @@ final class ConversationContextBuilder
             $events[] = $onboarding;
         }
 
-        return $this->budgets->assemble($configuration, new ContextSlices(
+        $spokenHint = $this->spokenHintFromEvent($applicationEvent);
+        $identity = $this->personalityIdentity($user, $working, $spokenHint);
+
+        $assembled = $this->budgets->assemble($configuration, new ContextSlices(
             platformPrompt: trim(implode("\n\n", array_filter($platform))),
-            assistantIdentity: $this->assistantProfiles->identityContext($user),
+            assistantIdentity: $identity,
             generalPrompt: $this->generalPromptFor($user),
             applicationEvent: $events === [] ? null : implode("\n\n", $events),
             currentSummary: $this->currentSummaryText($memory, $conversation, $configuration),
@@ -121,7 +148,37 @@ final class ConversationContextBuilder
             crossChatLines: $this->crossChatLines($memory),
             recentMessages: $recent,
             lastIsCurrentTurn: $lastIsCurrent,
+            workingContext: $working->promptBlock(),
+            conversationalPolicy: implode("\n", ConversationalPolicyPrompt::lines()),
         ));
+
+        $workingTokens = (int) (($assembled['diagnostics']['sources']['working_context']['tokens'] ?? 0));
+        $assembled['diagnostics'] = array_merge($assembled['diagnostics'], $working->diagnostics($workingTokens));
+        $assembled['working'] = $working;
+
+        return $assembled;
+    }
+
+    private function personalityIdentity(User $user, WorkingContext $working, ?string $spokenHint): string
+    {
+        try {
+            return $this->personality->build($user, $working, $spokenHint);
+        } catch (Throwable) {
+            try {
+                return $this->assistantProfiles->identityContext($user);
+            } catch (Throwable) {
+                return '';
+            }
+        }
+    }
+
+    private function spokenHintFromEvent(?string $applicationEvent): ?string
+    {
+        if ($applicationEvent === null || ! str_contains($applicationEvent, 'spoken')) {
+            return null;
+        }
+
+        return trim($applicationEvent);
     }
 
     private function generalPromptFor(User $user): ?string

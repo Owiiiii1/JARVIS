@@ -21,6 +21,16 @@ return [
 
     'assistant_identity' => (int) env('CONTEXT_ASSISTANT_IDENTITY_TOKENS', 600),
 
+    'conversational_policy' => (int) env('CONTEXT_CONVERSATIONAL_POLICY_TOKENS', 450),
+
+    'working_context' => (int) env('CONTEXT_WORKING_CONTEXT_TOKENS', 500),
+
+    'recent_entities' => (int) env('CONTEXT_RECENT_ENTITIES_TOKENS', 250),
+
+    'recent_tool_references' => (int) env('CONTEXT_RECENT_TOOL_REF_TOKENS', 250),
+
+    'working_memory_turns' => (int) env('CONTEXT_WORKING_MEMORY_TURNS', 4),
+
     'current_turn' => (int) env('CONTEXT_CURRENT_TURN_TOKENS', 4000),
 
     'recent_messages' => (int) env('CONTEXT_RECENT_MESSAGES_TOKENS', 6000),

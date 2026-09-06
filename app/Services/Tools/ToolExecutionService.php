@@ -277,6 +277,47 @@ final class ToolExecutionService
             $metadata['confirmation_id'] = $payload['confirmation_id'];
         }
 
+        foreach (['task_id', 'reminder_id', 'project_id'] as $key) {
+            if (isset($payload[$key]) && is_numeric($payload[$key]) && (int) $payload[$key] > 0) {
+                $metadata[$key] = (int) $payload[$key];
+            }
+        }
+
+        if (isset($payload['calendar_event_id']) && is_string($payload['calendar_event_id']) && $payload['calendar_event_id'] !== '') {
+            $metadata['calendar_event_id'] = mb_substr($payload['calendar_event_id'], 0, 80);
+        }
+
+        if (isset($payload['file_id']) && is_string($payload['file_id']) && $payload['file_id'] !== '') {
+            $metadata['file_id'] = mb_substr($payload['file_id'], 0, 80);
+        }
+
+        foreach (['title', 'text', 'name'] as $key) {
+            if (isset($payload[$key]) && is_string($payload[$key]) && trim($payload[$key]) !== '') {
+                $metadata['title'] = mb_substr(trim($payload[$key]), 0, 80);
+                break;
+            }
+        }
+
+        if (isset($payload['tasks']) && is_array($payload['tasks'])) {
+            $listed = [];
+
+            foreach (array_slice($payload['tasks'], 0, 5) as $row) {
+                if (! is_array($row) || ! isset($row['id'])) {
+                    continue;
+                }
+
+                $listed[] = [
+                    'id' => (int) $row['id'],
+                    'title' => mb_substr(trim((string) ($row['title'] ?? 'Task')), 0, 80),
+                ];
+            }
+
+            if ($listed !== []) {
+                $metadata['listed_tasks'] = $listed;
+                $metadata['result_count'] = count($payload['tasks']);
+            }
+        }
+
         if (isset($payload['groups']) && is_array($payload['groups'])) {
             $metadata['result_count'] = count($payload['groups']);
         }

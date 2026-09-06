@@ -1,114 +1,112 @@
-# Workspace Conversation Delete
+# Phase C.1 — Conversation Intelligence
 
 ## Starting HEAD
 
-- Baseline: `898e6f7b6ed00f4ad499e331cce2e8ba3d82811c` `fix: stop password autofill from hijacking sidebar chat search`
-- Working tree was clean; `HEAD == origin/main` before work.
-- No migrations. Production DB `jarvis` was not migrated, refreshed, or mass-updated. No live provider calls.
+`8208423` (`feat: add confirmed workspace chat deletion`). `git status` was clean. `HEAD` == `origin/main`.
 
-## Conversation relations audit
+Work ran on that main. No migration. Production database `jarvis` was not truncated, refreshed, or mass-updated. No live Gemini / ElevenLabs / Gmail / Calendar / GitHub / Telegram calls.
 
-No SoftDeletes in the project. Personal Workspace lists `kind=personal` only (`ConversationService::findOwned` / `listForUser`).
+## Existing conversation architecture
 
-FK snapshot used for the lifecycle:
+Unchanged engine: channel adapter → `ConversationTurnService` → `ConversationAiService::completeUserTurn` → `ConversationContextBuilder` → `ContextBudgetManager` → tool loop → persist.
 
-| Relation | On conversation delete |
-| --- | --- |
-| `messages` | cascade — child chat data |
-| `message_attachments` | cascade via messages; ephemeral bytes then deleted from disk |
-| `message_stored_files` | cascade via messages; **`stored_files` rows stay** |
-| `conversation_summaries`, `memory_analysis_runs` | cascade — child of this chat |
-| `tool_confirmations`, `voice_sessions` | cascade — session/child of this chat |
-| `project_conversations` | cascade pivot; **project stays** (also explicit detach) |
-| `tasks.source_conversation_id` / `source_message_id` | nullOnDelete; also explicit null |
-| `reminders.source_conversation_id` / `source_message_id` | nullOnDelete; also explicit null |
-| `memory_sources.conversation_id` / `message_id` / `summary_id` | nullOnDelete; also explicit null; **memory row stays** |
-| `tool_execution_logs.conversation_id` | nullOnDelete — audit log stays |
-| `channel_identities.active_conversation_id` | nullOnDelete |
-| `user_assistant_profiles.onboarding_conversation_id` | nullOnDelete |
-| `telegram_groups.conversation_id` | cascade — **not reachable**: Workspace delete refuses `kind=group` (404) |
-| `jarvis_notifications` | no FK; `action_url` that pointed at `/jarvis/chats/{id}` or `/chat/chats/{id}` is rewritten to workspace root (query preserved). Notification history is not deleted. |
+Voice (`VoiceRuntimeService`) and Telegram DM already call that turn path. C.1 does not add a second Voice AI, a second memory engine, a new message store, or a hidden personality prompt.
 
-## Delete semantics
+## Working context model
 
-Hard delete of the owned personal conversation after a DB transaction:
+`App\Services\ConversationIntelligence\WorkingContext` is a small derived DTO: topic mode, current/previous topic, recent entities, trusted recent tool refs, recent intent, pending clarification, last important object, active project if indicated, temporary style, incomplete-utterance flag.
 
-1. Null independent source refs (tasks, reminders, memory_sources).
-2. Rewire notification links.
-3. Detach `project_conversations`.
-4. `$conversation->delete()` (cascades child chat rows).
-5. After commit: delete ephemeral screenshot bytes + thumbnails from disk.
+`WorkingContextBuilder` builds it from the recent semantic tail, conversation summary, topics linked to this chat, compact `tool_execution_logs` metadata, and (when the text matches) an owned project name. It is not a standing blob and is not written to Memory.
 
-If step 4 fails, the transaction rolls back; disk purge does not run.
+## Topic continuity
 
-## Ownership
+`TopicContinuityDetector` labels **continue / subtopic / switch / return** from the current utterance plus known topic names. Return phrases (“вернёмся к YFS”) recover the named topic so later retrieval can use topics, the current summary, and `search_conversation_history` when a deeper raw detail is needed. No separate ML classifier service.
 
-`ConversationService::ensureOwned` / `findOwned`: same `user_id` **and** `kind=personal`. Foreign id → 404 (does not confirm existence). Owner role is not a bypass for another user’s chats. Group conversations are 404 on this endpoint.
+## Reference resolution
 
-## Confirmation UX
+`ReferenceResolver` uses structured recent entities plus deictics (“это”, “она”, “туда”, “эта задача”, “предыдущий”, …), not regex-only NLP as the whole product. Read-only replies may use the unique best interpretation. Mutation tools must not receive a guessed id.
 
-Sidebar item: always-visible three-dot menu (not hover-only) with Переименовать / Удалить.
+## Clarification policy
 
-Удалить opens a Workspace dialog (not `window.confirm`):
+`ClarificationPolicy` asks only for write/destructive ambiguity, missing required fields, ambiguous external destinations, contradictions, or genuinely insufficient confidence. It does not clarify “tomorrow” or other obvious relative dates.
 
-- «Удалить этот чат?»
-- «Название» or «Без названия»
-- History will be deleted; irreversible
-- Отмена / destructive Удалить
-- Loading: «Удаление...»; buttons disabled
+## Recent tool references
 
-Cancel only closes the dialog.
+`ToolExecutionService::safeMetadata` now stores compact `task_id` / `reminder_id` / `project_id` / titles and a short `listed_tasks` list. `RecentToolReferenceReader` exposes the last few **successful** Core results for this conversation. Lifetime is the current turn plus `context_budget.working_memory_turns` (default 4). A topic switch marks them expired. They are not permanent memory.
 
-## Active conversation behavior
+`TaskToolResolver` / `CreateReminderTool` may bind a **unique trusted** recent task when the user refers to it with a pronoun (“Напомни про неё”). Several similar tasks (“закрой отчёт”) stay `ambiguous`. Invented ids on a pronoun turn are rejected.
 
-JSON: `{ success, deleted_id, conversation: { id, title, last_activity_at } }` where `conversation` is `latestOrDefault()` after delete (existing most-recent personal chat, or a new `Основной`).
+## Working vs permanent memory
 
-Frontend: remove the id from the local sidebar list without F5. If the deleted id was open, Inertia `router.visit` the returned conversation. URL never stays on a deleted id.
+Working context is conversation-scoped and may disappear as summaries evolve. Durable user facts still go through the Memory Engine only when they qualify as memories. Choosing between two products in the current chat is working context, not an automatic memory write.
 
-## Messages / attachments
+## Personality consistency
 
-Messages of that conversation are deleted (cascade). No orphans.
+`PersonalityPresentationBuilder` wraps `AssistantProfileService::identityContext` for every channel. Voice spoken-style remains a presentation hint. Temporary style (“отвечай коротко”) is injected for this conversation only and is not written to `user_assistant_profiles`.
 
-Ephemeral `message_attachments` (screenshots): DB row + disk files/thumbnails.
+## Conversational initiative
 
-Persistent Storage: `stored_files` survive; only `message_stored_files` links drop.
+Policy text: default **answer and stop**. At most one high-value suggestion tied to the current turn. No “Хочешь, я…” on every reply. No automatic external write from a suggestion. Scheduler/proactive productivity policy is unchanged and not duplicated.
 
-## Tasks / reminders
+## Turn supersession
 
-Task and Reminder rows remain. `source_conversation_id` and `source_message_id` become null.
+The PHP turn is not cancelled (no distributed cancellation). Web Workspace (and legacy cabinet chat) keep the composer usable while thinking, abort the previous **fetch wait**, and ignore stale JSON via a generation counter. Persisted user messages remain. Tool writes that already ran are not rolled back. After reload, both assistant rows may exist in history; the UI will not paint the old payload over the newer turn.
 
-## Projects
+## Voice / Telegram reuse
 
-Project remains. Pivot `project_conversations` is removed.
+Same `ConversationTurnService` / context builder / working context / tools. No Voice-specific or Telegram-specific intelligence layer.
 
-## Memory / storage behavior
+## Context budget
 
-Deleting a chat is not «forget». Durable `memories` stay. Provenance on `memory_sources` is detached. Conversation summaries for that chat are child data and go with the conversation. Persistent Storage files are independent of any one message.
+New slices in `config/context_budget.php`: `working_context`, `recent_entities`, `recent_tool_references`, `conversational_policy`, `working_memory_turns`. Trim order still drops cross-chat / memories / projects before working context, then summary / general / identity / policy, and never drops platform or the current user turn. `ContextBudgetManager` remains authority.
 
-## Routes
+## Failure fallback
 
-- `DELETE /jarvis/chats/{conversation}` → `jarvis.chats.destroy`
-- `DELETE /chat/chats/{conversation}` → `chat.chats.destroy`
-
-Same `JarvisWorkspaceController::destroy` → `PersonalChatSurfaceService::deleteChat` → `ConversationService::deletePersonal`.
+`WorkingContextBuilder::buildSafe` and an extra try/catch in `ConversationContextBuilder` return `WorkingContext::unavailable()` on failure. Chat still assembles the previous slices. Personality builder falls back to `identityContext`.
 
 ## Tests
 
-- Feature: guest redirect; own delete; foreign 404; owner cannot delete another user’s chat; group 404; switching away from the open chat.
-- Unit service: task/reminder source null + survive; project detach; stored file survive; ephemeral disk purge; memory survive; notification URL fallback; no orphan messages; transaction rollback on forced failure; last chat creates `Основной`.
-- Frontend static: menu + confirmation copy; no `window.confirm` / `window.location.reload`; DELETE + sidebar filter + visit next.
+Isolated PHPUnit (fakes / temp `jarvis-test-*` users / Mockery). No live providers. No `RefreshDatabase` / `migrate:fresh`.
+
+- continuation pronoun → unique trusted task
+- two similar tasks + “отчёт” → ambiguous, no mutation
+- YFS / incomplete “а если его завтра?” resolve when unique
+- return-to-topic detection
+- temporary style does not rewrite the profile
+- expired/switch tool refs are not reused
+- working-context exception falls back to the normal engine
+- personality presentation is channel-agnostic
+
+Frontend supersession has no JS test runner in this repo; behavior is in `PersonalWorkspace.jsx` generation/AbortController.
+
+## Build/static checks
+
+`php -l` on touched PHP, Pint `--dirty`, `composer validate`, `npm run build`, `git diff --check`. Migrate status unchanged (no new migration).
 
 ## Production safety
 
-No migration (existing FKs already cascade/null as required). No destructive live-DB scripts. No provider calls. Tests use temporary `@invalid.local` users via `CleansTemporaryJarvisRecords`.
+No destructive DB operations. Additive use of existing `tool_execution_logs.metadata` only. Temporary test users cleaned via `CleansTemporaryJarvisRecords`.
 
-## Manual checklist
+## Known limitations
 
-A. Create a test chat.
-B. Overflow menu → Удалить: nothing is deleted yet.
-C. Отмена: chat remains.
-D. Удалить → confirm: chat disappears without F5.
-E. Delete the currently open chat: Workspace switches to another chat (or `Основной`).
-F. Chat that created a Task/Reminder: after delete, Task/Reminder remain with source detached.
-G. Ordinary user cannot delete someone else’s chat (404).
-H. Mobile: three-dot is visible without hover.
+- Server-side in-flight LLM/tool cancellation is not implemented (C.2 / later).
+- Topic mode is heuristic, not a classifier service.
+- Trusted ids come from compact tool-log metadata, not model imagination; a model can still pass an explicit owned `task_id` on a non-pronoun turn (existing behavior).
+- STT transcripts are stored as-is; interpretation is in the context layer only.
+- C.1 is **IMPLEMENTED / NOT VALIDATED**. C.2 is still **PLANNED**.
+
+## Owner manual checklist
+
+A. “Создай задачу купить фильтр для станка”, then “Напомни про неё завтра утром” → reminder linked to that Task.
+
+B. Discuss YFS, switch topic, then “вернёмся к YFS, что там с голосом?” → topic recovered.
+
+C. Two tasks about a report, then “закрой задачу про отчёт” → if ambiguous, Jarvis asks; no arbitrary close.
+
+D. “отвечай сейчас максимально коротко” for several turns → short style now; profile not permanently rewritten.
+
+E. Voice: “а это?” / “а если завтра?” / “и потом?” → context holds when resolvable.
+
+F. Send a new message while thinking → old response must not visually replace the new turn.
+
+G. Jarvis must not start every answer with a follow-up suggestion.

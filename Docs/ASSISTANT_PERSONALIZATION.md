@@ -20,6 +20,8 @@ See also: [USERS_AND_CABINET.md](USERS_AND_CABINET.md), [MEMORY_ARCHITECTURE.md]
 
 Do not encode onboarding only in General Prompt. Do not treat `about_user` as a replacement for Memory.
 
+`PersonalityPresentationBuilder` is the single presentation source for Web, Voice, and Telegram. Voice may add a spoken brevity hint; it does not copy or replace personality. A user request such as “отвечай коротко” or “по-итальянски” is **temporary conversation style** in working context. It is not written to `user_assistant_profiles` automatically.
+
 ---
 
 ## Data

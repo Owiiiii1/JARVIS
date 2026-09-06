@@ -73,7 +73,9 @@ Group knowledge не копируется в personal автоматически
 
 ### 5. Working context / conversation context
 
-Контекст **текущего** чата: последние реплики, активная тема, незакрытый clarification. Короткоживущий. Не заменяет long-term facts и не переносится сырьём в другой conversation.
+Контекст **текущего** чата: последние реплики, активная тема, недавние сущности, trusted recent tool ids, незакрытый clarification, temporary style. Короткоживущий. Не заменяет long-term facts и не переносится сырьём в другой conversation.
+
+Phase C.1 implements this as `WorkingContext` derived each turn from the recent tail, conversation summary, topics, compact tool-log references, and (when indicated) an active project name. It is **not** written into `memories`. Example: “мы сейчас выбираем между XREAL Aura и Meta” stays working context unless the user states a durable preference.
 
 New Chat обнуляет raw/working **этого** чата. Structured memory и summaries других чатов остаются. Raw других чатов не копируется. ADR-017, ADR-036.
 

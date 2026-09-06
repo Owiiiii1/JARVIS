@@ -28,11 +28,14 @@ final class ContextBudgetManager
             'general_prompt' => 0,
             'assistant_identity' => 0,
             'projects' => 0,
+            'working_context' => 0,
+            'conversational_policy' => 0,
             'current_turn' => 0,
         ];
 
         $platform = $this->clip($slices->platformPrompt, (int) config('context_budget.platform_prompt', 2800));
         $identity = $this->clipNullable($slices->assistantIdentity, (int) config('context_budget.assistant_identity', 600), $trimmed, 'assistant_identity');
+        $conversationalPolicy = $this->clipNullable($slices->conversationalPolicy, (int) config('context_budget.conversational_policy', 450), $trimmed, 'conversational_policy');
         $general = $this->clipNullable($slices->generalPrompt, (int) config('context_budget.general_prompt', 800), $trimmed, 'general_prompt');
         $event = $slices->applicationEvent;
         $summary = $this->clipNullable($slices->currentSummary, (int) config('context_budget.current_conversation_summary', 1200), $trimmed, 'summary');
@@ -40,6 +43,7 @@ final class ContextBudgetManager
         $memories = $this->clipLines($slices->memoryLines, (int) config('context_budget.personal_memory', 800), $trimmed, 'memories');
         $cross = $this->clipLines($slices->crossChatLines, (int) config('context_budget.cross_chat_summaries', 800), $trimmed, 'cross_chat');
         $projects = $this->clipNullable($slices->projectsBlock, (int) config('context_budget.projects', 400), $trimmed, 'projects');
+        $working = $this->clipNullable($slices->workingContext, (int) config('context_budget.working_context', 500), $trimmed, 'working_context');
         $messages = $this->boundRecent($slices->recentMessages, $slices->lastIsCurrentTurn, (int) config('context_budget.recent_messages', 6000), $trimmed);
 
         $overflow = false;
@@ -47,6 +51,7 @@ final class ContextBudgetManager
         while ($this->estimateRequest($platform, $this->systemFrom(
             $platform,
             $identity,
+            $conversationalPolicy,
             $general,
             $event,
             $summary,
@@ -54,6 +59,7 @@ final class ContextBudgetManager
             $memories,
             $cross,
             $projects,
+            $working,
         ), $messages) > $inputBudget) {
             $overflow = true;
 
@@ -78,6 +84,15 @@ final class ContextBudgetManager
             if ($profile !== null) {
                 $profile = null;
                 $trimmed['memories']++;
+
+                continue;
+            }
+            if ($working !== null) {
+                $working = $this->estimator->clipToTokens($working, max(80, intdiv($this->estimator->estimateText($working), 2)));
+                if ($this->estimator->estimateText($working) < 100) {
+                    $working = null;
+                }
+                $trimmed['working_context']++;
 
                 continue;
             }
@@ -108,6 +123,15 @@ final class ContextBudgetManager
 
                 continue;
             }
+            if ($conversationalPolicy !== null) {
+                $conversationalPolicy = $this->estimator->clipToTokens($conversationalPolicy, max(80, intdiv($this->estimator->estimateText($conversationalPolicy), 2)));
+                if ($this->estimator->estimateText($conversationalPolicy) < 80) {
+                    $conversationalPolicy = null;
+                }
+                $trimmed['conversational_policy']++;
+
+                continue;
+            }
 
             $minimum = max(1, (int) config('context_budget.emergency_minimum_recent', 2));
             $keep = $slices->lastIsCurrentTurn ? max($minimum, 1) : $minimum;
@@ -121,7 +145,7 @@ final class ContextBudgetManager
             break;
         }
 
-        $system = $this->systemFrom($platform, $identity, $general, $event, $summary, $profile, $memories, $cross, $projects);
+        $system = $this->systemFrom($platform, $identity, $conversationalPolicy, $general, $event, $summary, $profile, $memories, $cross, $projects, $working);
         $estimated = $this->estimateRequest($platform, $system, $messages);
 
         if ($estimated > $inputBudget && $messages !== []) {
@@ -148,6 +172,8 @@ final class ContextBudgetManager
             $projects,
             $general,
             $identity,
+            $working,
+            $conversationalPolicy,
         );
 
         return [
@@ -256,6 +282,8 @@ final class ContextBudgetManager
         ?string $projects,
         ?string $general,
         ?string $identity,
+        ?string $working = null,
+        ?string $conversationalPolicy = null,
     ): array {
         $inputBudget = $policy['input_budget'];
 
@@ -275,6 +303,8 @@ final class ContextBudgetManager
                 'memories' => ['count' => count($memories), 'tokens' => $this->estimator->estimateText(implode("\n", $memories))],
                 'cross_chat' => ['count' => count($cross), 'tokens' => $this->estimator->estimateText(implode("\n", $cross))],
                 'projects' => ['count' => $projects === null ? 0 : 1, 'tokens' => $this->estimator->estimateText((string) $projects)],
+                'working_context' => ['count' => $working === null ? 0 : 1, 'tokens' => $this->estimator->estimateText((string) $working)],
+                'conversational_policy' => ['count' => $conversationalPolicy === null ? 0 : 1, 'tokens' => $this->estimator->estimateText((string) $conversationalPolicy)],
                 'general_prompt' => ['count' => $general === null ? 0 : 1, 'tokens' => $this->estimator->estimateText((string) $general)],
                 'assistant_identity' => ['count' => $identity === null ? 0 : 1, 'tokens' => $this->estimator->estimateText((string) $identity)],
                 'current_files' => ['count' => 0, 'tokens' => 0],
@@ -291,6 +321,7 @@ final class ContextBudgetManager
     private function systemFrom(
         string $platform,
         ?string $identity,
+        ?string $conversationalPolicy,
         ?string $general,
         ?string $event,
         ?string $summary,
@@ -298,11 +329,20 @@ final class ContextBudgetManager
         array $memories,
         array $cross,
         ?string $projects,
+        ?string $working = null,
     ): string {
         $sections = [trim($platform)];
 
         if ($identity !== null && $identity !== '') {
             $sections[] = $identity;
+        }
+
+        if ($conversationalPolicy !== null && $conversationalPolicy !== '') {
+            $sections[] = $conversationalPolicy;
+        }
+
+        if ($working !== null && $working !== '') {
+            $sections[] = $working;
         }
 
         if ($general !== null && $general !== '') {
@@ -491,7 +531,7 @@ final class ContextBudgetManager
      */
     private function compactToolPayload(array $payload): array
     {
-        $keep = ['success', 'error', 'truncated', 'retryable', 'id', 'file_id', 'confirmation_id', 'count', 'query', 'url', 'requested_url', 'final_url', 'title', 'domain', 'published_at', 'fetched_at', 'char_count', 'provider'];
+        $keep = ['success', 'error', 'truncated', 'retryable', 'id', 'file_id', 'confirmation_id', 'count', 'query', 'url', 'requested_url', 'final_url', 'title', 'domain', 'published_at', 'fetched_at', 'char_count', 'provider', 'task_id', 'reminder_id', 'project_id'];
         $compact = [];
 
         foreach ($keep as $key) {

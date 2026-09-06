@@ -88,29 +88,32 @@ Detail: [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).
 
 ## PHASE C — Natural Conversation
 
-**Status.** Basic Voice pipeline is **complete** (MANUAL PASS). Current capture is push-to-talk. This phase is future improvement, not an implicit restoration of the removed hands-free mode.
+**Status.** Basic Voice pipeline is **complete** (MANUAL PASS). Current capture is push-to-talk.
 
-Do **not** plan as future:
+### C.1 — Conversation Intelligence
 
-- explicit push-to-talk turn boundary
-- push-to-talk interruption during playback/thinking
-- Gemini STT / ElevenLabs TTS path
-- Voice as a Web Workspace mode
+**Status.** **IMPLEMENTED / NOT VALIDATED.** Not MANUAL PASS.
 
-Future:
+Shipped on the existing Conversation Engine (no second Voice/memory/message store):
+
+- topic continuity / return-to-topic / incomplete phrases / pronouns
+- clarification policy (clarify writes, not obvious dates)
+- conversation working memory vs permanent Memory Engine
+- unified personality presentation; temporary style is not a profile write
+- bounded conversational initiative (default: answer and stop)
+- trusted recent Core tool references for mutation targeting
+- frontend stale-response suppression when a new Web message is sent during thinking
+
+Voice and Telegram reuse the same Core path.
+
+### C.2 — still PLANNED
 
 - lower latency
 - streaming STT if valuable
 - streaming TTS if valuable
 - more robust barge-in / conversational overlap
 - better short-pause policy
-- text generation cancellation
-- incomplete phrases / pronouns
-- topic continuity
-- clarification policy
-- stable personality
-- better working memory
-- natural conversational initiative
+- server-side generation cancellation
 
 **Wake word:** not mandatory. Desktop is cancelled; a wake word in a normal browser has limited product value. Optional future research (mobile/native or always-open environments only).
 

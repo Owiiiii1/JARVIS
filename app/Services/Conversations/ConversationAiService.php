@@ -202,6 +202,17 @@ final class ConversationAiService
                 $toolDefinitions,
             );
             $diagnostics = $context['diagnostics'] ?? [];
+            $toolContext = new ToolExecutionContext(
+                user: $toolContext->user,
+                conversation: $toolContext->conversation,
+                inbound: $toolContext->inbound,
+                channel: $toolContext->channel,
+                explicitUserCommand: $toolContext->explicitUserCommand,
+                confirmationIntent: $toolContext->confirmationIntent,
+                bypassConfirmation: $toolContext->bypassConfirmation,
+                budgets: $toolContext->budgets,
+                working: $context['working'] ?? null,
+            );
 
             $toolResults = [];
 
@@ -449,6 +460,11 @@ final class ConversationAiService
             'overflow_prevented' => (bool) ($diagnostics['overflow_prevented'] ?? false),
             'sources' => $diagnostics['sources'] ?? [],
             'trimmed' => $diagnostics['trimmed'] ?? [],
+            'continuity_source' => $diagnostics['continuity_source'] ?? null,
+            'topic_mode' => $diagnostics['topic_mode'] ?? null,
+            'reference_outcome' => $diagnostics['reference_outcome'] ?? null,
+            'clarification_reason' => $diagnostics['clarification_reason'] ?? null,
+            'working_context_tokens' => $diagnostics['working_context_tokens'] ?? null,
         ];
     }
 

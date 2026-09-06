@@ -2534,6 +2534,16 @@
 
 ---
 
+## ADR-261 — Phase C.1 conversation intelligence on the existing engine
+
+**Контекст.** Long chats needed topic continuity, pronouns, incomplete STT phrases, and safer tool targeting without a second Voice AI, a second memory engine, or a new message schema.
+
+**Решение.** Derive a bounded `WorkingContext` each turn from the recent tail, summary, topics, and compact `tool_execution_logs` ids. One personality presentation for Web/Voice/Telegram. Clarify mutation ambiguity; do not clarify obvious dates. Trusted recent tool ids may bind a pronoun; guessed ids are rejected. Temporary style stays conversation-scoped. Frontend generation tokens suppress stale assistant JSON; the server turn is not cancelled. Failure of this layer falls back to the previous Conversation Engine context path. No migration.
+
+**Следствие.** C.1 IMPLEMENTED / NOT VALIDATED. C.2 (streaming, VAD, server cancellation) remains PLANNED. [HUMAN_LIKE_ASSISTANT.md](HUMAN_LIKE_ASSISTANT.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md).
+
+---
+
 - Алфавит generated access_code (кроме зарезервированного 2000).
 - 403 vs redirect когда user открывает admin URL.
 - Auth схема future Mobile (token flavour) — only if Mobile is built; Desktop auth cancelled.

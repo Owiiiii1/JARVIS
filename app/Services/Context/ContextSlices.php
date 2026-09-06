@@ -23,5 +23,7 @@ final class ContextSlices
         public array $recentMessages,
         public bool $lastIsCurrentTurn,
         public ?string $projectsBlock = null,
+        public ?string $workingContext = null,
+        public ?string $conversationalPolicy = null,
     ) {}
 }

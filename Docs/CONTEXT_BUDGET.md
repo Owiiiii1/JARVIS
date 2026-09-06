@@ -44,13 +44,15 @@ Input budget = model max context − reserved output − safety margin.
 1. Platform / system instructions (never dropped)
 2. Current user turn (never dropped; storage excerpt on that turn may shrink)
 3. Tool / confirmation-critical application events
-4. User General Prompt
-5. Recent current conversation (token-bounded, newest backwards, complete message boundaries)
-6. Current conversation summary
-7. Relevant personal memories
-8. Cross-chat summaries of the same user
-9. Projects / attachments (projects are still tool-retrieved, not auto-injected)
-10. Optional tool context already in the loop
+4. Conversational policy (clipped; dropped only after identity if the request still overflows)
+5. User General Prompt
+6. Recent current conversation (token-bounded, newest backwards, complete message boundaries)
+7. Working context (topic / entities / trusted recent tool refs; conversation-scoped)
+8. Current conversation summary
+9. Relevant personal memories
+10. Cross-chat summaries of the same user
+11. Projects / attachments (projects are still tool-retrieved, not auto-injected)
+12. Optional tool context already in the loop
 
 Never truncate away system or the current user turn just to keep old memories.
 
@@ -61,6 +63,9 @@ Never truncate away system or the current user turn just to keep old memories.
 | Source | How it enters one request |
 | --- | --- |
 | Recent current chat | Raw window, token-bounded, newest first. Message-count cap is only a query bound. |
+| Working context | Derived compact block: topic mode, current/previous topic, recent entities, trusted recent tool ids/titles. Token slice `working_context`. Not raw history. |
+| Conversational policy | Bounded C.1 rules (clarification, pronouns, initiative, STT tolerance). Slice `conversational_policy`. |
+| Personality / identity | Single `PersonalityPresentationBuilder` over the assistant profile (+ optional Voice spoken hint). Slice `assistant_identity`. |
 | Older current chat | `conversation_summaries` (incremental, coverage `from_message_id` / `to_message_id`) |
 | Other chats | Summaries first. Raw only via `search_conversation_history`. |
 | Personal memory | Retriever candidates, then budget cap |
@@ -103,6 +108,7 @@ Log channel `context budget` per AI request:
 - trimmed counts
 - utilization percent
 - overflow_prevented
+- continuity_source, topic_mode, reference_outcome, clarification_reason, working_context_tokens (C.1; no prompt text)
 
 No actual texts. Compact copy on assistant `metadata.ai.context`. Admin AI settings remain credential/config UI; no new admin subsystem.
 

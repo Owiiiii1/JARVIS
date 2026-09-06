@@ -304,6 +304,8 @@ export default function PersonalWorkspace() {
     const composerRef = useRef(null);
     const shouldStickToBottom = useRef(true);
     const pendingFilesRef = useRef([]);
+    const turnGenerationRef = useRef(0);
+    const abortRef = useRef(null);
 
     const openSettings = (nextSection = 'profile') => {
         const allowed = allowedSettingsSection(nextSection) || 'profile';
@@ -737,9 +739,14 @@ export default function PersonalWorkspace() {
         const text = body.trim();
         const files = pendingFiles.map((item) => item.file);
 
-        if (sending || (!text && files.length === 0)) {
+        if (!text && files.length === 0) {
             return;
         }
+
+        abortRef.current?.abort();
+        const controller = new AbortController();
+        abortRef.current = controller;
+        const generation = ++turnGenerationRef.current;
 
         const clientMessageId = newClientId();
         const optimistic = {
@@ -799,9 +806,14 @@ export default function PersonalWorkspace() {
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 body: form,
+                signal: controller.signal,
             });
 
             const payload = await response.json().catch(() => ({}));
+
+            if (generation !== turnGenerationRef.current) {
+                return;
+            }
 
             if (!response.ok) {
                 throw new Error(firstError(payload));
@@ -815,6 +827,9 @@ export default function PersonalWorkspace() {
             setPendingFiles([]);
             applyTurnPayload(payload, optimistic.id, clientMessageId);
         } catch (caught) {
+            if (caught?.name === 'AbortError' || generation !== turnGenerationRef.current) {
+                return;
+            }
             setError(caught.message || 'Не удалось получить ответ от Jarvis. Попробуйте ещё раз позже.');
             setMessages((current) => [
                 ...current.filter((item) => item.id !== optimistic.id),
@@ -830,7 +845,9 @@ export default function PersonalWorkspace() {
             ]);
             setDraft(text);
         } finally {
-            setSending(false);
+            if (generation === turnGenerationRef.current) {
+                setSending(false);
+            }
         }
     };
 
@@ -1553,7 +1570,6 @@ export default function PersonalWorkspace() {
                                         value={draft}
                                         rows={1}
                                         placeholder="Сообщение, файл или Ctrl+V для скрина"
-                                        disabled={sending}
                                         onChange={(event) => setDraft(event.target.value)}
                                         onPaste={handleClipboardPaste}
                                         onKeyDown={(event) => {
@@ -1566,7 +1582,7 @@ export default function PersonalWorkspace() {
                                     />
                                     <button
                                         type="submit"
-                                        disabled={sending || (!draft.trim() && pendingFiles.length === 0)}
+                                        disabled={!draft.trim() && pendingFiles.length === 0}
                                         className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-500 text-white hover:bg-sky-400 disabled:opacity-50"
                                         aria-label="Send"
                                     >

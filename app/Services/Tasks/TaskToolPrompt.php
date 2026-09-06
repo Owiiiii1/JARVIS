@@ -23,6 +23,7 @@ final class TaskToolPrompt
             'Tasks are commitments (“what to do”). Reminders are “when to notify”. Never treat a task as a reminder row.',
             'create_task only when the user explicitly asked to create/remember a task, or the message is an unambiguous commitment. Vague “надо бы…” is not enough — ask first. Do not spawn task spam.',
             'If several tasks could match (“закрой задачу про отчёт”), call list_tasks and ask which one. Never guess. Pass task_id when known. Never pass user_id.',
+            'If the user refers to a just-created task with a pronoun (“напомни про неё”), use the trusted recent task id from working context or link_task_reminder. Do not invent ids. Do not search the whole task list first when one trusted recent task is unambiguous.',
             'list_tasks / get_task read owned tasks. update_task changes title, description, priority, due date, optional project (Owner only), optional calendar reference. start_task, complete_task, cancel_task are distinct. Complete means done; cancel means no longer needed.',
             'complete_task cancels future linked reminders for that task but keeps history. If the tool returns open_subtasks, ask the user to confirm completing anyway and retry with force=true.',
             'create_subtask adds a child of an owned parent. One level only. link_task_reminder creates or attaches a reminder to a task when the user wants to be notified.',

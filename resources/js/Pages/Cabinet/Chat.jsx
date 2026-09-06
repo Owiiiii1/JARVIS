@@ -40,6 +40,8 @@ export default function CabinetChat() {
     const [titleDraft, setTitleDraft] = useState(conversation?.title ?? '');
     const scrollerRef = useRef(null);
     const shouldStickToBottom = useRef(true);
+    const turnGenerationRef = useRef(0);
+    const abortRef = useRef(null);
 
     useEffect(() => {
         setMessages(initialMessages);
@@ -79,9 +81,14 @@ export default function CabinetChat() {
     const sendBody = async (body) => {
         const text = body.trim();
 
-        if (!text || sending) {
+        if (!text) {
             return;
         }
+
+        abortRef.current?.abort();
+        const controller = new AbortController();
+        abortRef.current = controller;
+        const generation = ++turnGenerationRef.current;
 
         const clientMessageId = newClientId();
         const optimistic = {
@@ -114,9 +121,14 @@ export default function CabinetChat() {
                     body: text,
                     client_message_id: clientMessageId,
                 }),
+                signal: controller.signal,
             });
 
             const payload = await response.json();
+
+            if (generation !== turnGenerationRef.current) {
+                return;
+            }
 
             if (!response.ok) {
                 throw new Error(payload.message || 'Не удалось отправить сообщение.');
@@ -152,11 +164,16 @@ export default function CabinetChat() {
                 setError(payload.error);
             }
         } catch (caught) {
+            if (caught?.name === 'AbortError' || generation !== turnGenerationRef.current) {
+                return;
+            }
             setError(caught.message || 'Не удалось получить ответ от AI. Попробуйте ещё раз позже.');
             setMessages((current) => current.filter((item) => item.id !== optimistic.id));
             setDraft(text);
         } finally {
-            setSending(false);
+            if (generation === turnGenerationRef.current) {
+                setSending(false);
+            }
         }
     };
 

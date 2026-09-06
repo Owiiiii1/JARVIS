@@ -8,6 +8,7 @@ use App\Models\Reminder;
 use App\Services\Ai\DTO\ToolCall;
 use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\DTO\ToolResult;
+use App\Services\ConversationIntelligence\ReferenceResolver;
 use App\Services\Reminders\ReminderException;
 use App\Services\Reminders\ReminderRecurrenceCalculator;
 use App\Services\Reminders\ReminderService;
@@ -19,6 +20,7 @@ final class CreateReminderTool implements JarvisTool
 
     public function __construct(
         private readonly ReminderService $reminders,
+        private readonly ReferenceResolver $references = new ReferenceResolver,
     ) {}
 
     public function name(): string
@@ -37,6 +39,10 @@ final class CreateReminderTool implements JarvisTool
                     'text' => [
                         'type' => 'STRING',
                         'description' => 'What to remind the user about, without the time phrase.',
+                    ],
+                    'task_id' => [
+                        'type' => 'INTEGER',
+                        'description' => 'Optional owned task id to link. Use a trusted recent task when the user refers to it with a pronoun.',
                     ],
                     'run_at_local' => [
                         'type' => 'STRING',
@@ -119,6 +125,17 @@ final class CreateReminderTool implements JarvisTool
         }
 
         try {
+            $explicitTaskId = isset($call->arguments['task_id']) ? (int) $call->arguments['task_id'] : 0;
+            $inbound = mb_strtolower(trim((string) ($context->inbound?->body ?? '')));
+
+            if ($explicitTaskId > 0 && $inbound !== '' && $this->references->hasDeictic($inbound) && $context->working !== null && ! $context->working->trustsTaskId($explicitTaskId)) {
+                return ToolResult::failure($call->id, $this->name(), [
+                    'success' => false,
+                    'error' => 'ambiguous',
+                    'message' => 'Do not invent a task id. Use a trusted recent task.',
+                ]);
+            }
+
             $runAtUtc = $this->reminders->localWallTimeToUtc($runAtLocal, $timezone);
             $local = $runAtUtc->setTimezone($timezone);
 
@@ -130,6 +147,7 @@ final class CreateReminderTool implements JarvisTool
                 conversation: $context->conversation,
                 sourceMessage: $context->inbound,
                 recurrence: $recurrence !== '' ? $recurrence : null,
+                taskId: $this->linkedTaskId($call, $context),
             );
 
             return ToolResult::success($call->id, $this->name(), $this->successPayload(
@@ -168,6 +186,7 @@ final class CreateReminderTool implements JarvisTool
             'web_push_available' => $webPushAvailable,
             'delivery' => $this->deliveryLabel($telegramLinked, $webPushAvailable),
             'existing' => $existing,
+            'task_id' => $reminder->task_id !== null ? (int) $reminder->task_id : null,
         ];
     }
 
@@ -186,5 +205,28 @@ final class CreateReminderTool implements JarvisTool
         }
 
         return 'none';
+    }
+
+    private function linkedTaskId(ToolCall $call, ToolExecutionContext $context): ?int
+    {
+        $explicit = isset($call->arguments['task_id']) ? (int) $call->arguments['task_id'] : 0;
+        $inbound = mb_strtolower(trim((string) ($context->inbound?->body ?? '')));
+        $pronominal = $inbound !== '' && $this->references->hasDeictic($inbound);
+
+        if ($explicit > 0) {
+            if ($pronominal && $context->working !== null && ! $context->working->trustsTaskId($explicit)) {
+                return null;
+            }
+
+            return $explicit;
+        }
+
+        if (! $pronominal || $context->working === null || ! $context->working->allowsTrustedMutation()) {
+            return null;
+        }
+
+        $trusted = $context->working->uniqueTrustedTask();
+
+        return $trusted?->id;
     }
 }

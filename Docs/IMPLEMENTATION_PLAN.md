@@ -121,6 +121,14 @@ Detail: [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md), [Docs/Developmen
 
 Detail: [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
+### Phase C.1 — Conversation Intelligence
+
+**Status.** IMPLEMENTED / NOT VALIDATED. Do not treat as MANUAL PASS until Owner live test.
+
+**In code:** derived working context, topic continuity, reference resolver, clarification policy, trusted recent tool refs, unified personality presentation, bounded initiative, Web stale-response suppression. No new chat/memory schema. C.2 remains PLANNED.
+
+Detail: [HUMAN_LIKE_ASSISTANT.md](HUMAN_LIKE_ASSISTANT.md), [Docs/Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
 ---
 
 ## D. Deferred strategic milestones
@@ -131,7 +139,7 @@ Detail: [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 | Recurrence, snooze, done, edit | B.1 IMPLEMENTED / NOT VALIDATED |
 | Tasks domain + relations | B |
 | Daily Brief / Weekly Review | B |
-| Streaming STT/TTS, richer barge-in | C |
+| Streaming STT/TTS, richer barge-in | C.2 PLANNED |
 | Telegram Voice Replies (`sendVoice`) | MANUAL PASS |
 | Telegram Voice Input (STT) | IMPLEMENTED / NOT VALIDATED |
 | Wake word | research only, not mandatory |
