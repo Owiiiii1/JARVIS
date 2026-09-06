@@ -2,6 +2,7 @@
 
 **Start here**
 
+0. [JARVIS_USER_OVERVIEW.md](JARVIS_USER_OVERVIEW.md) — продукт простыми словами (для нового человека)
 1. [CURRENT_STATE.md](CURRENT_STATE.md) — what is actually running
 2. [ROADMAP.md](ROADMAP.md) — product direction
 3. [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) — next executable work + concise history
@@ -31,6 +32,7 @@ Do not treat old milestone write-ups as current requirements. If a doc disagrees
 
 | Topic | Doc |
 | --- | --- |
+| Product overview (non-developer) | [JARVIS_USER_OVERVIEW.md](JARVIS_USER_OVERVIEW.md) |
 | Users / workspaces | [USERS_AND_CABINET.md](USERS_AND_CABINET.md), [USER_ADMINISTRATION.md](USER_ADMINISTRATION.md) |
 | Channels / clients | [CHANNELS.md](CHANNELS.md), [CLIENTS/WEB_WORKSPACE.md](CLIENTS/WEB_WORKSPACE.md), [CLIENTS/MOBILE_APP.md](CLIENTS/MOBILE_APP.md), [CLIENTS/CLIENT_API.md](CLIENTS/CLIENT_API.md) |
 | Conversation / memory | [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md), [MEMORY_ARCHITECTURE.md](MEMORY_ARCHITECTURE.md), [CONTEXT_BUDGET.md](CONTEXT_BUDGET.md) |

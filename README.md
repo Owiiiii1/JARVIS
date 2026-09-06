@@ -1,3 +1,15 @@
+# JARVIS
+
+Personal AI assistant (Web Workspace, Telegram, voice, memory, tasks, knowledge, watchers).
+
+- Product overview (Russian, for first-time readers): [Docs/JARVIS_USER_OVERVIEW.md](Docs/JARVIS_USER_OVERVIEW.md)
+- Documentation index: [Docs/README.md](Docs/README.md)
+- Runtime snapshot: [Docs/CURRENT_STATE.md](Docs/CURRENT_STATE.md)
+
+The remainder of this file is the default Laravel framework README.
+
+---
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">
