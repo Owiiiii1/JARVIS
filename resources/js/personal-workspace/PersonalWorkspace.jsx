@@ -5,7 +5,7 @@ import RemindersPanel from '@/personal-workspace/RemindersPanel';
 import TasksPanel from '@/personal-workspace/TasksPanel';
 import NotificationsPanel from '@/personal-workspace/NotificationsPanel';
 import WorkspaceSettings from '@/personal-workspace/settings/WorkspaceSettings';
-import { allowedSettingsSection, writeSettingsQuery } from '@/personal-workspace/settings/sections';
+import { allowedSettingsSection } from '@/personal-workspace/settings/sections';
 import { primeVoiceMediaFromUserGesture } from '@/voice/audio/voiceMedia';
 import { Link, router, usePage } from '@inertiajs/react';
 import {
@@ -47,6 +47,9 @@ const USER_SUGGESTIONS = [
 ];
 
 const VoiceSession = lazy(() => import('@/Components/Jarvis/VoiceSession'));
+
+/** Survives a page-component remount: Inertia drops component state on every non-preserveState visit. */
+let lastKnownConversations = [];
 
 function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
@@ -254,6 +257,9 @@ export default function PersonalWorkspace() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [contextCollapsed, setContextCollapsed] = useState(!capabilities.ownerContext);
     const [contextDrawer, setContextDrawer] = useState(false);
+    const [conversationItems, setConversationItems] = useState(() => (
+        Array.isArray(conversations) && conversations.length > 0 ? conversations : lastKnownConversations
+    ));
     const [query, setQuery] = useState('');
     const [messages, setMessages] = useState(() => initialMessages.map((item) => withStatus(item)));
     const [hasMore, setHasMore] = useState(initialHasMore);
@@ -296,18 +302,15 @@ export default function PersonalWorkspace() {
         const allowed = allowedSettingsSection(nextSection) || 'profile';
         setSettingsSection(allowed);
         setSettingsOpen(true);
-        writeSettingsQuery(allowed);
     };
 
     const closeSettings = () => {
         setSettingsOpen(false);
-        writeSettingsQuery(null);
     };
 
     const changeSettingsSection = (nextSection) => {
         const allowed = allowedSettingsSection(nextSection) || 'profile';
         setSettingsSection(allowed);
-        writeSettingsQuery(allowed);
     };
 
     const applyProductivityCounts = (payload) => {
@@ -372,6 +375,15 @@ export default function PersonalWorkspace() {
     }, [surface]);
 
     useEffect(() => {
+        if (!Array.isArray(conversations) || conversations.length === 0) {
+            return;
+        }
+
+        lastKnownConversations = conversations;
+        setConversationItems(conversations);
+    }, [conversations]);
+
+    useEffect(() => {
         setSettingsContext(settingsContextProp);
     }, [settingsContextProp]);
 
@@ -425,6 +437,10 @@ export default function PersonalWorkspace() {
     }, []);
 
     useEffect(() => {
+        if (!conversation?.id) {
+            return;
+        }
+
         setMessages(initialMessages.map((item) => withStatus(item)));
         setHasMore(initialHasMore);
         setOldestId(initialOldestId);
@@ -447,7 +463,7 @@ export default function PersonalWorkspace() {
         } catch {
             setDraft('');
         }
-    }, [conversation?.id, initialHasMore, initialMessages, initialOldestId, conversation?.title]);
+    }, [conversation?.id]);
 
     useEffect(() => {
         setAssistantProfile(assistantProfileProp ?? {});
@@ -515,11 +531,11 @@ export default function PersonalWorkspace() {
         const needle = query.trim().toLowerCase();
 
         if (!needle) {
-            return conversations;
+            return conversationItems;
         }
 
-        return conversations.filter((item) => String(item.title ?? '').toLowerCase().includes(needle));
-    }, [conversations, query]);
+        return conversationItems.filter((item) => String(item.title ?? '').toLowerCase().includes(needle));
+    }, [conversationItems, query]);
 
     const applyTurnPayload = (payload, optimisticId, clientMessageId) => {
         setMessages((current) => {

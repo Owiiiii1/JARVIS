@@ -32,7 +32,7 @@ Sections:
 
 No empty Advanced section.
 
-Desktop: left navigation, right current section. Mobile: section list → detail (not two columns at once). Direct section via allowlisted `?settings=memory` / `?settings=integrations` (and the other section keys). Arbitrary URLs are ignored.
+Desktop: left navigation, right current section. Mobile: section list → detail (not two columns at once). Direct section via allowlisted `?settings=memory` / `?settings=integrations` on the initial page load. Opening Settings from the header does not call `history.replaceState` (that wiped Inertia page props and showed «No chats.»). Arbitrary URLs are ignored.
 
 ## Main Workspace cleanup
 

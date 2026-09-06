@@ -66,6 +66,20 @@ class WorkspaceUxCleanupTest extends TestCase
         $this->assertStringContainsString("'memory'", $sections);
         $this->assertStringContainsString("'integrations'", $sections);
         $this->assertStringContainsString('allowedSettingsSection', $workspace);
-        $this->assertStringContainsString("url.searchParams.set('settings', allowed)", $sections);
+        $this->assertStringContainsString('conversationItems', $workspace);
+        $this->assertStringNotContainsString('history.replaceState', $sections);
+        $this->assertStringNotContainsString('history.replaceState', $workspace);
+        $this->assertStringNotContainsString('writeSettingsQuery', $workspace);
+    }
+
+    public function test_sidebar_chat_list_survives_settings_open_and_remounts(): void
+    {
+        $workspace = (string) file_get_contents(base_path('resources/js/personal-workspace/PersonalWorkspace.jsx'));
+
+        $this->assertStringContainsString('let lastKnownConversations = [];', $workspace);
+        $this->assertStringContainsString('conversations.length > 0 ? conversations : lastKnownConversations', $workspace);
+        $this->assertStringContainsString('lastKnownConversations = conversations;', $workspace);
+        $this->assertStringContainsString('return conversationItems;', $workspace);
+        $this->assertStringNotContainsString('return conversations;', $workspace);
     }
 }
