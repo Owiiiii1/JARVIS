@@ -14,7 +14,9 @@
 - смена темы «заражает» ответ чужим контекстом;
 - схема не масштабируется.
 
-Personal memory retrieval is always scoped by the current `user_id`. M25U.2 does not add a new memory engine. User A never receives Owner or User B memory. Owner User Card memory diagnostics remain a separate read-only admin path (`UserMemoryController`). Workspace Settings → Memory shows counts (facts/topics, last analysis) for the current user, not raw internal tables. Impersonation uses the target user’s memory because Auth is that user.
+Personal memory retrieval is always scoped by the current `user_id`. M25U.2 does not add a new memory engine. User A never receives Owner or User B memory. Owner User Card memory diagnostics remain a separate read-only admin path (`UserMemoryController`). Workspace Settings → Memory shows counts (facts/topics, last analysis) for the current user, not raw internal tables. Workspace Settings → **Knowledge** is a separate section (entities / people / projects / recent activity). Impersonation uses the target user’s memory and knowledge because Auth is that user.
+
+**Knowledge Layer (E.1)** is not Memory. Memory stores durable remembered facts. Knowledge stores structured entities, relationships, and timeline events with provenance. Knowledge may be derived from Memory; Memory is never deleted because Knowledge exists. See [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
 
 ---
 
@@ -34,7 +36,7 @@ Derived memory — производный слой. Это позволяет:
 
 **Принцип:** raw messages никогда не удаляются автоматически из-за появления summary или extracted memory. Политика retention (юридическая, ручная очистка) — отдельное решение, `TBD`, и не смешивается с lifecycle derived-слоя.
 
-Явное удаление **личного чата из Workspace** — отдельное действие пользователя, не memory-engine lifecycle. Оно удаляет raw messages **этого** conversation. Подтверждённые/derived `memories` **не** стираются: `memory_sources` теряют conversation/message/summary ссылки, факт остаётся. Нет продукта «forget» в этом изменении. Conversation summaries и analysis runs этого чата удаляются как child data.
+Явное удаление **личного чата из Workspace** — отдельное действие пользователя, не memory-engine lifecycle. Оно удаляет raw messages **этого** conversation. Подтверждённые/derived `memories` **не** стираются: `memory_sources` теряют conversation/message/summary ссылки, факт остаётся. Knowledge provenance for that chat is detached the same way (`knowledge_entity_sources.conversation_id` / `message_id` nulled). Entities remain if other sources exist; purely auto-derived orphans are marked `orphan_candidate`, not hard-deleted. Нет продукта «forget» в этом изменении. Conversation summaries и analysis runs этого чата удаляются как child data.
 
 Отдельный слой, не personal memory:
 
@@ -97,8 +99,9 @@ New Chat обнуляет raw/working **этого** чата. Structured memory
 - **memories** — факты с **owner/scope** (`personal` + `user_id`; conceptual `group_knowledge` / `global/system` later). **M14 group facts are NOT this table** — they live in `telegram_group_knowledge`.
 - **telegram_group_knowledge** / **telegram_group_knowledge_sources** / **telegram_group_knowledge_revisions** / **telegram_group_analysis_runs** — M14 Group Analysis. Owner = `telegram_group_id`. Never written by personal memory jobs.
 - **memory_topics** — привязка фактов к темам.
-- **entities** — люди, проекты, места, вещи (`TBD` глубина в Phase 2 vs later).
-- **entity_relations** — связи («проект X принадлежит клиенту Y»), без обязательного graph DB.
+- **entities** — Phase E.1 `knowledge_entities` (person / project index / organization / …). Semantic index, not Memory.
+- **entity_relations** — Phase E.1 `knowledge_relationships` (controlled types; deactivate rather than delete).
+- **knowledge_events** / **knowledge_entity_sources** — timeline + provenance. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
 - **summaries** — сжатия диапазонов messages или topics.
 - **user_profile** — стабильный профиль на каждого user.
 - **memory_revisions** — история изменений факта (было → стало, причина, source messages).

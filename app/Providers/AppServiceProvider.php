@@ -89,6 +89,14 @@ use App\Services\Tools\Google\SearchCalendarEventsTool;
 use App\Services\Tools\Google\SearchGmailTool;
 use App\Services\Tools\Google\SendGmailMessageTool;
 use App\Services\Tools\Google\UpdateCalendarEventTool;
+use App\Services\Tools\Knowledge\AddKnowledgeNoteTool;
+use App\Services\Tools\Knowledge\GetEntityRelationshipsTool;
+use App\Services\Tools\Knowledge\GetEntityTimelineTool;
+use App\Services\Tools\Knowledge\GetEntityTool;
+use App\Services\Tools\Knowledge\LinkEntitiesTool;
+use App\Services\Tools\Knowledge\ListRelatedEntitiesTool;
+use App\Services\Tools\Knowledge\RememberEntityTool;
+use App\Services\Tools\Knowledge\SearchKnowledgeTool;
 use App\Services\Tools\LinkTaskReminderTool;
 use App\Services\Tools\ListRemindersTool;
 use App\Services\Tools\ListTasksTool;
@@ -249,6 +257,14 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(GetTelegramResponseModeTool::class),
                 $app->make(SetTelegramResponseModeTool::class),
                 $app->make(SearchConversationHistoryTool::class),
+                $app->make(SearchKnowledgeTool::class),
+                $app->make(GetEntityTool::class),
+                $app->make(GetEntityTimelineTool::class),
+                $app->make(GetEntityRelationshipsTool::class),
+                $app->make(ListRelatedEntitiesTool::class),
+                $app->make(RememberEntityTool::class),
+                $app->make(LinkEntitiesTool::class),
+                $app->make(AddKnowledgeNoteTool::class),
                 $app->make(GetProjectContextTool::class),
                 $app->make(SearchGroupKnowledgeTool::class),
                 $app->make(ListGoogleCalendarsTool::class),

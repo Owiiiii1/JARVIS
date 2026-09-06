@@ -10,6 +10,7 @@ use App\Models\Project;
 use App\Models\Reminder;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\Knowledge\KnowledgeDeterministicIngestor;
 use App\Services\Reminders\ReminderLifecycle;
 use App\Services\Users\UserCapability;
 use Carbon\CarbonImmutable;
@@ -20,6 +21,10 @@ use Illuminate\Support\Str;
 
 final class TaskService
 {
+    public function __construct(
+        private readonly KnowledgeDeterministicIngestor $knowledge = new KnowledgeDeterministicIngestor,
+    ) {}
+
     public function create(
         User $user,
         string $title,
@@ -71,6 +76,8 @@ final class TaskService
             'calendar_event_id' => $calendarEventId,
             'metadata' => [],
         ]);
+
+        $this->knowledge->taskCreated($task);
 
         return $task;
     }
@@ -166,7 +173,10 @@ final class TaskService
 
         $task->save();
 
-        return $task->fresh(['reminders', 'subtasks', 'project', 'sourceConversation']) ?? $task;
+        $fresh = $task->fresh(['reminders', 'subtasks', 'project', 'sourceConversation']) ?? $task;
+        $this->knowledge->taskCompleted($fresh);
+
+        return $fresh;
     }
 
     public function cancelOwned(User $user, int $taskId): Task

@@ -8,6 +8,8 @@ final class UserCapability
 
     public const MEMORY = 'memory';
 
+    public const KNOWLEDGE = 'knowledge';
+
     public const TELEGRAM_DM = 'telegram_dm';
 
     public const REMINDERS = 'reminders';
@@ -58,6 +60,7 @@ final class UserCapability
         return [
             self::CHAT,
             self::MEMORY,
+            self::KNOWLEDGE,
             self::TELEGRAM_DM,
             self::REMINDERS,
             self::TASKS,

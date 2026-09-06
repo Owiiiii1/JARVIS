@@ -2554,6 +2554,16 @@
 
 ---
 
+## ADR-263 — Personal Knowledge Layer is an index, not a second Memory Engine
+
+**Контекст.** Jarvis already had Memory, Projects, Tasks, conversation history, and integrations. Phase E needed people/project intelligence and a timeline without a graph database, without replacing Memory, and without autonomous watchers.
+
+**Решение.** Additive relational tables (`knowledge_entities`, aliases, relationships, events, sources, analysis runs). `user_id` is the graph. Projects remain canonical; knowledge may reference `project_id`. Deterministic ingest from Core actions; Analysis AI only for bounded unstructured text. C.1 may retrieve a tiny `knowledge_context` slice. Chat delete detaches provenance and keeps durable knowledge when other sources remain. No Neo4j, no mass backfill, no watchers in E.1.
+
+**Следствие.** E.1 IMPLEMENTED / NOT VALIDATED. E.2 watchers are next. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
+
+---
+
 - Алфавит generated access_code (кроме зарезервированного 2000).
 - 403 vs redirect когда user открывает admin URL.
 - Auth схема future Mobile (token flavour) — only if Mobile is built; Desktop auth cancelled.

@@ -2,6 +2,7 @@ export const SETTINGS_SECTIONS = [
     'profile',
     'assistant',
     'memory',
+    'knowledge',
     'productivity',
     'voice',
     'integrations',

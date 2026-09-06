@@ -3,9 +3,11 @@
 namespace App\Services\Reliability;
 
 use App\Enums\AttachmentSummaryStatus;
+use App\Enums\KnowledgeAnalysisRunStatus;
 use App\Enums\MemoryAnalysisRunStatus;
 use App\Enums\StoredFileStatus;
 use App\Enums\TelegramGroupAnalysisRunStatus;
+use App\Models\KnowledgeAnalysisRun;
 use App\Models\MemoryAnalysisRun;
 use App\Models\MessageAttachment;
 use App\Models\StoredFile;
@@ -23,6 +25,19 @@ final class AsyncDomainFailureWriter
 
         $run->forceFill([
             'status' => MemoryAnalysisRunStatus::Failed,
+            'last_error' => $failure->lastError(),
+            'metadata' => $this->mergeMetadata($run->metadata, $failure),
+        ])->save();
+    }
+
+    public function failKnowledgeRun(KnowledgeAnalysisRun $run, AsyncFailure $failure): void
+    {
+        if ($run->status === KnowledgeAnalysisRunStatus::Completed) {
+            return;
+        }
+
+        $run->forceFill([
+            'status' => KnowledgeAnalysisRunStatus::Failed,
             'last_error' => $failure->lastError(),
             'metadata' => $this->mergeMetadata($run->metadata, $failure),
         ])->save();

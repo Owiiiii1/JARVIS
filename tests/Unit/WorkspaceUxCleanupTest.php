@@ -47,6 +47,7 @@ class WorkspaceUxCleanupTest extends TestCase
         $this->assertStringNotContainsString('<Plug', $workspace);
         $this->assertStringNotContainsString('Integrations', $workspace);
         $this->assertStringContainsString("id: 'memory'", $settings);
+        $this->assertStringContainsString("id: 'knowledge'", $settings);
         $this->assertStringContainsString("id: 'integrations'", $settings);
         $this->assertStringContainsString('Память', $memory);
         $this->assertStringContainsString('capabilities.integrations ? integrations : []', $integrations);
@@ -64,6 +65,7 @@ class WorkspaceUxCleanupTest extends TestCase
         $workspace = (string) file_get_contents(base_path('resources/js/personal-workspace/PersonalWorkspace.jsx'));
 
         $this->assertStringContainsString("'memory'", $sections);
+        $this->assertStringContainsString("'knowledge'", $sections);
         $this->assertStringContainsString("'integrations'", $sections);
         $this->assertStringContainsString('allowedSettingsSection', $workspace);
         $this->assertStringContainsString('conversationItems', $workspace);

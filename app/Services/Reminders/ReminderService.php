@@ -9,6 +9,7 @@ use App\Models\Message;
 use App\Models\Reminder;
 use App\Models\ReminderOccurrence;
 use App\Models\User;
+use App\Services\Knowledge\KnowledgeDeterministicIngestor;
 use App\Services\Users\UserCapability;
 use Carbon\CarbonImmutable;
 use DateTimeZone;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Log;
 final class ReminderService
 {
     public function __construct(
+        private readonly KnowledgeDeterministicIngestor $knowledge = new KnowledgeDeterministicIngestor,
         private readonly ReminderRecurrenceCalculator $recurrence = new ReminderRecurrenceCalculator,
         private readonly PushSubscriptionService $pushSubscriptions = new PushSubscriptionService,
     ) {}
@@ -63,6 +65,8 @@ final class ReminderService
             ]);
         } catch (\Throwable) {
         }
+
+        $this->knowledge->reminderCreated($reminder);
 
         return $reminder;
     }

@@ -1,6 +1,6 @@
 # Jarvis — current implementation snapshot
 
-**Date:** 2026-09-06 (Core Reliability Cleanup)
+**Date:** 2026-09-06 (Phase E.1 Knowledge Layer)
 **Host path:** `/var/www/jarvis`  
 **Public URL:** https://jarvis.owlsolutions.net  
 **GitHub:** https://github.com/Owiiiii1/JARVIS.git
@@ -65,7 +65,7 @@ The former hands-free «Диалог» VAD capture was removed from Рация. 
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | `main`, aligned with `origin/main` after Core Reliability Cleanup |
+| HEAD | `main`, aligned with `origin/main` after Phase E.1 Knowledge Layer |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 
 Production checkout is the GitHub source of truth. Gemini STT request-shape and bounded ElevenLabs voice fallback are committed. Laravel Boost is require-dev tooling in a separate commit. `.env` stays gitignored.
@@ -112,7 +112,7 @@ Engine: MySQL. CRM tables were dropped (M0). App migrations listed as Ran.
 
 ### Tables (product)
 
-Includes identity/conversation/memory/integration/voice tables plus `reminders`, `reminder_deliveries`, `reminder_occurrences`, `push_subscriptions`, `tasks`, `jarvis_notifications`, `user_productivity_settings`.
+Includes identity/conversation/memory/integration/voice tables plus `reminders`, `reminder_deliveries`, `reminder_occurrences`, `push_subscriptions`, `tasks`, `jarvis_notifications`, `user_productivity_settings`, and E.1 `knowledge_entities`, `knowledge_entity_aliases`, `knowledge_relationships`, `knowledge_events`, `knowledge_event_entities`, `knowledge_entity_sources`, `knowledge_analysis_runs`.
 
 See [DATABASE.md](DATABASE.md).
 
@@ -139,17 +139,19 @@ Frontend: `resources/js/personal-workspace/PersonalWorkspace.jsx` shared, with S
 
 Main Workspace is chat + Task / Reminder / Notification centers + Voice + compact **Настройки**. Memory and Integrations are **not** on the main screen; they live in Settings.
 
-Workspace conversation delete is implemented for Owner and ordinary users. Sidebar overflow menu → confirmation dialog → `DELETE /jarvis/chats/{conversation}` or `DELETE /chat/chats/{conversation}`. Own personal conversations only (`ensureOwned`; Owner is not a bypass for someone else’s chat). Group conversations are 404. Hard delete of the chat and child messages/ephemeral screenshots; tasks, reminders, projects, persistent Storage files, and durable memories survive with sources detached. Deleting the open chat switches to the latest remaining personal chat, or creates `Основной` if none remain. No full page reload.
+Workspace conversation delete is implemented for Owner and ordinary users. Sidebar overflow menu → confirmation dialog → `DELETE /jarvis/chats/{conversation}` or `DELETE /chat/chats/{conversation}`. Own personal conversations only (`ensureOwned`; Owner is not a bypass for someone else’s chat). Group conversations are 404. Hard delete of the chat and child messages/ephemeral screenshots; tasks, reminders, projects, persistent Storage files, durable memories, and Knowledge entities survive with sources detached. Deleting the open chat switches to the latest remaining personal chat, or creates `Основной` if none remain. No full page reload.
 
 Phase C.1 Conversation Intelligence is **IMPLEMENTED / NOT VALIDATED**. Same Conversation Engine. Derived working context (topic mode, recent entities, trusted recent tool refs, temporary style) plus clarification/initiative policy. Mutation tools do not guess ids. Web composer can send a new message while a previous turn is thinking; stale JSON is ignored. Server generation is not cancelled.
 
 Phase C.2 Beta (ElevenLabs realtime Web voice) is **IMPLEMENTED / NOT VALIDATED**. Parallel to Рация. Telegram Voice unchanged. Legacy removal NOT NOW.
 
-Workspace Settings sections: Profile, Assistant, Memory, Productivity, Voice, Integrations. Desktop: nav + detail. Mobile: list → detail. Direct section: `?settings=memory` / `?settings=integrations` on first load (allowlist only). Opening Settings from the UI does not rewrite `history.state`, so the chat list stays intact.
+Phase E.1 Knowledge Layer is **IMPLEMENTED / NOT VALIDATED**. Relational entities/relations/events with provenance. Settings → Knowledge. Bounded conversation slice. No watchers. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
+
+Workspace Settings sections: Profile, Assistant, Memory, Knowledge, Productivity, Voice, Integrations. Desktop: nav + detail. Mobile: list → detail. Direct section: `?settings=memory` / `?settings=knowledge` / `?settings=integrations` on first load (allowlist only). Opening Settings from the UI does not rewrite `history.state`, so the chat list stays intact.
 
 After a successful foreground chat turn, badges and open panels refresh via `GET /jarvis/workspace/status` and `GET /chat/workspace/status` plus turn-payload counts. No page reload, no polling, no WebSocket. Scheduler events still appear on next open / Push / navigation.
 
-Regular user capabilities: chat, memory, telegram_dm, reminders, tasks, notifications, cabinet, personal_workspace, profile, web_research, voice, storage. **Not** projects, admin, Google, GitHub. User Settings → Integrations shows Telegram pairing only.
+Regular user capabilities: chat, memory, knowledge, telegram_dm, reminders, tasks, notifications, cabinet, personal_workspace, profile, web_research, voice, storage. **Not** projects, admin, Google, GitHub. User Settings → Integrations shows Telegram pairing only.
 
 ---
 
@@ -191,7 +193,7 @@ Code: Google OAuth (Gmail + Calendar tools; **no Drive**), GitHub OAuth + tools,
 - Desktop / Tauri / tray / hotkey
 - Mobile app
 - Public registration
-- Knowledge Graph
+- Knowledge Graph / watchers (E.1 Knowledge Layer is shipped as an index; E.2 watchers are not)
 - Wake word
 - Real-time WebSocket/SSE for scheduler events
 - Telegram Voice Input live Owner checklist (code shipped)

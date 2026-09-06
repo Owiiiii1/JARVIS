@@ -30,6 +30,7 @@ final class ContextBudgetManager
             'projects' => 0,
             'working_context' => 0,
             'conversational_policy' => 0,
+            'knowledge_context' => 0,
             'current_turn' => 0,
         ];
 
@@ -44,6 +45,7 @@ final class ContextBudgetManager
         $cross = $this->clipLines($slices->crossChatLines, (int) config('context_budget.cross_chat_summaries', 800), $trimmed, 'cross_chat');
         $projects = $this->clipNullable($slices->projectsBlock, (int) config('context_budget.projects', 400), $trimmed, 'projects');
         $working = $this->clipNullable($slices->workingContext, (int) config('context_budget.working_context', 500), $trimmed, 'working_context');
+        $knowledge = $this->clipNullable($slices->knowledgeBlock, (int) config('context_budget.knowledge_context', 500), $trimmed, 'knowledge_context');
         $messages = $this->boundRecent($slices->recentMessages, $slices->lastIsCurrentTurn, (int) config('context_budget.recent_messages', 6000), $trimmed);
 
         $overflow = false;
@@ -60,12 +62,19 @@ final class ContextBudgetManager
             $cross,
             $projects,
             $working,
+            $knowledge,
         ), $messages) > $inputBudget) {
             $overflow = true;
 
             if ($cross !== []) {
                 array_pop($cross);
                 $trimmed['cross_chat']++;
+
+                continue;
+            }
+            if ($knowledge !== null) {
+                $knowledge = null;
+                $trimmed['knowledge_context']++;
 
                 continue;
             }
@@ -145,7 +154,7 @@ final class ContextBudgetManager
             break;
         }
 
-        $system = $this->systemFrom($platform, $identity, $conversationalPolicy, $general, $event, $summary, $profile, $memories, $cross, $projects, $working);
+        $system = $this->systemFrom($platform, $identity, $conversationalPolicy, $general, $event, $summary, $profile, $memories, $cross, $projects, $working, $knowledge);
         $estimated = $this->estimateRequest($platform, $system, $messages);
 
         if ($estimated > $inputBudget && $messages !== []) {
@@ -174,6 +183,7 @@ final class ContextBudgetManager
             $identity,
             $working,
             $conversationalPolicy,
+            $knowledge,
         );
 
         return [
@@ -284,6 +294,7 @@ final class ContextBudgetManager
         ?string $identity,
         ?string $working = null,
         ?string $conversationalPolicy = null,
+        ?string $knowledge = null,
     ): array {
         $inputBudget = $policy['input_budget'];
 
@@ -304,6 +315,7 @@ final class ContextBudgetManager
                 'cross_chat' => ['count' => count($cross), 'tokens' => $this->estimator->estimateText(implode("\n", $cross))],
                 'projects' => ['count' => $projects === null ? 0 : 1, 'tokens' => $this->estimator->estimateText((string) $projects)],
                 'working_context' => ['count' => $working === null ? 0 : 1, 'tokens' => $this->estimator->estimateText((string) $working)],
+                'knowledge_context' => ['count' => $knowledge === null ? 0 : 1, 'tokens' => $this->estimator->estimateText((string) $knowledge)],
                 'conversational_policy' => ['count' => $conversationalPolicy === null ? 0 : 1, 'tokens' => $this->estimator->estimateText((string) $conversationalPolicy)],
                 'general_prompt' => ['count' => $general === null ? 0 : 1, 'tokens' => $this->estimator->estimateText((string) $general)],
                 'assistant_identity' => ['count' => $identity === null ? 0 : 1, 'tokens' => $this->estimator->estimateText((string) $identity)],
@@ -330,6 +342,7 @@ final class ContextBudgetManager
         array $cross,
         ?string $projects,
         ?string $working = null,
+        ?string $knowledge = null,
     ): string {
         $sections = [trim($platform)];
 
@@ -367,6 +380,10 @@ final class ContextBudgetManager
 
         if ($projects !== null && $projects !== '') {
             $sections[] = $projects;
+        }
+
+        if ($knowledge !== null && $knowledge !== '') {
+            $sections[] = $knowledge;
         }
 
         if ($event !== null && trim($event) !== '') {
@@ -531,7 +548,7 @@ final class ContextBudgetManager
      */
     private function compactToolPayload(array $payload): array
     {
-        $keep = ['success', 'error', 'truncated', 'retryable', 'id', 'file_id', 'confirmation_id', 'count', 'query', 'url', 'requested_url', 'final_url', 'title', 'domain', 'published_at', 'fetched_at', 'char_count', 'provider', 'task_id', 'reminder_id', 'project_id'];
+        $keep = ['success', 'error', 'truncated', 'retryable', 'id', 'file_id', 'confirmation_id', 'count', 'query', 'url', 'requested_url', 'final_url', 'title', 'domain', 'published_at', 'fetched_at', 'char_count', 'provider', 'task_id', 'reminder_id', 'project_id', 'entity_id'];
         $compact = [];
 
         foreach ($keep as $key) {

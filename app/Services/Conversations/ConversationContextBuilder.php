@@ -19,6 +19,8 @@ use App\Services\ConversationIntelligence\ConversationalPolicyPrompt;
 use App\Services\ConversationIntelligence\PersonalityPresentationBuilder;
 use App\Services\ConversationIntelligence\WorkingContext;
 use App\Services\ConversationIntelligence\WorkingContextBuilder;
+use App\Services\Knowledge\KnowledgeRetriever;
+use App\Services\Knowledge\KnowledgeToolPrompt;
 use App\Services\Memory\DTO\MemoryContextPackage;
 use App\Services\Memory\PersonalMemoryRetriever;
 use App\Services\Productivity\ProductivitySnapshot;
@@ -59,6 +61,7 @@ final class ConversationContextBuilder
         private readonly AssistantProfileService $assistantProfiles,
         private readonly WorkingContextBuilder $workingContexts,
         private readonly PersonalityPresentationBuilder $personality,
+        private readonly KnowledgeRetriever $knowledge,
         private readonly ?ProductivitySnapshot $productivity = null,
     ) {}
 
@@ -137,6 +140,14 @@ final class ConversationContextBuilder
         $spokenHint = $this->spokenHintFromEvent($applicationEvent);
         $identity = $this->personalityIdentity($user, $working, $spokenHint);
 
+        $knowledgeBlock = null;
+
+        try {
+            $knowledgeBlock = $this->knowledge->contextBlock($user, $working, $currentInbound?->body);
+        } catch (Throwable) {
+            $knowledgeBlock = null;
+        }
+
         $assembled = $this->budgets->assemble($configuration, new ContextSlices(
             platformPrompt: trim(implode("\n\n", array_filter($platform))),
             assistantIdentity: $identity,
@@ -150,6 +161,7 @@ final class ConversationContextBuilder
             lastIsCurrentTurn: $lastIsCurrent,
             workingContext: $working->promptBlock(),
             conversationalPolicy: implode("\n", ConversationalPolicyPrompt::lines()),
+            knowledgeBlock: $knowledgeBlock,
         ));
 
         $workingTokens = (int) (($assembled['diagnostics']['sources']['working_context']['tokens'] ?? 0));
@@ -257,6 +269,10 @@ final class ConversationContextBuilder
             $lines[] = 'search_conversation_history looks up snippets from this user’s own past chats. Use it when the user asks about a previous conversation, decision, or detail that is not already in context.';
             $lines[] = 'Do not assume raw messages from other chats are already available. Other chats may appear only as short summaries.';
             $lines[] = 'Never pass user_id. Never search another user’s history.';
+        }
+
+        if (array_intersect(KnowledgeToolPrompt::toolNames(), $names) !== []) {
+            $lines = array_merge($lines, KnowledgeToolPrompt::lines());
         }
 
         if (in_array(GetProjectContextTool::NAME, $names, true)) {

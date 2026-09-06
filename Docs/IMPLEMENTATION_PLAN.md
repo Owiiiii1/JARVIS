@@ -50,6 +50,7 @@ Do not start a listed “completed” milestone again. Do not treat Desktop as u
 | Phase C.1 | Conversation Intelligence | IMPLEMENTED / validation deferred |
 | Phase C.2 Beta | ElevenLabs realtime Web voice; Рация kept | IMPLEMENTED / validation deferred |
 | Core Reliability | Async jobs, classification, retry/recover commands | IMPLEMENTED; historical failures CLASSIFIED |
+| Phase E.1 | Knowledge Layer (entities, relations, timeline, provenance, bounded context, tools, Settings UI) | IMPLEMENTED / NOT VALIDATED |
 
 Historical detailed “implement this” write-ups for M0–M24 are obsolete as instructions. Git history remains the archive.
 
@@ -142,6 +143,22 @@ Detail: [HUMAN_LIKE_ASSISTANT.md](HUMAN_LIKE_ASSISTANT.md).
 
 Detail: [Docs/Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md), [DEFERRED_VALIDATION.md](DEFERRED_VALIDATION.md).
 
+### Phase E.1 — Knowledge Layer
+
+**Status.** IMPLEMENTED / NOT VALIDATED. Not MANUAL PASS. Do not mark all of Phase E complete.
+
+**In code:** relational Knowledge tables, `KnowledgeIngestionService`, deterministic Core ingest, optional bounded Analysis-AI extraction job, aliases, relationship lifecycle, timeline, provenance, bounded `knowledge_context`, read/write tools, Settings → Knowledge, chat-delete provenance detach.
+
+**Not in this milestone:** watchers, polling, mass historical extraction, CRM, graph UI.
+
+Detail: [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
+
+### Phase E.2 — Watchers & Event-driven Automation
+
+**Status.** NEXT. Not implemented.
+
+Condition-on-entity/project/source/event-type watchers. No execution in E.1.
+
 ---
 
 ## D. Deferred strategic milestones
@@ -158,5 +175,6 @@ Detail: [Docs/Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.
 | Wake word | research only, not mandatory |
 | Mobile companion | D |
 | Versioned Client API | if/when Mobile (or similar) starts |
-| Knowledge Graph / People / watchers / automations | E |
+| Knowledge Layer (entities / people / timeline / provenance) | E.1 IMPLEMENTED / NOT VALIDATED |
+| Watchers / event-driven automations | E.2 |
 | Desktop / Tauri / tray / hotkey | CANCELLED |

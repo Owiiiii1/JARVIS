@@ -52,7 +52,8 @@ Input budget = model max context − reserved output − safety margin.
 9. Relevant personal memories
 10. Cross-chat summaries of the same user
 11. Projects / attachments (projects are still tool-retrieved, not auto-injected)
-12. Optional tool context already in the loop
+12. Knowledge Layer slice (`knowledge_context`; dropped before memories on overflow)
+13. Optional tool context already in the loop
 
 Never truncate away system or the current user turn just to keep old memories.
 
@@ -69,6 +70,7 @@ Never truncate away system or the current user turn just to keep old memories.
 | Older current chat | `conversation_summaries` (incremental, coverage `from_message_id` / `to_message_id`) |
 | Other chats | Summaries first. Raw only via `search_conversation_history`. |
 | Personal memory | Retriever candidates, then budget cap |
+| Knowledge Layer | Compact entity slice when C.1/working context names an entity or project. Never a full graph. Slice `knowledge_context`. Dropped before memories if the request overflows. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md). |
 | Screenshots | Bounded derived summary text. Never historical image bytes (M22.2). |
 | Persistent Storage | Never auto-inject whole files. Current attached file: bounded metadata + small excerpt. Historical: tools. Tool results still pass the global tool budget. |
 | Web / Gmail / GitHub / groups | Tool results only, for that turn. Not standing context. |
@@ -107,6 +109,8 @@ Log channel `context budget` per AI request:
 - counts/tokens per source
 - trimmed counts
 - utilization percent
+- working_context
+- knowledge_context
 - overflow_prevented
 - continuity_source, topic_mode, reference_outcome, clarification_reason, working_context_tokens (C.1; no prompt text)
 

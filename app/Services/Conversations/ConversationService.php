@@ -14,6 +14,7 @@ use App\Models\Reminder;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\ChatAttachments\ChatAttachmentService;
+use App\Services\Knowledge\KnowledgeDeletionService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -30,6 +31,7 @@ final class ConversationService
 
     public function __construct(
         private readonly ChatAttachmentService $attachments,
+        private readonly KnowledgeDeletionService $knowledge = new KnowledgeDeletionService,
     ) {}
 
     public function createPersonal(User $user, string $title): Conversation
@@ -255,6 +257,8 @@ final class ConversationService
                 'message_id' => null,
                 'summary_id' => null,
             ]);
+
+        $this->knowledge->detachConversation($user, $conversationId);
     }
 
     private function rewireNotificationLinks(User $user, int $conversationId): void

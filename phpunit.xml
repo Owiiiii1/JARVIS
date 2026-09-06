@@ -29,5 +29,8 @@
         <env name="PULSE_ENABLED" value="false" force="true"/>
         <env name="TELESCOPE_ENABLED" value="false" force="true"/>
         <env name="NIGHTWATCH_ENABLED" value="false" force="true"/>
+        <env name="KNOWLEDGE_EXTRACT_FROM_MEMORY" value="false" force="true"/>
+        <env name="KNOWLEDGE_EXTRACT_FROM_SUMMARY" value="false" force="true"/>
+        <env name="KNOWLEDGE_INGEST_TOOL_RESULTS" value="false" force="true"/>
     </php>
 </phpunit>

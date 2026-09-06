@@ -146,22 +146,24 @@ Versioned Client API is built **only if** Mobile (or another first-party non-Web
 
 ## PHASE E — Knowledge & Proactive Jarvis
 
-**Status.** PLANNED strategic layer. Not committed immediate implementation.
+**Status.** E.1 Knowledge Layer: **IMPLEMENTED / NOT VALIDATED**. Phase E as a whole is **not** complete.
 
-- Personal Knowledge Graph (optional structured layer over Memory / raw sources — does **not** replace Memory Engine)
-- People / Contacts intelligence
-- Richer Project intelligence
-- Timeline / activity understanding
-- Cross-source entity relationships
-- Event-triggered workflows / watchers
-- Controlled automations
-- Proactive assistant (event/condition driven, not unsolicited chatter)
-- Daily / Weekly synthesis
-- Conditional alerts
+- Personal Knowledge Layer (structured entities / relations / events with provenance over Memory / Projects / local Core actions — does **not** replace Memory Engine) — E.1 IMPLEMENTED / NOT VALIDATED
+- People intelligence (semantic, not a CRM) — E.1
+- Richer Project intelligence (index only; Project domain remains canonical) — E.1
+- Timeline / activity index — E.1
+- Cross-source entity relationships — E.1
+- Event-triggered workflows / watchers — **E.2, not implemented**
+- Controlled automations — E.2+
+- Proactive assistant (event/condition driven, not unsolicited chatter) — later
+- Daily / Weekly synthesis — later
+- Conditional alerts — E.2+
 
-Examples: “When Apple replies, read the mail and say what to do.” “When a GitHub commit lands on this project, review it.” “If the deadline is tomorrow and the task is open — remind me.”
+[KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
 
-Strict permissions, confirmation, and audit required.
+Examples for **E.2** (not built): “When Apple replies, read the mail and say what to do.” “When a GitHub commit lands on this project, review it.” “If the deadline is tomorrow and the task is open — remind me.”
+
+Strict permissions, confirmation, and audit required. E.1 does not poll integrations and does not run watchers.
 
 ---
 

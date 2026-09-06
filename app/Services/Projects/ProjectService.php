@@ -11,6 +11,7 @@ use App\Models\Project;
 use App\Models\TelegramGroup;
 use App\Models\Topic;
 use App\Models\User;
+use App\Services\Knowledge\KnowledgeDeterministicIngestor;
 use App\Services\Projects\Exceptions\ProjectException;
 use App\Services\Users\UserCapability;
 use Illuminate\Support\Collection;
@@ -18,6 +19,10 @@ use Illuminate\Support\Facades\DB;
 
 final class ProjectService
 {
+    public function __construct(
+        private readonly KnowledgeDeterministicIngestor $knowledge = new KnowledgeDeterministicIngestor,
+    ) {}
+
     /**
      * @return Collection<int, Project>
      */
@@ -44,13 +49,17 @@ final class ProjectService
         $normalized = $this->normalizedName($name);
         $this->assertUnique($user, $normalized);
 
-        return Project::query()->create([
+        $project = Project::query()->create([
             'user_id' => $user->id,
             'name' => mb_substr(trim($name), 0, 120),
             'normalized_name' => $normalized,
             'description' => $this->normalizeDescription($description),
             'status' => ProjectStatus::Active,
         ]);
+
+        $this->knowledge->projectCreated($project);
+
+        return $project;
     }
 
     public function update(User $user, Project $project, string $name, ?string $description = null): Project
@@ -74,8 +83,10 @@ final class ProjectService
         $this->assertOwns($user, $project);
 
         $project->forceFill(['status' => ProjectStatus::Archived])->save();
+        $project = $project->refresh();
+        $this->knowledge->projectArchived($project);
 
-        return $project->refresh();
+        return $project;
     }
 
     public function restore(User $user, Project $project): Project

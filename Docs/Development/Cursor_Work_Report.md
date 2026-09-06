@@ -1,158 +1,121 @@
-# Core Reliability Cleanup
+# Phase E.1 — Knowledge Layer
 
 ## Starting HEAD
 
-`3592da6` (`feat: add ElevenLabs realtime voice beta`). Working tree was clean. `HEAD` == `origin/main`.
+`3a029a00c430fd50a51c9a004656fe4d696aa033` (`fix: harden async core reliability`). Working tree was clean. `HEAD` == `origin/main`.
 
-Work ran on that main. No migration. Production database `jarvis` was inspected with read-only aggregates only. No mass retry, no prune, no truncate, no `migrate:fresh`, no live Gemini / ElevenLabs / Telegram / Google / GitHub calls.
+No watchers. No live extraction. No historical graph backfill. No Google/Gmail/GitHub polling.
 
-## Production read-only failure inventory
+## Existing Memory / Projects architecture
 
-Read-only counts at implementation time (no payloads, no transcripts):
+Memory Engine remains independent: `memories` + sources + revisions, Analysis AI turn/summary jobs, `MemoryWriter`, personal retrieval into context.
 
-| Surface | Domain failed | Laravel `failed_jobs` | Stuck `processing` > 15m | Pending `jobs` |
-| --- | --- | --- | --- | --- |
-| Memory (`AnalyzeConversationTurnJob` / `UpdateConversationSummaryJob`, queue `memory`) | 34 runs (87 completed) | 34 | 0 | 0 |
-| Group analysis (`AnalyzeTelegramGroupRangeJob`, queue `analysis`) | 4 runs (3 completed) | 0 | 0 | 0 |
-| Attachment summary (`SummarizeMessageAttachmentJob`) | 1 `summary_status=failed` (not purged) | 0 | — | 0 |
-| Stored files | 0 failed (1 ready) | 0 | — | 0 |
+Projects remain the canonical work container (`projects` table, Owner capability). Chat uses `get_project_context`; Projects are not auto-injected.
 
-`failed_jobs` clusters (exception class only):
+C.1 `WorkingContext` already tracks recent entities and an active project name. Context Budget already trims slices so the current turn survives.
 
-- 13× `AnalyzeConversationTurnJob` / `AiSafetyException` (2026-09-05)
-- 20× `UpdateConversationSummaryJob` / `AiSafetyException` (2026-09-05)
-- 1× `AnalyzeConversationTurnJob` / `AiProviderException` (empty assistant response; 2026-09-05)
+## Knowledge data model
 
-Domain `last_error` prefixes were bounded/sanitized: safety-policy text (33 memory runs) and empty-assistant text (1 memory + 4 group runs). No private message bodies were read.
+Additive MySQL tables: `knowledge_entities`, `knowledge_entity_aliases`, `knowledge_relationships`, `knowledge_events`, `knowledge_event_entities`, `knowledge_entity_sources`, `knowledge_analysis_runs`.
 
-## Failure clusters
+No Neo4j. No second Memory schema rewrite.
 
-| Cluster | Count | Category now | Retryable? | Decision |
-| --- | --- | --- | --- | --- |
-| Memory + summary safety blocks | 33 domain / 33 `failed_jobs` | `provider_safety` | no | Historical / still possible on the same content. This commit stops retrying them. Not auto-retried. |
-| Memory empty provider response | 1 domain / 1 `failed_jobs` | `malformed_provider_response` | bounded yes | Historical; still possible as `AiEmptyResponseException`. Eligible later if Owner asks. |
-| Group empty provider response | 4 domain / 0 `failed_jobs` | `malformed_provider_response` | bounded yes | Historical; job used to swallow the exception so Laravel recorded success. Eligible later if Owner asks. |
-| Attachment summary failed | 1 | unknown (no category metadata yet) | no (command skips unknown) | Historical; needs Owner review, not mass retry. |
-| Stuck processing rows | 0 | — | — | None at inventory time. Recovery command still added. |
+## Entities
 
-This commit does **not** claim all historical failures are fixed. They are classified. Owner decides prune/retry.
+Types: person, project, organization, product, place, topic, system, file, custom.
 
-## Memory pipeline
+A project-typed entity may store `project_id` as a semantic index. Project name/status stay on `projects`.
 
-`AnalyzeConversationTurnJob` / `UpdateConversationSummaryJob`:
+## People
 
-- Completed runs still skip (idempotent).
-- Missing/deleted messages: existing run → `failed` + `missing_source`, no retry, no insert against a missing conversation FK.
-- Ownership / non-personal: terminal `ownership` / `stale_source`.
-- Transient provider errors: keep `processing`, rethrow, `$backoff = [30, 90, 180]`.
-- Permanent (auth, safety, structured-output parse): domain `failed` with category only, job returns (no extra `failed_jobs` spam).
-- `failed()` marks a still-processing run failed with a sanitized category.
-- `last_error` stores the category value, not the raw exception message. Metadata holds `error_category`, `error_code`, `error_class`, `retryable`, `failed_at`.
-- `MemoryWriter` still create-or-reinforces by normalized key; retry of a completed run does not duplicate memories.
+Semantic people intelligence: name, aliases, sourced summary, relationships, provenance. Not a CRM. Contact details are not invented. Sensitive profiling attributes are not modeled.
 
-## Group analysis pipeline
+## Aliases / merging
 
-`AnalyzeTelegramGroupRangeJob` no longer catch-and-succeed.
+Aliases live in `knowledge_entity_aliases`. Auto-link only for the same type + normalized name, a stored alias, the same Project, or an explicit external ref, at high confidence. `YFS` vs `Young Fashion Show` stay separate until aliased. No destructive merge tool.
 
-- Missing group → `missing_source` (terminal).
-- Left/archived group → `stale_source` (terminal). Raw group archive is not deleted.
-- Empty range still completes with `no_data` (no LLM).
-- Parse/`GroupAnalysisException` → terminal malformed, no retry loop.
-- Transient provider errors rethrow with backoff; `failed()` updates the domain row.
-- Completed runs still skip; knowledge writer still reinforce/supersede.
-- Tries aligned to shared policy (3) with job timeout **170s** (under worker `--timeout=180`, `retry_after=300`).
+## Relationships
 
-## Attachment summary pipeline
+Controlled types (`works_on`, `works_for`, `uses`, …). Unique per user + pair + type. Updates upsert. Ended facts deactivate (`status`, `valid_to`, `superseded_at`). History stays on the timeline.
 
-`SummarizeMessageAttachmentJob`:
+## Timeline
 
-- Ready → skip.
-- Purged / non-image → `NotRequired` + `stale_source` (not a system failure; not a `purge_failure_count` bump).
-- Expired ephemeral with missing bytes → `stale_source` / `NotRequired`.
-- Missing message/user → `Failed` + `missing_source`.
-- Vision/config missing → terminal `provider_auth`.
-- Empty vision text → bounded retry (`empty_provider_response`).
-- `failed()` no longer increments `purge_failure_count`.
-- Job timeout 120s vs Gemini vision HTTP 90s vs worker 180s.
+`knowledge_events` with stable `source_fingerprint`. Pivot to related entities. Event types cover Core actions and compact integration facts. Watcher conditions can attach later; execution is not implemented.
 
-## Failure classification
+## Provenance
 
-Shared `AsyncFailureClassifier` + `AsyncFailureCategory` used by Memory, group analysis, attachments, and stored-file job failure.
+Every automatic fact attaches `knowledge_entity_sources` (conversation/message/memory/project/task/file/integration ref + fingerprint). Manual notes are explicit `manual` sources.
 
-Categories: `provider_auth`, `provider_rate_limit`, `provider_quota`, `provider_timeout`, `provider_unavailable`, `provider_safety` (observed production class), `network`, `malformed_provider_response`, `validation`, `missing_source`, `stale_source`, `ownership`, `serialization`, `database`, `code_bug`, `unknown`.
+## Memory integration
 
-Historical `last_error` prose is classified from bounded prefixes when metadata is absent.
+New/reinforced Memory and completed conversation summaries may queue `ExtractKnowledgeFromSourceJob` (disabled in phpunit). Memory rows are never deleted because Knowledge exists. “Запомни…” may write Memory (existing engine) and Knowledge (explicit tools) without a second confirmation modal for core writes.
 
-## Retry policy
+## Project integration
 
-| Kind | Examples | Behavior |
-| --- | --- | --- |
-| Transient | timeout, network, 429, temporary 5xx, empty provider response | bounded tries + exponential backoff |
-| Permanent | auth/config, safety, validation, missing/stale source, ownership, structured parse | no repeated retry |
-| Code bug / unknown | `TypeError`, unclassified | fail once, visible category, no loop |
+`ProjectService::create` / `archive` deterministically upsert a project entity and a timeline event. Project CRUD does not move into knowledge tables.
 
-## Idempotency
+## Incremental ingestion
 
-Unchanged durable writers: memory create-or-reinforce; group knowledge reinforce/supersede; attachment skip if `Ready`. Reliability jobs do not send Telegram/Gmail/GitHub. Retry commands dispatch only eligible transient domain rows.
+Central writer: `KnowledgeIngestionService`. Deterministic hooks: Task create/complete, Reminder create, Project create/archive, StoredFile ready. Optional compact ingest from Gmail/Calendar/GitHub **tool results on a user turn**. No production-wide scan.
 
-## Stale source handling
+`jarvis:knowledge:backfill` is dry-run by default and requires `--user`. It was not run live.
 
-Deleted messages, left groups, purged/expired attachments: terminal `missing_source` / `stale_source` / `NotRequired`. Enums were not migrated.
+## Deterministic vs AI extraction
 
-Chat delete still cascades `memory_analysis_runs` via FK. A queued job for a deleted conversation returns without inserting an orphan run.
+Structured Core data → no LLM. Unstructured Memory/summary text → Analysis AI, strict JSON, explicit vs inference. Low confidence does not auto-create relations.
 
-## Stuck run recovery
+## Context retrieval
 
-`jarvis:reliability:recover-stale` (scheduled every 15 minutes). Default threshold 30 minutes (`config/reliability.php`). Fresh `processing` rows are not marked stuck. Dry-run: `--dry-run`.
+`KnowledgeRetriever::contextBlock` uses C.1 active project / recent labels / current turn. At most 3 high-confidence entities, 5 relations and 5 events each.
 
-## Operational commands
+## Context budget
 
-Dry-run unless `--execute`. `--limit`, `--hours`, `--category`. Only retryable/transient (plus `stale_running`). **Not run against production in this work.**
+New slice `knowledge_context` (default 500 tokens). Overflow drops knowledge after cross-chat summaries and **before** memories, so Knowledge never crowds out the current user turn.
 
-- `jarvis:reliability:report`
-- `jarvis:memory:retry-failed`
-- `jarvis:groups:retry-failed`
-- `jarvis:attachments:retry-failed`
-- `jarvis:reliability:recover-stale`
+## Knowledge tools
 
-Do not use `queue:retry all`.
+Read: `search_knowledge`, `get_entity`, `get_entity_timeline`, `get_entity_relationships`, `list_related_entities`.
 
-## Retention / cleanup
+Write: `remember_entity`, `link_entities`, `add_knowledge_note`.
 
-Documented: `queue:prune-failed --hours=` using `config/reliability.php` `failed_jobs_retention_days` (14). Domain failure history is kept. **Prune was not executed.**
+Foreign ids → `not_found`. No merge/delete tools. Compact payloads; `entity_id` is kept under tool-result compaction.
 
-## Observability
+## Workspace UI
 
-`jarvis:reliability:report` prints counts by subsystem, last `failed_jobs` time (job class basename only), category/retryable, oldest processing, pending/reserved queue rows. No payload, prompt, transcript, or provider body.
+Settings → Knowledge, next to Memory. Search, People, Projects, recent activity, entity detail. JSON under `/jarvis/knowledge` and `/chat/knowledge`. No graph canvas.
+
+## Ownership / privacy
+
+`user_id` is the graph. Regular users get capability `knowledge`. Owner has `*` but still only their own rows in Personal Workspace. No cross-user index. No secrets, tokens, or full email bodies in metadata.
+
+## Source deletion behavior
+
+Chat delete detaches Knowledge provenance (null conversation/message ids) the same way as Memory. Entities survive if other sources remain. Auto-derived rows with zero live sources become `orphan_candidate`. No FK failure. Chat-delete MANUAL PASS contract is preserved.
+
+## Reliability
+
+`ExtractKnowledgeFromSourceJob` uses `HandlesClassifiedAsyncFailure`. Stale/missing source is terminal. Transient provider errors retry. Safety/auth are terminal. `knowledge_analysis_runs` plus stale recovery / reliability report.
+
+## Migrations
+
+One additive migration `create_knowledge_layer_tables`. No Memory rewrite. No data backfill in the migration.
 
 ## Automated tests
 
-Isolated PHPUnit with fakes and `jarvis-test-*@invalid.local` users. No live providers.
-
-Covered: transient Memory retryable; permanent auth terminal; `failed()` updates run; retry idempotent; missing deleted messages terminal; left group stale; expired attachment skipped; 429 backoff; auth no retry; stuck-running threshold; retry dry-run; retry excludes safety; diagnostics omit payload/transcript; Memory path does not dispatch `ProcessTelegramUpdate`.
-
-## Documentation synchronization
-
-`IMPLEMENTATION_PLAN.md` statuses brought to current main. Deferred live validations collected in [Docs/DEFERRED_VALIDATION.md](../DEFERRED_VALIDATION.md). Worker/queue docs aligned (`analysis,memory,default`, `--timeout=180`).
-
-## Deferred validation backlog
-
-Owner postponed live campaigns. They do not block further development. See [Docs/DEFERRED_VALIDATION.md](../DEFERRED_VALIDATION.md). Not MANUAL PASS.
+Isolated PHPUnit coverage for create/idempotency/aliases/unsafe merge, relationship upsert/supersede, provenance, isolation, project authority, chat-delete detach/orphan, stale/transient/safety extraction, context bounds, compact search, foreign tool ids, no watchers. phpunit disables live extraction and tool-result ingest.
 
 ## Production safety
 
-- SELECT/aggregates only on production `jarvis`
-- No mass retry / prune / truncate
-- No live provider calls
-- Telegram / Gmail / GitHub write adapters untouched
-- `last_error` going forward is a category code
+No live model calls, no historical extraction, no integration polling as part of this deploy. Queue reuses `memory` (configurable `KNOWLEDGE_QUEUE`).
 
-## Remaining risks
+## Deferred validation
 
-- Group analysis with many chunks can still exceed 170s job timeout (chunk × Gemini HTTP 60s). Not raised blindly above worker timeout.
-- Scheduler `queue:work --max-time=50 --timeout=180` is a fallback beside `jarvis-queue.service`; systemd remains the long-running worker (`analysis,memory,default`, timeout 180). Telegram queue stays on its separate crontab worker.
-- Historical `failed_jobs` still contain old exception text until Owner prunes.
-- One historical attachment failure has no category metadata; retry command will skip it as unknown.
-- C.1 / C.2 / integrations live validation still deferred.
+Added to [DEFERRED_VALIDATION.md](../DEFERRED_VALIDATION.md): Phase E.1 Knowledge Layer — IMPLEMENTED / NOT VALIDATED. Owner is not asked to test now.
 
-**Status.** Core Reliability: **IMPLEMENTED**. Historical failures: **CLASSIFIED**. Not all failures fixed.
+## Known limitations
+
+No watchers. No CRM. No aggressive merge UI. No mass backfill. Integration facts only from in-turn tool results. Group Telegram knowledge stays on the group tables; it is not copied into the personal graph automatically.
+
+## Next Phase E.2 foundation
+
+Event types, provenance fingerprints, and per-user entities are attachable conditions for later watchers. E.2 is **not** implemented. Phase E is **not** marked complete.

@@ -3,6 +3,7 @@
 namespace App\Services\Reliability;
 
 use App\Enums\AttachmentSummaryStatus;
+use App\Enums\KnowledgeAnalysisRunStatus;
 use App\Enums\MemoryAnalysisRunStatus;
 use App\Enums\StoredFileStatus;
 use App\Enums\TelegramGroupAnalysisRunStatus;
@@ -22,6 +23,7 @@ final class AsyncReliabilityReport
             'group_runs' => $this->groupRuns(),
             'attachments' => $this->attachments(),
             'stored_files' => $this->storedFiles(),
+            'knowledge_runs' => $this->knowledgeRuns(),
             'pending_jobs' => $this->pendingJobs(),
         ];
     }
@@ -128,6 +130,24 @@ final class AsyncReliabilityReport
             'oldest_processing_at' => DB::table('stored_files')
                 ->where('status', StoredFileStatus::Processing->value)
                 ->min('updated_at'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function knowledgeRuns(): array
+    {
+        if (! Schema::hasTable('knowledge_analysis_runs')) {
+            return [];
+        }
+
+        return [
+            'by_status' => $this->counts('knowledge_analysis_runs', 'status'),
+            'oldest_processing_at' => DB::table('knowledge_analysis_runs')
+                ->where('status', KnowledgeAnalysisRunStatus::Processing->value)
+                ->min('updated_at'),
+            'failed_categories' => $this->categories('knowledge_analysis_runs'),
         ];
     }
 

@@ -5,6 +5,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Jarvis\JarvisAttachmentController;
 use App\Http\Controllers\Jarvis\JarvisConfirmationController;
+use App\Http\Controllers\Jarvis\JarvisKnowledgeController;
 use App\Http\Controllers\Jarvis\JarvisNotificationController;
 use App\Http\Controllers\Jarvis\JarvisProductivitySettingsController;
 use App\Http\Controllers\Jarvis\JarvisPushSubscriptionController;
@@ -85,6 +86,12 @@ $registerPersonalWorkspace = static function (string $prefix, string $as, array 
         Route::get('/workspace/status', [JarvisWorkspaceStatusController::class, 'show'])
             ->middleware('throttle:30,1')
             ->name('workspace.status');
+        Route::get('/knowledge', [JarvisKnowledgeController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('knowledge.index');
+        Route::get('/knowledge/entities/{entity}', [JarvisKnowledgeController::class, 'show'])
+            ->middleware('throttle:30,1')
+            ->name('knowledge.entities.show');
         Route::post('/chats', [JarvisWorkspaceController::class, 'store'])->name('chats.store');
         Route::get('/chats/{conversation}', [JarvisWorkspaceController::class, 'show'])->name('chats.show');
         Route::patch('/chats/{conversation}', [JarvisWorkspaceController::class, 'update'])->name('chats.update');

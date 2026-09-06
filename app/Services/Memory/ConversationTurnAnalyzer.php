@@ -13,6 +13,7 @@ use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\DTO\AiChatMessage;
 use App\Services\Ai\DTO\AiChatRequest;
 use App\Services\Conversations\ConversationContextBuilder;
+use App\Services\Knowledge\KnowledgeExtractionDispatcher;
 use App\Services\Memory\DTO\MemoryAnalysisResult;
 use App\Services\Memory\DTO\MemoryWriteStats;
 use Illuminate\Support\Collection;
@@ -26,6 +27,7 @@ final class ConversationTurnAnalyzer
         private readonly MemoryAnalysisResultParser $parser,
         private readonly MemoryWriter $writer,
         private readonly ConversationContextBuilder $contextBuilder,
+        private readonly KnowledgeExtractionDispatcher $knowledge = new KnowledgeExtractionDispatcher,
     ) {}
 
     /**
@@ -46,6 +48,8 @@ final class ConversationTurnAnalyzer
                 static fn (int $id): bool => $id >= (int) $from->id && $id <= (int) $to->id,
             )) ?: [(int) $from->id, (int) $to->id],
         );
+
+        $this->knowledge->afterMemoryWrite($user, $stats, (int) $conversation->id);
 
         $configuration = $this->resolver->resolveAnalysis();
 

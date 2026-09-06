@@ -2,6 +2,7 @@ import { ArrowLeft, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import AssistantSettings from '@/personal-workspace/settings/AssistantSettings';
 import IntegrationsSettings from '@/personal-workspace/settings/IntegrationsSettings';
+import KnowledgeSettings from '@/personal-workspace/settings/KnowledgeSettings';
 import MemorySettings from '@/personal-workspace/settings/MemorySettings';
 import ProductivitySettings from '@/personal-workspace/settings/ProductivitySettings';
 import ProfileSettings from '@/personal-workspace/settings/ProfileSettings';
@@ -17,6 +18,10 @@ function visibleSettingsSections(capabilities) {
 
     if (capabilities.memory) {
         sections.push({ id: 'memory', label: 'Memory', description: 'Запомненные факты и темы' });
+    }
+
+    if (capabilities.knowledge) {
+        sections.push({ id: 'knowledge', label: 'Knowledge', description: 'Сущности, связи, события' });
     }
 
     if (capabilities.tasks || capabilities.reminders || capabilities.notifications) {
@@ -84,6 +89,10 @@ export default function WorkspaceSettings({
 
         if (current === 'memory') {
             return <MemorySettings memory={settingsContext.memory} capabilities={capabilities} />;
+        }
+
+        if (current === 'knowledge') {
+            return <KnowledgeSettings surface={surface} />;
         }
 
         if (current === 'productivity') {

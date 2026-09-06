@@ -10,6 +10,7 @@ use App\Models\MessageStoredFile;
 use App\Models\StoredFile;
 use App\Models\StoredFileChunk;
 use App\Models\User;
+use App\Services\Knowledge\KnowledgeDeterministicIngestor;
 use App\Services\Storage\Exceptions\StoredFileException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
@@ -26,6 +27,7 @@ final class StoredFileService
         private readonly StoredFileTextExtractor $extractor,
         private readonly StoredFileChunker $chunker,
         private readonly StoredFileSearchService $search,
+        private readonly KnowledgeDeterministicIngestor $knowledge = new KnowledgeDeterministicIngestor,
     ) {}
 
     /**
@@ -169,7 +171,10 @@ final class StoredFileService
         } catch (Throwable) {
         }
 
-        return $file->fresh() ?? $file;
+        $ready = $file->fresh() ?? $file;
+        $this->knowledge->fileReady($ready);
+
+        return $ready;
     }
 
     public function rename(User $user, StoredFile $file, string $name): StoredFile

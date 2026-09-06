@@ -9,6 +9,12 @@ use App\Models\ChannelIdentity;
 use App\Models\Conversation;
 use App\Models\ConversationSummary;
 use App\Models\IntegrationAccount;
+use App\Models\KnowledgeAnalysisRun;
+use App\Models\KnowledgeEntity;
+use App\Models\KnowledgeEntityAlias;
+use App\Models\KnowledgeEntitySource;
+use App\Models\KnowledgeEvent;
+use App\Models\KnowledgeRelationship;
 use App\Models\Memory;
 use App\Models\MemoryAnalysisRun;
 use App\Models\MemoryRevision;
@@ -34,6 +40,7 @@ use App\Models\UserAssistantProfile;
 use App\Models\UserProfile;
 use App\Models\VoiceSession;
 use App\Services\Users\AccessCodeGenerator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -92,6 +99,18 @@ trait CleansTemporaryJarvisRecords
         }
         if (Schema::hasTable('integration_accounts')) {
             IntegrationAccount::query()->where('user_id', $user->id)->delete();
+        }
+        if (Schema::hasTable('knowledge_entities')) {
+            $eventIds = KnowledgeEvent::query()->where('user_id', $user->id)->pluck('id');
+            if ($eventIds->isNotEmpty()) {
+                DB::table('knowledge_event_entities')->whereIn('knowledge_event_id', $eventIds)->delete();
+            }
+            KnowledgeEntitySource::query()->where('user_id', $user->id)->delete();
+            KnowledgeEntityAlias::query()->where('user_id', $user->id)->delete();
+            KnowledgeRelationship::query()->where('user_id', $user->id)->delete();
+            KnowledgeEvent::query()->where('user_id', $user->id)->delete();
+            KnowledgeAnalysisRun::query()->where('user_id', $user->id)->delete();
+            KnowledgeEntity::query()->where('user_id', $user->id)->delete();
         }
         Project::query()->where('user_id', $user->id)->delete();
         $memoryIds = Memory::query()->where('user_id', $user->id)->pluck('id');

@@ -4,9 +4,11 @@ namespace App\Services\Reliability;
 
 use App\Enums\AsyncFailureCategory;
 use App\Enums\AttachmentSummaryStatus;
+use App\Enums\KnowledgeAnalysisRunStatus;
 use App\Enums\MemoryAnalysisRunStatus;
 use App\Enums\StoredFileStatus;
 use App\Enums\TelegramGroupAnalysisRunStatus;
+use App\Models\KnowledgeAnalysisRun;
 use App\Models\MemoryAnalysisRun;
 use App\Models\MessageAttachment;
 use App\Models\StoredFile;
@@ -20,7 +22,7 @@ final class StaleAsyncRunRecovery
     ) {}
 
     /**
-     * @return array{memory: int, groups: int, attachments: int, stored_files: int}
+     * @return array{memory: int, groups: int, attachments: int, stored_files: int, knowledge: int}
      */
     public function recover(int $minutes, bool $execute): array
     {
@@ -55,6 +57,12 @@ final class StaleAsyncRunRecovery
             ->orderBy('id')
             ->get();
 
+        $knowledge = KnowledgeAnalysisRun::query()
+            ->where('status', KnowledgeAnalysisRunStatus::Processing)
+            ->where('updated_at', '<=', $threshold)
+            ->orderBy('id')
+            ->get();
+
         if ($execute) {
             foreach ($memory as $run) {
                 $this->writer->failMemoryRun($run, $failure);
@@ -71,6 +79,10 @@ final class StaleAsyncRunRecovery
             foreach ($files as $file) {
                 $this->writer->failStoredFile($file, $failure);
             }
+
+            foreach ($knowledge as $run) {
+                $this->writer->failKnowledgeRun($run, $failure);
+            }
         }
 
         return [
@@ -78,6 +90,7 @@ final class StaleAsyncRunRecovery
             'groups' => $groups->count(),
             'attachments' => $attachments->count(),
             'stored_files' => $files->count(),
+            'knowledge' => $knowledge->count(),
         ];
     }
 }

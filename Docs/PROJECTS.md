@@ -8,6 +8,8 @@ Project связывает уже существующие сущности **re
 
 M13 runtime: conversations, topics, memories. M11 добавил `project_groups` (relation only). M14: `get_project_context` may return **bounded ACTIVE group-derived knowledge** (summaries / decisions / tasks / event-facts) for attached groups. Raw group history is never copied and never dumped into the tool result. Group knowledge is not written into personal `memories`.
 
+Phase E.1 adds a Knowledge Layer **index** for a Project (`knowledge_entities.project_id`). People, systems, files, conversations, tasks, and recent events may attach to that index. The Project row remains canonical. Knowledge does not duplicate project status/name as competing truth. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
+
 ---
 
 ## Relations

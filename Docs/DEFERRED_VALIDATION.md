@@ -20,6 +20,7 @@ Runtime snapshot: [CURRENT_STATE.md](CURRENT_STATE.md). Plan: [IMPLEMENTATION_PL
 | Screenshot ephemeral purge as a distinct Owner check | IMPLEMENTED | Deferred |
 | Destructive Storage delete | IMPLEMENTED | Deferred |
 | Core Reliability historical retry/prune | IMPLEMENTED / CLASSIFIED | Owner decides later; not run |
+| Phase E.1 Knowledge Layer | IMPLEMENTED | Deferred |
 
 Telegram Voice **Replies** remain MANUAL PASS. Web **Рация** pipeline remains MANUAL PASS. Desktop remains CANCELLED.
 

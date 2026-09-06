@@ -10,6 +10,7 @@ use App\Services\Ai\DTO\ToolCall;
 use App\Services\Ai\DTO\ToolResult;
 use App\Services\Integrations\Exceptions\IntegrationException;
 use App\Services\Integrations\IntegrationAccountService;
+use App\Services\Knowledge\KnowledgeToolResultIngestor;
 use App\Services\WebResearch\Exceptions\WebResearchException;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -20,6 +21,7 @@ final class ToolExecutionService
         private readonly ToolConfirmationPolicy $policy,
         private readonly IntegrationAccountService $accounts,
         private readonly ToolConfirmationService $confirmations,
+        private readonly KnowledgeToolResultIngestor $knowledge = new KnowledgeToolResultIngestor,
     ) {}
 
     public function run(ToolRegistry $registry, ToolCall $call, ToolExecutionContext $context): ToolResult
@@ -181,6 +183,10 @@ final class ToolExecutionService
             } else {
                 $this->accounts->recordError($account, (string) ($result->payload['error'] ?? 'tool_failed'));
             }
+        }
+
+        if ($result->success) {
+            $this->knowledge->ingest($context, $result);
         }
 
         return $result;

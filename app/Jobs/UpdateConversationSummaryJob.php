@@ -10,6 +10,7 @@ use App\Jobs\Concerns\HandlesClassifiedAsyncFailure;
 use App\Models\Conversation;
 use App\Models\MemoryAnalysisRun;
 use App\Models\User;
+use App\Services\Knowledge\KnowledgeExtractionDispatcher;
 use App\Services\Memory\ConversationSummaryService;
 use App\Services\Reliability\Exceptions\ClassifiedAsyncException;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -35,8 +36,9 @@ class UpdateConversationSummaryJob implements ShouldQueue
         $this->tries = max(1, (int) config('reliability.job_tries', 3));
     }
 
-    public function handle(ConversationSummaryService $summaries): void
+    public function handle(ConversationSummaryService $summaries, ?KnowledgeExtractionDispatcher $knowledge = null): void
     {
+        $knowledge ??= app(KnowledgeExtractionDispatcher::class);
         $user = User::query()->find($this->userId);
         $conversation = Conversation::query()->find($this->conversationId);
 
@@ -112,6 +114,8 @@ class UpdateConversationSummaryJob implements ShouldQueue
                 'model' => $result['model'],
                 'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             ]);
+
+            $knowledge->afterSummary($user, $result['summary']);
         } catch (Throwable $exception) {
             $failure = $this->classifyFailure($exception);
 
