@@ -14,6 +14,7 @@ use App\Models\MemoryAnalysisRun;
 use App\Models\MemoryRevision;
 use App\Models\MemorySource;
 use App\Models\Message;
+use App\Models\MessageAttachment;
 use App\Models\MessageTopicRelation;
 use App\Models\Project;
 use App\Models\Reminder;
@@ -115,6 +116,9 @@ trait CleansTemporaryJarvisRecords
         TelegramGroupKnowledge::query()->whereIn('id', $knowledgeIds)->delete();
         TelegramGroupAnalysisRun::query()->whereIn('telegram_group_id', $groupIds)->delete();
         TelegramGroupParticipant::query()->whereIn('telegram_group_id', $groupIds)->delete();
+        if (Schema::hasTable('message_attachments')) {
+            MessageAttachment::query()->where('user_id', $user->id)->delete();
+        }
         Message::query()->whereIn('telegram_group_id', $groupIds)->delete();
         TelegramGroup::query()->whereIn('id', $groupIds)->delete();
         Message::query()->where('user_id', $user->id)->delete();

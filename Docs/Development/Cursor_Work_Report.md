@@ -1,121 +1,158 @@
-# Phase C.2 Beta — ElevenLabs Realtime Conversation
+# Core Reliability Cleanup
 
 ## Starting HEAD
 
-`f92c474` (`feat: add conversational intelligence`). `git status` was clean. `HEAD` == `origin/main`.
+`3592da6` (`feat: add ElevenLabs realtime voice beta`). Working tree was clean. `HEAD` == `origin/main`.
 
-Work ran on that main. No migration. Production database `jarvis` was not truncated, refreshed, or mass-updated. No live ElevenLabs / Telegram / Gemini / Gmail / Calendar / GitHub calls.
+Work ran on that main. No migration. Production database `jarvis` was inspected with read-only aggregates only. No mass retry, no prune, no truncate, no `migrate:fresh`, no live Gemini / ElevenLabs / Telegram / Google / GitHub calls.
 
-## Existing legacy voice
+## Production read-only failure inventory
 
-Web **Рация** is unchanged: MediaRecorder → upload → Gemini STT → `VoiceRuntimeService` → `ConversationTurnService` → ElevenLabs HTTP TTS. Push-to-talk UI, Gemini STT path, current fallback, and MANUAL PASS behavior stay. PTT audio is rejected on a realtime `voice_sessions` row so the two transports cannot mix.
+Read-only counts at implementation time (no payloads, no transcripts):
 
-## Telegram voice invariants
+| Surface | Domain failed | Laravel `failed_jobs` | Stuck `processing` > 15m | Pending `jobs` |
+| --- | --- | --- | --- | --- |
+| Memory (`AnalyzeConversationTurnJob` / `UpdateConversationSummaryJob`, queue `memory`) | 34 runs (87 completed) | 34 | 0 | 0 |
+| Group analysis (`AnalyzeTelegramGroupRangeJob`, queue `analysis`) | 4 runs (3 completed) | 0 | 0 | 0 |
+| Attachment summary (`SummarizeMessageAttachmentJob`) | 1 `summary_status=failed` (not purged) | 0 | — | 0 |
+| Stored files | 0 failed (1 ready) | 0 | — | 0 |
 
-Telegram Voice Input remains: voice note → Gemini STT → `ConversationTurnService`.
-Telegram Voice Replies remain: `ConversationTurnService` → ElevenLabs HTTP TTS → `sendVoice`.
-Default text/auto/voice policy is unchanged. Telegram does not create an ElevenLabs realtime session, Twilio, or WebRTC. Constructor isolation tests lock that boundary.
+`failed_jobs` clusters (exception class only):
 
-## Realtime architecture
+- 13× `AnalyzeConversationTurnJob` / `AiSafetyException` (2026-09-05)
+- 20× `UpdateConversationSummaryJob` / `AiSafetyException` (2026-09-05)
+- 1× `AnalyzeConversationTurnJob` / `AiProviderException` (empty assistant response; 2026-09-05)
 
-New parallel Web mode **Диалог Beta** (`/jarvis` and `/chat` only):
+Domain `last_error` prefixes were bounded/sanitized: safety-policy text (33 memory runs) and empty-assistant text (1 memory + 4 group runs). No private message bodies were read.
 
-Browser ↔ ElevenLabs realtime (audio, STT, turn detection, pauses, barge-in, expressive TTS)
-→ Jarvis Custom LLM adapter
-→ `ConversationTurnService`
-→ ElevenLabs realtime speech → Browser
+## Failure clusters
 
-Jarvis remains the only brain (conversation, Memory, ContextBudget, personality, Tasks/Reminders/Projects, Gmail/Calendar/GitHub, Web Research, tool policy, confirmations, isolation). ElevenLabs Agent tools/memory are not used.
+| Cluster | Count | Category now | Retryable? | Decision |
+| --- | --- | --- | --- | --- |
+| Memory + summary safety blocks | 33 domain / 33 `failed_jobs` | `provider_safety` | no | Historical / still possible on the same content. This commit stops retrying them. Not auto-retried. |
+| Memory empty provider response | 1 domain / 1 `failed_jobs` | `malformed_provider_response` | bounded yes | Historical; still possible as `AiEmptyResponseException`. Eligible later if Owner asks. |
+| Group empty provider response | 4 domain / 0 `failed_jobs` | `malformed_provider_response` | bounded yes | Historical; job used to swallow the exception so Laravel recorded success. Eligible later if Owner asks. |
+| Attachment summary failed | 1 | unknown (no category metadata yet) | no (command skips unknown) | Historical; needs Owner review, not mass retry. |
+| Stuck processing rows | 0 | — | — | None at inventory time. Recovery command still added. |
 
-## ElevenLabs session auth
+This commit does **not** claim all historical failures are fixed. They are classified. Owner decides prune/retry.
 
-`POST /jarvis|chat/chats/{conversation}/voice/realtime/session` authenticates the user, `ensureOwned` the personal conversation, creates a local `voice_session`, fetches a signed URL with `xi-api-key` on the server, and returns only ephemeral client fields (`signed_url`, opaque `adapter_token`, safe TTS override). The API key never enters the browser.
+## Memory pipeline
 
-## Voice-session binding
+`AnalyzeConversationTurnJob` / `UpdateConversationSummaryJob`:
 
-Reuses `voice_sessions` without a migration. Metadata holds `provider=elevenlabs_realtime`, `voice_mode=realtime`, adapter token hash/expiry, optional `external_conversation_id`, and numeric latency. One realtime session binds one `conversation_id`. Starting a session for another chat ends the previous realtime session. End Voice does not delete the Jarvis conversation.
+- Completed runs still skip (idempotent).
+- Missing/deleted messages: existing run → `failed` + `missing_source`, no retry, no insert against a missing conversation FK.
+- Ownership / non-personal: terminal `ownership` / `stale_source`.
+- Transient provider errors: keep `processing`, rethrow, `$backoff = [30, 90, 180]`.
+- Permanent (auth, safety, structured-output parse): domain `failed` with category only, job returns (no extra `failed_jobs` spam).
+- `failed()` marks a still-processing run failed with a sanitized category.
+- `last_error` stores the category value, not the raw exception message. Metadata holds `error_category`, `error_code`, `error_class`, `retryable`, `failed_at`.
+- `MemoryWriter` still create-or-reinforces by normalized key; retry of a completed run does not duplicate memories.
 
-## Custom LLM adapter
+## Group analysis pipeline
 
-`POST /api/voice/elevenlabs/chat/completions` (CSRF-exempt API route). Auth: `Authorization: Bearer` `ELEVENLABS_CUSTOM_LLM_SECRET` plus `elevenlabs_extra_body.jarvis_session_token`. The adapter resolves the local session → user + bound conversation. Body `user_id` / `conversation_id` are ignored. It calls `ConversationTurnService`, not Gemini/OpenAI directly, then SSE-streams the final assistant text (OpenAI chat.completion.chunk + `[DONE]`).
+`AnalyzeTelegramGroupRangeJob` no longer catch-and-succeed.
 
-## Conversation persistence
+- Missing group → `missing_source` (terminal).
+- Left/archived group → `stale_source` (terminal). Raw group archive is not deleted.
+- Empty range still completes with `no_data` (no LLM).
+- Parse/`GroupAnalysisException` → terminal malformed, no retry loop.
+- Transient provider errors rethrow with backoff; `failed()` updates the domain row.
+- Completed runs still skip; knowledge writer still reinforce/supersede.
+- Tries aligned to shared policy (3) with job timeout **170s** (under worker `--timeout=180`, `retry_after=300`).
 
-Each final user transcript is a normal web user message: `channel=web`, `metadata.modality=voice`, `metadata.voice_mode=realtime`. Assistant text is a normal assistant message with the same metadata. Text and Voice share the Jarvis thread. ElevenLabs history is transport state only; Core rebuilds context each turn.
+## Attachment summary pipeline
 
-## Tools / confirmations
+`SummarizeMessageAttachmentJob`:
 
-Tools stay inside Jarvis. Realtime cannot bypass confirmation. The Workspace confirmation card still appears in Voice mode. A Gmail/Storage-style write still requires the existing policy.
+- Ready → skip.
+- Purged / non-image → `NotRequired` + `stale_source` (not a system failure; not a `purge_failure_count` bump).
+- Expired ephemeral with missing bytes → `stale_source` / `NotRequired`.
+- Missing message/user → `Failed` + `missing_source`.
+- Vision/config missing → terminal `provider_auth`.
+- Empty vision text → bounded retry (`empty_provider_response`).
+- `failed()` no longer increments `purge_failure_count`.
+- Job timeout 120s vs Gemini vision HTTP 90s vs worker 180s.
 
-## Orb / UI states
+## Failure classification
 
-`JarvisVoiceOrb` is reused. SDK modes map to `connecting`, `listening`, `user_speaking`, `thinking`, `speaking`, `interrupted`, `muted`, `error`, `ended`.
+Shared `AsyncFailureClassifier` + `AsyncFailureCategory` used by Memory, group analysis, attachments, and stored-file job failure.
 
-## Mode selector
+Categories: `provider_auth`, `provider_rate_limit`, `provider_quota`, `provider_timeout`, `provider_unavailable`, `provider_safety` (observed production class), `network`, `malformed_provider_response`, `validation`, `missing_source`, `stale_source`, `ownership`, `serialization`, `database`, `code_bug`, `unknown`.
 
-Workspace Voice: **Рация** | **Диалог Beta**. Default Рация, stored in `localStorage` (`jarvis.voice.web_mode`). No schema change. Beta hides PTT. Рация UX is unmodified. If Beta cannot start, the UI offers «Переключиться на Рацию» and does not auto-forward the live mic to the legacy path.
+Historical `last_error` prose is classified from bounded prefixes when metadata is absent.
 
-## Streaming behavior
+## Retry policy
 
-Phase 1: Core finishes the tool loop, then the adapter streams that final text. No speculative tokens before tools/confirmations. Phase 2 (later): earlier stream only for no-tool replies.
+| Kind | Examples | Behavior |
+| --- | --- | --- |
+| Transient | timeout, network, 429, temporary 5xx, empty provider response | bounded tries + exponential backoff |
+| Permanent | auth/config, safety, validation, missing/stale source, ownership, structured parse | no repeated retry |
+| Code bug / unknown | `TypeError`, unclassified | fail once, visible category, no loop |
 
-## Interruption / supersession
+## Idempotency
 
-ElevenLabs barge-in stops playback. Completed tool writes are not rolled back. Persisted user turns remain. C.1 frontend stale-response suppression still applies when switching to text.
+Unchanged durable writers: memory create-or-reinforce; group knowledge reinforce/supersede; attachment skip if `Ready`. Reliability jobs do not send Telegram/Gmail/GitHub. Retry commands dispatch only eligible transient domain rows.
 
-## Security
+## Stale source handling
 
-Private Agent + signed URL. Browser gets ephemeral access only. Adapter: secret, session HMAC token, ownership, expiry, throttle. Feature is off unless `ELEVENLABS_REALTIME_ENABLED`, `ELEVENLABS_AGENT_ID`, API key, and Custom LLM secret are set. Admin Voice panel shows Realtime Conversation Configured / Not configured.
+Deleted messages, left groups, purged/expired attachments: terminal `missing_source` / `stale_source` / `NotRequired`. Enums were not migrated.
 
-## Tests
+Chat delete still cascades `memory_analysis_runs` via FK. A queued job for a deleted conversation returns without inserting an orphan run.
 
-Isolated PHPUnit (Http::fake, FakeAiChatGateway, temp `jarvis-test-*` users). No live ElevenLabs/Telegram.
+## Stuck run recovery
 
-- legacy Рация store does not call convai signed-url
-- owned realtime bind; foreign conversation 404
-- auth response has no API key
-- adapter resolves session; arbitrary ids ignored; messages persist with `voice_mode=realtime`
-- switching chat ends the old realtime session
-- ending Voice keeps the Jarvis conversation
-- disabled config 503, no outbound HTTP
-- confirmation still required; Core task still created
-- Telegram services do not take realtime collaborators
-- unauthenticated adapter 401
+`jarvis:reliability:recover-stale` (scheduled every 15 minutes). Default threshold 30 minutes (`config/reliability.php`). Fresh `processing` rows are not marked stuck. Dry-run: `--dry-run`.
 
-## Build
+## Operational commands
 
-`php -l` on touched PHP, Pint `--dirty`, `composer validate`, `npm run build`, `git diff --check`. Added JS dependency `@elevenlabs/client` for the Beta SDK only. No PHP dependency change. No migration.
+Dry-run unless `--execute`. `--limit`, `--hours`, `--category`. Only retryable/transient (plus `stale_running`). **Not run against production in this work.**
+
+- `jarvis:reliability:report`
+- `jarvis:memory:retry-failed`
+- `jarvis:groups:retry-failed`
+- `jarvis:attachments:retry-failed`
+- `jarvis:reliability:recover-stale`
+
+Do not use `queue:retry all`.
+
+## Retention / cleanup
+
+Documented: `queue:prune-failed --hours=` using `config/reliability.php` `failed_jobs_retention_days` (14). Domain failure history is kept. **Prune was not executed.**
+
+## Observability
+
+`jarvis:reliability:report` prints counts by subsystem, last `failed_jobs` time (job class basename only), category/retryable, oldest processing, pending/reserved queue rows. No payload, prompt, transcript, or provider body.
+
+## Automated tests
+
+Isolated PHPUnit with fakes and `jarvis-test-*@invalid.local` users. No live providers.
+
+Covered: transient Memory retryable; permanent auth terminal; `failed()` updates run; retry idempotent; missing deleted messages terminal; left group stale; expired attachment skipped; 429 backoff; auth no retry; stuck-running threshold; retry dry-run; retry excludes safety; diagnostics omit payload/transcript; Memory path does not dispatch `ProcessTelegramUpdate`.
+
+## Documentation synchronization
+
+`IMPLEMENTATION_PLAN.md` statuses brought to current main. Deferred live validations collected in [Docs/DEFERRED_VALIDATION.md](../DEFERRED_VALIDATION.md). Worker/queue docs aligned (`analysis,memory,default`, `--timeout=180`).
+
+## Deferred validation backlog
+
+Owner postponed live campaigns. They do not block further development. See [Docs/DEFERRED_VALIDATION.md](../DEFERRED_VALIDATION.md). Not MANUAL PASS.
 
 ## Production safety
 
-`ELEVENLABS_REALTIME_ENABLED=false` by default. Рация unaffected. No destructive DB operations. Temporary test users cleaned via `CleansTemporaryJarvisRecords` (now also deletes `voice_sessions`).
+- SELECT/aggregates only on production `jarvis`
+- No mass retry / prune / truncate
+- No live provider calls
+- Telegram / Gmail / GitHub write adapters untouched
+- `last_error` going forward is a category code
 
-## Known limitations
+## Remaining risks
 
-- Core still returns a full reply before SSE (correctness over latency).
-- Per-user `voice_id` is sent as an Agent TTS override; if the Agent catalog cannot match, Beta may fall back to the Agent voice without changing stored `voice_id`.
-- Expressive mode is the Agent/conversational model, not Jarvis emotional tags.
-- No JS test runner; PTT/Beta UI is covered by PHP contracts plus the Owner A/B checklist.
-- C.1 and C.2 Beta are **IMPLEMENTED / NOT VALIDATED**.
+- Group analysis with many chunks can still exceed 170s job timeout (chunk × Gemini HTTP 60s). Not raised blindly above worker timeout.
+- Scheduler `queue:work --max-time=50 --timeout=180` is a fallback beside `jarvis-queue.service`; systemd remains the long-running worker (`analysis,memory,default`, timeout 180). Telegram queue stays on its separate crontab worker.
+- Historical `failed_jobs` still contain old exception text until Owner prunes.
+- One historical attachment failure has no category metadata; retry command will skip it as unknown.
+- C.1 / C.2 / integrations live validation still deferred.
 
-## Owner A/B checklist
-
-A. Рация still works exactly as before (hold / release / interrupt).
-
-B. Same chat: Voice → Диалог Beta → microphone, continuous listening.
-
-C. Say «Привет. Давай обсудим Jarvis.» without holding a button.
-
-D. Natural pause inside a phrase should not cut the turn too early if the ElevenLabs turn model understands continuation.
-
-E. Interrupt Jarvis while speaking → speech stops, new turn accepted. Completed tools are not undone.
-
-F. Create a Task by voice → Core creates it.
-
-G. «Напомни про неё завтра.» → C.1 linking still works.
-
-H. Voice → Text → transcripts/replies already in that conversation.
-
-I. Return to Beta → new realtime session, same Jarvis history.
-
-J. Telegram voice note + voice reply unchanged. No realtime agent there.
+**Status.** Core Reliability: **IMPLEMENTED**. Historical failures: **CLASSIFIED**. Not all failures fixed.

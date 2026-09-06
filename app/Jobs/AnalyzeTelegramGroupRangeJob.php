@@ -3,26 +3,28 @@
 namespace App\Jobs;
 
 use App\Enums\TelegramGroupAnalysisRunStatus;
+use App\Jobs\Concerns\HandlesClassifiedAsyncFailure;
 use App\Models\TelegramGroupAnalysisRun;
 use App\Services\Groups\GroupAnalysisService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class AnalyzeTelegramGroupRangeJob implements ShouldQueue
 {
+    use HandlesClassifiedAsyncFailure;
     use Queueable;
 
-    public int $tries = 2;
+    public int $tries = 3;
 
-    public int $timeout = 180;
+    public int $timeout = 170;
 
     public function __construct(
         public readonly int $runId,
     ) {
         $this->onQueue((string) config('group_analysis.queue'));
+        $this->tries = max(1, (int) config('reliability.job_tries', 3));
     }
 
     public function handle(GroupAnalysisService $analysis): void
@@ -75,17 +77,43 @@ class AnalyzeTelegramGroupRangeJob implements ShouldQueue
                 'metadata' => $result['metadata'],
             ])->save();
         } catch (Throwable $exception) {
-            $claimed->forceFill([
-                'status' => TelegramGroupAnalysisRunStatus::Failed,
-                'last_error' => mb_substr($exception->getMessage(), 0, 1000),
-            ])->save();
+            $failure = $this->classifyFailure($exception);
 
-            Log::warning('telegram group analysis failed', [
+            if (! $failure->retryable) {
+                $this->failureWriter()->failGroupRun($claimed, $failure);
+                $this->failureWriter()->logFailure('telegram group analysis failed', $failure, [
+                    'job' => self::class,
+                    'run_id' => $claimed->id,
+                    'telegram_group_id' => $claimed->telegram_group_id,
+                ]);
+
+                return;
+            }
+
+            $this->failureWriter()->logFailure('telegram group analysis retryable failure', $failure, [
                 'job' => self::class,
                 'run_id' => $claimed->id,
                 'telegram_group_id' => $claimed->telegram_group_id,
-                'error_class' => $exception::class,
             ]);
+
+            throw $exception;
         }
+    }
+
+    public function failed(?Throwable $exception): void
+    {
+        $run = TelegramGroupAnalysisRun::query()->find($this->runId);
+
+        if ($run === null || $run->status === TelegramGroupAnalysisRunStatus::Completed) {
+            return;
+        }
+
+        $failure = $this->classifyFailure($exception);
+        $this->failureWriter()->failGroupRun($run, $failure);
+        $this->failureWriter()->logFailure('telegram group analysis job failed', $failure, [
+            'job' => self::class,
+            'run_id' => $run->id,
+            'telegram_group_id' => $run->telegram_group_id,
+        ]);
     }
 }

@@ -43,9 +43,13 @@ Do not start a listed “completed” milestone again. Do not treat Desktop as u
 | Per-user TTS voice | Six curated voices shared across Web/Telegram per user | IMPLEMENTED |
 | M25U.1 | Shared `/chat` Personal Workspace | MANUAL PASS (core user workflow) |
 | M25U.2 | User administration / isolation | MANUAL PASS (core user workflow) |
-| M25U.3 | Assistant profiles, onboarding UI, reminders panel code | MANUAL PARTIAL (onboarding entry); panel LIVE BUG |
+| M25U.3 | Assistant profiles, onboarding UI, reminders panel code | MANUAL PARTIAL (onboarding entry); reminders core later MANUAL PASS |
 | Telegram Voice Replies | DM `sendVoice` via existing TTS; default text | MANUAL PASS |
 | Telegram Voice Input | DM voice note → existing Gemini STT → Core | IMPLEMENTED / NOT VALIDATED |
+| Workspace UX cleanup / conversation delete | Own personal chat delete; independent entities survive | MANUAL PASS |
+| Phase C.1 | Conversation Intelligence | IMPLEMENTED / validation deferred |
+| Phase C.2 Beta | ElevenLabs realtime Web voice; Рация kept | IMPLEMENTED / validation deferred |
+| Core Reliability | Async jobs, classification, retry/recover commands | IMPLEMENTED; historical failures CLASSIFIED |
 
 Historical detailed “implement this” write-ups for M0–M24 are obsolete as instructions. Git history remains the archive.
 
@@ -55,10 +59,10 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 
 | Gap | Reality |
 | --- | --- |
-| Reminder create without Telegram | IMPLEMENTED / NOT VALIDATED (`ReminderService::validateCreate` has no Telegram gate) |
+| Reminder create without Telegram | MANUAL PASS (confirmed live core flow) |
 | Reminder delivery | Telegram optional; no-channel stays Core due (`delivery_state=no_channel`, 30-minute recheck) |
-| Recurrence | Column exists; create tool rejects recurrence |
-| Reminders panel | Header **Напоминания** on `/jarvis` and `/chat`; IMPLEMENTED / NOT VALIDATED |
+| Recurrence | IMPLEMENTED; exhaustive DST/edge MANUAL PASS deferred |
+| Reminders panel | Header **Напоминания**; MANUAL PASS for confirmed live core flow |
 | Onboarding E2E | Entry confirmed; completion/profile update not Owner-confirmed |
 | Google / GitHub live smoke | Code present; not Owner-validated as a campaign |
 | A/B isolation campaign | Prepared, not executed |
@@ -66,6 +70,7 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 | Versioned Client API | Not implemented; **not** current work |
 | Telegram Voice Input (STT) | IMPLEMENTED / NOT VALIDATED |
 | Desktop | CANCELLED |
+| Deferred live campaigns | See [DEFERRED_VALIDATION.md](DEFERRED_VALIDATION.md); not blocking |
 
 ---
 
@@ -93,9 +98,7 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 
 ### After M25U.3.1 (still Phase A / start of B)
 
-- Full onboarding manual validation
-- Selected Google / GitHub manual validation if Owner wants
-- Optional A/B isolation campaign
+Live campaigns are deferred, not current work. See [DEFERRED_VALIDATION.md](DEFERRED_VALIDATION.md).
 
 ### Phase B.1 — Reminders 2.0
 
@@ -105,29 +108,39 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 
 ### Phase B.2 — Tasks & Proactive
 
-**Status.** IMPLEMENTED / NOT VALIDATED. Do not treat as MANUAL PASS until Owner live test.
+**Status.** IMPLEMENTED / NOT VALIDATED. Owner-confirmed basic reminder flow is B.1, not B.2. Do not treat Tasks as MANUAL PASS until Owner live test.
 
 **In code:** Tasks domain, Task Center, Notification Center, Daily/Evening/Weekly briefs (opt-in), bounded proactive engine, task↔reminder/conversation/project/calendar-reference.
 
 **Not in this milestone:** mobile, knowledge graph, contacts, watchers, unrestricted autonomy.
 
-Detail: [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md), [Docs/Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+Detail: [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).
 
 ### Telegram Voice Replies / Input
 
 **Replies.** MANUAL PASS. DM `sendVoice` via existing TTS; default text.
 
-**Input.** IMPLEMENTED / NOT VALIDATED. Paired DM `Message.voice` → existing Gemini STT → `ConversationTurnService` → existing delivery. Groups unchanged. M25U.3.1 is IMPLEMENTED / NOT VALIDATED.
+**Input.** IMPLEMENTED / NOT VALIDATED. Unchanged by C.2. Groups unchanged.
 
 Detail: [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
 ### Phase C.1 — Conversation Intelligence
 
-**Status.** IMPLEMENTED / NOT VALIDATED. Do not treat as MANUAL PASS until Owner live test.
+**Status.** IMPLEMENTED / validation deferred. Not MANUAL PASS.
 
-**In code:** derived working context, topic continuity, reference resolver, clarification policy, trusted recent tool refs, unified personality presentation, bounded initiative, Web stale-response suppression. No new chat/memory schema. C.2 remains PLANNED.
+**In code:** derived working context, topic continuity, reference resolver, clarification policy, trusted recent tool refs, unified personality presentation, bounded initiative, Web stale-response suppression. No new chat/memory schema.
 
-Detail: [HUMAN_LIKE_ASSISTANT.md](HUMAN_LIKE_ASSISTANT.md), [Docs/Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+Detail: [HUMAN_LIKE_ASSISTANT.md](HUMAN_LIKE_ASSISTANT.md).
+
+### Phase C.2 Beta — ElevenLabs realtime
+
+**Status.** IMPLEMENTED / validation deferred. Not MANUAL PASS. **Рация remains** the default Web Voice path. Telegram Voice unchanged. Desktop CANCELLED.
+
+### Core Reliability
+
+**Status.** IMPLEMENTED. Historical async failures CLASSIFIED. Not a live validation milestone.
+
+Detail: [Docs/Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md), [DEFERRED_VALIDATION.md](DEFERRED_VALIDATION.md).
 
 ---
 
@@ -135,11 +148,11 @@ Detail: [HUMAN_LIKE_ASSISTANT.md](HUMAN_LIKE_ASSISTANT.md), [Docs/Development/Cu
 
 | Item | Phase |
 | --- | --- |
-| Web Push / Notification Center | B.1 transport done / B.2 center remaining |
-| Recurrence, snooze, done, edit | B.1 IMPLEMENTED / NOT VALIDATED |
-| Tasks domain + relations | B |
-| Daily Brief / Weekly Review | B |
-| Streaming STT/TTS, richer barge-in | C.2 PLANNED |
+| Web Push / Notification Center | B.1 transport MANUAL PASS / B.2 center IMPLEMENTED / NOT VALIDATED |
+| Recurrence, snooze, done, edit | B.1 MANUAL PASS for confirmed live core; DST edges deferred |
+| Tasks domain + relations | B.2 IMPLEMENTED / NOT VALIDATED |
+| Daily Brief / Weekly Review | B.2 IMPLEMENTED / NOT VALIDATED |
+| C.2 further streaming (Core tokens before persist) | later; Beta already IMPLEMENTED / validation deferred |
 | Telegram Voice Replies (`sendVoice`) | MANUAL PASS |
 | Telegram Voice Input (STT) | IMPLEMENTED / NOT VALIDATED |
 | Wake word | research only, not mandatory |

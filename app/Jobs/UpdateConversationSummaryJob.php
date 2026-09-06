@@ -2,13 +2,16 @@
 
 namespace App\Jobs;
 
+use App\Enums\AsyncFailureCategory;
 use App\Enums\ConversationKind;
 use App\Enums\MemoryAnalysisRunStatus;
 use App\Enums\MemoryAnalysisRunType;
+use App\Jobs\Concerns\HandlesClassifiedAsyncFailure;
 use App\Models\Conversation;
 use App\Models\MemoryAnalysisRun;
 use App\Models\User;
 use App\Services\Memory\ConversationSummaryService;
+use App\Services\Reliability\Exceptions\ClassifiedAsyncException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -16,6 +19,7 @@ use Throwable;
 
 class UpdateConversationSummaryJob implements ShouldQueue
 {
+    use HandlesClassifiedAsyncFailure;
     use Queueable;
 
     public int $tries = 3;
@@ -28,6 +32,7 @@ class UpdateConversationSummaryJob implements ShouldQueue
         public readonly bool $force = false,
     ) {
         $this->onQueue((string) config('memory.queue'));
+        $this->tries = max(1, (int) config('reliability.job_tries', 3));
     }
 
     public function handle(ConversationSummaryService $summaries): void
@@ -36,6 +41,8 @@ class UpdateConversationSummaryJob implements ShouldQueue
         $conversation = Conversation::query()->find($this->conversationId);
 
         if ($user === null || $conversation === null || (int) $conversation->user_id !== $this->userId || $conversation->kind !== ConversationKind::Personal) {
+            $this->markMissingSource();
+
             return;
         }
 
@@ -75,6 +82,7 @@ class UpdateConversationSummaryJob implements ShouldQueue
                 $run->forceFill([
                     'status' => MemoryAnalysisRunStatus::Completed,
                     'completed_at' => now(),
+                    'last_error' => null,
                     'metadata' => ['skipped' => true],
                 ])->save();
 
@@ -86,6 +94,7 @@ class UpdateConversationSummaryJob implements ShouldQueue
                 'provider' => $result['provider'],
                 'model' => $result['model'],
                 'completed_at' => now(),
+                'last_error' => null,
                 'metadata' => [
                     'summary_id' => $result['summary']->id,
                     'version' => $result['summary']->version,
@@ -104,20 +113,77 @@ class UpdateConversationSummaryJob implements ShouldQueue
                 'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             ]);
         } catch (Throwable $exception) {
-            $run->forceFill([
-                'status' => MemoryAnalysisRunStatus::Failed,
-                'last_error' => mb_substr($exception->getMessage(), 0, 1000),
-            ])->save();
+            $failure = $this->classifyFailure($exception);
 
-            Log::warning('conversation summary failed', [
+            if (! $failure->retryable) {
+                $this->failureWriter()->failMemoryRun($run, $failure);
+                $this->failureWriter()->logFailure('conversation summary failed', $failure, [
+                    'job' => self::class,
+                    'run_id' => $run->id,
+                    'user_id' => $this->userId,
+                    'conversation_id' => $this->conversationId,
+                ]);
+
+                return;
+            }
+
+            $this->failureWriter()->logFailure('conversation summary retryable failure', $failure, [
                 'job' => self::class,
                 'run_id' => $run->id,
                 'user_id' => $this->userId,
                 'conversation_id' => $this->conversationId,
-                'error_class' => $exception::class,
             ]);
 
             throw $exception;
         }
+    }
+
+    public function failed(?Throwable $exception): void
+    {
+        $run = MemoryAnalysisRun::query()
+            ->where('conversation_id', $this->conversationId)
+            ->where('type', MemoryAnalysisRunType::Summary)
+            ->where('status', MemoryAnalysisRunStatus::Processing)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($run === null || $run->status === MemoryAnalysisRunStatus::Completed) {
+            return;
+        }
+
+        $failure = $this->classifyFailure($exception);
+        $this->failureWriter()->failMemoryRun($run, $failure);
+        $this->failureWriter()->logFailure('conversation summary job failed', $failure, [
+            'job' => self::class,
+            'run_id' => $run->id,
+            'user_id' => $this->userId,
+            'conversation_id' => $this->conversationId,
+        ]);
+    }
+
+    private function markMissingSource(): void
+    {
+        $failure = $this->classifyFailure(new ClassifiedAsyncException(
+            $this->conversationMissing() ? AsyncFailureCategory::MissingSource : AsyncFailureCategory::Ownership,
+            $this->conversationMissing() ? 'missing_source' : 'ownership',
+        ));
+
+        $runs = MemoryAnalysisRun::query()
+            ->where('conversation_id', $this->conversationId)
+            ->where('type', MemoryAnalysisRunType::Summary)
+            ->whereIn('status', [
+                MemoryAnalysisRunStatus::Pending,
+                MemoryAnalysisRunStatus::Processing,
+            ])
+            ->get();
+
+        foreach ($runs as $run) {
+            $this->failureWriter()->failMemoryRun($run, $failure);
+        }
+    }
+
+    private function conversationMissing(): bool
+    {
+        return Conversation::query()->find($this->conversationId) === null;
     }
 }

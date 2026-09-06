@@ -224,7 +224,10 @@ Schedule:
 
 - `jarvis:reminders:dispatch` every minute (unchanged).
 - `jarvis:attachments:purge-ephemeral` hourly (also enqueues a bounded batch of pending summaries).
-- `queue:work database --queue=memory,default --stop-when-empty` every minute so analysis/storage jobs can run. The existing telegram worker is unchanged.
+- `jarvis:reliability:recover-stale` every 15 minutes.
+- `queue:work database --queue=analysis,memory,default --stop-when-empty --timeout=180` every minute as a fallback. `jarvis-queue.service` is the long-running worker on the same queues. The existing telegram worker is unchanged.
+
+Purged/expired ephemeral screenshots that never got a summary become `NotRequired` (`stale_source`), not an endless retry. `jarvis:attachments:retry-failed` is dry-run unless `--execute`.
 
 ---
 

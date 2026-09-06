@@ -269,6 +269,8 @@ Telegram Group history **не** становится автоматически 
 
 Analysis jobs используют **Owner Analysis AI**, не conversation config и не User Conversation AI.
 
+Async Memory / group / attachment jobs classify failures (`AsyncFailureClassifier`). `last_error` is a category code, not a raw provider/prompt dump. Transient errors retry with backoff; missing/stale/auth/safety are terminal. `failed()` keeps domain runs consistent with the queue. Operational CLI: `jarvis:reliability:report`, `jarvis:memory:retry-failed` (dry-run default). See [Docs/Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
 ---
 
 ## Единство личной памяти между чатами и каналами

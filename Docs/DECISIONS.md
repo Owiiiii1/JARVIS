@@ -542,9 +542,9 @@
 
 **Контекст.** Database queue без worker не обрабатывает memory jobs. Telegram уже имеет crontab flock worker на queue `telegram`.
 
-**Решение.** `jarvis-queue.service` (`queue:work database --queue=memory,default`). Telegram worker crontab не дублируется этим unit. Reminder scheduler cron не трогается. Supervisor не ставится.
+**Решение.** `jarvis-queue.service` (`queue:work database --queue=analysis,memory,default --timeout=180`). Telegram worker crontab не дублируется этим unit. Reminder scheduler cron не трогается. Supervisor не ставится. Scheduler fallback uses the same queue list and `--timeout=180` so job timeouts are not killed at the worker default of 60s.
 
-**Следствие.** Memory jobs и default queue обрабатывает systemd; Telegram updates — отдельный worker.
+**Следствие.** Memory, group analysis, attachment summary, and default-queue jobs обрабатывает systemd; Telegram updates — отдельный worker. `retry_after` (300s) остаётся выше worker timeout.
 
 ---
 

@@ -2,15 +2,16 @@
 
 namespace App\Services\Groups;
 
+use App\Enums\AsyncFailureCategory;
 use App\Models\AiRoleSetting;
 use App\Models\Message;
-use App\Models\TelegramGroup;
 use App\Models\TelegramGroupAnalysisRun;
 use App\Services\Ai\AiConfigurationResolver;
 use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\DTO\AiChatMessage;
 use App\Services\Ai\DTO\AiChatRequest;
 use App\Services\Groups\DTO\GroupAnalysisResult;
+use App\Services\Reliability\Exceptions\ClassifiedAsyncException;
 use Illuminate\Support\Facades\Log;
 
 final class GroupAnalysisService
@@ -31,7 +32,16 @@ final class GroupAnalysisService
      */
     public function process(TelegramGroupAnalysisRun $run): array
     {
-        $group = $run->group()->firstOrFail();
+        $group = $run->group()->first();
+
+        if ($group === null) {
+            throw new ClassifiedAsyncException(AsyncFailureCategory::MissingSource, 'missing_source');
+        }
+
+        if ($group->isArchived()) {
+            throw new ClassifiedAsyncException(AsyncFailureCategory::StaleSource, 'stale_source');
+        }
+
         $timezone = $this->ranges->timezone($group);
         $started = microtime(true);
 

@@ -1,6 +1,6 @@
 # Jarvis — current implementation snapshot
 
-**Date:** 2026-09-06 (Phase C.2 Beta ElevenLabs realtime voice)
+**Date:** 2026-09-06 (Core Reliability Cleanup)
 **Host path:** `/var/www/jarvis`  
 **Public URL:** https://jarvis.owlsolutions.net  
 **GitHub:** https://github.com/Owiiiii1/JARVIS.git
@@ -65,7 +65,7 @@ The former hands-free «Диалог» VAD capture was removed from Рация. 
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | `main`, aligned with `origin/main` after workspace conversation delete |
+| HEAD | `main`, aligned with `origin/main` after Core Reliability Cleanup |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 
 Production checkout is the GitHub source of truth. Gemini STT request-shape and bounded ElevenLabs voice fallback are committed. Laravel Boost is require-dev tooling in a separate commit. `.env` stays gitignored.
@@ -99,7 +99,7 @@ AI / Telegram / ElevenLabs credentials: encrypted DB columns, not `.env`. Do not
 | Domain | `jarvis.owlsolutions.net` |
 | nginx | `/var/www/jarvis/public`, HTTP→HTTPS |
 | TLS | Let's Encrypt |
-| Scheduler | crontab `schedule:run`; `jarvis:reminders:dispatch` every minute; `jarvis:tasks:dispatch` / `jarvis:proactive:dispatch` every 5 minutes; `jarvis:briefs:dispatch` every minute; attachment purge hourly; `jarvis:voice:cleanup-temp` every 5 minutes; `queue:work` for `memory,default` |
+| Scheduler | crontab `schedule:run`; `jarvis:reminders:dispatch` every minute; `jarvis:tasks:dispatch` / `jarvis:proactive:dispatch` every 5 minutes; `jarvis:briefs:dispatch` every minute; attachment purge hourly; `jarvis:voice:cleanup-temp` every 5 minutes; `jarvis:reliability:recover-stale` every 15 minutes; fallback `queue:work` for `analysis,memory,default` (`--timeout=180`). Long-running worker: `jarvis-queue.service` same queues. |
 | Telegram queue | deploy-user crontab `flock` worker (host-specific) |
 
 Vite production build is generated on deploy (`public/build` gitignored).
@@ -197,3 +197,6 @@ Code: Google OAuth (Gmail + Calendar tools; **no Drive**), GitHub OAuth + tools,
 - Telegram Voice Input live Owner checklist (code shipped)
 - Phase C.1 live Owner checklist (code shipped; not MANUAL PASS)
 - Phase C.2 Beta live Owner A/B (code shipped; not MANUAL PASS; do not remove Рация)
+- Historical async retry/prune (classified; Owner decides)
+
+Live campaigns: [DEFERRED_VALIDATION.md](DEFERRED_VALIDATION.md). Core Reliability is IMPLEMENTED; historical failures CLASSIFIED.

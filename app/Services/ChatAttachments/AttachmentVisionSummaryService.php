@@ -2,6 +2,7 @@
 
 namespace App\Services\ChatAttachments;
 
+use App\Enums\AsyncFailureCategory;
 use App\Enums\AttachmentSummaryStatus;
 use App\Jobs\SummarizeMessageAttachmentJob;
 use App\Models\Message;
@@ -12,6 +13,7 @@ use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\DTO\AiChatMessage;
 use App\Services\Ai\DTO\AiChatRequest;
 use App\Services\Ai\DTO\AiContentPart;
+use App\Services\Reliability\Exceptions\ClassifiedAsyncException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -47,7 +49,7 @@ final class AttachmentVisionSummaryService
     public function summarize(MessageAttachment $attachment): void
     {
         if (! $attachment->isImage() || $attachment->isPurged()) {
-            return;
+            throw new ClassifiedAsyncException(AsyncFailureCategory::StaleSource, 'stale_source');
         }
 
         $attachment->forceFill([
@@ -58,25 +60,24 @@ final class AttachmentVisionSummaryService
         $message = $attachment->message ?? Message::query()->find($attachment->message_id);
 
         if ($user === null || $message === null) {
-            $this->fail($attachment);
-
-            return;
+            throw new ClassifiedAsyncException(AsyncFailureCategory::MissingSource, 'missing_source');
         }
 
         $bytes = $this->readBytes($attachment);
 
         if ($bytes === null) {
-            $this->fail($attachment);
+            $expired = $attachment->expires_at !== null && $attachment->expires_at->isPast();
 
-            return;
+            throw new ClassifiedAsyncException(
+                $expired ? AsyncFailureCategory::StaleSource : AsyncFailureCategory::MissingSource,
+                $expired ? 'stale_source' : 'missing_source',
+            );
         }
 
         $configuration = $this->resolver->resolveConversation($user);
 
         if (! $this->gateway->supportsVision($configuration)) {
-            $this->fail($attachment);
-
-            return;
+            throw new ClassifiedAsyncException(AsyncFailureCategory::ProviderAuth, 'vision_not_supported');
         }
 
         $max = ChatAttachmentConfig::summaryMaxChars();
@@ -103,9 +104,11 @@ final class AttachmentVisionSummaryService
         $text = trim($response->text);
 
         if ($text === '') {
-            $this->fail($attachment);
-
-            return;
+            throw new ClassifiedAsyncException(
+                AsyncFailureCategory::MalformedProviderResponse,
+                'empty_provider_response',
+                true,
+            );
         }
 
         if (mb_strlen($text) > $max) {
@@ -125,13 +128,6 @@ final class AttachmentVisionSummaryService
             ]);
         } catch (Throwable) {
         }
-    }
-
-    private function fail(MessageAttachment $attachment): void
-    {
-        $attachment->forceFill([
-            'summary_status' => AttachmentSummaryStatus::Failed,
-        ])->save();
     }
 
     private function readBytes(MessageAttachment $attachment): ?string

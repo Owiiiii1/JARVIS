@@ -55,10 +55,12 @@ Includes (in code unless noted):
 
 ### Phase A remaining
 
-1. **M25U.3.1 Web Reminders without Telegram** — IMPLEMENTED / NOT VALIDATED
-2. Full onboarding manual validation
-3. Selected integration manual validation (Google / GitHub)
-4. Optional A/B isolation campaign
+1. **M25U.3.1 Web Reminders without Telegram** — MANUAL PASS (confirmed live core flow)
+2. Full onboarding manual validation — deferred
+3. Selected integration manual validation (Google / GitHub) — deferred
+4. Optional A/B isolation campaign — deferred
+
+See [DEFERRED_VALIDATION.md](DEFERRED_VALIDATION.md).
 
 ---
 

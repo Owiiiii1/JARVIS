@@ -2,15 +2,17 @@
 
 namespace App\Jobs;
 
+use App\Enums\StoredFileStatus;
+use App\Jobs\Concerns\HandlesClassifiedAsyncFailure;
 use App\Models\StoredFile;
 use App\Services\Storage\StoredFileService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class ProcessStoredFileJob implements ShouldQueue
 {
+    use HandlesClassifiedAsyncFailure;
     use Queueable;
 
     public int $tries = 3;
@@ -21,6 +23,7 @@ class ProcessStoredFileJob implements ShouldQueue
         public readonly int $storedFileId,
     ) {
         $this->onQueue((string) config('jarvis_storage.queue', 'default'));
+        $this->tries = max(1, (int) config('reliability.job_tries', 3));
     }
 
     public function handle(StoredFileService $files): void
@@ -36,12 +39,16 @@ class ProcessStoredFileJob implements ShouldQueue
 
     public function failed(?Throwable $exception): void
     {
-        try {
-            Log::warning('stored file job failed', [
-                'file_id' => $this->storedFileId,
-                'error_class' => $exception ? $exception::class : null,
-            ]);
-        } catch (Throwable) {
+        $file = StoredFile::query()->find($this->storedFileId);
+
+        if ($file === null || $file->status === StoredFileStatus::Ready || $file->isDeleted()) {
+            return;
         }
+
+        $failure = $this->classifyFailure($exception);
+        $this->failureWriter()->failStoredFile($file, $failure);
+        $this->failureWriter()->logFailure('stored file job failed', $failure, [
+            'file_id' => $this->storedFileId,
+        ]);
     }
 }

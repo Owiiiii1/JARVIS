@@ -251,9 +251,9 @@ User-facing ranges («сегодня», «вчера», custom dates) счита
 
 Empty range: **no LLM call**; run `completed` with `metadata.no_data=true`.
 
-Job: `AnalyzeTelegramGroupRangeJob` on queue `analysis`. Worker: `--queue=analysis,memory,default`. HTTP Admin returns immediately (`Analysis queued`). Idempotency: queued/processing run for the same group+range+mode is reused. Completed runs are not silently reprocessed; overlapping later runs reinforce or supersede knowledge instead of duplicating active facts.
+Job: `AnalyzeTelegramGroupRangeJob` on queue `analysis`. Workers: systemd `jarvis-queue.service` and scheduler fallback `--queue=analysis,memory,default --timeout=180`. HTTP Admin returns immediately (`Analysis queued`). Idempotency: queued/processing run for the same group+range+mode is reused. Completed runs are not silently reprocessed; overlapping later runs reinforce or supersede knowledge instead of duplicating active facts. Left/missing groups fail terminal (`stale_source` / `missing_source`) without retry. Transient provider errors retry with backoff; `failed()` updates the domain row. Raw group archive is not deleted by analysis failure.
 
-CLI (do not run unless asked): `php artisan jarvis:groups:analyze --group= --from= --to= --dry-run`.
+CLI: `php artisan jarvis:groups:analyze --group= --from= --to= --dry-run`. Operational retry (dry-run default): `jarvis:groups:retry-failed`. Diagnostics: `jarvis:reliability:report`. Do not `queue:retry all`.
 
 ### Owner personal chat → group knowledge
 
