@@ -4,6 +4,7 @@ return [
     'recent_executions_limit' => (int) env('INTEGRATIONS_RECENT_EXECUTIONS', 50),
 
     'google' => [
+        // Admin Settings → Integrations can override these. Env remains fallback.
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect_uri' => env('GOOGLE_REDIRECT_URI'),

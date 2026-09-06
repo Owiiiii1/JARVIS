@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\IntegrationAccountStatus;
 use App\Enums\UserRole;
+use App\Models\GoogleOAuthSetting;
 use App\Models\IntegrationAccount;
 use App\Models\User;
 use App\Services\Conversations\ConversationService;
@@ -19,11 +20,28 @@ use App\Services\Tools\ToolRegistry;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\Support\CleansTemporaryJarvisRecords;
+use Tests\Support\RestoresGoogleOAuthSettings;
 use Tests\TestCase;
 
 class GoogleOAuthTest extends TestCase
 {
     use CleansTemporaryJarvisRecords;
+    use RestoresGoogleOAuthSettings;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->snapshotGoogleOAuthSettings();
+        GoogleOAuthSetting::query()->delete();
+    }
+
+    protected function tearDown(): void
+    {
+        $this->restoreGoogleOAuthSettings();
+
+        parent::tearDown();
+    }
 
     public function test_owner_connect_redirects_to_google_and_user_is_denied(): void
     {

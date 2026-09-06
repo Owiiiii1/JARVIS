@@ -70,6 +70,8 @@ final class GoogleIntegrationProvider implements IntegrationProvider
                     ['key' => 'connect', 'available' => false, 'label' => 'Connect Google'],
                 ],
                 configured: false,
+                oauthClientLabel: 'Not configured',
+                accountStatusLabel: 'Not connected',
             );
         }
 
@@ -83,7 +85,15 @@ final class GoogleIntegrationProvider implements IntegrationProvider
             IntegrationAccountStatus::Error => 'Error',
             IntegrationAccountStatus::Revoked => 'Revoked',
             IntegrationAccountStatus::Connecting => 'Connecting',
-            default => 'Disconnected',
+            default => 'Configured',
+        };
+
+        $accountStatusLabel = match ($state) {
+            IntegrationAccountStatus::Connected => $account?->external_account_email ?: 'Connected',
+            IntegrationAccountStatus::Error => 'Error',
+            IntegrationAccountStatus::Revoked => 'Revoked',
+            IntegrationAccountStatus::Connecting => 'Connecting',
+            default => 'Not connected',
         };
 
         $diagnostic = match ($state) {
@@ -165,6 +175,8 @@ final class GoogleIntegrationProvider implements IntegrationProvider
                     'state' => $gmailEnabled ? 'enabled' : ($state === IntegrationAccountStatus::Connected ? 'permission_required' : 'not_enabled'),
                 ],
             ],
+            oauthClientLabel: 'Configured',
+            accountStatusLabel: $accountStatusLabel,
         );
     }
 

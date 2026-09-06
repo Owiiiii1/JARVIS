@@ -226,6 +226,8 @@ Panel presentation: one card per task with its schedule as the secondary line, p
 
 Code: Google OAuth (Gmail + Calendar tools; **no Drive**), GitHub OAuth + tools, Telegram bot, ElevenLabs TTS, Web Research (`gemini_google` / `tavily` / disabled). Owner-only except Voice/research/storage capabilities for users as listed above. Live Google/GitHub campaign: NOT VALIDATED.
 
+Google OAuth **client** configuration (Client ID / Client Secret / Redirect URI) can be managed in Admin → Settings → Integrations → Google. Stored in `google_oauth_settings`; Client Secret encrypted at rest. DB overrides `.env`; `.env` remains fallback. OAuth **account** tokens stay separately encrypted in `integration_accounts`. Admin save is **READY FOR OWNER VALIDATION**, not MANUAL PASS. Cursor did not Connect Google or call Gmail/Calendar.
+
 ---
 
 ## 10. What is not here

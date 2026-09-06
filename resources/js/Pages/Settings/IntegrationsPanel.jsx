@@ -1,5 +1,6 @@
 import { router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import GoogleOAuthConfigForm from './GoogleOAuthConfigForm';
 import IntegrationActivityPanel from './IntegrationActivityPanel';
 import IntegrationProviderCard from './IntegrationProviderCard';
 import TelegramPanel from './TelegramPanel';
@@ -220,7 +221,10 @@ export default function IntegrationsPanel() {
                                 t={t}
                                 disconnecting={disconnecting}
                                 onDisconnect={disconnectProvider}
-                            />
+                                className={provider.provider === 'google' ? 'md:col-span-3' : ''}
+                            >
+                                {provider.provider === 'google' ? <GoogleOAuthConfigForm /> : null}
+                            </IntegrationProviderCard>
                         ))}
                     </div>
 

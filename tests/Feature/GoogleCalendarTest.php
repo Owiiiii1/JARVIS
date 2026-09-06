@@ -8,6 +8,7 @@ use App\Enums\MessageChannel;
 use App\Enums\ToolConfirmationStatus;
 use App\Enums\ToolExecutionLogStatus;
 use App\Enums\UserRole;
+use App\Models\GoogleOAuthSetting;
 use App\Models\IntegrationAccount;
 use App\Models\ToolConfirmation;
 use App\Models\ToolExecutionLog;
@@ -41,12 +42,29 @@ use Illuminate\Support\Facades\Http;
 use Tests\Support\CleansTemporaryJarvisRecords;
 use Tests\Support\FakeAiChatGateway;
 use Tests\Support\RestoresAiRoleSettings;
+use Tests\Support\RestoresGoogleOAuthSettings;
 use Tests\TestCase;
 
 class GoogleCalendarTest extends TestCase
 {
     use CleansTemporaryJarvisRecords;
     use RestoresAiRoleSettings;
+    use RestoresGoogleOAuthSettings;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->snapshotGoogleOAuthSettings();
+        GoogleOAuthSetting::query()->delete();
+    }
+
+    protected function tearDown(): void
+    {
+        $this->restoreGoogleOAuthSettings();
+
+        parent::tearDown();
+    }
 
     public function test_owner_receives_calendar_tools_and_user_does_not(): void
     {

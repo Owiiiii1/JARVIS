@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Models\IntegrationAccount;
 use App\Models\ToolExecutionLog;
+use App\Services\Integrations\Google\GoogleOAuthSettingsService;
 use App\Services\Integrations\IntegrationAccountService;
 use App\Services\Integrations\IntegrationRegistry;
 use App\Services\Users\UserCapability;
@@ -17,6 +18,7 @@ class IntegrationsController extends Controller
     public function __construct(
         private readonly IntegrationRegistry $registry,
         private readonly IntegrationAccountService $accounts,
+        private readonly GoogleOAuthSettingsService $googleOAuthSettings,
     ) {}
 
     public function index(Request $request): RedirectResponse
@@ -36,6 +38,7 @@ class IntegrationsController extends Controller
 
         return [
             'providers' => $this->registry->summariesForOwner($owner),
+            'google_oauth' => $this->googleOAuthSettings->adminPayload(),
             'recent_executions' => ToolExecutionLog::query()
                 ->where('user_id', $owner->id)
                 ->orderByDesc('started_at')

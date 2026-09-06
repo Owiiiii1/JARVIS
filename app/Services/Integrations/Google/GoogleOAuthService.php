@@ -11,20 +11,18 @@ use Throwable;
 
 final class GoogleOAuthService
 {
+    public function __construct(
+        private readonly GoogleOAuthSettingsService $settings,
+    ) {}
+
     public function isConfigured(): bool
     {
-        return filled($this->clientId()) && filled($this->clientSecret());
+        return $this->settings->isConfigured();
     }
 
     public function redirectUri(): string
     {
-        $configured = trim((string) config('integrations.google.redirect_uri'));
-
-        if ($configured !== '') {
-            return $configured;
-        }
-
-        return rtrim((string) config('app.url'), '/').'/integrations/google/callback';
+        return $this->settings->redirectUri();
     }
 
     /**
@@ -337,12 +335,12 @@ final class GoogleOAuthService
 
     private function clientId(): string
     {
-        return trim((string) config('integrations.google.client_id'));
+        return $this->settings->clientId();
     }
 
     private function clientSecret(): string
     {
-        return trim((string) config('integrations.google.client_secret'));
+        return $this->settings->clientSecret();
     }
 
     private function http(): PendingRequest

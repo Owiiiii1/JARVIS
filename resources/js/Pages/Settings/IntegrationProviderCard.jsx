@@ -1,4 +1,4 @@
-function statusClass(state) {
+function statusClass(state, configured) {
     if (state === 'connected') {
         return 'bg-emerald-100 text-emerald-700';
     }
@@ -6,6 +6,9 @@ function statusClass(state) {
         return 'bg-red-100 text-red-700';
     }
     if (state === 'connecting') {
+        return 'bg-amber-100 text-amber-800';
+    }
+    if (configured) {
         return 'bg-amber-100 text-amber-800';
     }
 
@@ -16,16 +19,26 @@ function actionAvailable(provider, key) {
     return (provider.actions ?? []).some((action) => action.key === key && action.available);
 }
 
-export default function IntegrationProviderCard({ provider, t, disconnecting, onDisconnect }) {
+export default function IntegrationProviderCard({ provider, t, disconnecting, onDisconnect, children, className = '' }) {
     return (
-        <section className="rounded-xl border border-[#E6DCC8] bg-[#FBF8F1] p-4">
+        <section className={`rounded-xl border border-[#E6DCC8] bg-[#FBF8F1] p-4 ${className}`.trim()}>
             <div className="flex items-start justify-between gap-3">
                 <h2 className="text-base font-semibold text-slate-900">{provider.display_name}</h2>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(provider.state)}`}>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(provider.state, provider.provider === 'google' && provider.configured)}`}>
                     {provider.label}
                 </span>
             </div>
-            {provider.account_label && (
+            {(provider.oauth_client_label || provider.account_status_label) && (
+                <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                    {provider.oauth_client_label && (
+                        <li>OAuth client: {provider.oauth_client_label}</li>
+                    )}
+                    {provider.account_status_label && (
+                        <li>Account: {provider.account_status_label}</li>
+                    )}
+                </ul>
+            )}
+            {provider.account_label && provider.account_status_label !== provider.account_label && (
                 <p className="mt-2 text-sm text-slate-700">{provider.account_label}</p>
             )}
             {provider.capability_states?.length > 0 && (
@@ -149,6 +162,7 @@ export default function IntegrationProviderCard({ provider, t, disconnecting, on
                     )}
                 </div>
             )}
+            {children}
         </section>
     );
 }

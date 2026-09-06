@@ -1,111 +1,110 @@
-# Core Product Validation Finalization
+# Google Admin Configuration
 
 ## Starting HEAD
 
-`bcca7ca8ea72181cb6414b2f9d3102178b8b6c63`, equal to `origin/main` at the start of this documentation close-out.
+`5456841dcc85c29dc588e3481265db4ecab24ef6`, equal to `origin/main` at the start of this task.
 
-Branch `main`. No production code changes in this close-out. No dependency changes. No migrations. No tests. No builds.
+Working tree was not clean (unrelated WIP from a previous session). That WIP was left unstaged and is not part of this commit.
 
-## Validation campaign
+Branch `main`. No dependency changes.
 
-Owner completed Core Daily Workflow by hand on a clean repeat chat **Validation Core 2**.
+## Existing Google configuration architecture
 
-Cursor did not execute the scenarios, did not create production records, and did not run `phpunit` / `php artisan test` / Pest / live provider calls.
+Google OAuth client ID, secret, and optional redirect URI were read only from `config/integrations.php` → `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`).
 
-Runbook: [VALIDATION_CORE_WORKFLOW.md](../VALIDATION_CORE_WORKFLOW.md).
+`GoogleOAuthService::isConfigured()` required both ID and secret. Missing env → Admin card **Not configured**, diagnostic **Google client configuration is missing.**, Connect Google disabled.
 
-## 10 manual PASS scenarios
+Connected Google **accounts** (access/refresh tokens) were already encrypted on `integration_accounts`. That path is unchanged.
 
-**CORE DAILY WORKFLOW: MANUAL PASS 10/10** (2026-09-07).
+## Existing secure settings pattern
 
-| # | Scenario | Result |
-| --- | --- | --- |
-| 1 | Conversation continuity | MANUAL PASS |
-| 2 | Task + Reminder | MANUAL PASS |
-| 3 | Internal watcher | MANUAL PASS |
-| 4 | Knowledge | MANUAL PASS |
-| 5 | Synthesis | MANUAL PASS |
-| 6 | Waiting / commitments | MANUAL PASS |
-| 7 | State change | MANUAL PASS |
-| 8 | Overview | MANUAL PASS (after revalidation; see below) |
-| 9 | Memory vs Knowledge | MANUAL PASS |
-| 10 | Chat delete | MANUAL PASS |
+Singleton Admin settings tables with Laravel `encrypted` casts and DB-over-env precedence:
 
-## Confirmed product behavior
+- `voice_settings.elevenlabs_api_key`
+- `web_research_settings.tavily_api_key`
+- `ai_provider_settings.api_key`
 
-Only these behaviors are confirmed:
+Admin payloads expose `*_source` (`admin` / `env`) and never return the secret. Empty save keeps the stored secret. Env is not copied into the DB on page load.
 
-1. Conversation continuity / reference resolution
-2. Task + visible/manageable subtask
-3. Reminder create/update
-4. Internal watcher creation
-5. Knowledge cross-chat retrieval
-6. Cross-source synthesis
-7. Waiting / explicit commitments
-8. State-change propagation through Task → Reminder → Watcher → Synthesis
-9. Overview refresh / dedupe / canonical-state precedence
-10. Humanized Workspace presentation
-11. Memory vs Knowledge separation
-12. Conversation delete preserving durable Tasks / Knowledge / Memory semantics
+## Storage decision
 
-Layer wording (tested flows only, not all edge cases):
+New singleton table `google_oauth_settings` (same pattern as Voice / Web Research). No extra generic secrets system.
 
-- **C.1:** MANUAL PASS for tested continuation / reference / clarification. Not full Conversation Intelligence coverage.
-- **E.1 Knowledge:** MANUAL PASS for the tested core flow. Not all edge cases.
-- **E.2 Watchers:** MANUAL PASS for the internal task watcher flow. External integrations remain deferred.
-- **E.3 Cross-source Synthesis:** MANUAL PASS for the tested core synthesis / Overview / waiting / state-change flow.
-- **Workspace Presentation:** MANUAL PASS after live revalidation of Scenario 8.
+Columns: `client_id`, encrypted `client_secret`, `redirect_uri`.
 
-## Bugs found during campaign
+## Encryption
 
-The first Scenario 8 (earlier `Validation Core` chat, not Validation Core 2) was a **LIVE FAIL**.
+`GoogleOAuthSetting::$casts['client_secret'] = 'encrypted'`. Attribute is `$hidden`. Raw DB ciphertext is not the plaintext secret.
 
-After Scenario 7 closed the task chain, chat synthesis was correct, but **Обзор** still showed stale derived state (open work, blockers, waiting watchers, duplicated change cards) and backend wording on screen (enum names, task ids, adapter internals).
+OAuth user tokens remain in `integration_accounts.credentials_encrypted`. This work does not read or rewrite those rows.
 
-That is a stale derived-state regression plus presentation problems. It is **not** a claim that every Overview edge case outside that campaign was found.
+## Config precedence
 
-## Fix commit
+`GoogleOAuthSettingsService`:
 
-`bcca7ca8ea72181cb6414b2f9d3102178b8b6c63`
+1. Admin DB value if present
+2. `config('integrations.google.*')` / `.env`
+3. Redirect URI default: `rtrim(APP_URL) + /integrations/google/callback`
 
-Canonical-state precedence for derived Overview slices, one fingerprint per semantic change, watcher re-evaluation when the task lives in `source_config`, and the Workspace presentation layer. Already on `origin/main` before this documentation close-out.
+DB values work at runtime even when Laravel config is cached. `.env` support is not removed. Existing env secrets are not migrated into the DB automatically.
 
-This close-out does not change that commit.
+## GoogleOAuthService changes
 
-## Revalidation result
+Injects `GoogleOAuthSettingsService`. `isConfigured()`, `clientId()`, `clientSecret()`, `redirectUri()` go through that single source. No Google HTTP on save or on Integrations page load.
 
-Owner repeated the chain on a clean chat **Validation Core 2**. Scenario 8 is **MANUAL PASS**. Scenarios 1–10 are **MANUAL PASS**. Workspace Presentation is **MANUAL PASS** after that live revalidation.
+## Admin UI changes
 
-## Coverage boundaries
+Settings → Integrations → Overview → Google:
 
-This PASS is the tested core daily chain. It does **not** mean every edge case of C.1, E.1, E.2, E.3, Tasks, Reminders, Overview, or Workspace Presentation is validated.
+- OAuth client vs Account status lines
+- Badge: Not configured / Configured / Connected
+- Google Configuration form: Client ID, Client Secret (password), Redirect URI (empty uses effective default as hint)
+- Save Google configuration → `POST /settings/integrations/google`
 
-Briefs, proactive suggestions, and Notification Center as a full product are not claimed.
+Connect Google remains disabled until Client ID + Secret exist.
 
-## Still deferred
+## Security / permissions
 
-- ElevenLabs realtime Диалог Beta C.2
-- external watcher campaigns
-- Gmail live validation
-- Google Calendar live validation
-- GitHub live validation (no separate confirmed manual campaign)
-- Telegram Groups
-- external watcher proposed action → confirmation → external write
-- DST/timezone edge cases
-- destructive storage edge cases
-- historical retry/prune campaign
-- full IDOR/security campaign
-- Mobile / Client API
-- optional future integrations
+Same `integrations_admin` gate as other integration settings. Ordinary users get 403. Guests redirect to login. Save is throttled `10,1`.
 
-## Documentation updated
+## Secret handling
 
-- [CURRENT_STATE.md](../CURRENT_STATE.md)
-- [VALIDATION_CORE_WORKFLOW.md](../VALIDATION_CORE_WORKFLOW.md)
-- [DEFERRED_VALIDATION.md](../DEFERRED_VALIDATION.md)
-- [JARVIS_USER_OVERVIEW.md](../JARVIS_USER_OVERVIEW.md)
-- this report
+Client Secret is never in Inertia props, HTML, logs, flash, or this report. UI shows `••••••••••••` + “Secret saved” or “Using deployment configuration”. Blank secret on Save does not clear storage. No Remove-secret action (replace-only).
+
+## Validation
+
+Client ID: nullable string, max 255. Client Secret: nullable, min 8 if present, max 512. Redirect URI: nullable, max 2048, https required; http only for localhost / 127.0.0.1. No remote Google validation on Save.
+
+## Backward compatibility
+
+`.env` fallback kept. Existing Google OAuth connect/callback/token refresh unchanged aside from where client credentials are read.
+
+## Files changed
+
+Model, migration, settings service, settings controller, OAuth service, Google provider status, Integrations payload/UI, routes, docs, tests (authored, not executed).
+
+## Static checks
+
+`php -l` on touched PHP, `vendor/bin/pint --dirty --format agent`, `composer validate`, `npm run build`, `git diff --check`, `php artisan route:list` (google settings route), `php artisan migrate:status` / `migrate --force` for the new table.
+
+## Tests authored but NOT executed
+
+`tests/Feature/GoogleOAuthSettingsTest.php` plus restore helpers in existing Google OAuth/Calendar/Gmail tests so config() fallback still works if the suite is run later. **Not run on this production server.**
+
+## Manual validation steps
+
+Owner only, no Cursor Connect:
+
+1. Admin → Settings → Integrations → Google
+2. Enter Client ID and Client Secret
+3. Save Google configuration
+4. Reload
+5. Secret not displayed (•••• / Secret saved)
+6. Status Configured
+7. Connect Google active
+
+READY FOR OWNER VALIDATION. Not MANUAL PASS. Live Google OAuth was not started.
 
 ## Production safety
 
-Documentation only. Production code was not changed in this close-out. No tests or builds were run because there are no code changes in this commit.
+No Connect Google. No Gmail/Calendar requests. No edits to `integration_accounts` tokens. Unrelated dirty WIP was not committed.

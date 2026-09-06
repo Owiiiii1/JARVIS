@@ -29,6 +29,8 @@ final readonly class IntegrationStatus
         public array $scopeLabels = [],
         public ?string $lastErrorCode = null,
         public array $capabilityStates = [],
+        public ?string $oauthClientLabel = null,
+        public ?string $accountStatusLabel = null,
     ) {}
 
     /**
@@ -53,6 +55,8 @@ final readonly class IntegrationStatus
             'scope_labels' => $this->scopeLabels,
             'last_error_code' => $this->lastErrorCode,
             'capability_states' => $this->capabilityStates,
+            'oauth_client_label' => $this->oauthClientLabel,
+            'account_status_label' => $this->accountStatusLabel,
         ];
     }
 }

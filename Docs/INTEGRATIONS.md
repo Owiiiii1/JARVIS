@@ -170,13 +170,36 @@ Calendar and Gmail tool success/failure updates `last_used_at` / `last_success_a
 
 Owner-only (`integrations_admin`). Routes:
 
+- `POST /settings/integrations/google` — save OAuth client configuration (`settings.integrations.google.update`)
 - `GET /settings/integrations/google/connect` — starts OAuth (`integrations.google.connect`)
 - `GET /integrations/google/callback` — Google redirect (`integrations.google.callback`)
 - `POST /settings/integrations/google/disconnect` — CSRF (`integrations.google.disconnect`)
 
-Default callback URL: `{APP_URL}/integrations/google/callback`. Override with `GOOGLE_REDIRECT_URI`. Must match Google Cloud Console exactly.
+Default callback URL: `{APP_URL}/integrations/google/callback`. Override with Admin Redirect URI, else `GOOGLE_REDIRECT_URI`. Must match Google Cloud Console exactly.
 
-### Env
+### OAuth client configuration
+
+Admin: Settings → Integrations → Overview → Google → **Google Configuration**.
+
+Fields: Client ID, Client Secret, Redirect URI. Save Google configuration.
+
+Storage: singleton `google_oauth_settings`. Client Secret is an encrypted column (`encrypted` cast), never returned to HTML/JSON/Inertia. Client ID and Redirect URI are not secrets.
+
+Precedence (runtime, independent of config cache):
+
+1. Admin DB value if present
+2. `.env` / `config('integrations.google.*')` fallback
+3. Redirect URI computed default: `{APP_URL}/integrations/google/callback`
+
+Empty Client Secret on Save keeps the stored secret. Env secrets are not copied into the DB when the page is opened.
+
+Statuses:
+
+- **Not configured** — no Client ID+Secret from DB or env; Connect Google disabled
+- **Configured** — OAuth client credentials present; Google account not connected
+- **Connected** — OAuth account exists (tokens remain in `integration_accounts.credentials_encrypted`)
+
+### Env fallback
 
 ```
 GOOGLE_CLIENT_ID=
@@ -184,7 +207,7 @@ GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=
 ```
 
-Client id/secret are deployment config, not Admin fields and not `integration_accounts`. After setting env: `php artisan config:clear`.
+`.env` remains supported. Do not paste secrets into docs or Cursor reports. After Admin save, `config:clear` is not required for DB values.
 
 If missing: card **Not configured**, Connect disabled, connect route safe error.
 
@@ -241,8 +264,8 @@ OAuth admin actions are **not** written to `tool_execution_logs`.
 2. Configure OAuth consent screen (Testing vs Production; Testing refresh tokens may expire per Google policy).
 3. Create OAuth client type **Web application**.
 4. Authorized redirect URI: exact Jarvis callback (`/integrations/google/callback`).
-5. Put Client ID and Client Secret in server env. Do not paste them into Admin.
-6. `php artisan config:clear`.
+5. Put Client ID and Client Secret in Admin → Settings → Integrations → Google Configuration (preferred), or in server env. Do not commit them.
+6. Authorized redirect URI in Google Cloud must match the effective Jarvis callback (Admin field, else `GOOGLE_REDIRECT_URI`, else `{APP_URL}/integrations/google/callback`).
 7. Owner: Settings → Integrations → Google → Connect → consent → card shows Connected + email → reload → Disconnect → Reconnect.
 
 Enable the Google Calendar API and the Gmail API in Google Cloud before live smoke. Owner does not have to enable them during M19 implementation.
