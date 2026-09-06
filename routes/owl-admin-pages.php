@@ -87,6 +87,7 @@ $registerPersonalWorkspace = static function (string $prefix, string $as, array 
         Route::post('/chats', [JarvisWorkspaceController::class, 'store'])->name('chats.store');
         Route::get('/chats/{conversation}', [JarvisWorkspaceController::class, 'show'])->name('chats.show');
         Route::patch('/chats/{conversation}', [JarvisWorkspaceController::class, 'update'])->name('chats.update');
+        Route::delete('/chats/{conversation}', [JarvisWorkspaceController::class, 'destroy'])->name('chats.destroy');
         Route::post('/chats/{conversation}/messages', [JarvisWorkspaceController::class, 'storeMessage'])->name('messages.store');
         Route::get('/chats/{conversation}/messages/older', [JarvisWorkspaceController::class, 'olderMessages'])->name('messages.older');
         Route::get('/chats/{conversation}/attachments/{attachment}/preview', [JarvisAttachmentController::class, 'preview'])

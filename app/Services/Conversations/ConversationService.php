@@ -6,8 +6,16 @@ use App\Enums\ConversationKind;
 use App\Enums\ConversationStatus;
 use App\Models\ChannelIdentity;
 use App\Models\Conversation;
+use App\Models\JarvisNotification;
+use App\Models\MemorySource;
+use App\Models\Message;
+use App\Models\MessageAttachment;
+use App\Models\Reminder;
+use App\Models\Task;
 use App\Models\User;
+use App\Services\ChatAttachments\ChatAttachmentService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 final class ConversationService
@@ -19,6 +27,10 @@ final class ConversationService
     public const TITLE_MAX_LENGTH = 120;
 
     public const NEW_CHAT_TITLE = 'Новый чат';
+
+    public function __construct(
+        private readonly ChatAttachmentService $attachments,
+    ) {}
 
     public function createPersonal(User $user, string $title): Conversation
     {
@@ -101,6 +113,47 @@ final class ConversationService
         return $owned->fresh();
     }
 
+    /**
+     * Hard-delete an owned personal conversation and its child chat data.
+     * Independent entities (tasks, reminders, memories, stored files, projects) survive.
+     *
+     * @return array{success: true, deleted_id: int, conversation: array{id: int, title: string, last_activity_at: string|null}}
+     */
+    public function deletePersonal(User $user, Conversation $conversation): array
+    {
+        $owned = $this->findOwned($user, (int) $conversation->id);
+
+        if ($owned === null) {
+            abort(404);
+        }
+
+        $deletedId = (int) $owned->id;
+        $diskCopies = MessageAttachment::query()
+            ->whereIn('message_id', Message::query()->where('conversation_id', $deletedId)->select('id'))
+            ->get();
+
+        DB::transaction(function () use ($user, $owned, $deletedId): void {
+            $this->detachIndependentSources($user, $deletedId);
+            $this->rewireNotificationLinks($user, $deletedId);
+            $owned->projects()->detach();
+            $owned->delete();
+        });
+
+        $this->attachments->deleteDiskCopies($diskCopies);
+
+        $next = $this->latestOrDefault($user);
+
+        return [
+            'success' => true,
+            'deleted_id' => $deletedId,
+            'conversation' => [
+                'id' => (int) $next->id,
+                'title' => $next->title,
+                'last_activity_at' => optional($next->last_activity_at)?->toIso8601String(),
+            ],
+        ];
+    }
+
     public function ensureOwned(User $user, int $conversationId): Conversation
     {
         $conversation = $this->findOwned($user, $conversationId);
@@ -174,6 +227,76 @@ final class ConversationService
             return true;
         } catch (InvalidArgumentException) {
             return false;
+        }
+    }
+
+    private function detachIndependentSources(User $user, int $conversationId): void
+    {
+        Task::query()
+            ->where('user_id', $user->id)
+            ->where('source_conversation_id', $conversationId)
+            ->update([
+                'source_conversation_id' => null,
+                'source_message_id' => null,
+            ]);
+
+        Reminder::query()
+            ->where('user_id', $user->id)
+            ->where('source_conversation_id', $conversationId)
+            ->update([
+                'source_conversation_id' => null,
+                'source_message_id' => null,
+            ]);
+
+        MemorySource::query()
+            ->where('conversation_id', $conversationId)
+            ->update([
+                'conversation_id' => null,
+                'message_id' => null,
+                'summary_id' => null,
+            ]);
+    }
+
+    private function rewireNotificationLinks(User $user, int $conversationId): void
+    {
+        $root = $user->isOwner() ? '/jarvis' : '/chat';
+        $prefixes = [
+            '/jarvis/chats/'.$conversationId,
+            '/chat/chats/'.$conversationId,
+        ];
+
+        $notifications = JarvisNotification::query()
+            ->where('user_id', $user->id)
+            ->where(function ($query) use ($prefixes): void {
+                foreach ($prefixes as $index => $prefix) {
+                    $method = $index === 0 ? 'where' : 'orWhere';
+                    $query->{$method}(function ($inner) use ($prefix): void {
+                        $inner->where('action_url', $prefix)
+                            ->orWhere('action_url', 'like', $prefix.'?%');
+                    });
+                }
+            })
+            ->get();
+
+        foreach ($notifications as $notification) {
+            $actionUrl = (string) ($notification->action_url ?? '');
+            $nextUrl = $root;
+
+            foreach ($prefixes as $prefix) {
+                if ($actionUrl === $prefix) {
+                    $nextUrl = $root;
+                    break;
+                }
+
+                if (str_starts_with($actionUrl, $prefix.'?')) {
+                    $nextUrl = $root.'?'.substr($actionUrl, strlen($prefix) + 1);
+                    break;
+                }
+            }
+
+            $notification->forceFill([
+                'action_url' => $nextUrl,
+            ])->save();
         }
     }
 }

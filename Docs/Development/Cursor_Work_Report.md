@@ -1,148 +1,114 @@
-# Workspace UX Cleanup
+# Workspace Conversation Delete
 
 ## Starting HEAD
 
-- Baseline: `75ac18d74755a8d154dab19dd6f3469ea64fcc9e` `feat: add Tasks and proactive productivity`
+- Baseline: `898e6f7b6ed00f4ad499e331cce2e8ba3d82811c` `fix: stop password autofill from hijacking sidebar chat search`
 - Working tree was clean; `HEAD == origin/main` before work.
-- No migrations. Production DB `jarvis` was not migrated, refreshed, or mass-updated.
+- No migrations. Production DB `jarvis` was not migrated, refreshed, or mass-updated. No live provider calls.
 
-## Previous Workspace structure
+## Conversation relations audit
 
-Main Workspace mixed work surfaces with configuration:
+No SoftDeletes in the project. Personal Workspace lists `kind=personal` only (`ConversationService::findOwned` / `listForUser`).
 
-- Header already had Reminders / Tasks / Notifications / a gear Settings control / Voice mode toggle.
-- Settings was one Modal stuffing profile, timezone, voice, productivity, password, onboarding, General Prompt, Admin Integrations link, logout.
-- Owner right context panel duplicated Reminders and also hosted Integrations status + Memory counts + General Prompt.
-- Ordinary `/chat` users never saw that context panel, but they still had the unstructured Settings modal.
+FK snapshot used for the lifecycle:
 
-Chat turns returned `active_reminder_count` only. Task badges, notification badges, and open panels stayed stale until F5.
+| Relation | On conversation delete |
+| --- | --- |
+| `messages` | cascade — child chat data |
+| `message_attachments` | cascade via messages; ephemeral bytes then deleted from disk |
+| `message_stored_files` | cascade via messages; **`stored_files` rows stay** |
+| `conversation_summaries`, `memory_analysis_runs` | cascade — child of this chat |
+| `tool_confirmations`, `voice_sessions` | cascade — session/child of this chat |
+| `project_conversations` | cascade pivot; **project stays** (also explicit detach) |
+| `tasks.source_conversation_id` / `source_message_id` | nullOnDelete; also explicit null |
+| `reminders.source_conversation_id` / `source_message_id` | nullOnDelete; also explicit null |
+| `memory_sources.conversation_id` / `message_id` / `summary_id` | nullOnDelete; also explicit null; **memory row stays** |
+| `tool_execution_logs.conversation_id` | nullOnDelete — audit log stays |
+| `channel_identities.active_conversation_id` | nullOnDelete |
+| `user_assistant_profiles.onboarding_conversation_id` | nullOnDelete |
+| `telegram_groups.conversation_id` | cascade — **not reachable**: Workspace delete refuses `kind=group` (404) |
+| `jarvis_notifications` | no FK; `action_url` that pointed at `/jarvis/chats/{id}` or `/chat/chats/{id}` is rewritten to workspace root (query preserved). Notification history is not deleted. |
 
-## Settings information architecture
+## Delete semantics
 
-Settings is now a Workspace panel (`WorkspaceSettings`), not a standalone admin page.
+Hard delete of the owned personal conversation after a DB transaction:
 
-Sections:
+1. Null independent source refs (tasks, reminders, memory_sources).
+2. Rewire notification links.
+3. Detach `project_conversations`.
+4. `$conversation->delete()` (cascades child chat rows).
+5. After commit: delete ephemeral screenshot bytes + thumbnails from disk.
 
-- Profile
-- Assistant
-- Memory (if `memory` capability)
-- Productivity (if tasks / reminders / notifications)
-- Voice (if `voice` capability)
-- Integrations (Owner admin integrations and/or Telegram DM)
+If step 4 fails, the transaction rolls back; disk purge does not run.
 
-No empty Advanced section.
+## Ownership
 
-Desktop: left navigation, right current section. Mobile: section list → detail (not two columns at once). Direct section via allowlisted `?settings=memory` / `?settings=integrations` on the initial page load. Opening Settings from the header does not call `history.replaceState` (that wiped Inertia page props and showed «No chats.»). Arbitrary URLs are ignored.
+`ConversationService::ensureOwned` / `findOwned`: same `user_id` **and** `kind=personal`. Foreign id → 404 (does not confirm existence). Owner role is not a bypass for another user’s chats. Group conversations are 404 on this endpoint.
 
-## Main Workspace cleanup
+## Confirmation UX
 
-Removed from main chrome:
+Sidebar item: always-visible three-dot menu (not hover-only) with Переименовать / Удалить.
 
-- Owner context Integrations block
-- Owner context Memory block / General Prompt button
-- Duplicate Reminders mini-list in context
-- Monolithic Settings modal / separate General Prompt modal
+Удалить opens a Workspace dialog (not `window.confirm`):
 
-Main screen is conversations + current chat/voice + Task / Reminder / Notification centers. Header actions: Tasks, Reminders, Notifications, Text/Voice, **Настройки** (icon + label on desktop; icon + `aria-label` on mobile). Owner Admin and Projects context toggle remain compact.
+- «Удалить этот чат?»
+- «Название» or «Без названия»
+- History will be deleted; irreversible
+- Отмена / destructive Удалить
+- Loading: «Удаление...»; buttons disabled
 
-## Memory relocation
+Cancel only closes the dialog.
 
-Memory management lives in Settings → Memory.
+## Active conversation behavior
 
-It reuses the existing Memory Engine summary only: active facts count, active topics count, last completed analysis. No new Memory product. Regular users do not see raw internal tables. Owner/admin gets a diagnostics pointer to Admin Users (existing `UserMemoryController` path), not a second engine.
+JSON: `{ success, deleted_id, conversation: { id, title, last_activity_at } }` where `conversation` is `latestOrDefault()` after delete (existing most-recent personal chat, or a new `Основной`).
 
-## Integrations relocation
+Frontend: remove the id from the local sidebar list without F5. If the deleted id was open, Inertia `router.visit` the returned conversation. URL never stays on a deleted id.
 
-Integrations live in Settings → Integrations.
+## Messages / attachments
 
-Owner: compact cards from the current Integration Registry + Web Research workspace summary, Connect/Manage → Admin Integrations. Personal Telegram pairing is a separate card.
+Messages of that conversation are deleted (cascade). No orphans.
 
-Regular user: Telegram pairing / connected-as / response-mode hint only. Google, GitHub, and Web Research admin cards are not rendered without `integrations` capability. Backend authorization is unchanged.
+Ephemeral `message_attachments` (screenshots): DB row + disk files/thumbnails.
 
-## Profile / Assistant settings
+Persistent Storage: `stored_files` survive; only `message_stored_files` links drop.
 
-Profile: name, email display, timezone, onboarding / Знакомство, password, logout. Existing `settings.profile.update` / `settings.password.update` / `onboarding.start`.
+## Tasks / reminders
 
-Assistant: current identity (name, personality, interaction style, about user) as already stored on `user_assistant_profiles` (still edited via chat tools) plus User General Prompt on the existing `settings.prompt.update` endpoint. Visually separated from Memory.
+Task and Reminder rows remain. `source_conversation_id` and `source_message_id` become null.
 
-## Productivity settings
+## Projects
 
-Daily Brief, Evening Review, Weekly Review, proactive suggestions, Web Push enablement. Task Center and Reminder Center stay on the main screen; their preference forms moved here. Same `settings.productivity.update` and reminder push endpoints.
+Project remains. Pivot `project_conversations` is removed.
 
-## Voice settings
+## Memory / storage behavior
 
-Curated six-voice catalog and `users.voice_id` via the existing profile update endpoint. Admin provider keys stay in Admin Integrations.
+Deleting a chat is not «forget». Durable `memories` stay. Provenance on `memory_sources` is detached. Conversation summaries for that chat are child data and go with the conversation. Persistent Storage files are independent of any one message.
 
-## Owner vs User visibility
+## Routes
 
-Regular user sees Profile, Assistant, Memory, Productivity, Voice, Telegram pairing. They do not see Admin integration configuration, Owner Projects configuration, Gmail/GitHub cards, or provider secrets.
+- `DELETE /jarvis/chats/{conversation}` → `jarvis.chats.destroy`
+- `DELETE /chat/chats/{conversation}` → `chat.chats.destroy`
 
-Owner sees the full allowed set, including Integrations status cards and the Projects context panel. UI gating does not replace backend authorization.
-
-## Live refresh root cause
-
-`PersonalChatSurfaceService::turnPayload()` only returned `active_reminder_count`. Frontend `applyTurnPayload()` updated messages and that reminder count. It never refreshed `activeTaskCount`, `unreadNotificationCount`, or open panels after a successful foreground turn (chat send, confirmation resolve, Voice `onTurn`).
-
-The assistant reply text was never used as a mutation detector.
-
-## Live refresh architecture
-
-After every successful completed foreground turn:
-
-1. Turn JSON now includes `active_task_count` and `unread_notification_count` as well as reminder count and `assistant_profile`.
-2. `refreshProductivity()` applies those counts, bumps `productivityRefreshToken`, and fetches `GET …/workspace/status`.
-3. Open panels reload their payload; closed panels only get counts.
-
-No `window.location.reload()`, no Inertia page reload, no `setInterval` polling, no WebSocket/SSE.
-
-Polling is unnecessary: the user is already waiting on the turn response, which is the exact moment a chat-driven mutation is known.
-
-Scheduler-side due tasks / briefs / reminders still appear via Web Push, next panel open, navigation, or reload.
-
-## Badge refresh
-
-Header badges bind to React state updated from the turn payload and then confirmed by `workspace.status`.
-
-## Panel refresh
-
-`TasksPanel`, `RemindersPanel`, and `NotificationsPanel` accept `refreshToken`. Their load effects depend on `open` + `refreshToken`, so a closed panel does not fetch full lists.
-
-## Routes/endpoints
-
-Added (both surfaces):
-
-- `GET /jarvis/workspace/status` → `jarvis.workspace.status`
-- `GET /chat/workspace/status` → `chat.workspace.status`
-
-Payload: `{ tasks.active_count, reminders.active_count, notifications.unread_count, assistant_profile, general_prompt, telegram (no access_code), memory }`. No secrets.
-
-Existing settings / task / reminder / notification / voice / prompt endpoints reused.
+Same `JarvisWorkspaceController::destroy` → `PersonalChatSurfaceService::deleteChat` → `ConversationService::deletePersonal`.
 
 ## Tests
 
-- `tests/Unit/WorkspaceUxCleanupTest.php` — static UI contracts: refresh hook, no reload/polling, Memory/Integrations not on main, Settings sections, allowlisted `?settings=`.
-- `tests/Unit/WorkspaceStatusRoutesTest.php` — dual-surface status routes + turn counts.
-- `tests/Feature/Http/Controllers/Jarvis/WorkspaceStatusControllerTest.php` — guest redirect; temporary user GET status (no RefreshDatabase).
-- Existing `TaskWorkspaceRoutesTest` updated for Productivity living in Settings.
-
-`php artisan test --compact` on those files: passed.
-
-## Build
-
-`npm run build` succeeded. `vendor/bin/pint --dirty --format agent` passed. `composer validate` passed. `php -l` on touched PHP passed. `git diff --check` run at commit time.
+- Feature: guest redirect; own delete; foreign 404; owner cannot delete another user’s chat; group 404; switching away from the open chat.
+- Unit service: task/reminder source null + survive; project detach; stored file survive; ephemeral disk purge; memory survive; notification URL fallback; no orphan messages; transaction rollback on forced failure; last chat creates `Основной`.
+- Frontend static: menu + confirmation copy; no `window.confirm` / `window.location.reload`; DELETE + sidebar filter + visit next.
 
 ## Production safety
 
-No migrations. No `migrate:fresh` / `RefreshDatabase`. No mass deletes. No live Telegram / Web Push / Gmail / Calendar / AI calls. Status GET is read-only counts/summaries. Temporary-user feature test deletes only `@invalid.local` rows created by the test helper.
+No migration (existing FKs already cascade/null as required). No destructive live-DB scripts. No provider calls. Tests use temporary `@invalid.local` users via `CleansTemporaryJarvisRecords`.
 
 ## Manual checklist
 
-A. `/jarvis` main screen: chat + centers, one **Настройки**, no large Memory/Integrations blocks.
-B. Settings: Profile / Assistant / Memory / Productivity / Voice / Integrations as nav + detail, not one form wall.
-C. Memory works from Settings.
-D. Integrations work from Settings with current permissions (Owner Admin manage; user Telegram pairing).
-E–G. Chat-created task / complete task / reminder update badges and open panels without F5.
-H. Ordinary user Settings structured; Owner-only integration cards absent.
-I. Narrow viewport: Settings list → detail, no horizontal mash.
-
-Owner live confirmation of E–I is still the product MANUAL PASS; this milestone is the code/UX refactor.
+A. Create a test chat.
+B. Overflow menu → Удалить: nothing is deleted yet.
+C. Отмена: chat remains.
+D. Удалить → confirm: chat disappears without F5.
+E. Delete the currently open chat: Workspace switches to another chat (or `Основной`).
+F. Chat that created a Task/Reminder: after delete, Task/Reminder remain with source detached.
+G. Ordinary user cannot delete someone else’s chat (404).
+H. Mobile: three-dot is visible without hover.

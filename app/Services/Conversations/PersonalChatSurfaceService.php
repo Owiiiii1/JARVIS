@@ -139,6 +139,14 @@ final class PersonalChatSurfaceService
     }
 
     /**
+     * @return array{success: true, deleted_id: int, conversation: array{id: int, title: string, last_activity_at: string|null}}
+     */
+    public function deleteChat(User $user, Conversation $conversation): array
+    {
+        return $this->conversations->deletePersonal($user, $conversation);
+    }
+
+    /**
      * @return array{messages: list<array<string, mixed>>, has_more: bool, oldest_id: int|null}
      */
     public function page(Conversation $conversation, ?int $beforeId = null, ?int $limit = null): array

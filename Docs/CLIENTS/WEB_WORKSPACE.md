@@ -94,6 +94,7 @@ Web inbound stays `channel=web` + client UUID idempotency. Channel is transport,
 | GET | `/jarvis/chats/{conversation}` | `jarvis.chats.show` |
 | POST | `/jarvis/chats` | `jarvis.chats.store` |
 | PATCH | `/jarvis/chats/{conversation}` | `jarvis.chats.update` |
+| DELETE | `/jarvis/chats/{conversation}` | `jarvis.chats.destroy` (JSON; `/chat` mirror; own personal chat only) |
 | POST | `/jarvis/chats/{conversation}/messages` | `jarvis.messages.store` (JSON or multipart `body` + `images[]` + `files[]`) |
 | GET | `/jarvis/chats/{conversation}/messages/older` | `jarvis.messages.older` |
 | GET | `/jarvis/chats/{conversation}/attachments/{attachment}/preview` | `jarvis.attachments.preview` (auth + ownership; 404 after purge) |
@@ -119,7 +120,7 @@ Shared application service: `PersonalChatSurfaceService` (Cabinet + Workspace). 
 
 `JarvisWorkspaceLayout` — not Admin, not Cabinet.
 
-- Left: conversations (New Chat, **Storage**, local search, title, last activity, selected, rename)
+- Left: conversations (New Chat, **Storage**, local search, title, last activity, selected, overflow menu: rename / confirmed delete)
 - Center: thread + sticky composer
 - Right / mobile drawer (Owner): compact **Projects** only
 - Header: assistant name, AI status dot, Text / Voice, conversation title, Tasks, Reminders, Notifications, **Настройки**, optional Admin / Projects toggle

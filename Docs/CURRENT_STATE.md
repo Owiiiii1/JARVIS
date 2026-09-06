@@ -1,6 +1,6 @@
 # Jarvis — current implementation snapshot
 
-**Date:** 2026-09-06 (Workspace UX Cleanup)
+**Date:** 2026-09-06 (Workspace conversation delete)
 **Host path:** `/var/www/jarvis`  
 **Public URL:** https://jarvis.owlsolutions.net  
 **GitHub:** https://github.com/Owiiiii1/JARVIS.git
@@ -65,7 +65,7 @@ The former hands-free «Диалог» mode was removed; only «Рация» rem
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | `main`, aligned with `origin/main` after Workspace UX Cleanup |
+| HEAD | `main`, aligned with `origin/main` after workspace conversation delete |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 
 Production checkout is the GitHub source of truth. Gemini STT request-shape and bounded ElevenLabs voice fallback are committed. Laravel Boost is require-dev tooling in a separate commit. `.env` stays gitignored.
@@ -138,6 +138,8 @@ See [DATABASE.md](DATABASE.md).
 Frontend: `resources/js/personal-workspace/PersonalWorkspace.jsx` shared, with Settings split into `resources/js/personal-workspace/settings/*`. Capabilities are presentation flags; backend ownership is authoritative.
 
 Main Workspace is chat + Task / Reminder / Notification centers + Voice + compact **Настройки**. Memory and Integrations are **not** on the main screen; they live in Settings.
+
+Workspace conversation delete is implemented for Owner and ordinary users. Sidebar overflow menu → confirmation dialog → `DELETE /jarvis/chats/{conversation}` or `DELETE /chat/chats/{conversation}`. Own personal conversations only (`ensureOwned`; Owner is not a bypass for someone else’s chat). Group conversations are 404. Hard delete of the chat and child messages/ephemeral screenshots; tasks, reminders, projects, persistent Storage files, and durable memories survive with sources detached. Deleting the open chat switches to the latest remaining personal chat, or creates `Основной` if none remain. No full page reload.
 
 Workspace Settings sections: Profile, Assistant, Memory, Productivity, Voice, Integrations. Desktop: nav + detail. Mobile: list → detail. Direct section: `?settings=memory` / `?settings=integrations` on first load (allowlist only). Opening Settings from the UI does not rewrite `history.state`, so the chat list stays intact.
 

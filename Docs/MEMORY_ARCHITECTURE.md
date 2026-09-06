@@ -34,6 +34,8 @@ Derived memory — производный слой. Это позволяет:
 
 **Принцип:** raw messages никогда не удаляются автоматически из-за появления summary или extracted memory. Политика retention (юридическая, ручная очистка) — отдельное решение, `TBD`, и не смешивается с lifecycle derived-слоя.
 
+Явное удаление **личного чата из Workspace** — отдельное действие пользователя, не memory-engine lifecycle. Оно удаляет raw messages **этого** conversation. Подтверждённые/derived `memories` **не** стираются: `memory_sources` теряют conversation/message/summary ссылки, факт остаётся. Нет продукта «forget» в этом изменении. Conversation summaries и analysis runs этого чата удаляются как child data.
+
 Отдельный слой, не personal memory:
 
 - **Ephemeral media summaries** — `message_attachments.summary_text`. Derived visual metadata so Jarvis can remember what a screenshot showed after the original is purged. Not bulk-ingested into `memories`.

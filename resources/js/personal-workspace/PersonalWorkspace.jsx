@@ -4,6 +4,8 @@ import { workspaceRoute } from '@/personal-workspace/named';
 import RemindersPanel from '@/personal-workspace/RemindersPanel';
 import TasksPanel from '@/personal-workspace/TasksPanel';
 import NotificationsPanel from '@/personal-workspace/NotificationsPanel';
+import ConversationDeleteDialog from '@/personal-workspace/ConversationDeleteDialog';
+import ConversationSidebarItem from '@/personal-workspace/ConversationSidebarItem';
 import WorkspaceSettings from '@/personal-workspace/settings/WorkspaceSettings';
 import { allowedSettingsSection } from '@/personal-workspace/settings/sections';
 import { primeVoiceMediaFromUserGesture } from '@/voice/audio/voiceMedia';
@@ -283,6 +285,11 @@ export default function PersonalWorkspace() {
     const [activeTaskCount, setActiveTaskCount] = useState(Number(activeTaskCountProp) || 0);
     const [unreadNotificationCount, setUnreadNotificationCount] = useState(Number(unreadNotificationCountProp) || 0);
     const [productivityRefreshToken, setProductivityRefreshToken] = useState(0);
+    const [menuConversationId, setMenuConversationId] = useState(null);
+    const [pendingDelete, setPendingDelete] = useState(null);
+    const [deletingChat, setDeletingChat] = useState(false);
+    const [renamingConversationId, setRenamingConversationId] = useState(null);
+    const [sidebarTitleDraft, setSidebarTitleDraft] = useState('');
     const workspaceTitle = assistantProfile?.presentation_name
         || (user?.role === 'owner' ? productBrand : 'Assistant');
     const onboardingStatus = assistantProfile?.onboarding_status || 'not_started';
@@ -311,6 +318,11 @@ export default function PersonalWorkspace() {
     const changeSettingsSection = (nextSection) => {
         const allowed = allowedSettingsSection(nextSection) || 'profile';
         setSettingsSection(allowed);
+    };
+
+    const rememberConversations = (items) => {
+        lastKnownConversations = items;
+        setConversationItems(items);
     };
 
     const applyProductivityCounts = (payload) => {
@@ -382,6 +394,17 @@ export default function PersonalWorkspace() {
         lastKnownConversations = conversations;
         setConversationItems(conversations);
     }, [conversations]);
+
+    useEffect(() => {
+        if (menuConversationId === null) {
+            return undefined;
+        }
+
+        const closeMenu = () => setMenuConversationId(null);
+        window.addEventListener('click', closeMenu);
+
+        return () => window.removeEventListener('click', closeMenu);
+    }, [menuConversationId]);
 
     useEffect(() => {
         setSettingsContext(settingsContextProp);
@@ -911,8 +934,111 @@ export default function PersonalWorkspace() {
             {
                 preserveScroll: true,
                 onFinish: () => setEditingTitle(false),
+                onSuccess: () => {
+                    rememberConversations(conversationItems.map((item) => (
+                        Number(item.id) === Number(conversation.id) ? { ...item, title } : item
+                    )));
+                },
             },
         );
+    };
+
+    const startSidebarRename = (item) => {
+        setMenuConversationId(null);
+        setRenamingConversationId(item.id);
+        setSidebarTitleDraft(String(item.title || '').trim());
+    };
+
+    const cancelSidebarRename = () => {
+        setRenamingConversationId(null);
+        setSidebarTitleDraft('');
+    };
+
+    const saveSidebarRename = (item) => {
+        const title = sidebarTitleDraft.trim();
+
+        if (!title || title === item.title) {
+            cancelSidebarRename();
+
+            if (Number(item.id) === Number(conversation?.id)) {
+                setEditingTitle(false);
+                setTitleDraft(item.title);
+            }
+
+            return;
+        }
+
+        router.patch(
+            workspaceRoute(surface, 'chats.update', item.id),
+            { title },
+            {
+                preserveScroll: true,
+                onFinish: () => cancelSidebarRename(),
+                onSuccess: () => {
+                    rememberConversations(conversationItems.map((row) => (
+                        Number(row.id) === Number(item.id) ? { ...row, title } : row
+                    )));
+
+                    if (Number(item.id) === Number(conversation?.id)) {
+                        setTitleDraft(title);
+                    }
+                },
+            },
+        );
+    };
+
+    const requestDeleteConversation = (item) => {
+        setMenuConversationId(null);
+        setPendingDelete(item);
+    };
+
+    const deleteConversation = async () => {
+        if (!pendingDelete || deletingChat) {
+            return;
+        }
+
+        setDeletingChat(true);
+        setError('');
+
+        try {
+            const response = await fetch(workspaceRoute(surface, 'chats.destroy', pendingDelete.id), {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrfToken(),
+                },
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                setError(typeof payload.message === 'string' && payload.message !== ''
+                    ? payload.message
+                    : 'Не удалось удалить чат.');
+
+                return;
+            }
+
+            const deletedId = Number(payload.deleted_id);
+            const next = payload.conversation;
+            const remaining = conversationItems.filter((row) => Number(row.id) !== deletedId);
+
+            if (next?.id && !remaining.some((row) => Number(row.id) === Number(next.id))) {
+                remaining.unshift(next);
+            }
+
+            rememberConversations(remaining);
+            setPendingDelete(null);
+
+            if (Number(conversation?.id) === deletedId && next?.id) {
+                router.visit(workspaceRoute(surface, 'chats.show', next.id), {
+                    preserveScroll: true,
+                });
+            }
+        } finally {
+            setDeletingChat(false);
+        }
     };
 
     const empty = messages.length === 0;
@@ -1178,30 +1304,27 @@ export default function PersonalWorkspace() {
                     <p className="px-3 py-6 text-sm text-slate-500">No chats.</p>
                 ) : (
                     <ul className="space-y-1">
-                        {filteredConversations.map((item) => {
-                            const active = Number(item.id) === Number(conversation?.id);
-
-                            return (
-                                <li key={item.id}>
-                                    <Link
-                                        href={workspaceRoute(surface, 'chats.show', item.id)}
-                                        onClick={() => setSidebarOpen(false)}
-                                        className={`block rounded-xl px-3 py-2 transition ${
-                                            active
-                                                ? 'bg-white/10 text-white ring-1 ring-sky-400/30'
-                                                : 'text-slate-300 hover:bg-white/5'
-                                        }`}
-                                    >
-                                        <span className="block truncate text-sm font-medium">{item.title}</span>
-                                        {item.last_activity_at ? (
-                                            <span className="mt-0.5 block text-[11px] text-slate-500">
-                                                {formatWhen(item.last_activity_at, timezone)}
-                                            </span>
-                                        ) : null}
-                                    </Link>
-                                </li>
-                            );
-                        })}
+                        {filteredConversations.map((item) => (
+                            <ConversationSidebarItem
+                                key={item.id}
+                                item={item}
+                                active={Number(item.id) === Number(conversation?.id)}
+                                surface={surface}
+                                timezone={timezone}
+                                menuOpen={Number(menuConversationId) === Number(item.id)}
+                                renaming={Number(renamingConversationId) === Number(item.id)}
+                                renameDraft={sidebarTitleDraft}
+                                onToggleMenu={() => setMenuConversationId(
+                                    Number(menuConversationId) === Number(item.id) ? null : item.id,
+                                )}
+                                onRenameDraft={setSidebarTitleDraft}
+                                onSaveRename={() => saveSidebarRename(item)}
+                                onCancelRename={cancelSidebarRename}
+                                onStartRename={() => startSidebarRename(item)}
+                                onRequestDelete={() => requestDeleteConversation(item)}
+                                onNavigate={() => setSidebarOpen(false)}
+                            />
+                        ))}
                     </ul>
                 )}
             </nav>
@@ -1470,6 +1593,17 @@ export default function PersonalWorkspace() {
                 showOnboarding={showOnboarding}
                 onboardingLabel={onboardingLabel}
                 onboardingStatus={onboardingStatus}
+            />
+
+            <ConversationDeleteDialog
+                conversation={pendingDelete}
+                deleting={deletingChat}
+                onCancel={() => {
+                    if (!deletingChat) {
+                        setPendingDelete(null);
+                    }
+                }}
+                onConfirm={deleteConversation}
             />
 
             <RemindersPanel

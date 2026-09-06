@@ -125,6 +125,14 @@ class JarvisWorkspaceController extends Controller
         return back();
     }
 
+    public function destroy(Request $request, int $conversation): JsonResponse
+    {
+        $user = $request->user();
+        $current = $this->chats->ensureOwned($user, $conversation);
+
+        return response()->json($this->chats->deleteChat($user, $current));
+    }
+
     public function storeMessage(Request $request, int $conversation): JsonResponse
     {
         $user = $request->user();

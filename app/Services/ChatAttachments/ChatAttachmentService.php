@@ -132,6 +132,24 @@ final class ChatAttachmentService
         }
     }
 
+    /**
+     * Remove ephemeral screenshot bytes from disk. Persistent Storage files are not passed here.
+     *
+     * @param  iterable<MessageAttachment>  $attachments
+     */
+    public function deleteDiskCopies(iterable $attachments): void
+    {
+        foreach ($attachments as $attachment) {
+            $this->deleteQuietly((string) $attachment->storage_disk, (string) $attachment->storage_path);
+
+            $thumbnail = $attachment->thumbnailPath();
+
+            if ($thumbnail !== null) {
+                $this->deleteQuietly((string) $attachment->storage_disk, $thumbnail);
+            }
+        }
+    }
+
     private function storeOne(User $user, UploadedFile $file): StoredChatAttachment
     {
         $inspected = $this->inspector->inspect($file);
