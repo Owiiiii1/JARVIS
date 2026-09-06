@@ -11,7 +11,7 @@
 Channel adapter (или Voice layer) передаёт в Core структуру уровня:
 
 - `channel` (`telegram` / `web`; enum may still list unused `mobile` / `desktop` values);
-- `modality` (`text` / `voice`) — голос не отдельный ассистент, не отдельный канал-мозг и не новый `conversation_id`. Current Web Voice is push-to-talk over the same turn: hold/release → blob STT → this engine → per-user voice TTS.
+- `modality` (`text` / `voice`) — голос не отдельный ассистент, не отдельный канал-мозг и не новый `conversation_id`. Web Voice modes: **Рация** (hold/release → blob STT → this engine → HTTP TTS) and **Диалог Beta** (ElevenLabs realtime STT/TTS → Custom LLM adapter → this same engine). Telegram remains voice note → Gemini STT → this engine.
 - `external_identity` (telegram user id, app user id, …);
 - `conversation_id` или hint: Telegram → `channel_identities.active_conversation_id`; Web Workspace → открытый chat; тот же id на каналах одного space;
 - `payload` (текст и/или current-turn image attachments; медиа refs в `message_attachments`);
@@ -103,6 +103,8 @@ Owner Conversation AI may call `search_web` then `fetch_web_page` (capability `w
 Phase C.1 adds a bounded **working context** slice (current topic, recent entities, trusted recent Core tool ids, temporary style) plus a short conversational policy. It is assembled by `WorkingContextBuilder` / `PersonalityPresentationBuilder` and clipped by `ContextBudgetManager`. Failure falls back to the previous context behavior. Mutation tools may bind a **unique trusted** recent task for a pronoun; they still must not guess among several matches.
 
 Web Workspace text send: the composer stays usable while a turn is thinking. A newer fetch generation discards a stale previous JSON body so an old assistant reply cannot overwrite the newer turn in the UI. The PHP turn is not aborted; already executed tool writes are not rolled back.
+
+Phase C.2 Beta adds a Web-only Custom LLM adapter (`POST /api/voice/elevenlabs/chat/completions`) that resolves a signed local `voice_session` and calls this same `ConversationTurnService`. ElevenLabs conversation history is transport state, not canonical memory. Assistant streaming into ElevenLabs is the final Core text (tool loop first). Confirmations are unchanged.
 
 ---
 

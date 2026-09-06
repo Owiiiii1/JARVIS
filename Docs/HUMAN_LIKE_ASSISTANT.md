@@ -1,6 +1,6 @@
 # Natural conversation (Phase C)
 
-**Status.** C.1 Conversation Intelligence is **IMPLEMENTED / NOT VALIDATED**. C.2 (streaming STT/TTS, barge-in robustness, hands-free VAD) remains **PLANNED**. Do not treat C.1 as MANUAL PASS until Owner live validation.
+**Status.** C.1 Conversation Intelligence is **IMPLEMENTED / NOT VALIDATED**. C.2 Beta (ElevenLabs realtime Web voice) is **IMPLEMENTED / NOT VALIDATED**. Do not treat either as MANUAL PASS until Owner live validation. Legacy «Рация» remains the default Web Voice mode.
 
 ADR-010 still applies: this is a layer over Core, Memory, and Voice — not “a better prompt”.
 
@@ -17,6 +17,7 @@ Desktop is cancelled. Do not wait on a native shell.
 - Same conversation_id and ordinary messages
 - Spoken-style presentation hint
 - Phase C.1 conversational working context (topic continuity, reference resolution, clarification policy, trusted recent tool refs, personality presentation, bounded initiative, frontend stale-response suppression)
+- Phase C.2 Beta Web «Диалог Beta» (ElevenLabs realtime beside legacy «Рация»; Custom LLM adapter; Telegram unchanged)
 
 ---
 
@@ -34,19 +35,17 @@ Web chat: a newer foreground send supersedes the previous in-flight **presentati
 
 ---
 
-## Future improvements (C.2 and later)
+## Future improvements (C.2 streaming Phase 2 and later)
 
-- Lower latency
-- Streaming STT / TTS if valuable
-- More robust barge-in / overlap
-- Optional future hands-free turn detection only if it is explicitly re-scoped and made reliable
-- Server-side generation cancellation (beyond frontend stale suppression)
+- Stream assistant tokens from Core before the full reply is persisted, only after the tool loop (no speculative text)
+- Server-side generation cancellation (beyond frontend stale suppression and ElevenLabs barge-in)
+- Owner A/B of Рация vs Диалог Beta; **do not remove Рация until that validation**
 
 **Wake word:** not mandatory. Limited value in a normal browser. Optional research for mobile/native or always-open environments.
 
-Telegram Voice Replies: channel delivery of assistant text via `sendVoice` (**MANUAL PASS**; [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md)).
+Telegram Voice Replies: channel delivery of assistant text via `sendVoice` (**MANUAL PASS**; [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md)). Unchanged by C.2.
 
-Telegram Voice Input: DM voice note → existing Gemini STT (**IMPLEMENTED / NOT VALIDATED**).
+Telegram Voice Input: DM voice note → existing Gemini STT (**IMPLEMENTED / NOT VALIDATED**). Unchanged by C.2. No ElevenAgents.
 
 ---
 

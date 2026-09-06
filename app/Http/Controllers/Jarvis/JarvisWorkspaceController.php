@@ -12,6 +12,7 @@ use App\Services\Notifications\JarvisNotificationService;
 use App\Services\Reminders\ReminderService;
 use App\Services\Storage\StoredFileConfig;
 use App\Services\Tasks\TaskService;
+use App\Services\Voice\ElevenLabsRealtimeSessionService;
 use App\Services\Voice\ElevenLabsVoiceCatalog;
 use App\Services\Voice\VoiceAudioMime;
 use App\Services\Voice\VoiceSettingsService;
@@ -75,8 +76,11 @@ class JarvisWorkspaceController extends Controller
                 : [],
             'chatAttachments' => ChatAttachmentConfig::publicLimits(),
             'jarvisStorage' => StoredFileConfig::publicLimits(),
-            'voiceClient' => VoiceAudioMime::workspacePayload(
-                app(VoiceSettingsService::class)->effective()->sttProvider->value,
+            'voiceClient' => array_merge(
+                VoiceAudioMime::workspacePayload(
+                    app(VoiceSettingsService::class)->effective()->sttProvider->value,
+                ),
+                ['realtime' => app(ElevenLabsRealtimeSessionService::class)->workspacePayload()],
             ),
             'assistantProfile' => $this->assistantProfiles->workspacePayload($user),
             'activeReminderCount' => $this->reminders->activeCount($user),

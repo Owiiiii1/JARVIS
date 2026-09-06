@@ -98,4 +98,19 @@ final class VoiceException extends RuntimeException
     {
         return new self('voice_runtime_failed', 'Voice runtime failed.', 500);
     }
+
+    public static function realtimeNotConfigured(): self
+    {
+        return new self('voice_realtime_not_configured', 'Realtime conversation is not configured.', 503);
+    }
+
+    public static function realtimeUnavailable(): self
+    {
+        return new self('voice_realtime_unavailable', 'Realtime conversation is unavailable.', 502);
+    }
+
+    public static function realtimeUnauthorized(): self
+    {
+        return new self('voice_realtime_unauthorized', 'Realtime session is not valid.', 401);
+    }
 }

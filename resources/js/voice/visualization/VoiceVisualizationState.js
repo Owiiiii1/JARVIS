@@ -2,6 +2,7 @@ export const VOICE_STATES = [
     'connecting',
     'idle',
     'listening',
+    'user_speaking',
     'transcribing',
     'thinking',
     'speaking',

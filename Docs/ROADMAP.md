@@ -106,14 +106,19 @@ Shipped on the existing Conversation Engine (no second Voice/memory/message stor
 
 Voice and Telegram reuse the same Core path.
 
-### C.2 — still PLANNED
+### C.2 Beta — ElevenLabs realtime Web voice
 
-- lower latency
-- streaming STT if valuable
-- streaming TTS if valuable
-- more robust barge-in / conversational overlap
-- better short-pause policy
-- server-side generation cancellation
+**Status.** **IMPLEMENTED / NOT VALIDATED.** Not MANUAL PASS. Legacy «Рация» stays.
+
+- Parallel Web Voice mode «Диалог Beta» (ElevenLabs realtime STT/VAD/barge-in/TTS)
+- Jarvis Custom LLM adapter → `ConversationTurnService` (Core remains the brain)
+- Telegram Voice Input/Replies unchanged
+- Streaming Phase 1: final Core text after the tool loop, then SSE into ElevenLabs
+- Legacy removal: **NOT NOW** (Owner A/B first)
+
+Still later: Core token streaming before persist (only after tools), server-side generation cancellation.
+
+**Wake word:** not mandatory. Desktop is cancelled; a wake word in a normal browser has limited product value. Optional future research (mobile/native or always-open environments only).
 
 **Wake word:** not mandatory. Desktop is cancelled; a wake word in a normal browser has limited product value. Optional future research (mobile/native or always-open environments only).
 

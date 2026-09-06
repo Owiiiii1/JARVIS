@@ -306,6 +306,7 @@ final class VoiceSettingsService implements ResolvesUserVoice
             'elevenlabs_configured' => $elevenConfigured,
             'elevenlabs_key_source' => $this->elevenLabsKeySource(),
             'elevenlabs_voice_id' => $effective->elevenLabsVoiceId,
+            'realtime' => $this->realtimeAdminPayload(),
             'limits' => [
                 'max_audio_chunk_bytes' => (int) config('voice.max_audio_chunk_bytes'),
                 'max_utterance_seconds' => (int) config('voice.max_utterance_seconds'),
@@ -316,6 +317,27 @@ final class VoiceSettingsService implements ResolvesUserVoice
                 'stt_timeout_seconds' => (int) config('voice.stt_timeout_seconds'),
                 'tts_timeout_seconds' => (int) config('voice.tts_timeout_seconds'),
             ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function realtimeAdminPayload(): array
+    {
+        $enabled = (bool) config('voice.realtime.enabled', false);
+        $configured = $enabled
+            && trim((string) config('voice.realtime.agent_id', '')) !== ''
+            && trim((string) config('voice.realtime.custom_llm_secret', '')) !== ''
+            && $this->elevenLabsApiKey() !== '';
+
+        return [
+            'enabled' => $enabled,
+            'configured' => $configured,
+            'status' => $configured ? 'configured' : 'not_configured',
+            'status_label' => $configured ? 'Configured' : 'Not configured',
+            'agent_id_set' => trim((string) config('voice.realtime.agent_id', '')) !== '',
+            'custom_llm_secret_set' => trim((string) config('voice.realtime.custom_llm_secret', '')) !== '',
         ];
     }
 

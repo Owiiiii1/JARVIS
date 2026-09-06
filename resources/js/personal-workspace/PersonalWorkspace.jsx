@@ -48,7 +48,7 @@ const USER_SUGGESTIONS = [
     'Поищи в интернете',
 ];
 
-const VoiceSession = lazy(() => import('@/Components/Jarvis/VoiceSession'));
+const VoiceSession = lazy(() => import('@/Components/Jarvis/WorkspaceVoice'));
 
 /** Survives a page-component remount: Inertia drops component state on every non-preserveState visit. */
 let lastKnownConversations = [];
@@ -1398,6 +1398,10 @@ export default function PersonalWorkspace() {
         </div>
     );
 
+    const pendingVoiceConfirmation = [...messages]
+        .reverse()
+        .find((item) => item?.pending_confirmation?.id)?.pending_confirmation ?? null;
+
     return (
         <div onClick={closeOverlaysFromBackdrop}>
             <JarvisWorkspaceLayout
@@ -1417,7 +1421,17 @@ export default function PersonalWorkspace() {
                             </div>
                         }
                     >
-                        <div className="h-full min-h-0">
+                        <div className="flex h-full min-h-0 flex-col">
+                            {pendingVoiceConfirmation ? (
+                                <div className="shrink-0 px-4 pt-3">
+                                    <ConfirmationCard
+                                        pending={pendingVoiceConfirmation}
+                                        sending={sending}
+                                        onConfirm={() => resolveConfirmation(pendingVoiceConfirmation.id, true)}
+                                        onCancel={() => resolveConfirmation(pendingVoiceConfirmation.id, false)}
+                                    />
+                                </div>
+                            ) : null}
                             <VoiceSession
                                 conversationId={conversation?.id}
                                 surface={surface}

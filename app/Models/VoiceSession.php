@@ -61,4 +61,9 @@ class VoiceSession extends Model
     {
         return is_array($this->metadata) ? $this->metadata : [];
     }
+
+    public function isRealtime(): bool
+    {
+        return ($this->meta()['provider'] ?? null) === 'elevenlabs_realtime';
+    }
 }

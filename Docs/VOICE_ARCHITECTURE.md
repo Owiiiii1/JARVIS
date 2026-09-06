@@ -1,39 +1,46 @@
 # Голосовая архитектура
 
-**Status.** Voice pipeline MANUAL PASS (Owner, 2026-09-04/05). Current Web UX is push-to-talk («Рация»): hold to record, release to send. Hands-free dialogue/VAD capture was removed on 2026-09-05.
+**Status.** Legacy Web «Рация» pipeline is MANUAL PASS (Owner, 2026-09-04/05). Web **Диалог Beta** (ElevenLabs realtime) is **IMPLEMENTED / NOT VALIDATED**. Do not treat Beta as MANUAL PASS. Legacy removal is **NOT NOW** — only after Owner live A/B validation.
 
 Voice is a **modality** of Web Personal Workspace over an existing conversation. Not a second Jarvis, second memory, second User Space, or a separate client.
 
 Desktop reuse is **not** a planned path (Desktop CANCELLED). Mobile may later call the same runtime; not current work.
 
+Web Voice has two parallel modes (default **Рация**):
+
+1. **Рация** (legacy, stable) — push-to-talk, Gemini STT, `VoiceRuntimeService`, ElevenLabs HTTP TTS.
+2. **Диалог Beta** — browser ElevenLabs realtime transport (STT, turn detection, barge-in, expressive TTS). Jarvis Core remains the only brain via a Custom LLM adapter.
+
+Telegram Voice is a **separate** path and is unchanged: voice note → Gemini STT → `ConversationTurnService`; replies → ElevenLabs HTTP TTS → `sendVoice`. No ElevenAgents, no realtime session, no Twilio, no WebRTC on Telegram.
+
 ```
-Voice selection
-  → microphone permission
-  → listening
-  → hold push-to-talk
-  → release to end turn
-  → Gemini STT
-  → ConversationTurnService (same Core / tools / memory)
-  → persisted messages
-  → ElevenLabs TTS
-  → playback
-  → ready for the next push-to-talk turn
+Рация
+  hold push-to-talk → MediaRecorder → Gemini STT
+  → ConversationTurnService → ElevenLabs TTS → playback
+
+Диалог Beta
+  Browser ↔ ElevenLabs realtime
+  → Jarvis Custom LLM adapter
+  → ConversationTurnService
+  → ElevenLabs realtime speech → Browser
 ```
 
-The separate mic button is **mute/unmute**; the large push-to-talk button controls recording. Same `conversation_id`. Persistence = ordinary `messages`. No second Voice brain. No continuous audio archive.
+Do **not** put Memory, Tools, confirmations, or personality into an ElevenLabs Agent brain.
+
+The separate mic button is **mute/unmute**. In Рация the large push-to-talk button controls recording. In Диалог Beta that button is hidden; ElevenLabs owns end-of-turn. Same `conversation_id`. Persistence = ordinary `messages`. No second Voice brain. No continuous audio archive.
 
 ```
 audio input
-  → STT
+  → STT (Gemini on Рация / Telegram; ElevenLabs realtime on Диалог Beta)
   → ordinary user text turn
   → ConversationTurnService
   → tools / memory / web / storage
   → persisted assistant message
-  → TTS
+  → TTS (HTTP on Рация / Telegram; realtime playback on Диалог Beta)
   → audio output
 ```
 
-`VoiceRuntimeService` must not call Gemini Conversation AI / `AiChatGateway` directly.
+`VoiceRuntimeService` must not call Gemini Conversation AI / `AiChatGateway` directly. The Beta adapter also must not: it only calls `ConversationTurnService`.
 
 UI Orb: [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
 
@@ -48,10 +55,12 @@ UI Orb: [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
 - Text ↔ Voice must not create a new conversation
 - final STT text and assistant text are ordinary `messages` rows
 - `messages.channel` stays `web`; `messages.metadata.modality = voice`
+- Диалог Beta also sets `messages.metadata.voice_mode = realtime`
+- one ElevenLabs realtime session binds one Jarvis `conversation_id`; switching chats ends the old session and starts a new one if Voice Beta stays on
 
 ---
 
-## Runtime path (M23 + M24.1)
+## Runtime path (M23 + M24.1) — Рация
 
 ```
 Text → Voice (user gesture)
@@ -87,9 +96,35 @@ MIME: `VoiceAudioMime` canonicalizes `audio/webm;codecs=opus` → `audio/webm`. 
 
 `resume` is `muted → idle`. Frontend then calls `listen` exactly once and waits for push-to-talk. Recoverable `voice_session_invalid_state` fetches a snapshot; no full page refresh required.
 
-Domain layer is transport-neutral. Production Web uses authenticated session + CSRF HTTP JSON. No WebRTC. A future Mobile client would call the same `VoiceRuntimeService`; there is no Desktop client.
+Domain layer is transport-neutral. Рация uses authenticated session + CSRF HTTP JSON (no Jarvis-owned WebRTC). Диалог Beta uses an ElevenLabs-signed websocket; Jarvis still does not run Twilio, SIP, or Telegram realtime.
 
-M23 generates full assistant text before TTS. Later (Phase C): streaming STT/TTS if valuable.
+M23 generates full assistant text before TTS. Диалог Beta (C.2) still waits for Core to finish the tool loop, then streams that final text into ElevenLabs. Speculative streaming before tools/confirmations is not used.
+
+---
+
+## Диалог Beta (C.2) — ElevenLabs realtime
+
+Web only (`/jarvis`, `/chat`). Feature flag `ELEVENLABS_REALTIME_ENABLED` (default false).
+
+```
+POST /jarvis|chat/chats/{conversation}/voice/realtime/session
+  → local voice_sessions row (metadata.provider=elevenlabs_realtime)
+  → signed URL (xi-api-key stays on the server)
+  → opaque adapter token
+
+Browser @elevenlabs/client
+  → ElevenLabs realtime audio / STT / VAD / barge-in / TTS
+
+POST /api/voice/elevenlabs/chat/completions
+  → Bearer ELEVENLABS_CUSTOM_LLM_SECRET
+  → resolve jarvis_session_token → voice_session → user + bound conversation
+  → ConversationTurnService
+  → SSE of final assistant text
+```
+
+API keys never go to the browser. `user_id` / `conversation_id` on the Custom LLM body are ignored. Telegram must not create this session. If realtime is down, the UI offers «Переключиться на Рацию»; it does not dump the live mic into the legacy upload path.
+
+Per-user `users.voice_id` is passed as `overrides.tts.voiceId`. If the Agent catalog cannot match 1:1, Beta speech may use the Agent default; stored `voice_id` semantics are unchanged. Expressive conversational TTS is an Agent/model setting, not Jarvis emotional tags.
 
 ---
 

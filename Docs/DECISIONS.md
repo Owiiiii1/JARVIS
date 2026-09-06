@@ -2540,7 +2540,17 @@
 
 **Решение.** Derive a bounded `WorkingContext` each turn from the recent tail, summary, topics, and compact `tool_execution_logs` ids. One personality presentation for Web/Voice/Telegram. Clarify mutation ambiguity; do not clarify obvious dates. Trusted recent tool ids may bind a pronoun; guessed ids are rejected. Temporary style stays conversation-scoped. Frontend generation tokens suppress stale assistant JSON; the server turn is not cancelled. Failure of this layer falls back to the previous Conversation Engine context path. No migration.
 
-**Следствие.** C.1 IMPLEMENTED / NOT VALIDATED. C.2 (streaming, VAD, server cancellation) remains PLANNED. [HUMAN_LIKE_ASSISTANT.md](HUMAN_LIKE_ASSISTANT.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md).
+**Следствие.** C.1 IMPLEMENTED / NOT VALIDATED. C.2 Beta (ElevenLabs realtime Web voice) is IMPLEMENTED / NOT VALIDATED. [HUMAN_LIKE_ASSISTANT.md](HUMAN_LIKE_ASSISTANT.md), [CONVERSATION_ENGINE.md](CONVERSATION_ENGINE.md).
+
+---
+
+## ADR-262 — Phase C.2 Beta ElevenLabs realtime is a parallel Web Voice mode
+
+**Контекст.** Natural conversation needed continuous turn-taking, barge-in, and expressive speech without replacing Jarvis Core or Telegram Voice, and without deleting the working «Рация» PTT path.
+
+**Решение.** Add Web-only «Диалог Beta» beside «Рация» (default). ElevenLabs owns realtime audio transport, STT, VAD, barge-in, and TTS. Jarvis owns conversation, memory, tools, confirmations, and isolation via a Custom LLM adapter that resolves a signed `voice_sessions` row (metadata `provider=elevenlabs_realtime`). Browser never receives the ElevenLabs API key. Telegram must not create a realtime agent session. Feature disabled unless `ELEVENLABS_REALTIME_ENABLED` plus agent id and Custom LLM secret are set. Legacy PTT is not removed until Owner A/B.
+
+**Следствие.** C.2 Beta IMPLEMENTED / NOT VALIDATED. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md), [CLIENTS/VOICE_UI.md](CLIENTS/VOICE_UI.md).
 
 ---
 

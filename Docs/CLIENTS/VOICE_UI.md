@@ -1,8 +1,8 @@
 # Voice UI
 
-**Status.** Voice Runtime pipeline MANUAL PASS. Current Web UI is push-to-talk («Рация»); hands-free «Диалог» was removed on 2026-09-05.
+**Status.** Voice Runtime pipeline MANUAL PASS for **Рация**. **Диалог Beta** is IMPLEMENTED / NOT VALIDATED. Hands-free capture is not our VAD; Beta uses ElevenLabs turn detection. Legacy PTT is kept.
 
-Voice is push-to-talk turn-based conversation. Hold the large radio button to record and release it to send. The separate mic button remains mute/unmute. After TTS, the session is ready for the next held turn.
+Voice **Рация** is push-to-talk turn-based conversation. Hold the large radio button to record and release it to send. **Диалог Beta** is continuous conversation without that button. The separate mic button remains mute/unmute in both modes. After TTS in Рация, the session is ready for the next held turn.
 
 Voice **UI** ≠ Voice **Runtime**.
 
@@ -103,11 +103,16 @@ Enable with `?voice_demo=1` or `VITE_VOICE_DEMO_MODE=true`. Hidden drawer cycles
 
 ## Workspace client
 
-`VoiceSession` owns session lifecycle. Controls: **hold-to-talk**, Mute/Unmute, Interrupt (when speaking/thinking), device settings, End, Text. There is no hands-free/dialogue mode. Labels include «Рация — зажмите кнопку», «Говорите…», Thinking… / Speaking… / Muted.
+Mode selector (local preference, default **Рация**):
 
-If STT/TTS are not configured: Orb keeps working; status **Speech providers not configured.** — not a crash.
+1. **Рация** — `VoiceSession`. Controls: **hold-to-talk**, Mute/Unmute, Interrupt (when speaking/thinking), device settings, End, Text. Labels include «Рация — зажмите кнопку», «Говорите…», Thinking… / Speaking… / Muted.
+2. **Диалог Beta** — `RealtimeVoiceSession`. Controls: Mute, End Voice, switch to Рация, Text. No PTT. Orb maps ElevenLabs SDK states onto the existing `JarvisVoiceOrb` (`connecting`, `listening`, `user_speaking`, `thinking`, `speaking`, `interrupted`, `muted`, `error`, `ended`). If Beta cannot start, show a clear error and «Переключиться на Рацию».
 
-If Voice opens without a usable user gesture, a single **Enable microphone** CTA appears. After Text→Voice it should not. **Enable audio** appears only if TTS autoplay is blocked.
+`WorkspaceVoice` owns the selector. Switching conversation ends the current realtime session and starts a new one bound to the new chat if Beta stays on. End Voice does not delete the Jarvis conversation.
+
+If STT/TTS are not configured: Orb keeps working; status **Speech providers not configured.** — not a crash (Рация).
+
+If Voice opens without a usable user gesture, a single **Enable microphone** CTA appears (Рация). After Text→Voice it should not. **Enable audio** appears only if TTS autoplay is blocked.
 
 ---
 

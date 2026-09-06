@@ -58,6 +58,10 @@ export default function VoicePanel() {
             yes: 'yes',
             no: 'no',
             limits: 'Hard bounds (config)',
+            realtime: 'Realtime Conversation',
+            realtimeHelp: 'Web «Диалог Beta» only. Telegram and Рация stay on the legacy path. Configure env ELEVENLABS_REALTIME_ENABLED, ELEVENLABS_AGENT_ID, and ELEVENLABS_CUSTOM_LLM_SECRET.',
+            realtimeConfigured: 'Configured',
+            realtimeNotConfigured: 'Not configured',
         },
         ru: {
             title: 'Voice / Speech',
@@ -93,6 +97,10 @@ export default function VoicePanel() {
             yes: 'yes',
             no: 'no',
             limits: 'Hard bounds (config)',
+            realtime: 'Realtime Conversation',
+            realtimeHelp: 'Только Web «Диалог Beta». Telegram и Рация без изменений. Env: ELEVENLABS_REALTIME_ENABLED, ELEVENLABS_AGENT_ID, ELEVENLABS_CUSTOM_LLM_SECRET.',
+            realtimeConfigured: 'Configured',
+            realtimeNotConfigured: 'Not configured',
         },
         uk: {
             title: 'Voice / Speech',
@@ -128,6 +136,10 @@ export default function VoicePanel() {
             yes: 'yes',
             no: 'no',
             limits: 'Hard bounds (config)',
+            realtime: 'Realtime Conversation',
+            realtimeHelp: 'Лише Web «Диалог Beta». Telegram і Рація без змін. Env: ELEVENLABS_REALTIME_ENABLED, ELEVENLABS_AGENT_ID, ELEVENLABS_CUSTOM_LLM_SECRET.',
+            realtimeConfigured: 'Configured',
+            realtimeNotConfigured: 'Not configured',
         },
     };
     const t = text[locale] ?? text.en;
@@ -293,6 +305,15 @@ export default function VoicePanel() {
                         {t.elevenClear}
                     </button>
                 </form>
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-[#E6DCC8] bg-white/60 p-3">
+                <h3 className="text-sm font-semibold text-slate-900">{t.realtime}</h3>
+                <p className="text-sm text-slate-600">{t.realtimeHelp}</p>
+                <div className="flex justify-between gap-3 rounded-lg bg-white/70 px-3 py-2 text-sm text-slate-700">
+                    <dt>{t.realtime}</dt>
+                    <dd>{voice.realtime?.configured ? t.realtimeConfigured : t.realtimeNotConfigured}</dd>
+                </div>
             </div>
 
             <div>

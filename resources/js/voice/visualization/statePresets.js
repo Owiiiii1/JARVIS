@@ -49,6 +49,17 @@ export const STATE_PRESETS = {
         audioSource: 'input',
         lerp: 0.14,
     },
+    user_speaking: {
+        ...BASE,
+        glow: 0.42,
+        deform: 0.24,
+        breath: 0.12,
+        lineSpeed: 0.48,
+        particleSpeed: 0.4,
+        audioGain: 1,
+        audioSource: 'input',
+        lerp: 0.16,
+    },
     transcribing: {
         ...BASE,
         scale: 0.94,

@@ -1,6 +1,6 @@
 # Jarvis — current implementation snapshot
 
-**Date:** 2026-09-06 (Phase C.1 Conversation Intelligence)
+**Date:** 2026-09-06 (Phase C.2 Beta ElevenLabs realtime voice)
 **Host path:** `/var/www/jarvis`  
 **Public URL:** https://jarvis.owlsolutions.net  
 **GitHub:** https://github.com/Owiiiii1/JARVIS.git
@@ -46,7 +46,7 @@ This file is a **runtime snapshot**. If it disagrees with older milestone prose,
 - ElevenLabs TTS plays audio
 - each user can select a personal TTS voice
 
-The former hands-free «Диалог» mode was removed; only «Рация» remains.
+The former hands-free «Диалог» VAD capture was removed from Рация. **Диалог Beta** is a new parallel Web mode (ElevenLabs realtime), **IMPLEMENTED / NOT VALIDATED**, default off (`ELEVENLABS_REALTIME_ENABLED=false`). Рация remains the default and is not removed.
 
 **PARTIAL — M25U.3:**
 
@@ -141,7 +141,9 @@ Main Workspace is chat + Task / Reminder / Notification centers + Voice + compac
 
 Workspace conversation delete is implemented for Owner and ordinary users. Sidebar overflow menu → confirmation dialog → `DELETE /jarvis/chats/{conversation}` or `DELETE /chat/chats/{conversation}`. Own personal conversations only (`ensureOwned`; Owner is not a bypass for someone else’s chat). Group conversations are 404. Hard delete of the chat and child messages/ephemeral screenshots; tasks, reminders, projects, persistent Storage files, and durable memories survive with sources detached. Deleting the open chat switches to the latest remaining personal chat, or creates `Основной` if none remain. No full page reload.
 
-Phase C.1 Conversation Intelligence is **IMPLEMENTED / NOT VALIDATED**. Same Conversation Engine. Derived working context (topic mode, recent entities, trusted recent tool refs, temporary style) plus clarification/initiative policy. Mutation tools do not guess ids. Web composer can send a new message while a previous turn is thinking; stale JSON is ignored. Server generation is not cancelled. C.2 streaming/VAD remains PLANNED.
+Phase C.1 Conversation Intelligence is **IMPLEMENTED / NOT VALIDATED**. Same Conversation Engine. Derived working context (topic mode, recent entities, trusted recent tool refs, temporary style) plus clarification/initiative policy. Mutation tools do not guess ids. Web composer can send a new message while a previous turn is thinking; stale JSON is ignored. Server generation is not cancelled.
+
+Phase C.2 Beta (ElevenLabs realtime Web voice) is **IMPLEMENTED / NOT VALIDATED**. Parallel to Рация. Telegram Voice unchanged. Legacy removal NOT NOW.
 
 Workspace Settings sections: Profile, Assistant, Memory, Productivity, Voice, Integrations. Desktop: nav + detail. Mobile: list → detail. Direct section: `?settings=memory` / `?settings=integrations` on first load (allowlist only). Opening Settings from the UI does not rewrite `history.state`, so the chat list stays intact.
 
@@ -153,10 +155,10 @@ Regular user capabilities: chat, memory, telegram_dm, reminders, tasks, notifica
 
 ## 6. Voice
 
-Committed path: push-to-talk, Gemini STT, ElevenLabs TTS, responsive Orb. The core pipeline is Owner MANUAL PASS. Admin provider/key settings remain under Integrations; each user chooses one of six curated voices in Workspace settings (`users.voice_id`). Empty Gemini `audioTranscriptionConfig` is sent as JSON `{}`. If a selected ElevenLabs voice is unavailable on the account, TTS makes at most one fallback request to the instance/default voice; auth, quota, rate-limit, and generic server errors do not retry. Live Gemini/ElevenLabs validation was not run. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
+Committed path: two Web modes. **Рация** (default): push-to-talk, Gemini STT, ElevenLabs HTTP TTS, responsive Orb — Owner MANUAL PASS for the core pipeline. **Диалог Beta**: ElevenLabs realtime transport + Jarvis Custom LLM adapter — IMPLEMENTED / NOT VALIDATED; disabled unless env is configured. Admin Voice panel shows Realtime Conversation Configured / Not configured. Each user chooses one of six curated voices in Workspace settings (`users.voice_id`); Beta passes it as an Agent TTS override when the catalog matches. Empty Gemini `audioTranscriptionConfig` is sent as JSON `{}`. If a selected ElevenLabs voice is unavailable on the account, TTS makes at most one fallback request to the instance/default voice; auth, quota, rate-limit, and generic server errors do not retry. Live Gemini/ElevenLabs validation was not run. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
 
 Telegram Voice Replies (`sendVoice`): **MANUAL PASS**.  
-Telegram Voice Input (DM `Message.voice` → existing Gemini STT → Core): **IMPLEMENTED / NOT VALIDATED**. Groups still store `[voice]` placeholder (no STT). Default Telegram reply mode remains **text**. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
+Telegram Voice Input (DM `Message.voice` → existing Gemini STT → Core): **IMPLEMENTED / NOT VALIDATED**. Groups still store `[voice]` placeholder (no STT). Default Telegram reply mode remains **text**. C.2 does **not** instantiate a realtime ElevenLabs agent on Telegram. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
 ---
 
@@ -194,3 +196,4 @@ Code: Google OAuth (Gmail + Calendar tools; **no Drive**), GitHub OAuth + tools,
 - Real-time WebSocket/SSE for scheduler events
 - Telegram Voice Input live Owner checklist (code shipped)
 - Phase C.1 live Owner checklist (code shipped; not MANUAL PASS)
+- Phase C.2 Beta live Owner A/B (code shipped; not MANUAL PASS; do not remove Рация)

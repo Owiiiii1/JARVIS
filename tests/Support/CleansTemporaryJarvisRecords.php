@@ -31,6 +31,7 @@ use App\Models\User;
 use App\Models\UserAiSetting;
 use App\Models\UserAssistantProfile;
 use App\Models\UserProfile;
+use App\Models\VoiceSession;
 use App\Services\Users\AccessCodeGenerator;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -117,6 +118,9 @@ trait CleansTemporaryJarvisRecords
         Message::query()->whereIn('telegram_group_id', $groupIds)->delete();
         TelegramGroup::query()->whereIn('id', $groupIds)->delete();
         Message::query()->where('user_id', $user->id)->delete();
+        if (Schema::hasTable('voice_sessions')) {
+            VoiceSession::query()->where('user_id', $user->id)->delete();
+        }
         UserAiSetting::query()->where('user_id', $user->id)->delete();
         ChannelIdentity::query()->where('user_id', $user->id)->update(['active_conversation_id' => null]);
         Conversation::query()->where('user_id', $user->id)->delete();

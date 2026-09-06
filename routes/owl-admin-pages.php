@@ -8,6 +8,7 @@ use App\Http\Controllers\Jarvis\JarvisConfirmationController;
 use App\Http\Controllers\Jarvis\JarvisNotificationController;
 use App\Http\Controllers\Jarvis\JarvisProductivitySettingsController;
 use App\Http\Controllers\Jarvis\JarvisPushSubscriptionController;
+use App\Http\Controllers\Jarvis\JarvisRealtimeVoiceController;
 use App\Http\Controllers\Jarvis\JarvisReminderController;
 use App\Http\Controllers\Jarvis\JarvisStorageController;
 use App\Http\Controllers\Jarvis\JarvisTaskController;
@@ -191,6 +192,17 @@ $registerPersonalWorkspace = static function (string $prefix, string $as, array 
         Route::delete('/voice/sessions/{session}', [JarvisVoiceController::class, 'destroy'])
             ->middleware('throttle:20,1')
             ->name('voice.sessions.destroy');
+        Route::post('/chats/{conversation}/voice/realtime/session', [JarvisRealtimeVoiceController::class, 'store'])
+            ->middleware('throttle:20,1')
+            ->name('voice.realtime.session.store');
+        Route::get('/voice/realtime/sessions/{session}', [JarvisRealtimeVoiceController::class, 'show'])
+            ->name('voice.realtime.session.show');
+        Route::post('/voice/realtime/sessions/{session}/metrics', [JarvisRealtimeVoiceController::class, 'metrics'])
+            ->middleware('throttle:60,1')
+            ->name('voice.realtime.session.metrics');
+        Route::delete('/voice/realtime/sessions/{session}', [JarvisRealtimeVoiceController::class, 'destroy'])
+            ->middleware('throttle:20,1')
+            ->name('voice.realtime.session.destroy');
 
         if ($ownerStorage) {
             Route::get('/storage', [JarvisStorageController::class, 'index'])->name('storage.index');

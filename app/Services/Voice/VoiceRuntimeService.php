@@ -149,6 +149,10 @@ final class VoiceRuntimeService
     ): VoiceSessionSnapshot {
         $session = $this->ownedActive($user, $session);
 
+        if ($session->isRealtime()) {
+            throw VoiceException::invalidState($session->status->value, VoiceSessionStatus::Transcribing->value);
+        }
+
         if (in_array($session->status, [VoiceSessionStatus::Muted, VoiceSessionStatus::Thinking, VoiceSessionStatus::Transcribing], true)) {
             throw VoiceException::invalidState($session->status->value, VoiceSessionStatus::Transcribing->value);
         }

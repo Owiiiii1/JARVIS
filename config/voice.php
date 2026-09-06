@@ -92,4 +92,18 @@ return [
         'output_format' => env('ELEVENLABS_OUTPUT_FORMAT', 'mp3_44100_128'),
     ],
 
+    /*
+    | Web «Диалог Beta» only. Telegram and legacy «Рация» do not read this block.
+    | Disabled unless enabled + agent id + API key + Custom LLM secret are set.
+    */
+    'realtime' => [
+        'enabled' => (bool) env('ELEVENLABS_REALTIME_ENABLED', false),
+        'agent_id' => (string) env('ELEVENLABS_AGENT_ID', ''),
+        'custom_llm_secret' => (string) env('ELEVENLABS_CUSTOM_LLM_SECRET', ''),
+        'signed_url_path' => '/v1/convai/conversation/get-signed-url',
+        'adapter_token_ttl_seconds' => (int) env('ELEVENLABS_REALTIME_TOKEN_TTL', 3600),
+        'model' => (string) env('ELEVENLABS_REALTIME_MODEL', 'eleven_turbo_v2_5'),
+        'expressive' => (bool) env('ELEVENLABS_REALTIME_EXPRESSIVE', true),
+    ],
+
 ];

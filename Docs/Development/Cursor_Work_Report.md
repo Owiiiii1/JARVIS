@@ -1,112 +1,121 @@
-# Phase C.1 — Conversation Intelligence
+# Phase C.2 Beta — ElevenLabs Realtime Conversation
 
 ## Starting HEAD
 
-`8208423` (`feat: add confirmed workspace chat deletion`). `git status` was clean. `HEAD` == `origin/main`.
+`f92c474` (`feat: add conversational intelligence`). `git status` was clean. `HEAD` == `origin/main`.
 
-Work ran on that main. No migration. Production database `jarvis` was not truncated, refreshed, or mass-updated. No live Gemini / ElevenLabs / Gmail / Calendar / GitHub / Telegram calls.
+Work ran on that main. No migration. Production database `jarvis` was not truncated, refreshed, or mass-updated. No live ElevenLabs / Telegram / Gemini / Gmail / Calendar / GitHub calls.
 
-## Existing conversation architecture
+## Existing legacy voice
 
-Unchanged engine: channel adapter → `ConversationTurnService` → `ConversationAiService::completeUserTurn` → `ConversationContextBuilder` → `ContextBudgetManager` → tool loop → persist.
+Web **Рация** is unchanged: MediaRecorder → upload → Gemini STT → `VoiceRuntimeService` → `ConversationTurnService` → ElevenLabs HTTP TTS. Push-to-talk UI, Gemini STT path, current fallback, and MANUAL PASS behavior stay. PTT audio is rejected on a realtime `voice_sessions` row so the two transports cannot mix.
 
-Voice (`VoiceRuntimeService`) and Telegram DM already call that turn path. C.1 does not add a second Voice AI, a second memory engine, a new message store, or a hidden personality prompt.
+## Telegram voice invariants
 
-## Working context model
+Telegram Voice Input remains: voice note → Gemini STT → `ConversationTurnService`.
+Telegram Voice Replies remain: `ConversationTurnService` → ElevenLabs HTTP TTS → `sendVoice`.
+Default text/auto/voice policy is unchanged. Telegram does not create an ElevenLabs realtime session, Twilio, or WebRTC. Constructor isolation tests lock that boundary.
 
-`App\Services\ConversationIntelligence\WorkingContext` is a small derived DTO: topic mode, current/previous topic, recent entities, trusted recent tool refs, recent intent, pending clarification, last important object, active project if indicated, temporary style, incomplete-utterance flag.
+## Realtime architecture
 
-`WorkingContextBuilder` builds it from the recent semantic tail, conversation summary, topics linked to this chat, compact `tool_execution_logs` metadata, and (when the text matches) an owned project name. It is not a standing blob and is not written to Memory.
+New parallel Web mode **Диалог Beta** (`/jarvis` and `/chat` only):
 
-## Topic continuity
+Browser ↔ ElevenLabs realtime (audio, STT, turn detection, pauses, barge-in, expressive TTS)
+→ Jarvis Custom LLM adapter
+→ `ConversationTurnService`
+→ ElevenLabs realtime speech → Browser
 
-`TopicContinuityDetector` labels **continue / subtopic / switch / return** from the current utterance plus known topic names. Return phrases (“вернёмся к YFS”) recover the named topic so later retrieval can use topics, the current summary, and `search_conversation_history` when a deeper raw detail is needed. No separate ML classifier service.
+Jarvis remains the only brain (conversation, Memory, ContextBudget, personality, Tasks/Reminders/Projects, Gmail/Calendar/GitHub, Web Research, tool policy, confirmations, isolation). ElevenLabs Agent tools/memory are not used.
 
-## Reference resolution
+## ElevenLabs session auth
 
-`ReferenceResolver` uses structured recent entities plus deictics (“это”, “она”, “туда”, “эта задача”, “предыдущий”, …), not regex-only NLP as the whole product. Read-only replies may use the unique best interpretation. Mutation tools must not receive a guessed id.
+`POST /jarvis|chat/chats/{conversation}/voice/realtime/session` authenticates the user, `ensureOwned` the personal conversation, creates a local `voice_session`, fetches a signed URL with `xi-api-key` on the server, and returns only ephemeral client fields (`signed_url`, opaque `adapter_token`, safe TTS override). The API key never enters the browser.
 
-## Clarification policy
+## Voice-session binding
 
-`ClarificationPolicy` asks only for write/destructive ambiguity, missing required fields, ambiguous external destinations, contradictions, or genuinely insufficient confidence. It does not clarify “tomorrow” or other obvious relative dates.
+Reuses `voice_sessions` without a migration. Metadata holds `provider=elevenlabs_realtime`, `voice_mode=realtime`, adapter token hash/expiry, optional `external_conversation_id`, and numeric latency. One realtime session binds one `conversation_id`. Starting a session for another chat ends the previous realtime session. End Voice does not delete the Jarvis conversation.
 
-## Recent tool references
+## Custom LLM adapter
 
-`ToolExecutionService::safeMetadata` now stores compact `task_id` / `reminder_id` / `project_id` / titles and a short `listed_tasks` list. `RecentToolReferenceReader` exposes the last few **successful** Core results for this conversation. Lifetime is the current turn plus `context_budget.working_memory_turns` (default 4). A topic switch marks them expired. They are not permanent memory.
+`POST /api/voice/elevenlabs/chat/completions` (CSRF-exempt API route). Auth: `Authorization: Bearer` `ELEVENLABS_CUSTOM_LLM_SECRET` plus `elevenlabs_extra_body.jarvis_session_token`. The adapter resolves the local session → user + bound conversation. Body `user_id` / `conversation_id` are ignored. It calls `ConversationTurnService`, not Gemini/OpenAI directly, then SSE-streams the final assistant text (OpenAI chat.completion.chunk + `[DONE]`).
 
-`TaskToolResolver` / `CreateReminderTool` may bind a **unique trusted** recent task when the user refers to it with a pronoun (“Напомни про неё”). Several similar tasks (“закрой отчёт”) stay `ambiguous`. Invented ids on a pronoun turn are rejected.
+## Conversation persistence
 
-## Working vs permanent memory
+Each final user transcript is a normal web user message: `channel=web`, `metadata.modality=voice`, `metadata.voice_mode=realtime`. Assistant text is a normal assistant message with the same metadata. Text and Voice share the Jarvis thread. ElevenLabs history is transport state only; Core rebuilds context each turn.
 
-Working context is conversation-scoped and may disappear as summaries evolve. Durable user facts still go through the Memory Engine only when they qualify as memories. Choosing between two products in the current chat is working context, not an automatic memory write.
+## Tools / confirmations
 
-## Personality consistency
+Tools stay inside Jarvis. Realtime cannot bypass confirmation. The Workspace confirmation card still appears in Voice mode. A Gmail/Storage-style write still requires the existing policy.
 
-`PersonalityPresentationBuilder` wraps `AssistantProfileService::identityContext` for every channel. Voice spoken-style remains a presentation hint. Temporary style (“отвечай коротко”) is injected for this conversation only and is not written to `user_assistant_profiles`.
+## Orb / UI states
 
-## Conversational initiative
+`JarvisVoiceOrb` is reused. SDK modes map to `connecting`, `listening`, `user_speaking`, `thinking`, `speaking`, `interrupted`, `muted`, `error`, `ended`.
 
-Policy text: default **answer and stop**. At most one high-value suggestion tied to the current turn. No “Хочешь, я…” on every reply. No automatic external write from a suggestion. Scheduler/proactive productivity policy is unchanged and not duplicated.
+## Mode selector
 
-## Turn supersession
+Workspace Voice: **Рация** | **Диалог Beta**. Default Рация, stored in `localStorage` (`jarvis.voice.web_mode`). No schema change. Beta hides PTT. Рация UX is unmodified. If Beta cannot start, the UI offers «Переключиться на Рацию» and does not auto-forward the live mic to the legacy path.
 
-The PHP turn is not cancelled (no distributed cancellation). Web Workspace (and legacy cabinet chat) keep the composer usable while thinking, abort the previous **fetch wait**, and ignore stale JSON via a generation counter. Persisted user messages remain. Tool writes that already ran are not rolled back. After reload, both assistant rows may exist in history; the UI will not paint the old payload over the newer turn.
+## Streaming behavior
 
-## Voice / Telegram reuse
+Phase 1: Core finishes the tool loop, then the adapter streams that final text. No speculative tokens before tools/confirmations. Phase 2 (later): earlier stream only for no-tool replies.
 
-Same `ConversationTurnService` / context builder / working context / tools. No Voice-specific or Telegram-specific intelligence layer.
+## Interruption / supersession
 
-## Context budget
+ElevenLabs barge-in stops playback. Completed tool writes are not rolled back. Persisted user turns remain. C.1 frontend stale-response suppression still applies when switching to text.
 
-New slices in `config/context_budget.php`: `working_context`, `recent_entities`, `recent_tool_references`, `conversational_policy`, `working_memory_turns`. Trim order still drops cross-chat / memories / projects before working context, then summary / general / identity / policy, and never drops platform or the current user turn. `ContextBudgetManager` remains authority.
+## Security
 
-## Failure fallback
-
-`WorkingContextBuilder::buildSafe` and an extra try/catch in `ConversationContextBuilder` return `WorkingContext::unavailable()` on failure. Chat still assembles the previous slices. Personality builder falls back to `identityContext`.
+Private Agent + signed URL. Browser gets ephemeral access only. Adapter: secret, session HMAC token, ownership, expiry, throttle. Feature is off unless `ELEVENLABS_REALTIME_ENABLED`, `ELEVENLABS_AGENT_ID`, API key, and Custom LLM secret are set. Admin Voice panel shows Realtime Conversation Configured / Not configured.
 
 ## Tests
 
-Isolated PHPUnit (fakes / temp `jarvis-test-*` users / Mockery). No live providers. No `RefreshDatabase` / `migrate:fresh`.
+Isolated PHPUnit (Http::fake, FakeAiChatGateway, temp `jarvis-test-*` users). No live ElevenLabs/Telegram.
 
-- continuation pronoun → unique trusted task
-- two similar tasks + “отчёт” → ambiguous, no mutation
-- YFS / incomplete “а если его завтра?” resolve when unique
-- return-to-topic detection
-- temporary style does not rewrite the profile
-- expired/switch tool refs are not reused
-- working-context exception falls back to the normal engine
-- personality presentation is channel-agnostic
+- legacy Рация store does not call convai signed-url
+- owned realtime bind; foreign conversation 404
+- auth response has no API key
+- adapter resolves session; arbitrary ids ignored; messages persist with `voice_mode=realtime`
+- switching chat ends the old realtime session
+- ending Voice keeps the Jarvis conversation
+- disabled config 503, no outbound HTTP
+- confirmation still required; Core task still created
+- Telegram services do not take realtime collaborators
+- unauthenticated adapter 401
 
-Frontend supersession has no JS test runner in this repo; behavior is in `PersonalWorkspace.jsx` generation/AbortController.
+## Build
 
-## Build/static checks
-
-`php -l` on touched PHP, Pint `--dirty`, `composer validate`, `npm run build`, `git diff --check`. Migrate status unchanged (no new migration).
+`php -l` on touched PHP, Pint `--dirty`, `composer validate`, `npm run build`, `git diff --check`. Added JS dependency `@elevenlabs/client` for the Beta SDK only. No PHP dependency change. No migration.
 
 ## Production safety
 
-No destructive DB operations. Additive use of existing `tool_execution_logs.metadata` only. Temporary test users cleaned via `CleansTemporaryJarvisRecords`.
+`ELEVENLABS_REALTIME_ENABLED=false` by default. Рация unaffected. No destructive DB operations. Temporary test users cleaned via `CleansTemporaryJarvisRecords` (now also deletes `voice_sessions`).
 
 ## Known limitations
 
-- Server-side in-flight LLM/tool cancellation is not implemented (C.2 / later).
-- Topic mode is heuristic, not a classifier service.
-- Trusted ids come from compact tool-log metadata, not model imagination; a model can still pass an explicit owned `task_id` on a non-pronoun turn (existing behavior).
-- STT transcripts are stored as-is; interpretation is in the context layer only.
-- C.1 is **IMPLEMENTED / NOT VALIDATED**. C.2 is still **PLANNED**.
+- Core still returns a full reply before SSE (correctness over latency).
+- Per-user `voice_id` is sent as an Agent TTS override; if the Agent catalog cannot match, Beta may fall back to the Agent voice without changing stored `voice_id`.
+- Expressive mode is the Agent/conversational model, not Jarvis emotional tags.
+- No JS test runner; PTT/Beta UI is covered by PHP contracts plus the Owner A/B checklist.
+- C.1 and C.2 Beta are **IMPLEMENTED / NOT VALIDATED**.
 
-## Owner manual checklist
+## Owner A/B checklist
 
-A. “Создай задачу купить фильтр для станка”, then “Напомни про неё завтра утром” → reminder linked to that Task.
+A. Рация still works exactly as before (hold / release / interrupt).
 
-B. Discuss YFS, switch topic, then “вернёмся к YFS, что там с голосом?” → topic recovered.
+B. Same chat: Voice → Диалог Beta → microphone, continuous listening.
 
-C. Two tasks about a report, then “закрой задачу про отчёт” → if ambiguous, Jarvis asks; no arbitrary close.
+C. Say «Привет. Давай обсудим Jarvis.» without holding a button.
 
-D. “отвечай сейчас максимально коротко” for several turns → short style now; profile not permanently rewritten.
+D. Natural pause inside a phrase should not cut the turn too early if the ElevenLabs turn model understands continuation.
 
-E. Voice: “а это?” / “а если завтра?” / “и потом?” → context holds when resolvable.
+E. Interrupt Jarvis while speaking → speech stops, new turn accepted. Completed tools are not undone.
 
-F. Send a new message while thinking → old response must not visually replace the new turn.
+F. Create a Task by voice → Core creates it.
 
-G. Jarvis must not start every answer with a follow-up suggestion.
+G. «Напомни про неё завтра.» → C.1 linking still works.
+
+H. Voice → Text → transcripts/replies already in that conversation.
+
+I. Return to Beta → new realtime session, same Jarvis history.
+
+J. Telegram voice note + voice reply unchanged. No realtime agent there.
