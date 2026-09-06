@@ -55,10 +55,10 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 
 | Gap | Reality |
 | --- | --- |
-| Reminder create without Telegram | Code throws `telegram_not_connected` (`ReminderService::assertCanCreate`) |
-| Reminder delivery | Telegram only |
+| Reminder create without Telegram | IMPLEMENTED / NOT VALIDATED (`ReminderService::validateCreate` has no Telegram gate) |
+| Reminder delivery | Telegram optional; no-channel stays Core due (`delivery_state=no_channel`, 30-minute recheck) |
 | Recurrence | Column exists; create tool rejects recurrence |
-| Reminders panel | Code + routes exist; Owner cannot see panel in live user workspace |
+| Reminders panel | Header **Напоминания** on `/jarvis` and `/chat`; IMPLEMENTED / NOT VALIDATED |
 | Onboarding E2E | Entry confirmed; completion/profile update not Owner-confirmed |
 | Google / GitHub live smoke | Code present; not Owner-validated as a campaign |
 | A/B isolation campaign | Prepared, not executed |
@@ -73,16 +73,16 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 
 ### M25U.3.1 — Web Reminders without Telegram
 
-**Status.** PLANNED. Do not implement in M26D.
+**Status.** IMPLEMENTED / NOT VALIDATED. Do not treat as MANUAL PASS until Owner live test.
 
-**Goals**
+**Done in code**
 
-- Fix reminder panel visibility on `/jarvis` and `/chat`
+- Panel visible via header **Напоминания** on `/jarvis` and `/chat` (capability `reminders`, not Telegram)
 - User can create a reminder **without** Telegram
 - Reminder persists in Core (`reminders` row, `user_id`)
-- Panel lists own reminders
-- Own reminder can be cancelled / managed
-- Telegram becomes an **optional** delivery adapter
+- Panel lists own reminders; own reminder can be cancelled
+- Telegram is an **optional** delivery adapter
+- No-channel due reminders stay scheduled Core reminders
 - No Web Push in this milestone
 
 **Not in this milestone:** recurrence, snooze/edit/done, Tasks, browser notifications.
@@ -101,7 +101,7 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 
 **Replies.** MANUAL PASS. DM `sendVoice` via existing TTS; default text.
 
-**Input.** IMPLEMENTED / NOT VALIDATED. Paired DM `Message.voice` → existing Gemini STT → `ConversationTurnService` → existing delivery. Groups unchanged. Next Owner-priority product milestone remains M25U.3.1.
+**Input.** IMPLEMENTED / NOT VALIDATED. Paired DM `Message.voice` → existing Gemini STT → `ConversationTurnService` → existing delivery. Groups unchanged. M25U.3.1 is IMPLEMENTED / NOT VALIDATED.
 
 Detail: [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 

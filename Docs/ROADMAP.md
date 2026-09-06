@@ -34,7 +34,7 @@ Includes (in code unless noted):
 - GitHub tools (Owner)
 - Assistant personalization / onboarding foundation
 - Voice (push-to-talk, Gemini STT, per-user ElevenLabs TTS, responsive Orb)
-- Reminder engine foundation (Telegram-gated create/delivery)
+- Reminder engine foundation (channel-independent create; Telegram optional delivery)
 
 ### Validation (Owner-confirmed)
 
@@ -46,18 +46,17 @@ Includes (in code unless noted):
 | Push-to-talk-only Web capture + per-user voice choice | IMPLEMENTED |
 | Onboarding «Знакомство» entry | MANUAL PARTIAL |
 | Full onboarding completion / profile update E2E | IMPLEMENTED / NOT VALIDATED |
-| Reminders panel in live user workspace | IMPLEMENTED IN CODE / LIVE BUG |
-| Reminder create without Telegram | NOT SUPPORTED (known gap) |
+| Reminders panel in live user workspace | IMPLEMENTED / NOT VALIDATED |
+| Reminder create without Telegram | IMPLEMENTED / NOT VALIDATED |
 | Combined Google / GitHub live smoke | IMPLEMENTED / NOT VALIDATED |
 | A/B isolation campaign | PREPARED / NOT EXECUTED |
 
 ### Phase A remaining
 
-1. **M25U.3.1 Web Reminders without Telegram** — next executable milestone
-2. Reminders panel visibility bug
-3. Full onboarding manual validation
-4. Selected integration manual validation (Google / GitHub)
-5. Optional A/B isolation campaign
+1. **M25U.3.1 Web Reminders without Telegram** — IMPLEMENTED / NOT VALIDATED
+2. Full onboarding manual validation
+3. Selected integration manual validation (Google / GitHub)
+4. Optional A/B isolation campaign
 
 ---
 
@@ -67,7 +66,7 @@ Includes (in code unless noted):
 
 Jarvis should become time-aware and action-aware, not merely chat-aware.
 
-1. Reminder Core decoupled from Telegram (target; see [REMINDERS.md](REMINDERS.md))
+1. Reminder Core decoupled from Telegram (M25U.3.1 in code / not Owner-validated; see [REMINDERS.md](REMINDERS.md))
 2. Web Reminder Center
 3. Web Push / browser notifications
 4. Recurring reminders

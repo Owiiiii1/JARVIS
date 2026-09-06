@@ -906,10 +906,11 @@ export default function PersonalWorkspace() {
                     <button
                         type="button"
                         onClick={() => setRemindersOpen(true)}
-                        className="relative rounded-lg p-2 text-slate-300 hover:bg-white/10"
+                        className="relative inline-flex items-center gap-2 rounded-lg p-2 text-slate-300 hover:bg-white/10 sm:px-3"
                         aria-label="Напоминания"
                     >
                         <Bell className="h-4 w-4" />
+                        <span className="hidden text-xs font-medium sm:inline">Напоминания</span>
                         {activeReminderCount > 0 ? (
                             <span className="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-sky-500 px-1 text-[10px] font-semibold leading-4 text-white">
                                 {activeReminderCount > 99 ? '99+' : activeReminderCount}
@@ -1100,7 +1101,7 @@ export default function PersonalWorkspace() {
                 <section className="rounded-2xl border border-white/10 bg-white/5 p-3">
                     <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
                         <Bell className="h-3.5 w-3.5" />
-                        Reminders
+                        Напоминания
                     </h2>
                     <button
                         type="button"

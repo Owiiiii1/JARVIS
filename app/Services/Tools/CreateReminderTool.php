@@ -29,7 +29,7 @@ final class CreateReminderTool implements JarvisTool
     {
         return new ToolDefinition(
             name: self::NAME,
-            description: 'Создаёт персональное напоминание пользователя с доставкой в Telegram.',
+            description: 'Создаёт персональное напоминание пользователя в Jarvis. Telegram доставит его, только если аккаунт уже подключён. Напоминание создаётся и без Telegram.',
             parameters: [
                 'type' => 'OBJECT',
                 'properties' => [
@@ -100,14 +100,13 @@ final class CreateReminderTool implements JarvisTool
             if ($existing !== null) {
                 $local = $existing->run_at->setTimezone($timezone);
 
-                return ToolResult::success($call->id, $this->name(), [
-                    'success' => true,
-                    'reminder_id' => $existing->id,
-                    'text' => $existing->text,
-                    'run_at_local' => $local->format('Y-m-d\TH:i:sP'),
-                    'timezone' => $timezone,
-                    'existing' => true,
-                ]);
+                return ToolResult::success($call->id, $this->name(), $this->successPayload(
+                    $existing,
+                    $local->format('Y-m-d\TH:i:sP'),
+                    $timezone,
+                    $this->reminders->telegramIsLinked($context->user),
+                    true,
+                ));
             }
         }
 
@@ -124,18 +123,39 @@ final class CreateReminderTool implements JarvisTool
                 sourceMessage: $context->inbound,
             );
 
-            return ToolResult::success($call->id, $this->name(), [
-                'success' => true,
-                'reminder_id' => $reminder->id,
-                'text' => $reminder->text,
-                'run_at_local' => $local->format('Y-m-d\TH:i:sP'),
-                'timezone' => $timezone,
-            ]);
+            return ToolResult::success($call->id, $this->name(), $this->successPayload(
+                $reminder,
+                $local->format('Y-m-d\TH:i:sP'),
+                $timezone,
+                $this->reminders->telegramIsLinked($context->user),
+            ));
         } catch (ReminderException $exception) {
             return ToolResult::failure($call->id, $this->name(), [
                 'success' => false,
                 'error' => $exception->error,
             ]);
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function successPayload(
+        Reminder $reminder,
+        string $runAtLocal,
+        string $timezone,
+        bool $telegramLinked,
+        bool $existing = false,
+    ): array {
+        return [
+            'success' => true,
+            'reminder_id' => $reminder->id,
+            'text' => $reminder->text,
+            'run_at_local' => $runAtLocal,
+            'timezone' => $timezone,
+            'telegram_connected' => $telegramLinked,
+            'delivery' => $telegramLinked ? 'telegram' : 'none',
+            'existing' => $existing,
+        ];
     }
 }

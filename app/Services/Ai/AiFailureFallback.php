@@ -34,15 +34,18 @@ final class AiFailureFallback
 
             if ($result->success) {
                 $text = trim((string) ($result->payload['text'] ?? ''));
+                $linked = (bool) ($result->payload['telegram_connected'] ?? false);
                 $reply = $text === ''
                     ? 'Хорошо, напоминание создано.'
                     : 'Хорошо, напомню: '.$text.'.';
 
-                return $this->completedToolResponse($reply, $exception);
-            }
+                if ($linked) {
+                    $reply .= ' Я также пришлю его в Telegram.';
+                } else {
+                    $reply .= ' Оно сохранено в Jarvis.';
+                }
 
-            if (($result->payload['error'] ?? null) === 'telegram_not_connected') {
-                return 'Для получения напоминаний сначала подключите Telegram.';
+                return $this->completedToolResponse($reply, $exception);
             }
         }
 

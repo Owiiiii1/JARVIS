@@ -52,8 +52,8 @@ The former hands-free «Диалог» mode was removed; only «Рация» rem
 
 - Onboarding / «Знакомство» **appears** (Owner)
 - Full onboarding conversation / completion / profile update: **not** MANUAL PASS
-- Reminders panel: **not visible** in the real user workspace (LIVE BUG)
-- `create_reminder` without Telegram: **refuses** (known gap, still in code)
+- Reminders panel: **IMPLEMENTED / NOT VALIDATED** (header **Напоминания** for Owner and users)
+- `create_reminder` without Telegram: **IMPLEMENTED / NOT VALIDATED**
 
 **Not claimed:** A/B IDOR campaign; combined Google/GitHub live campaign; Tavily; `fetch_web_page` as a distinct Owner check; screenshot purge; destructive Storage delete.
 
@@ -64,7 +64,7 @@ The former hands-free «Диалог» mode was removed; only «Рация» rem
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | `main`, aligned with `origin/main` after voice provider hardening |
+| HEAD | `main`, aligned with `origin/main` after M25U.3.1 channel-independent reminders |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 
 Production checkout is the GitHub source of truth. Gemini STT request-shape and bounded ElevenLabs voice fallback are committed. Laravel Boost is require-dev tooling in a separate commit. `.env` stays gitignored.
@@ -161,7 +161,7 @@ Personal voice preference: nullable `users.voice_id`; effective fallback is the 
 
 ## 8. Reminders
 
-Core + scheduler + Telegram delivery. Create requires Telegram identity. Panel code present; live visibility **bug**. Target architecture: channel-independent reminders ([REMINDERS.md](REMINDERS.md)). Next: M25U.3.1.
+M25U.3.1 IMPLEMENTED / NOT VALIDATED. Create no longer requires Telegram. Reminders persist in Core, appear in the Web panel, and can be cancelled by the owner of the row. Telegram is optional delivery. No-channel due reminders stay `scheduled` with `metadata.delivery_state=no_channel` and a 30-minute recheck; they are not `failed`. Web Push and recurrence are not implemented. [REMINDERS.md](REMINDERS.md).
 
 ---
 

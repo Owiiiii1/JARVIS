@@ -4,34 +4,30 @@
 
 Owner и Users создают reminders в **своём** space. Cross-user reminder обычному user недоступен.
 
-This document separates **current implementation** from **target architecture**. Do not treat target as shipped.
+**Status.** M25U.3.1 IMPLEMENTED / NOT VALIDATED. Reminder existence is channel-independent. Telegram is an optional delivery adapter. Recurrence is not implemented. Web Push is not implemented.
 
 ---
 
 ## Current implementation
 
-**Status.** IMPLEMENTED in Core. Delivery and create-path still Telegram-gated. Workspace panel: IMPLEMENTED IN CODE / LIVE BUG (Owner cannot see it in the real user workspace). Recurrence: schema only.
-
-### Pipeline today
-
 ```
 Conversation AI
   → create_reminder tool
-  → ReminderService.assertCanCreate  (requires Telegram identity)
-  → reminders (UTC)
+  → ReminderService.validateCreate  (Core invariants only; Telegram is not required)
+  → reminders row, status=scheduled
+  → visible in Web panel on /jarvis and /chat
   → jarvis:reminders:dispatch (every minute)
   → ReminderDeliveryService
-  → Telegram sendMessage
-  → current linked Telegram identity of that User
+       Telegram linked → sendMessage → delivered
+       Telegram absent → stay scheduled, delivery_state=no_channel, next_retry_at +30 minutes
+       Telegram send error → bounded retry (max 3) then failed
 ```
 
-Exact create gate (`ReminderService::assertCanCreate`):
-
-If `ChannelIdentity::findTelegramForUser(user_id)` is null → `ReminderException('telegram_not_connected')`.
-
-No web, email, or push delivery.
+Create does **not** require `ChannelIdentity` Telegram. Ordinary user and Owner can persist a reminder without Telegram.
 
 ### Entity (`reminders`)
+
+No migration for M25U.3.1. Existing columns and `metadata` JSON.
 
 | Field | Meaning |
 | --- | --- |
@@ -42,62 +38,57 @@ No web, email, or push delivery.
 | original_local_time / timezone | local intent |
 | status | `scheduled` / `processing` / `delivered` / `cancelled` / `failed` |
 | delivered_at / cancelled_at | |
-| recurrence_rule | nullable; **create tool rejects recurrence** |
-| last_error / metadata | |
+| recurrence_rule | nullable; **create tool still rejects recurrence** |
+| last_error / metadata | delivery bookkeeping; `last_error` is null for no-channel |
 
-### Workspace panel (code)
+### Metadata keys (no-channel / delivery)
+
+| Key | Meaning |
+| --- | --- |
+| `attempts` | Telegram send attempts only. **Not** incremented when there is no channel |
+| `delivery_state` | `no_channel` \| `error` \| `delivered` |
+| `delivery_channel` | `telegram` or `null` |
+| `next_retry_at` | UTC `Y-m-d H:i:s`. No-channel recheck: **30 minutes**. Telegram send retry: 1 then 2 minutes |
+| `last_error_class` | set only for real Telegram send failures |
+
+Absence of a delivery adapter is **not** a reminder failure. Status stays `scheduled`. The row is still a valid due Core reminder.
+
+If the user later links Telegram, the next bounded recheck can deliver an overdue reminder.
+
+### Workspace panel
 
 - UI: `resources/js/personal-workspace/RemindersPanel.jsx`
-- Routes: `GET {/jarvis|/chat}/reminders`, `POST …/reminders/{id}/cancel`
-- Bell: `capabilities.reminders` (Owner and regular users both have the capability)
-- Badge: `activeReminderCount`
-- Inside panel: if Telegram is not linked, UI warns that delivery is Telegram-only
+- Routes: `GET {/jarvis|/chat}/reminders` (`jarvis.reminders.index` / `chat.reminders.index`), `POST …/reminders/{id}/cancel`
+- Header entry (Owner and `role=user`, when `capabilities.reminders=true`): Bell + **Напоминания** on desktop (`sm+`); compact Bell + `aria-label` + badge on mobile
+- Owner context drawer also has a Напоминания section; it is extra, not a substitute for the header control
+- Panel opens with zero reminders and without Telegram
+- JSON includes `is_due`, `delivery_state`, `delivery_channel`, `delivery_available`, `telegram_connected`. Full `metadata` is not leaked
+- Informational notice when Telegram is absent: reminder is saved in Jarvis; Telegram delivery is unavailable. It does **not** say the reminder does not work
 
-Owner confirmed: panel is **not visible** in the live user workspace. Treat as a product bug to fix in M25U.3.1, not as “users lack the capability”.
+Due in Web: `status` is `scheduled` or `processing` **and** `run_at <= now`. Labels: «Срок наступил», and «Telegram не подключён» when there is no channel.
 
-### Delivery rules today
+### Delivery rules
 
-- Disabled user → cancel `user_disabled`
+- Disabled user → cancel `user_disabled` (unchanged)
 - Identity rebound → send to **current** Telegram identity of that `user_id`
-- No identity at send time → retry then `failed`
+- No Telegram identity at send time → `delivery_state=no_channel`, stay `scheduled`, recheck in 30 minutes, attempts unchanged
+- Telegram connected but API/send fails → retry then `failed` after 3 attempts
 
 Google Calendar remains a separate Owner tool. “Поставь встречу” ≠ “напомни”.
 
 Natural-language time is **not** regex-parsed in Core. The model sends structured `run_at_local`; Core validates and stores UTC.
 
+Web Push / browser notifications are **not** implemented. A due reminder without Telegram is visible in the Web panel; Jarvis cannot notify a closed browser tab.
+
 ---
 
-## Target architecture
+## Target leftovers (not this milestone)
 
-**Old decision (Telegram-required / Telegram-only delivery) is obsolete as the product target.** Current code still matches the old decision. ADR-240 supersedes ADR-039/046 **as target**.
-
-```
-Reminder (Core domain object)
-    ↓
-Core scheduler / state
-    ↓
-delivery channels (optional, many)
-```
-
-Possible delivery channels:
-
-- Web Workspace (in-app)
-- Telegram if linked
-- future Web Push
-- future Mobile Push
-
-**Creating a reminder must not require Telegram.** Telegram is an optional delivery adapter, not the existence condition.
-
-M25U.3.1 (next executable):
-
-- panel visible
-- create without Telegram
-- persist in Core
-- list / cancel own reminders
-- Telegram optional
-- **no** Web Push yet
-
-Later (Phase B): Web Push, recurrence, snooze/done/edit, Notification Center, relation to Tasks.
+- Recurrence
+- Web Push / browser notifications
+- snooze / edit / done
+- Notification Center
+- Tasks
 
 ---
 

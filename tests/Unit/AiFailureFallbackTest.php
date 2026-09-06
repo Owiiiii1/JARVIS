@@ -8,6 +8,7 @@ use App\Services\Ai\Exceptions\AiEmptyResponseException;
 use App\Services\Ai\Exceptions\AiProviderException;
 use App\Services\Ai\Exceptions\AiSafetyException;
 use App\Services\Tools\CompleteAssistantOnboardingTool;
+use App\Services\Tools\CreateReminderTool;
 use App\Services\Tools\UpdateAssistantProfileTool;
 use PHPUnit\Framework\TestCase;
 
@@ -92,5 +93,38 @@ class AiFailureFallbackTest extends TestCase
             'Готово, настройки ассистента сохранены. Но при формировании ответа произошла техническая ошибка.',
             $fallback,
         );
+    }
+
+    public function test_successful_reminder_without_telegram_says_it_is_saved_in_jarvis(): void
+    {
+        $fallback = (new AiFailureFallback)->resolve(
+            new AiEmptyResponseException,
+            [
+                ToolResult::success('call-1', CreateReminderTool::NAME, [
+                    'success' => true,
+                    'text' => 'проверить чайник',
+                    'telegram_connected' => false,
+                ]),
+            ],
+        );
+
+        $this->assertSame('Хорошо, напомню: проверить чайник. Оно сохранено в Jarvis.', $fallback);
+        $this->assertStringNotContainsString('подключите Telegram', mb_strtolower((string) $fallback));
+    }
+
+    public function test_successful_reminder_with_telegram_mentions_telegram_delivery(): void
+    {
+        $fallback = (new AiFailureFallback)->resolve(
+            new AiEmptyResponseException,
+            [
+                ToolResult::success('call-1', CreateReminderTool::NAME, [
+                    'success' => true,
+                    'text' => 'проверить чайник',
+                    'telegram_connected' => true,
+                ]),
+            ],
+        );
+
+        $this->assertSame('Хорошо, напомню: проверить чайник. Я также пришлю его в Telegram.', $fallback);
     }
 }

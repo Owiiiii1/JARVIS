@@ -6,12 +6,15 @@ use App\Enums\ReminderStatus;
 use App\Models\ChannelIdentity;
 use App\Models\Reminder;
 use App\Services\Telegram\TelegramBotManager;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 final class ReminderDeliveryService
 {
-    public const MAX_ATTEMPTS = 3;
+    public const MAX_ATTEMPTS = ReminderDeliveryState::MAX_ATTEMPTS;
+
+    public const NO_CHANNEL_RECHECK_MINUTES = ReminderDeliveryState::NO_CHANNEL_RECHECK_MINUTES;
 
     public function __construct(
         private readonly TelegramBotManager $telegram,
@@ -31,7 +34,15 @@ final class ReminderDeliveryService
         $identity = ChannelIdentity::findTelegramForUser((int) $user->id);
 
         if ($identity === null || ! filled($identity->external_chat_id)) {
-            $this->failOrRetry($reminder, 'telegram_not_connected');
+            ReminderDeliveryState::deferNoChannel($reminder, CarbonImmutable::now('UTC'));
+            $reminder->save();
+
+            Log::info('reminder waiting for delivery channel', [
+                'reminder_id' => $reminder->id,
+                'user_id' => $user->id,
+                'status' => ReminderStatus::Scheduled->value,
+                'delivery_state' => ReminderDeliveryState::STATE_NO_CHANNEL,
+            ]);
 
             return;
         }
@@ -52,11 +63,8 @@ final class ReminderDeliveryService
             return;
         }
 
-        $reminder->forceFill([
-            'status' => ReminderStatus::Delivered,
-            'delivered_at' => now(),
-            'last_error' => null,
-        ])->save();
+        ReminderDeliveryState::markDelivered($reminder, CarbonImmutable::now('UTC'));
+        $reminder->save();
 
         Log::info('reminder delivered', [
             'reminder_id' => $reminder->id,
@@ -87,20 +95,12 @@ final class ReminderDeliveryService
 
     private function failOrRetry(Reminder $reminder, string $error): void
     {
-        $metadata = $reminder->metadata ?? [];
-        $attempts = (int) ($metadata['attempts'] ?? 0) + 1;
-        $metadata['attempts'] = $attempts;
-        $metadata['last_error_class'] = $error;
+        ReminderDeliveryState::retryOrFail($reminder, $error, CarbonImmutable::now('UTC'));
+        $reminder->save();
 
-        if ($attempts < self::MAX_ATTEMPTS) {
-            $metadata['next_retry_at'] = now()->utc()->addMinutes($attempts)->toDateTimeString();
+        $attempts = (int) (($reminder->metadata['attempts'] ?? 0));
 
-            $reminder->forceFill([
-                'status' => ReminderStatus::Scheduled,
-                'last_error' => $error,
-                'metadata' => $metadata,
-            ])->save();
-
+        if ($reminder->status === ReminderStatus::Scheduled) {
             Log::info('reminder retry scheduled', [
                 'reminder_id' => $reminder->id,
                 'user_id' => $reminder->user_id,
@@ -111,12 +111,6 @@ final class ReminderDeliveryService
 
             return;
         }
-
-        $reminder->forceFill([
-            'status' => ReminderStatus::Failed,
-            'last_error' => $error,
-            'metadata' => $metadata,
-        ])->save();
 
         Log::warning('reminder failed', [
             'reminder_id' => $reminder->id,

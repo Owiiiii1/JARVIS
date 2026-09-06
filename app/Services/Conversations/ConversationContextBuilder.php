@@ -17,15 +17,16 @@ use App\Services\Context\ContextBudgetManager;
 use App\Services\Context\ContextSlices;
 use App\Services\Memory\DTO\MemoryContextPackage;
 use App\Services\Memory\PersonalMemoryRetriever;
+use App\Services\Reminders\ReminderToolPrompt;
 use App\Services\Storage\StoredFileService;
 use App\Services\Tools\CompleteAssistantOnboardingTool;
 use App\Services\Tools\CreateReminderTool;
-use App\Services\Tools\GetTelegramResponseModeTool;
-use App\Services\Tools\SetTelegramResponseModeTool;
 use App\Services\Tools\GetAssistantProfileTool;
 use App\Services\Tools\GetProjectContextTool;
+use App\Services\Tools\GetTelegramResponseModeTool;
 use App\Services\Tools\SearchConversationHistoryTool;
 use App\Services\Tools\SearchGroupKnowledgeTool;
+use App\Services\Tools\SetTelegramResponseModeTool;
 use App\Services\Tools\Storage\GetStorageFileTool;
 use App\Services\Tools\Storage\ListStorageFilesTool;
 use App\Services\Tools\Storage\SearchStorageFilesTool;
@@ -163,13 +164,7 @@ final class ConversationContextBuilder
         ];
 
         if (in_array(CreateReminderTool::NAME, $names, true)) {
-            $lines[] = 'create_reminder creates a one-time Telegram reminder. Call it when the user asks to be reminded and the time is exact (clock time or a relative duration such as "in 2 minutes").';
-            $lines[] = 'Only call create_reminder when the current user message is itself a reminder request. Follow-ups such as "ты тут?" are not reminder requests.';
-            $lines[] = 'If the day is known but the clock time is missing, ask "Во сколько напомнить?" and do not call the tool. Do not invent 09:00 or another default time.';
-            $lines[] = 'Dayparts such as "tomorrow morning" without a clock time are not exact — ask.';
-            $lines[] = 'Recurring reminders are not supported yet. If the user asks for a repeating reminder, say so and do not create a one-time reminder as a substitute.';
-            $lines[] = 'If create_reminder returns error telegram_not_connected, tell the user: Для получения напоминаний сначала подключите Telegram.';
-            $lines[] = 'After a successful create_reminder, confirm in natural language using the returned local time. Do not mention tool names.';
+            $lines = array_merge($lines, ReminderToolPrompt::lines());
         }
 
         if (in_array(GetAssistantProfileTool::NAME, $names, true)

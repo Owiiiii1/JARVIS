@@ -474,7 +474,8 @@ class GroupKnowledgeSearchTest extends TestCase
                 ]),
                 new ToolExecutionContext($owner, $personal),
             );
-            $this->assertContains($reminder->payload['error'] ?? 'ok', ['telegram_not_connected', 'invalid_arguments', 'ok']);
+            $this->assertTrue($reminder->success);
+            $this->assertArrayNotHasKey('error', $reminder->payload);
             if ($reminder->success) {
                 Reminder::query()->where('user_id', $owner->id)->where('text', 'isolation reminder')->delete();
             }

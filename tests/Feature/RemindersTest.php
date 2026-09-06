@@ -91,28 +91,24 @@ class RemindersTest extends TestCase
         }
     }
 
-    public function test_no_telegram_identity_does_not_create_reminder(): void
+    public function test_user_without_telegram_can_create_reminder(): void
     {
         $user = null;
 
         try {
             $user = $this->createTemporaryUser();
-            $this->expectException(ReminderException::class);
+            $reminder = app(ReminderService::class)->create(
+                $user,
+                'buy milk',
+                CarbonImmutable::now('UTC')->addHour(),
+                'Europe/Rome',
+                null,
+                null,
+            );
 
-            try {
-                app(ReminderService::class)->create(
-                    $user,
-                    'buy milk',
-                    CarbonImmutable::now('UTC')->addHour(),
-                    'Europe/Rome',
-                    null,
-                    null,
-                );
-            } catch (ReminderException $exception) {
-                $this->assertSame('telegram_not_connected', $exception->error);
-                $this->assertSame(0, Reminder::query()->where('user_id', $user->id)->count());
-                throw $exception;
-            }
+            $this->assertSame(ReminderStatus::Scheduled, $reminder->status);
+            $this->assertSame($user->id, $reminder->user_id);
+            $this->assertSame(1, Reminder::query()->where('user_id', $user->id)->count());
         } finally {
             $this->deleteTemporaryUser($user);
         }
@@ -285,7 +281,7 @@ class RemindersTest extends TestCase
         }
     }
 
-    public function test_tool_reports_telegram_not_connected_without_creating_a_row(): void
+    public function test_tool_creates_reminder_without_telegram(): void
     {
         $user = null;
         $fake = new FakeAiChatGateway;
@@ -301,19 +297,20 @@ class RemindersTest extends TestCase
             $fake->queueToolThenText(CreateReminderTool::NAME, [
                 'text' => 'магазин',
                 'run_at_local' => $runAtLocal,
-            ], 'Для получения напоминаний сначала подключите Telegram.');
+            ], 'Напоминание создано. Оно сохранено в Jarvis.');
 
             $this->actingAs($user)->postJson('/cabinet/chats/'.$conversation->id.'/messages', [
                 'body' => 'Напомни завтра в 11 сходить в магазин',
                 'client_message_id' => (string) Str::uuid(),
             ])->assertOk();
 
-            $this->assertSame(0, Reminder::query()->where('user_id', $user->id)->count());
+            $this->assertSame(1, Reminder::query()->where('user_id', $user->id)->count());
             $toolMessage = collect($fake->calls[1]['request']->messages)->first(
                 fn (AiChatMessage $message): bool => $message->role === 'tool'
             );
             $this->assertNotNull($toolMessage);
-            $this->assertSame('telegram_not_connected', $toolMessage->toolResponse['error'] ?? null);
+            $this->assertTrue($toolMessage->toolResponse['success'] ?? false);
+            $this->assertFalse($toolMessage->toolResponse['telegram_connected'] ?? true);
         } finally {
             $this->restoreAiRoleSettings();
             $this->deleteTemporaryUser($user);

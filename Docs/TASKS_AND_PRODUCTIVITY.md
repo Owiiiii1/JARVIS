@@ -11,7 +11,7 @@ Related: [REMINDERS.md](REMINDERS.md), [ROADMAP.md](ROADMAP.md).
 | | Reminder | Task |
 | --- | --- | --- |
 | Question | When should Jarvis notify me? | What do I need to accomplish? |
-| Today | Core table `reminders`; Telegram-gated | **Does not exist** |
+| Today | Core table `reminders`; channel-independent create; Telegram optional delivery | **Does not exist** |
 | Target | Channel-independent; Web + optional Telegram / Push | Own domain with status, deadline, relations |
 
 A task may have:
