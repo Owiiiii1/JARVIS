@@ -33,6 +33,7 @@ use App\Services\Tools\CompleteAssistantOnboardingTool;
 use App\Services\Tools\CompleteReminderTool;
 use App\Services\Tools\ConfirmToolActionTool;
 use App\Services\Tools\CreateReminderTool;
+use App\Services\Tools\GetAssistantProfileTool;
 use App\Services\Tools\GetProjectContextTool;
 use App\Services\Tools\GetTelegramResponseModeTool;
 use App\Services\Tools\GitHub\CommentGitHubIssueTool;
