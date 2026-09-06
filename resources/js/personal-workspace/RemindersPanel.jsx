@@ -1,27 +1,14 @@
+import ChoiceDialog from '@/personal-workspace/components/ChoiceDialog';
+import PanelSection from '@/personal-workspace/components/PanelSection';
+import PanelShell from '@/personal-workspace/components/PanelShell';
+import WorkspaceCard from '@/personal-workspace/components/WorkspaceCard';
 import { workspaceRoute } from '@/personal-workspace/named';
 import { currentPushState, enableReminderPush, notificationPermission, pushSupported } from '@/personal-workspace/reminderPush';
-import { Link } from '@inertiajs/react';
-import { Bell, Check, Loader2, Pencil, Plus, X } from 'lucide-react';
+import { Bell, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
-}
-
-function formatLocal(iso, timezone) {
-    if (!iso) {
-        return '—';
-    }
-
-    try {
-        return new Intl.DateTimeFormat(undefined, {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-            timeZone: timezone || undefined,
-        }).format(new Date(iso));
-    } catch {
-        return iso;
-    }
 }
 
 function recurrenceLabel(value) {
@@ -33,70 +20,6 @@ function recurrenceLabel(value) {
             monthly: 'ежемесячно',
         }[value] || value
     );
-}
-
-function statusLabel(reminder) {
-    if (reminder.is_occurrence) {
-        if (reminder.status === 'completed') {
-            return 'Прошлое срабатывание · выполнено';
-        }
-
-        if (reminder.status === 'delivered') {
-            return 'Прошлое срабатывание · доставлено';
-        }
-
-        if (reminder.status === 'failed') {
-            return 'Прошлое срабатывание · ошибка доставки';
-        }
-    }
-
-    if (reminder.status === 'completed') {
-        return 'Выполнено';
-    }
-
-    if (reminder.status === 'delivered') {
-        return 'Доставлено';
-    }
-
-    if (reminder.status === 'cancelled') {
-        return 'Отменено';
-    }
-
-    if (reminder.status === 'failed') {
-        return 'Ошибка доставки';
-    }
-
-    if (reminder.is_due) {
-        return 'Срок наступил';
-    }
-
-    if (reminder.status === 'processing') {
-        return 'Отправляется';
-    }
-
-    return 'Запланировано';
-}
-
-function deliveryIcons(reminder) {
-    const parts = [];
-
-    if (reminder.telegram_connected || reminder.delivery_channel === 'telegram' || reminder.delivery_channel === 'both') {
-        parts.push('Telegram');
-    }
-
-    if (reminder.web_push_available || reminder.delivery_channel === 'web_push' || reminder.delivery_channel === 'both') {
-        parts.push('Web Push');
-    }
-
-    if (reminder.delivery_state === 'no_channel' || (reminder.is_due && reminder.delivery_available === false)) {
-        return 'Нет канала доставки';
-    }
-
-    if (reminder.delivery_state === 'partial') {
-        return `${parts.join(' + ') || 'Доставка'} · частично`;
-    }
-
-    return parts.length ? parts.join(' + ') : null;
 }
 
 function applyPanel(payload, setters) {
@@ -114,106 +37,42 @@ function applyPanel(payload, setters) {
     );
 }
 
-function ReminderActions({ reminder, busy, onSnooze, onDone, onCancel, onEdit, onCustomSnooze }) {
-    if (reminder.is_occurrence) {
-        return null;
-    }
+function ReminderCard({ reminder, busyId, onDone, onCancel, onEdit, onSnooze }) {
+    const past = reminder.is_occurrence;
+    const closed = ['completed', 'cancelled', 'failed'].includes(reminder.status);
+
+    const actions = past
+        ? []
+        : [
+              reminder.editable ? { label: 'Изменить', onSelect: () => onEdit(reminder) } : null,
+              reminder.snoozable ? { label: 'Отложить', onSelect: () => onSnooze(reminder) } : null,
+              reminder.completable ? { label: 'Отметить выполненным', onSelect: () => onDone(reminder.id) } : null,
+              reminder.cancellable ? { label: 'Отменить напоминание', tone: 'danger', onSelect: () => onCancel(reminder.id) } : null,
+          ].filter(Boolean);
+
+    // A future reminder needs no primary action: there is nothing to close yet.
+    const showDone = !past && reminder.completable && (reminder.is_due || reminder.status === 'delivered');
 
     return (
-        <div className="mt-2 flex flex-wrap gap-2">
-            {reminder.editable ? (
-                <button type="button" disabled={busy} onClick={() => onEdit(reminder)} className="text-xs text-sky-300 hover:text-sky-200 disabled:opacity-50">
-                    <span className="inline-flex items-center gap-1">
-                        <Pencil className="h-3 w-3" />
-                        Изменить
-                    </span>
-                </button>
-            ) : null}
-            {reminder.snoozable ? (
-                <>
-                    <button type="button" disabled={busy} onClick={() => onSnooze(reminder.id, '10m')} className="text-xs text-amber-200 hover:text-amber-100 disabled:opacity-50">
-                        +10 мин
-                    </button>
-                    <button type="button" disabled={busy} onClick={() => onSnooze(reminder.id, '1h')} className="text-xs text-amber-200 hover:text-amber-100 disabled:opacity-50">
-                        +1 час
-                    </button>
-                    <button type="button" disabled={busy} onClick={() => onSnooze(reminder.id, 'tomorrow')} className="text-xs text-amber-200 hover:text-amber-100 disabled:opacity-50">
-                        Завтра
-                    </button>
-                    <button type="button" disabled={busy} onClick={() => onCustomSnooze(reminder.id)} className="text-xs text-amber-200 hover:text-amber-100 disabled:opacity-50">
-                        Своё время
-                    </button>
-                </>
-            ) : null}
-            {reminder.completable ? (
-                <button type="button" disabled={busy} onClick={() => onDone(reminder.id)} className="text-xs text-emerald-300 hover:text-emerald-200 disabled:opacity-50">
-                    <span className="inline-flex items-center gap-1">
-                        <Check className="h-3 w-3" />
-                        Готово
-                    </span>
-                </button>
-            ) : null}
-            {reminder.cancellable ? (
-                <button type="button" disabled={busy} onClick={() => onCancel(reminder.id)} className="text-xs text-rose-300 hover:text-rose-200 disabled:opacity-50">
-                    <span className="inline-flex items-center gap-1">
-                        <X className="h-3 w-3" />
-                        Отменить
-                    </span>
-                </button>
-            ) : null}
-        </div>
-    );
-}
-
-function ReminderList({ items, surface, busyId, onSnooze, onDone, onCancel, onEdit, onCustomSnooze }) {
-    if (!items.length) {
-        return <p className="text-sm text-slate-500">Пока пусто.</p>;
-    }
-
-    return (
-        <ul className="space-y-2">
-            {items.map((reminder) => {
-                const note = deliveryIcons(reminder);
-                const source = reminder.source_conversation;
-
-                return (
-                    <li key={reminder.id} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                        <p className="text-sm text-slate-100">{reminder.text}</p>
-                        <p className="mt-1 text-[11px] text-slate-500">
-                            {formatLocal(reminder.run_at_local || reminder.run_at, reminder.timezone)}
-                            {' · '}
-                            {reminder.timezone}
-                            {' · '}
-                            {statusLabel(reminder)}
-                            {note ? ` · ${note}` : ''}
-                            {reminder.recurrence ? ` · ${recurrenceLabel(reminder.recurrence)}` : ''}
-                        </p>
-                        {source ? (
-                            <p className="mt-1 text-[11px] text-slate-500">
-                                Из разговора:{' '}
-                                <Link href={workspaceRoute(surface, 'chats.show', source.id)} className="text-sky-300 hover:text-sky-200">
-                                    {source.title}
-                                </Link>
-                            </p>
-                        ) : null}
-                        {reminder.task ? (
-                            <p className="mt-1 text-[11px] text-slate-500">
-                                Связано с задачей: {reminder.task.title}
-                            </p>
-                        ) : null}
-                        <ReminderActions
-                            reminder={reminder}
-                            busy={busyId === reminder.id}
-                            onSnooze={onSnooze}
-                            onDone={onDone}
-                            onCancel={onCancel}
-                            onEdit={onEdit}
-                            onCustomSnooze={onCustomSnooze}
-                        />
-                    </li>
-                );
-            })}
-        </ul>
+        <WorkspaceCard
+            title={reminder.text}
+            secondary={reminder.schedule_label}
+            secondaryTone={reminder.is_due ? 'alert' : 'muted'}
+            meta={[
+                past || closed ? reminder.status_label : null,
+                reminder.task_label,
+                reminder.recurrence ? recurrenceLabel(reminder.recurrence) : null,
+                reminder.timezone_label,
+            ]}
+            problem={past ? null : reminder.problem_label}
+            muted={past || closed}
+            primaryAction={
+                showDone
+                    ? { label: 'Выполнено', disabled: busyId === reminder.id, onSelect: () => onDone(reminder.id) }
+                    : null
+            }
+            actions={actions}
+        />
     );
 }
 
@@ -244,7 +103,7 @@ export default function RemindersPanel({
     const [editText, setEditText] = useState('');
     const [editWhen, setEditWhen] = useState('');
     const [editRecurrence, setEditRecurrence] = useState('');
-    const [customSnoozeId, setCustomSnoozeId] = useState(null);
+    const [snoozing, setSnoozing] = useState(null);
     const [customWhen, setCustomWhen] = useState('');
 
     const setters = { setToday, setUpcoming, setDue, setHistory, setTelegramConnected, setWebPushConfigured, setVapidPublicKey, onCountChange };
@@ -337,7 +196,8 @@ export default function RemindersPanel({
                 { method: 'POST', body: JSON.stringify({ preset, run_at_local: runAtLocal || null }) },
                 'Не удалось отложить напоминание.',
             );
-            setCustomSnoozeId(null);
+            setSnoozing(null);
+            setCustomWhen('');
         } catch (caught) {
             setError(caught.message || 'Не удалось отложить напоминание.');
         } finally {
@@ -425,157 +285,134 @@ export default function RemindersPanel({
         setEditRecurrence(item.recurrence || '');
     };
 
-    const listProps = {
-        surface,
-        busyId,
-        onSnooze: snoozeReminder,
-        onDone: completeReminder,
-        onCancel: cancelReminder,
-        onEdit: startEdit,
-        onCustomSnooze: (id) => setCustomSnoozeId(id),
-    };
-
     if (!open) {
         return null;
     }
 
-    const pushCopy = {
-        enabled: 'Уведомления включены',
-        disabled: 'Уведомления выключены',
-        denied: 'Браузер запретил уведомления. Разрешите их в настройках сайта.',
-        unsupported: 'Этот браузер не поддерживает Web Push.',
-    }[pushState];
+    const cardProps = {
+        busyId,
+        onDone: completeReminder,
+        onCancel: cancelReminder,
+        onEdit: startEdit,
+        onSnooze: (reminder) => setSnoozing(reminder),
+    };
+
+    const section = (label, items, empty) => (
+        <PanelSection title={label} count={items.length} empty={empty}>
+            {items.map((reminder) => (
+                <ReminderCard key={reminder.id} reminder={reminder} {...cardProps} />
+            ))}
+        </PanelSection>
+    );
+
+    const toolbar = (
+        <button
+            type="button"
+            onClick={onCreateInChat}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-sky-500/90 px-3 py-2 text-sm font-medium text-white hover:bg-sky-400"
+        >
+            <Plus className="h-4 w-4" />
+            Создать в чате
+        </button>
+    );
 
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/50 p-3 sm:p-6" onClick={onClose}>
-            <div
-                className="flex h-full max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#101826] shadow-2xl"
-                onClick={(event) => event.stopPropagation()}
-            >
-                <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                    <div className="flex items-center gap-2 text-white">
-                        <Bell className="h-4 w-4" />
-                        <h2 className="text-sm font-semibold">Напоминания</h2>
+        <>
+            <PanelShell icon={Bell} iconClassName="text-white" title="Напоминания" onClose={onClose} toolbar={toolbar} loading={loading} error={error}>
+                {pushState === 'denied' ? (
+                    <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-amber-300">
+                        Браузер запретил уведомления. Разрешите их в настройках сайта.
+                    </p>
+                ) : null}
+                {pushState === 'disabled' && webPushConfigured ? (
+                    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                        <p>Уведомления в браузере пока выключены.</p>
+                        <button
+                            type="button"
+                            disabled={pushBusy}
+                            onClick={enablePush}
+                            className="mt-2 rounded-lg bg-sky-500/90 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-400 disabled:opacity-50"
+                        >
+                            {pushBusy ? 'Включаем…' : 'Включить уведомления'}
+                        </button>
                     </div>
-                    <button type="button" onClick={onClose} className="text-sm text-slate-400 hover:text-white">
-                        Закрыть
-                    </button>
-                </div>
-                <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
-                    <section className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
-                        <p>{pushCopy}</p>
-                        {pushState === 'disabled' && webPushConfigured ? (
-                            <button
-                                type="button"
-                                disabled={pushBusy}
-                                onClick={enablePush}
-                                className="mt-2 rounded-lg bg-sky-500/90 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-400 disabled:opacity-50"
-                            >
-                                {pushBusy ? 'Включаем…' : 'Включить уведомления'}
+                ) : null}
+                {telegramConnected ? null : (
+                    <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                        {telegramHint ||
+                            'Telegram не подключён. Напоминание сохранено в Jarvis. Подключите Telegram, если нужна доставка ещё и туда.'}
+                    </p>
+                )}
+                {editing ? (
+                    <section className="space-y-2 rounded-xl border border-sky-500/30 bg-black/20 p-3">
+                        <p className="text-xs text-slate-400">Изменить напоминание</p>
+                        <input
+                            value={editText}
+                            onChange={(event) => setEditText(event.target.value)}
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                        />
+                        <input
+                            type="datetime-local"
+                            value={editWhen.slice(0, 16)}
+                            onChange={(event) => setEditWhen(event.target.value)}
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                        />
+                        <select
+                            value={editRecurrence}
+                            onChange={(event) => setEditRecurrence(event.target.value)}
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
+                        >
+                            <option value="">Без повтора</option>
+                            <option value="daily">Каждый день</option>
+                            <option value="weekdays">По будням</option>
+                            <option value="weekly">Еженедельно</option>
+                            <option value="monthly">Ежемесячно</option>
+                        </select>
+                        <div className="flex gap-2">
+                            <button type="button" onClick={saveEdit} className="rounded-lg bg-sky-500 px-3 py-1.5 text-xs text-white">
+                                Сохранить
                             </button>
-                        ) : null}
-                        {pushState === 'denied' ? (
-                            <p className="mt-1 text-[11px] text-slate-500">Повторный запрос не показывается, пока разрешение запрещено в браузере.</p>
-                        ) : null}
-                    </section>
-                    {telegramConnected ? null : (
-                        <p className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
-                            {telegramHint ||
-                                'Telegram не подключён. Напоминание сохранено в Jarvis. Подключите Telegram, если нужна доставка ещё и туда.'}
-                        </p>
-                    )}
-                    <button
-                        type="button"
-                        onClick={onCreateInChat}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-sky-500/90 px-3 py-2 text-sm font-medium text-white hover:bg-sky-400"
-                    >
-                        <Plus className="h-4 w-4" />
-                        Создать в чате
-                    </button>
-                    {error ? <p className="text-sm text-rose-300">{error}</p> : null}
-                    {editing ? (
-                        <section className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
-                            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Изменить</h3>
-                            <input
-                                value={editText}
-                                onChange={(event) => setEditText(event.target.value)}
-                                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                            />
-                            <input
-                                type="datetime-local"
-                                value={editWhen.slice(0, 16)}
-                                onChange={(event) => setEditWhen(event.target.value)}
-                                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                            />
-                            <select
-                                value={editRecurrence}
-                                onChange={(event) => setEditRecurrence(event.target.value)}
-                                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                            >
-                                <option value="">Без повтора</option>
-                                <option value="daily">Каждый день</option>
-                                <option value="weekdays">По будням</option>
-                                <option value="weekly">Еженедельно</option>
-                                <option value="monthly">Ежемесячно</option>
-                            </select>
-                            <div className="flex gap-2">
-                                <button type="button" onClick={saveEdit} className="rounded-lg bg-sky-500 px-3 py-1.5 text-xs text-white">
-                                    Сохранить
-                                </button>
-                                <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-300">
-                                    Закрыть
-                                </button>
-                            </div>
-                        </section>
-                    ) : null}
-                    {customSnoozeId ? (
-                        <section className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
-                            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Своё время</h3>
-                            <input
-                                type="datetime-local"
-                                value={customWhen}
-                                onChange={(event) => setCustomWhen(event.target.value)}
-                                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => snoozeReminder(customSnoozeId, 'custom', customWhen)}
-                                className="rounded-lg bg-amber-500/90 px-3 py-1.5 text-xs text-white"
-                            >
-                                Отложить
+                            <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-300">
+                                Отмена
                             </button>
-                        </section>
-                    ) : null}
-                    {loading ? (
-                        <div className="flex items-center gap-2 text-sm text-slate-400">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Загрузка…
                         </div>
-                    ) : (
-                        <>
-                            <section>
-                                <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Due</h3>
-                                <ReminderList items={due} {...listProps} />
-                            </section>
-                            <section>
-                                <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Сегодня</h3>
-                                <ReminderList items={today} {...listProps} />
-                            </section>
-                            <section>
-                                <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Предстоящие</h3>
-                                <ReminderList items={upcoming} {...listProps} />
-                            </section>
-                            <section>
-                                <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">История</h3>
-                                <ReminderList items={history} {...listProps} />
-                            </section>
-                            <p className="text-[11px] text-slate-600">
-                                Время показано в {timezone || 'локальном часовом поясе'}. Готово — вы закрыли напоминание. Отменить — остановить его.
-                            </p>
-                        </>
-                    )}
-                </div>
-            </div>
-        </div>
+                    </section>
+                ) : null}
+                {section('Пора сделать', due, 'Ничего не ждёт вашего ответа.')}
+                {section('Сегодня', today, 'На сегодня напоминаний нет.')}
+                {section('Дальше', upcoming, 'Ближайших напоминаний нет.')}
+                {section('История', history, 'История пока пуста.')}
+            </PanelShell>
+            <ChoiceDialog
+                open={Boolean(snoozing)}
+                title="Когда напомнить снова?"
+                options={[
+                    { key: '10m', label: 'Через 10 минут' },
+                    { key: '1h', label: 'Через час' },
+                    { key: 'tomorrow', label: 'Завтра' },
+                ]}
+                footer={
+                    <div className="space-y-2">
+                        <p className="text-[11px] text-slate-400">Выбрать время</p>
+                        <input
+                            type="datetime-local"
+                            value={customWhen}
+                            onChange={(event) => setCustomWhen(event.target.value)}
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white"
+                        />
+                        <button
+                            type="button"
+                            disabled={!customWhen}
+                            onClick={() => snoozeReminder(snoozing.id, 'custom', customWhen)}
+                            className="w-full rounded-lg bg-amber-500/90 px-3 py-1.5 text-xs text-white disabled:opacity-40"
+                        >
+                            Отложить до этого времени
+                        </button>
+                    </div>
+                }
+                onSelect={(preset) => snoozeReminder(snoozing.id, preset)}
+                onCancel={() => setSnoozing(null)}
+            />
+        </>
     );
 }

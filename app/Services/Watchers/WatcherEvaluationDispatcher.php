@@ -49,7 +49,12 @@ final class WatcherEvaluationDispatcher
         $watchers = Watcher::query()
             ->where('user_id', $task->user_id)
             ->where('status', WatcherStatus::Active)
-            ->where('task_id', $task->id)
+            // A watcher can point at its task through the column or through the source config,
+            // and both spellings must be noticed when the task changes.
+            ->where(function ($inner) use ($task): void {
+                $inner->where('task_id', $task->id)
+                    ->orWhere('source_config->task_id', (int) $task->id);
+            })
             ->whereIn('trigger_type', [WatcherTriggerType::TaskState, WatcherTriggerType::TimeCondition])
             ->orderBy('id')
             ->limit(20)

@@ -68,7 +68,7 @@ class JarvisWatcherController extends Controller
 
             return response()->json([
                 'ok' => true,
-                'watcher' => $this->watchers->serialize($owned),
+                'watcher' => $this->watchers->serialize($owned, (string) ($user->timezone ?: 'UTC')),
                 'occurrences' => $this->watchers->occurrencesFor($user, (int) $owned->id),
             ]);
         } catch (WatcherException $exception) {

@@ -48,5 +48,6 @@ final class FactPack
         public ?Project $project = null,
         public ?KnowledgeEntity $entity = null,
         public array $freshness = [],
+        public ?int $userId = null,
     ) {}
 }

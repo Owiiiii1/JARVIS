@@ -61,7 +61,7 @@ final class GetWatcherTool implements JarvisTool
 
         return ToolResult::success($call->id, $this->name(), [
             'success' => true,
-            'watcher' => $this->watchers->serialize($watcher),
+            'watcher' => $this->watchers->serialize($watcher, (string) ($context->user->timezone ?: 'UTC')),
         ]);
     }
 }

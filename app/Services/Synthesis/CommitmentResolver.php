@@ -12,6 +12,7 @@ use App\Models\Task;
 use App\Services\Synthesis\DTO\FactPack;
 use App\Services\Synthesis\DTO\SourceRef;
 use App\Services\Synthesis\DTO\SynthesisItem;
+use App\Services\Workspace\Presentation\HumanRelationLabel;
 use Carbon\CarbonImmutable;
 
 final class CommitmentResolver
@@ -70,7 +71,7 @@ final class CommitmentResolver
             $items[] = new SynthesisItem(
                 kind: 'commitment',
                 title: $title,
-                why: 'Explicit commitment in '.$event->source_type->value.'.',
+                why: $side === 'mine' ? 'Вы это пообещали.' : 'Это пообещали вам.',
                 since: $since->toIso8601String(),
                 dueAt: $due,
                 score: $due !== '' && $due !== null ? 30 : 10,
@@ -99,11 +100,15 @@ final class CommitmentResolver
 
             $source = $relation->sourceEntity;
             $target = $relation->targetEntity;
-            $title = ($source?->name ?? 'Someone').' committed to '.($target?->name ?? 'work');
+            $title = HumanRelationLabel::sentence(
+                KnowledgeRelationType::CommittedTo,
+                $source?->name ?? 'Кто-то',
+                $target?->name ?? 'выполнить работу',
+            );
             $items[] = new SynthesisItem(
                 kind: 'commitment',
                 title: $title,
-                why: 'Explicit committed_to relationship.',
+                why: 'Это пообещали вам.',
                 sources: [new SourceRef(entityId: (int) $relation->source_entity_id, domain: 'knowledge')],
                 extra: [
                     'side' => 'others',

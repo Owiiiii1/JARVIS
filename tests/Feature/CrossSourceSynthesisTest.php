@@ -6,8 +6,10 @@ use App\Enums\AiRoleKey;
 use App\Enums\JarvisNotificationType;
 use App\Enums\KnowledgeEntityType;
 use App\Enums\KnowledgeEventType;
+use App\Enums\KnowledgeRelationType;
 use App\Enums\KnowledgeSourceType;
 use App\Enums\ProductivityBriefMode;
+use App\Enums\ReminderStatus;
 use App\Enums\SynthesisType;
 use App\Enums\TaskStatus;
 use App\Enums\UserRole;
@@ -37,6 +39,7 @@ use App\Services\Productivity\ProactiveDispatchService;
 use App\Services\Productivity\ProductivityBriefCollector;
 use App\Services\Productivity\ProductivityBriefRenderer;
 use App\Services\Projects\ProjectService;
+use App\Services\Reminders\ReminderService;
 use App\Services\Synthesis\CommitmentLanguage;
 use App\Services\Synthesis\CrossSourceSynthesisService;
 use App\Services\Synthesis\DTO\SynthesisScope;
@@ -163,7 +166,7 @@ class CrossSourceSynthesisTest extends TestCase
             $this->assertNotSame([], $result->sources);
             $changes = array_values(array_filter(
                 $result->recentChanges,
-                static fn ($item): bool => str_contains($item->title, 'Commit abc') || str_contains($item->title, 'Watcher'),
+                static fn ($item): bool => str_contains($item->title, 'Commit abc') || str_contains($item->title, 'автоматизация'),
             ));
             $this->assertCount(1, $changes);
             $this->assertArrayHasKey('generated_from', $result->freshness);
@@ -195,7 +198,10 @@ class CrossSourceSynthesisTest extends TestCase
                 withNarrative: false,
                 skipCache: true,
             ));
-            $this->assertTrue(collect($waiting->waitingFor)->contains(fn ($item) => $item->title === 'Apple reply'));
+            // The card names the work we are waiting on, not the internal watcher name.
+            $this->assertTrue(collect($waiting->waitingFor)->contains(
+                fn ($item) => str_contains($item->title, 'Wait on reply') && ! str_contains($item->title, 'overdue_by'),
+            ));
 
             $watcher->forceFill(['status' => WatcherStatus::Completed])->save();
             app(SynthesisCache::class)->bump($user);
@@ -206,7 +212,7 @@ class CrossSourceSynthesisTest extends TestCase
                 withNarrative: false,
                 skipCache: true,
             ));
-            $this->assertFalse(collect($after->waitingFor)->contains(fn ($item) => $item->title === 'Apple reply'));
+            $this->assertFalse(collect($after->waitingFor)->contains(fn ($item) => str_contains($item->title, 'Wait on reply')));
         } finally {
             $this->deleteTemporaryUser($user);
         }
@@ -238,8 +244,12 @@ class CrossSourceSynthesisTest extends TestCase
                 skipCache: true,
             ));
 
-            $this->assertFalse(collect($result->waitingFor)->contains(fn ($item) => $item->title === 'Build still open'));
-            $this->assertFalse(collect($result->openLoops)->contains(fn ($item) => $item->title === 'Build still open'));
+            $references = static fn (array $items): bool => collect($items)->contains(
+                fn ($item) => collect($item->sources)->contains(fn ($source) => (int) $source->watcherId === (int) $watcher->id),
+            );
+
+            $this->assertFalse($references($result->waitingFor));
+            $this->assertFalse($references($result->openLoops));
         } finally {
             $this->deleteTemporaryUser($user);
         }
@@ -494,8 +504,7 @@ class CrossSourceSynthesisTest extends TestCase
                 withNarrative: false,
                 skipCache: true,
             ));
-            $titles = array_map(static fn ($item) => $item->title, $result->recentChanges);
-            $this->assertContains('Old commit', $titles);
+            $this->assertTrue(collect($result->recentChanges)->contains(fn ($item) => str_contains($item->title, 'Old commit')));
             $this->assertTrue($result->freshness['integrations']['github']['stale'] ?? false);
 
             $narrow = app(CrossSourceSynthesisService::class)->synthesize(new SynthesisScope(
@@ -506,7 +515,7 @@ class CrossSourceSynthesisTest extends TestCase
                 skipCache: true,
                 now: CarbonImmutable::parse('2026-09-06 12:00:00', 'UTC'),
             ));
-            $this->assertFalse(collect($narrow->recentChanges)->contains(fn ($item) => $item->title === 'Old commit'));
+            $this->assertFalse(collect($narrow->recentChanges)->contains(fn ($item) => str_contains($item->title, 'Old commit')));
 
             $daily = app(CrossSourceSynthesisService::class)->synthesize(new SynthesisScope(
                 user: $user,
@@ -684,6 +693,138 @@ class CrossSourceSynthesisTest extends TestCase
         } finally {
             $this->deleteTemporaryUser($user);
             $this->deleteTemporaryUser($other);
+        }
+    }
+
+    /**
+     * Scenario 8: once the work is closed, nothing derived from it may still look live.
+     */
+    public function test_completed_work_disappears_from_every_derived_slice_and_reads_as_human_text(): void
+    {
+        $user = null;
+
+        try {
+            $user = $this->createTemporaryUser();
+            $conversation = $this->chat($user);
+            $now = CarbonImmutable::now('UTC');
+
+            $parent = app(TaskService::class)->create($user, 'Проверить новый билд YFS', dueAt: $now->addDay());
+            $child = app(TaskService::class)->create(
+                $user,
+                'Проверить авторизацию',
+                dueAt: $now->addDay(),
+                parentTaskId: $parent->id,
+            );
+            $reminder = app(ReminderService::class)->create(
+                $user,
+                'Проверить задачу «Проверить авторизацию»',
+                $now->addDay(),
+                'UTC',
+                taskId: $child->id,
+            );
+            $watcher = app(WatcherService::class)->create($user, [
+                'name' => 'Проверка авторизации',
+                'trigger_type' => 'task_state',
+                'condition_type' => 'overdue_by',
+                'mode' => 'one_shot',
+                'task_id' => $child->id,
+            ]);
+
+            // Knowledge evidence of the dependency, named the way extraction names it.
+            $parentEntity = $this->ingest($user, KnowledgeEntityType::Topic, 'Задача #'.$parent->id.': Проверить новый билд YFS', $conversation, 'dep-parent');
+            $childEntity = $this->ingest($user, KnowledgeEntityType::Topic, 'Задача #'.$child->id.': Проверить авторизацию', $conversation, 'dep-child');
+            app(KnowledgeIngestionService::class)->upsertRelationship(
+                $user,
+                $childEntity,
+                $parentEntity,
+                KnowledgeRelationType::DependsOn,
+                $this->source($conversation, 'dep-rel'),
+            );
+
+            app(TaskService::class)->completeOwned($user, $child->id);
+            app(TaskService::class)->completeOwned($user, $parent->id);
+            app(SynthesisCache::class)->bump($user);
+
+            $this->assertSame(ReminderStatus::Cancelled, $reminder->fresh()->status);
+            $this->assertNotSame(WatcherStatus::Active, $watcher->fresh()->status);
+
+            $result = app(CrossSourceSynthesisService::class)->synthesize(new SynthesisScope(
+                user: $user,
+                type: SynthesisType::AttentionNeeded,
+                withNarrative: false,
+                skipCache: true,
+            ));
+
+            $touches = static fn (array $items, callable $matches): bool => collect($items)
+                ->contains(fn ($item) => collect($item->sources)->contains($matches));
+            $closedTask = static fn ($source): bool => in_array((int) $source->taskId, [(int) $parent->id, (int) $child->id], true);
+            $cancelledReminder = static fn ($source): bool => (int) $source->reminderId === (int) $reminder->id;
+            $resolvedWatcher = static fn ($source): bool => (int) $source->watcherId === (int) $watcher->id;
+
+            $this->assertFalse($touches($result->upcoming, $closedTask), 'A completed task is not upcoming.');
+            $this->assertFalse($touches($result->upcoming, $cancelledReminder), 'A cancelled reminder is not upcoming.');
+            $this->assertFalse($touches($result->waitingFor, $resolvedWatcher), 'A resolved watcher is not waiting.');
+            $this->assertFalse($touches($result->openLoops, $resolvedWatcher));
+            $this->assertFalse($touches($result->openWork, $closedTask));
+            $this->assertFalse(
+                collect($result->blockers)->contains(fn ($item) => str_contains($item->title, 'зависит от завершения')),
+                'A dependency on completed work is resolved, not a blocker.',
+            );
+            $this->assertFalse(
+                collect($result->attention)->contains(fn ($item) => str_contains($item->title, 'Проверить новый билд YFS')),
+            );
+
+            // The completion is reported once, no matter how many domains recorded it.
+            $completions = collect($result->recentChanges)
+                ->filter(fn ($item) => str_contains($item->title, 'Проверить новый билд YFS') && str_contains($item->title, 'выполнена'))
+                ->values();
+            $this->assertCount(1, $completions, (string) json_encode($completions->pluck('title')));
+            $this->assertSame('Задача «Проверить новый билд YFS» выполнена', $completions->first()->title);
+
+            $prose = collect([...$result->upcoming, ...$result->attention, ...$result->waitingFor, ...$result->recentChanges, ...$result->blockers])
+                ->flatMap(fn ($item) => [$item->title, (string) $item->why, (string) $item->recommendedNextStep])
+                ->implode(' ');
+
+            foreach (['task_state', 'overdue_by', 'depends_on', 'task_completed', 'knowledge_linked', 'works_on', 'healthy', 'one_shot', '#'.$child->id, '#'.$parent->id] as $leak) {
+                $this->assertStringNotContainsString($leak, $prose, 'Users read sentences, not internal fields.');
+            }
+        } finally {
+            $this->deleteTemporaryUser($user);
+        }
+    }
+
+    /**
+     * A subtask left open under a completed parent is still work, and must stay visible.
+     */
+    public function test_open_subtask_of_a_closed_parent_stays_visible_in_the_task_panel(): void
+    {
+        $user = null;
+
+        try {
+            $user = $this->createTemporaryUser();
+            $parent = app(TaskService::class)->create($user, 'Проверить новый билд YFS');
+            $child = app(TaskService::class)->create($user, 'Проверить авторизацию', parentTaskId: $parent->id);
+
+            app(TaskService::class)->completeOwned($user, $parent->id, force: true);
+
+            $panel = app(TaskService::class)->panelFor($user);
+            $active = collect([...$panel['overdue'], ...$panel['today'], ...$panel['upcoming'], ...$panel['undated']]);
+            $row = $active->firstWhere('id', $child->id);
+
+            $this->assertNotNull($row, 'The still-open subtask has no other card to live in.');
+            $this->assertSame('Подзадача задачи «Проверить новый билд YFS»', $row['parent_label']);
+            $this->assertSame('Без срока', $row['schedule_label']);
+            $this->assertNull($row['state_label']);
+            $this->assertSame(1, $panel['active_count']);
+
+            $done = collect($panel['completed'])->firstWhere('id', $parent->id);
+            $this->assertSame('0 из 1 подзадачи выполнено', $done['subtask_progress_label']);
+            $this->assertTrue($done['reopenable']);
+            $this->assertSame(['Проверить авторизацию'], $done['open_subtask_titles']);
+            $this->assertSame('Проверить авторизацию', $done['subtasks'][0]['title']);
+            $this->assertTrue($done['subtasks'][0]['completable']);
+        } finally {
+            $this->deleteTemporaryUser($user);
         }
     }
 

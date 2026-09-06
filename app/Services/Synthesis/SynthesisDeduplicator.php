@@ -33,6 +33,38 @@ final class SynthesisDeduplicator
         return $out;
     }
 
+    /**
+     * The change feed is read as prose, so the same sentence twice is a duplicate even when the
+     * two rows came from different evidence.
+     *
+     * Only the change feed gets this pass: elsewhere two rows may legitimately share a title and
+     * differ by time, and collapsing them would drop information the user needs.
+     *
+     * @param  list<SynthesisItem>  $items
+     * @return list<SynthesisItem>
+     */
+    public function changes(array $items): array
+    {
+        $seen = [];
+        $out = [];
+
+        foreach ($this->items($items) as $item) {
+            $key = $item->kind === 'change' ? KnowledgeNameNormalizer::name($item->title) : '';
+
+            if ($key !== '' && isset($seen[$key])) {
+                continue;
+            }
+
+            if ($key !== '') {
+                $seen[$key] = true;
+            }
+
+            $out[] = $item;
+        }
+
+        return $out;
+    }
+
     public function eventKey(KnowledgeEvent $event): string
     {
         if (is_string($event->source_fingerprint) && $event->source_fingerprint !== '') {

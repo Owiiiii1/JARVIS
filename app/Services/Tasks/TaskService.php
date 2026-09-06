@@ -15,9 +15,12 @@ use App\Services\Reminders\ReminderLifecycle;
 use App\Services\Synthesis\CommitmentLifecycle;
 use App\Services\Users\UserCapability;
 use App\Services\Watchers\WatcherEvaluationDispatcher;
+use App\Services\Workspace\Presentation\HumanMoment;
+use App\Services\Workspace\Presentation\HumanStatusLabel;
 use Carbon\CarbonImmutable;
 use DateTimeZone;
 use Exception;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Throwable;
@@ -316,11 +319,30 @@ final class TaskService
             return 0;
         }
 
-        return Task::query()
-            ->where('user_id', $user->id)
-            ->whereIn('status', TaskLifecycle::openStatuses())
-            ->whereNull('parent_task_id')
-            ->count();
+        return $this->withoutOpenParent(
+            Task::query()
+                ->where('user_id', $user->id)
+                ->whereIn('status', TaskLifecycle::openStatuses())
+        )->count();
+    }
+
+    /**
+     * Top-level work is everything that is not already listed inside another open task's card.
+     *
+     * A subtask of a closed parent has no card to live in, so it counts as work of its own —
+     * otherwise completing a parent silently hides whatever is still open under it.
+     *
+     * @param  Builder<Task>  $query
+     * @return Builder<Task>
+     */
+    private function withoutOpenParent(Builder $query): Builder
+    {
+        return $query->where(function ($outer): void {
+            $outer->whereNull('parent_task_id')
+                ->orWhereHas('parent', function ($parent): void {
+                    $parent->whereNotIn('status', TaskLifecycle::openStatuses());
+                });
+        });
     }
 
     /**
@@ -333,23 +355,25 @@ final class TaskService
         $now = CarbonImmutable::now('UTC');
         $includeProjects = $user->canUseCapability(UserCapability::PROJECTS);
 
-        $open = Task::query()
-            ->with([
-                'reminders',
-                'subtasks',
-                'project:id,user_id,name',
-                'sourceConversation:id,user_id,title',
-            ])
-            ->where('user_id', $user->id)
-            ->whereIn('status', TaskLifecycle::openStatuses())
-            ->whereNull('parent_task_id')
+        $open = $this->withoutOpenParent(
+            Task::query()
+                ->with([
+                    'reminders',
+                    'subtasks',
+                    'parent:id,user_id,title',
+                    'project:id,user_id,name',
+                    'sourceConversation:id,user_id,title',
+                ])
+                ->where('user_id', $user->id)
+                ->whereIn('status', TaskLifecycle::openStatuses())
+        )
             ->orderByRaw('due_at is null')
             ->orderBy('due_at')
             ->limit(80)
             ->get();
 
         $done = Task::query()
-            ->with(['reminders', 'subtasks', 'project:id,user_id,name', 'sourceConversation:id,user_id,title'])
+            ->with(['reminders', 'subtasks', 'parent:id,user_id,title', 'project:id,user_id,name', 'sourceConversation:id,user_id,title'])
             ->where('user_id', $user->id)
             ->where('status', TaskStatus::Completed)
             ->whereNull('parent_task_id')
@@ -484,13 +508,23 @@ final class TaskService
                 continue;
             }
 
+            $childTimezone = (string) ($child->timezone ?: $timezone);
             $subtasks[] = [
                 'id' => (int) $child->id,
                 'title' => (string) $child->title,
                 'status' => $child->status->value,
                 'open' => TaskLifecycle::isOpen($child),
+                'status_label' => HumanStatusLabel::taskStatus($child->status),
+                'due_label' => HumanMoment::label($child->due_at, $childTimezone, $now),
+                'startable' => TaskLifecycle::isStartable($child),
+                'completable' => TaskLifecycle::isCompletable($child),
+                'cancellable' => TaskLifecycle::isCancellable($child),
+                'editable' => TaskLifecycle::isOpen($child),
             ];
         }
+
+        $openSubtasks = array_values(array_filter($subtasks, static fn (array $row): bool => $row['open']));
+        $dueLabel = HumanMoment::label($task->due_at, $timezone, $now);
 
         return [
             'id' => (int) $task->id,
@@ -519,8 +553,26 @@ final class TaskService
             'reminder_count' => count($reminders),
             'subtasks' => $subtasks,
             'subtask_count' => count($subtasks),
-            'open_subtask_count' => count(array_filter($subtasks, static fn (array $row): bool => $row['open'])),
+            'open_subtask_count' => count($openSubtasks),
+            'open_subtask_titles' => array_slice(array_map(
+                static fn (array $row): string => $row['title'],
+                $openSubtasks,
+            ), 0, 5),
+            'due_label' => $dueLabel,
+            'schedule_label' => $dueLabel ?? 'Без срока',
+            // Only the panel eager-loads the parent; nothing here is worth an extra query per row.
+            'parent_label' => $task->relationLoaded('parent') && $task->parent !== null && (int) $task->parent->user_id === (int) $user->id
+                ? 'Подзадача задачи «'.$task->parent->title.'»'
+                : null,
+            'priority_label' => HumanStatusLabel::taskPriority($task->priority),
+            'status_label' => HumanStatusLabel::taskStatus($task->status),
+            'state_label' => HumanStatusLabel::activeTaskStatus($task->status),
+            'subtask_progress_label' => HumanStatusLabel::subtaskProgress(
+                count($subtasks) - count($openSubtasks),
+                count($subtasks),
+            ),
             'completed_at' => optional($task->completed_at)?->toIso8601String(),
+            'completed_label' => HumanMoment::label($task->completed_at, $timezone, $now),
             'cancelled_at' => optional($task->cancelled_at)?->toIso8601String(),
         ];
     }

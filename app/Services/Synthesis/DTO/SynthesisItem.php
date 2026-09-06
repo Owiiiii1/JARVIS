@@ -33,6 +33,8 @@ final readonly class SynthesisItem
         }
 
         return array_filter([
+            // Opaque, stable per item so a list can be keyed without exposing internal ids.
+            'id' => $this->fingerprint !== '' ? mb_substr(sha1($this->fingerprint), 0, 12) : null,
             'kind' => $this->kind,
             'title' => $this->title,
             'why' => $this->why,

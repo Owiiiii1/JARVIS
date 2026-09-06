@@ -58,10 +58,29 @@ The former hands-free «Диалог» VAD capture was removed from Рация. 
 
 **Not claimed:** A/B IDOR campaign; combined Google/GitHub live campaign; Tavily; `fetch_web_page` as a distinct Owner check; screenshot purge; destructive Storage delete.
 
-**READY FOR OWNER VALIDATION — Core Daily Workflow campaign.** A sequential manual runbook covering the
-end-to-end chain (Conversation → Task → Reminder → internal Watcher → Knowledge → Synthesis → Overview →
-state change → chat delete) is prepared in [VALIDATION_CORE_WORKFLOW.md](VALIDATION_CORE_WORKFLOW.md). Ten
-scenarios, all `READY`, none PASS. Cursor did not execute them and did not create production records.
+**IN PROGRESS — Core Daily Workflow campaign.** The sequential manual runbook for the end-to-end chain
+(Conversation → Task → Reminder → internal Watcher → Knowledge → Synthesis → Overview → state change →
+chat delete) lives in [VALIDATION_CORE_WORKFLOW.md](VALIDATION_CORE_WORKFLOW.md). The Owner ran
+Scenarios 1–8; Scenario 6 and 7 are MANUAL PASS, **Scenario 8 was a LIVE BUG and is now READY FOR
+REVALIDATION**, Scenarios 9–10 are paused. Cursor did not execute the scenarios and did not create
+production records.
+
+**LIVE BUG (fixed, awaiting revalidation) — stale Overview after a state change.** With the task
+completed, its linked reminder cancelled and its one-shot watcher resolved, chat synthesis was correct
+but **Обзор** still listed the work as upcoming, waiting and blocked, and showed the completion twice.
+Cause: the derived synthesis slices trusted knowledge relations and the watcher rows instead of the task
+table, and one completion carried two different fingerprints. Derived slices now resolve every knowledge
+entity back to its canonical task ([`CanonicalStateResolver`](../app/Services/Synthesis/CanonicalStateResolver.php))
+and a task change shares one fingerprint across domains. Historical knowledge evidence is preserved; it
+simply no longer implies live work.
+
+**Human presentation layer for the Workspace.** Every user-facing string in the productivity panels and
+in the synthesis slices is produced by `app/Services/Workspace/Presentation/` (`HumanMoment`,
+`HumanStatusLabel`, `HumanWatcherDescription`, `HumanRelationLabel`, `HumanSynthesisText`) — deterministic,
+computed at serialization time, never stored. Enum values, ids, health strings and delivery internals no
+longer reach the screen or the Conversation AI. Tasks, Reminders, Watchers and Overview share one card
+system, task cards expand to their subtasks, and an open subtask under a completed parent is listed as
+work of its own. Contract: [WORKSPACE_PRESENTATION.md](WORKSPACE_PRESENTATION.md).
 
 ---
 
@@ -156,6 +175,8 @@ Phase E.2 Watchers is **IMPLEMENTED / NOT VALIDATED**. Explicit persisted condit
 
 Phase E.3 Cross-source Synthesis is **IMPLEMENTED / NOT VALIDATED**. Derived FactPack over Knowledge / Tasks / Reminders / Watchers / Projects / conversation summaries. Tools-first; tiny `synthesis_context` only with an active project. No integration polling. No `waiting_items` table. Phase E as a whole is **not** complete. [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
 
+Authoritative-domain precedence now applies to the derived slices, not only to the narrative: upcoming, attention, waiting-for, open-work and blockers all resolve knowledge entities and watchers back to the canonical task before deciding anything is live, and a task change carries one fingerprint across the task table and its knowledge event so a completion is one card. Item titles and reasons are human sentences produced by the presentation layer, so the Conversation AI is handed already-humanized content instead of enum names. [WORKSPACE_PRESENTATION.md](WORKSPACE_PRESENTATION.md).
+
 Workspace Settings sections: Profile, Assistant, Memory, Knowledge, Productivity, Voice, Integrations. Desktop: nav + detail. Mobile: list → detail. Direct section: `?settings=memory` / `?settings=knowledge` / `?settings=integrations` on first load (allowlist only). Opening Settings from the UI does not rewrite `history.state`, so the chat list stays intact.
 
 After a successful foreground chat turn, badges and open panels refresh via `GET /jarvis/workspace/status` and `GET /chat/workspace/status` plus turn-payload counts. A mutation made directly in the Tasks / Reminders / Watchers panel also refreshes an open **Обзор**. No page reload, no polling, no WebSocket. Scheduler events still appear on next open / Push / navigation.
@@ -188,6 +209,13 @@ Phase B.1 Reminders 2.0: Owner **MANUAL PASS for confirmed live core flow** (Web
 ## 8.1 Tasks & productivity
 
 Phase B.2 **IMPLEMENTED / NOT VALIDATED**. Separate `tasks` domain, Task Center, Notification Center, opt-in Daily/Evening/Weekly briefs, bounded proactive suggestions. [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).
+
+Panel presentation: one card per task with its schedule as the secondary line, priority only when high or
+urgent, an expandable subtask list with «X из Y подзадач выполнено», and a Workspace dialog («Выполнить
+всё» / «Вернуться») when a parent still has open subtasks — the force-complete path that left a live
+subtask behind is no longer reachable from the UI. A subtask whose parent is already closed is listed in
+the active sections as «Подзадача задачи «…»» so nothing open is invisible.
+[WORKSPACE_PRESENTATION.md](WORKSPACE_PRESENTATION.md).
 
 ---
 

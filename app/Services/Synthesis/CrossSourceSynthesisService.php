@@ -15,6 +15,7 @@ use App\Services\Synthesis\DTO\SynthesisItem;
 use App\Services\Synthesis\DTO\SynthesisResult;
 use App\Services\Synthesis\DTO\SynthesisScope;
 use App\Services\Users\UserCapability;
+use App\Services\Workspace\Presentation\HumanWatcherDescription;
 use Throwable;
 
 final class CrossSourceSynthesisService
@@ -162,24 +163,24 @@ final class CrossSourceSynthesisService
         }
 
         if ($blockers !== []) {
-            $bits[] = 'blockers: '.$blockers[0]->title;
+            $bits[] = 'мешает: '.$blockers[0]->title;
         }
 
         if ($waiting !== []) {
-            $bits[] = 'waiting: '.$waiting[0]->title;
+            $bits[] = 'ждём: '.$waiting[0]->title;
         }
 
         if ($attention !== [] && $blockers === []) {
-            $bits[] = 'attention: '.$attention[0]->title;
+            $bits[] = 'внимание: '.$attention[0]->title;
         }
 
         if ($bits === []) {
             return match ($scope->type) {
-                SynthesisType::WaitingFor => 'No open waiting-for items.',
-                SynthesisType::Commitments => 'No explicit open commitments.',
-                SynthesisType::Blockers => 'No grounded blockers.',
-                SynthesisType::AttentionNeeded => 'Nothing currently needs attention.',
-                default => 'No notable indexed changes in this window.',
+                SynthesisType::WaitingFor => 'Открытых ожиданий нет.',
+                SynthesisType::Commitments => 'Открытых договорённостей нет.',
+                SynthesisType::Blockers => 'Ничего не мешает работе.',
+                SynthesisType::AttentionNeeded => 'Сейчас ничего не требует внимания.',
+                default => 'Заметных изменений за этот период нет.',
             };
         }
 
@@ -232,8 +233,8 @@ final class CrossSourceSynthesisService
             if ($watcher->mode->value === 'one_shot' && $watcher->status->value === 'active') {
                 $items[] = new SynthesisItem(
                     kind: 'open_loop',
-                    title: $watcher->name,
-                    why: 'One-shot watcher still waiting.',
+                    title: HumanWatcherDescription::sentence($watcher, [], $pack->timezone),
+                    why: 'Ждём события, о котором договорились.',
                     sources: [new SourceRef(watcherId: (int) $watcher->id, domain: 'watcher')],
                     fingerprint: 'loop:watcher:'.$watcher->id,
                 );

@@ -15,10 +15,18 @@ use App\Services\Synthesis\DTO\FactPack;
 use App\Services\Synthesis\DTO\SourceRef;
 use App\Services\Synthesis\DTO\SynthesisItem;
 use App\Services\Tasks\TaskLifecycle;
+use App\Services\Workspace\Presentation\HumanMoment;
+use App\Services\Workspace\Presentation\HumanRelationLabel;
+use App\Services\Workspace\Presentation\HumanSynthesisText;
+use App\Services\Workspace\Presentation\HumanWatcherDescription;
 use Carbon\CarbonImmutable;
 
 final class ProjectAttentionResolver
 {
+    public function __construct(
+        private readonly CanonicalStateResolver $canonical = new CanonicalStateResolver,
+    ) {}
+
     /**
      * @param  list<SynthesisItem>  $waiting
      * @return list<SynthesisItem>
@@ -26,13 +34,6 @@ final class ProjectAttentionResolver
     public function blockers(FactPack $pack, array $waiting): array
     {
         $items = [];
-        $tasksById = [];
-
-        foreach ($pack->tasks as $task) {
-            if ($task instanceof Task) {
-                $tasksById[(int) $task->id] = $task;
-            }
-        }
 
         foreach ($pack->tasks as $task) {
             if (! $task instanceof Task || ! TaskLifecycle::isOpen($task) || $task->due_at === null) {
@@ -48,8 +49,8 @@ final class ProjectAttentionResolver
 
             if ($prerequisiteOpen || $parent === null) {
                 $why = $prerequisiteOpen
-                    ? 'Overdue and prerequisite task is still open.'
-                    : 'Task is overdue.';
+                    ? 'Срок прошёл, и предыдущая задача ещё не закрыта.'
+                    : 'Срок уже прошёл.';
                 $items[] = new SynthesisItem(
                     kind: 'blocker',
                     title: $task->title,
@@ -58,7 +59,7 @@ final class ProjectAttentionResolver
                     dueAt: $task->due_at->toIso8601String(),
                     score: 100,
                     sources: [new SourceRef(taskId: (int) $task->id, projectId: $task->project_id, domain: 'task')],
-                    recommendedNextStep: 'Close the overdue work or move the deadline.',
+                    recommendedNextStep: 'Закройте работу или перенесите срок.',
                     fingerprint: 'blocker:overdue:'.$task->id,
                 );
             }
@@ -72,26 +73,35 @@ final class ProjectAttentionResolver
             if ($watcher->health === WatcherHealth::Blocked || $watcher->status === WatcherStatus::Failed) {
                 $items[] = new SynthesisItem(
                     kind: 'blocker',
-                    title: $watcher->name,
-                    why: 'Watcher is blocked (disconnected integration or failed checks).',
+                    title: HumanWatcherDescription::sentence($watcher, [], $pack->timezone),
+                    why: 'Автоматизация не работает — похоже, подключение разорвано.',
                     score: 70,
                     sources: [new SourceRef(watcherId: (int) $watcher->id, projectId: $watcher->project_id, domain: 'watcher')],
-                    recommendedNextStep: 'Reconnect the integration or pause the watcher.',
+                    recommendedNextStep: 'Переподключите сервис или приостановите автоматизацию.',
                     fingerprint: 'blocker:watcher:'.$watcher->id,
                 );
             }
         }
+
+        $closedEntities = $this->canonical->closedTaskEntityIds($pack);
 
         foreach ($pack->relationships as $relation) {
             if (! $relation instanceof KnowledgeRelationship || $relation->type !== KnowledgeRelationType::DependsOn) {
                 continue;
             }
 
-            $target = $relation->targetEntity;
+            // Knowledge keeps the history of the dependency; the task table decides whether it
+            // still blocks anything. A closed task on either side means nothing is blocked.
+            if (isset($closedEntities[(int) $relation->target_entity_id])
+                || isset($closedEntities[(int) $relation->source_entity_id])) {
+                continue;
+            }
+
+            $target = $this->canonical->entityLabel($pack, $relation->targetEntity, $relation->target_entity_id);
             $items[] = new SynthesisItem(
                 kind: 'blocker',
-                title: 'Depends on '.($target?->name ?? 'entity #'.$relation->target_entity_id),
-                why: 'Explicit depends_on relationship is still active.',
+                title: HumanRelationLabel::dependency($target ?? 'связанной работы'),
+                why: 'Пока это не закрыто, работа стоит.',
                 score: 80,
                 sources: [new SourceRef(entityId: (int) $relation->target_entity_id, domain: 'knowledge')],
                 fingerprint: 'blocker:depends:'.$relation->id,
@@ -104,21 +114,22 @@ final class ProjectAttentionResolver
                 $ageDays = (int) CarbonImmutable::parse($item->since)->diffInDays($pack->now);
             }
 
-            if ($ageDays < max(1, (int) config('synthesis.waiting_follow_up_days', 3)) && ($item->extra['external'] ?? false) !== true) {
-                if (! str_contains(mb_strtolower($item->why ?? ''), 'external')) {
-                    continue;
-                }
+            $external = ($item->extra['external'] ?? false) === true;
+
+            if ($ageDays < max(1, (int) config('synthesis.waiting_follow_up_days', 3)) && ! $external) {
+                continue;
             }
 
-            if (str_contains(mb_strtolower($item->why ?? ''), 'external') || ($item->sources[0]->taskId ?? null) !== null) {
+            if ($external || ($item->sources[0]->taskId ?? null) !== null) {
                 $clone = new SynthesisItem(
                     kind: 'blocker',
                     title: $item->title,
-                    why: 'Waiting-for external dependency.',
+                    why: 'Работа ждёт ответа со стороны.',
                     since: $item->since,
                     score: 75,
                     sources: $item->sources,
-                    recommendedNextStep: $item->extra['suggested_follow_up'] ?? 'Follow up.',
+                    extra: ['external' => $external],
+                    recommendedNextStep: $item->extra['suggested_follow_up'] ?? 'Напомните о себе.',
                     fingerprint: 'blocker:waiting:'.$item->fingerprint,
                 );
                 $items[] = $clone;
@@ -135,8 +146,8 @@ final class ProjectAttentionResolver
             if (($metadata['blocked'] ?? false) === true || str_contains(mb_strtolower($event->title), 'blocked by')) {
                 $items[] = new SynthesisItem(
                     kind: 'blocker',
-                    title: $event->title,
-                    why: 'Explicit blocker recorded as a knowledge event.',
+                    title: HumanSynthesisText::plain($event->title),
+                    why: 'Об этой помехе договорились в переписке.',
                     since: optional($event->occurred_at)?->toIso8601String(),
                     score: 80,
                     sources: [new SourceRef(knowledgeEventId: (int) $event->id, domain: 'knowledge')],
@@ -144,8 +155,6 @@ final class ProjectAttentionResolver
                 );
             }
         }
-
-        unset($tasksById);
 
         return $items;
     }
@@ -179,11 +188,11 @@ final class ProjectAttentionResolver
                 $items[] = new SynthesisItem(
                     kind: 'attention',
                     title: $task->title,
-                    why: 'Deadline within 24h.',
+                    why: HumanSynthesisText::deadline(24),
                     dueAt: $task->due_at->toIso8601String(),
                     score: 60,
                     sources: [new SourceRef(taskId: (int) $task->id, projectId: $task->project_id, domain: 'task')],
-                    recommendedNextStep: 'Finish or reschedule today.',
+                    recommendedNextStep: 'Закончите сегодня или перенесите срок.',
                     extra: ['reason' => 'deadline_24h'],
                     fingerprint: 'attention:due24:'.$task->id,
                 );
@@ -191,11 +200,11 @@ final class ProjectAttentionResolver
                 $items[] = new SynthesisItem(
                     kind: 'attention',
                     title: $task->title,
-                    why: 'Deadline within 48h.',
+                    why: HumanSynthesisText::deadline($riskHours),
                     dueAt: $task->due_at->toIso8601String(),
                     score: 50,
                     sources: [new SourceRef(taskId: (int) $task->id, projectId: $task->project_id, domain: 'task')],
-                    recommendedNextStep: 'Check remaining work before the deadline.',
+                    recommendedNextStep: 'Проверьте, что осталось сделать до срока.',
                     extra: ['reason' => 'deadline_risk'],
                     fingerprint: 'attention:due48:'.$task->id,
                 );
@@ -207,11 +216,11 @@ final class ProjectAttentionResolver
                 $items[] = new SynthesisItem(
                     kind: 'attention',
                     title: $task->title,
-                    why: 'Due task with no recent progress.',
+                    why: 'Срок назначен, но давно ничего не происходило.',
                     dueAt: $task->due_at->toIso8601String(),
                     score: 35,
                     sources: [new SourceRef(taskId: (int) $task->id, domain: 'task')],
-                    recommendedNextStep: 'Update status or continue the work.',
+                    recommendedNextStep: 'Продолжите работу или обновите срок.',
                     extra: ['reason' => 'no_progress'],
                     fingerprint: 'attention:stale-task:'.$task->id,
                 );
@@ -226,11 +235,11 @@ final class ProjectAttentionResolver
                 $items[] = new SynthesisItem(
                     kind: 'attention',
                     title: $item->title,
-                    why: 'Waiting-for older than '.$threshold.'d.',
+                    why: 'Ждём уже '.$ageDays.' '.HumanMoment::days($ageDays).'.',
                     since: $item->since,
                     score: 40 + min(20, $ageDays),
                     sources: $item->sources,
-                    recommendedNextStep: $item->extra['suggested_follow_up'] ?? 'Follow up.',
+                    recommendedNextStep: $item->extra['suggested_follow_up'] ?? 'Напомните о себе.',
                     extra: ['reason' => 'waiting_too_long', 'suggestion_type' => 'follow_up'],
                     fingerprint: 'attention:waiting:'.$item->fingerprint,
                 );
@@ -248,11 +257,11 @@ final class ProjectAttentionResolver
                 $items[] = new SynthesisItem(
                     kind: 'attention',
                     title: $item->title,
-                    why: 'Commitment due soon.',
+                    why: 'Срок договорённости уже близко.',
                     dueAt: $item->dueAt,
                     score: 45,
                     sources: $item->sources,
-                    recommendedNextStep: 'Deliver or renegotiate.',
+                    recommendedNextStep: 'Выполните обещанное или договоритесь о новом сроке.',
                     extra: ['reason' => 'commitment_due', 'suggestion_type' => 'commitment_due'],
                     fingerprint: 'attention:commitment:'.$item->fingerprint,
                 );
@@ -307,11 +316,11 @@ final class ProjectAttentionResolver
                 $items[] = new SynthesisItem(
                     kind: 'attention',
                     title: $project->name,
-                    why: 'Active project with open work and no activity for '.$inactivityDays.'+ days.',
+                    why: 'В проекте есть открытая работа, но уже '.$inactivityDays.'+ '.HumanMoment::days($inactivityDays).' ничего не происходило.',
                     score: 38,
                     sources: [new SourceRef(projectId: (int) $project->id, domain: 'project')],
-                    recommendedNextStep: 'Check what is still open.',
-                    extra: ['reason' => 'stale_project', 'status_label' => 'No recent activity', 'suggestion_type' => 'stale_project'],
+                    recommendedNextStep: 'Посмотрите, что осталось открытым.',
+                    extra: ['reason' => 'stale_project', 'status_label' => 'Нет недавней активности', 'suggestion_type' => 'stale_project'],
                     fingerprint: 'attention:stale-project:'.$project->id,
                 );
             }
@@ -347,7 +356,7 @@ final class ProjectAttentionResolver
         }
 
         foreach ($waiting as $item) {
-            if (str_contains(mb_strtolower($item->why ?? ''), 'external') || str_contains(mb_strtolower($item->title), 'external')) {
+            if (($item->extra['external'] ?? false) === true) {
                 $labels[] = 'Waiting external';
                 break;
             }

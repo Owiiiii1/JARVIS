@@ -55,7 +55,7 @@ final class ListWatchersTool implements JarvisTool
     {
         try {
             $items = $this->watchers->listFor($context->user, isset($call->arguments['status']) ? (string) $call->arguments['status'] : null)
-                ->map(fn ($watcher): array => $this->watchers->serialize($watcher))
+                ->map(fn ($watcher): array => $this->watchers->serialize($watcher, (string) ($context->user->timezone ?: 'UTC')))
                 ->values()
                 ->all();
         } catch (WatcherException $exception) {

@@ -13,6 +13,8 @@ use App\Models\User;
 use App\Services\Knowledge\KnowledgeDeterministicIngestor;
 use App\Services\Users\UserCapability;
 use App\Services\Watchers\WatcherEvaluationDispatcher;
+use App\Services\Workspace\Presentation\HumanMoment;
+use App\Services\Workspace\Presentation\HumanStatusLabel;
 use Carbon\CarbonImmutable;
 use DateTimeZone;
 use Exception;
@@ -548,11 +550,22 @@ final class ReminderService
             : ($metadata['delivery_channel'] ?? $this->inferredChannel($telegramConnected, $pushOn));
 
         $source = $this->sourceConversationPayload($reminder, $user);
+        $task = $this->taskPayload($reminder, $user);
+        $deliveryAvailable = $telegramConnected || $pushOn;
 
         return [
             'id' => (int) $reminder->id,
             'text' => $reminder->text,
             'status' => $reminder->status->value,
+            'status_label' => HumanStatusLabel::reminderStatus($reminder->status),
+            'schedule_label' => HumanMoment::label($reminder->run_at, $timezone),
+            'task_label' => is_array($task) && isset($task['title'])
+                ? 'По задаче «'.$task['title'].'»'
+                : null,
+            'problem_label' => HumanStatusLabel::reminderProblem($reminder, $deliveryAvailable),
+            'timezone_label' => $timezone !== $fallbackTimezone
+                ? 'Время указано по '.$timezone
+                : null,
             'run_at' => optional($reminder->run_at)?->toIso8601String(),
             'run_at_local' => $local?->format('Y-m-d\TH:i:sP'),
             'timezone' => $timezone,
@@ -563,7 +576,7 @@ final class ReminderService
             'delivery_state' => $deliveryState,
             'delivery_channel' => $deliveryChannel,
             'deliveries' => $this->serializeDeliveries($reminder),
-            'delivery_available' => $telegramConnected || $pushOn,
+            'delivery_available' => $deliveryAvailable,
             'telegram_connected' => $telegramConnected,
             'web_push_available' => $pushOn,
             'cancellable' => ReminderLifecycle::isOpen($reminder),
@@ -571,7 +584,7 @@ final class ReminderService
             'snoozable' => ReminderLifecycle::isSnoozable($reminder),
             'completable' => ReminderLifecycle::isCompletable($reminder),
             'source_conversation' => $source,
-            'task' => $this->taskPayload($reminder, $user),
+            'task' => $task,
             'created_at' => optional($reminder->created_at)?->toIso8601String(),
             'delivered_at' => optional($reminder->delivered_at)?->toIso8601String(),
             'cancelled_at' => optional($reminder->cancelled_at)?->toIso8601String(),
@@ -608,6 +621,9 @@ final class ReminderService
         $row['status'] = $occurrence->status->value;
         $row['run_at'] = optional($occurrence->run_at)?->toIso8601String();
         $row['run_at_local'] = $local?->format('Y-m-d\TH:i:sP');
+        $row['schedule_label'] = HumanMoment::label($occurrence->run_at, $timezone);
+        $row['status_label'] = HumanStatusLabel::reminderStatus($occurrence->status);
+        $row['problem_label'] = null;
         $row['is_due'] = false;
         $row['cancellable'] = false;
         $row['editable'] = false;

@@ -24,6 +24,9 @@ use App\Services\Knowledge\KnowledgeNameNormalizer;
 use App\Services\Synthesis\SynthesisCache;
 use App\Services\Users\UserCapability;
 use App\Services\Watchers\Exceptions\WatcherException;
+use App\Services\Workspace\Presentation\HumanMoment;
+use App\Services\Workspace\Presentation\HumanStatusLabel;
+use App\Services\Workspace\Presentation\HumanWatcherDescription;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -275,7 +278,11 @@ final class WatcherService
     public function listFor(User $user, ?string $status = null): Collection
     {
         $this->assertCanUse($user);
-        $query = Watcher::query()->where('user_id', $user->id)->orderByDesc('updated_at')->orderByDesc('id');
+        $query = Watcher::query()
+            ->where('user_id', $user->id)
+            ->with(['task:id,user_id,title', 'project:id,user_id,name', 'knowledgeEntity:id,user_id,name', 'reminder:id,user_id,text'])
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id');
         $parsed = $status !== null && $status !== '' ? WatcherStatus::tryFrom($status) : null;
         if ($parsed !== null) {
             $query->where('status', $parsed);
@@ -298,22 +305,40 @@ final class WatcherService
             ->limit(20)
             ->get();
 
+        $timezone = (string) ($user->timezone ?: 'UTC');
+
         return [
             'active_count' => $watchers->where('status', WatcherStatus::Active)->count(),
-            'items' => $watchers->map(fn (Watcher $watcher): array => $this->serialize($watcher))->values()->all(),
-            'recent' => $recent->map(fn (WatcherOccurrence $row): array => $this->serializeOccurrence($row))->values()->all(),
+            'items' => $watchers->map(fn (Watcher $watcher): array => $this->serialize($watcher, $timezone))->values()->all(),
+            'recent' => $recent->map(fn (WatcherOccurrence $row): array => $this->serializeOccurrence($row, $timezone))->values()->all(),
         ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    public function serialize(Watcher $watcher): array
+    public function serialize(Watcher $watcher, ?string $timezone = null): array
     {
+        $timezone = (string) ($timezone ?: 'UTC');
+        $names = $this->linkedNames($watcher);
+
         return [
             'id' => (int) $watcher->id,
             'public_id' => $watcher->public_id,
             'name' => $watcher->name,
+            'description' => HumanWatcherDescription::sentence($watcher, $names, $timezone),
+            'state_label' => HumanStatusLabel::watcherState($watcher, $timezone),
+            'problem_label' => HumanStatusLabel::watcherProblem($watcher),
+            'last_triggered_label' => HumanMoment::label($watcher->last_triggered_at, $timezone),
+            'linked' => array_filter([
+                'task' => $names['task'],
+                'project' => $names['project'],
+                'entity' => $names['entity'],
+                'reminder' => $names['reminder'],
+            ], static fn (?string $value): bool => $value !== null && $value !== ''),
+            'pausable' => $watcher->status === WatcherStatus::Active,
+            'resumable' => $watcher->status === WatcherStatus::Paused,
+            'cancellable' => in_array($watcher->status, [WatcherStatus::Active, WatcherStatus::Paused], true),
             'status' => $watcher->status->value,
             'health' => $watcher->health->value,
             'mode' => $watcher->mode->value,
@@ -336,9 +361,32 @@ final class WatcherService
     }
 
     /**
+     * @return array{task: ?string, entity: ?string, project: ?string, reminder: ?string}
+     */
+    private function linkedNames(Watcher $watcher): array
+    {
+        $owned = static function (mixed $model, string $attribute) use ($watcher): ?string {
+            if ($model === null || (int) $model->user_id !== (int) $watcher->user_id) {
+                return null;
+            }
+
+            $value = trim((string) $model->{$attribute});
+
+            return $value !== '' ? $value : null;
+        };
+
+        return [
+            'task' => $owned($watcher->task, 'title'),
+            'entity' => $owned($watcher->knowledgeEntity, 'name'),
+            'project' => $owned($watcher->project, 'name'),
+            'reminder' => $owned($watcher->reminder, 'text'),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
-    public function serializeOccurrence(WatcherOccurrence $occurrence): array
+    public function serializeOccurrence(WatcherOccurrence $occurrence, ?string $timezone = null): array
     {
         $meta = is_array($occurrence->metadata) ? $occurrence->metadata : [];
 
@@ -346,6 +394,7 @@ final class WatcherService
             'id' => (int) $occurrence->id,
             'watcher_id' => (int) $occurrence->watcher_id,
             'detected_at' => optional($occurrence->detected_at)?->toIso8601String(),
+            'detected_label' => HumanMoment::label($occurrence->detected_at, (string) ($timezone ?: 'UTC')),
             'status' => $occurrence->status->value,
             'matched_condition' => $occurrence->matched_condition,
             'reaction_status' => $occurrence->reaction_status->value,

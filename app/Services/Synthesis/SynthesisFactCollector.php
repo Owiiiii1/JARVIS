@@ -96,6 +96,7 @@ final class SynthesisFactCollector
             project: $project,
             entity: $entity,
             freshness: $this->freshness($events, $watchers, $now),
+            userId: (int) $scope->user->id,
         );
     }
 

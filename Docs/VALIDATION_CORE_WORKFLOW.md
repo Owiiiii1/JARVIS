@@ -1,6 +1,8 @@
 # Validation Campaign — Core Daily Workflow
 
-**Status:** READY FOR OWNER VALIDATION
+**Status:** IN PROGRESS — Scenarios 1–7 run by the Owner, Scenario 8 hit a live bug and is
+READY FOR REVALIDATION (see [Scenario 8.1](#scenario-81--overview-revalidation-after-the-live-bug)),
+Scenarios 9–10 paused.
 **Prepared:** 2026-09-06
 **Surface:** Owner Personal Workspace — https://jarvis.owlsolutions.net/jarvis
 **Prepared at HEAD:** see [Cursor_Work_Report.md](Development/Cursor_Work_Report.md)
@@ -85,13 +87,13 @@ Cursor fills nothing but the first three columns. `Owner result` and `Notes` are
 | 3 | Internal watcher | Watchers E.2 (task source), C.1 routing | READY | | |
 | 4 | Knowledge | Knowledge E.1, async extraction, provenance | READY | | |
 | 5 | Synthesis | Synthesis E.3, project status, grounding | READY | | |
-| 6 | Waiting / commitments | Synthesis E.3, Knowledge, person resolution | READY | | |
-| 7 | State change | Tasks, Reminders, Watchers, Synthesis, cache | READY | | |
-| 8 | Overview | Overview panel, Synthesis, ownership | READY | | |
-| 9 | Memory vs Knowledge | Memory, Knowledge, context budget | READY | | |
-| 10 | Chat delete | Workspace delete contract, E.1–E.3 regression | READY | | |
+| 6 | Waiting / commitments | Synthesis E.3, Knowledge, person resolution | MANUAL PASS | MANUAL PASS | Owner: correct facts, technical wording. Presentation reworked afterwards — reread the answer during the Scenario 8 revalidation. |
+| 7 | State change | Tasks, Reminders, Watchers, Synthesis, cache | MANUAL PASS | MANUAL PASS | Owner confirmed the completion semantics. Force-completing a parent left a live subtask; the UI no longer offers that path. |
+| 8 | Overview | Overview panel, Synthesis, ownership | READY FOR REVALIDATION | LIVE BUG | Stale Overview after Scenario 7. Root cause fixed; §8.1 below is the exact recheck. |
+| 9 | Memory vs Knowledge | Memory, Knowledge, context budget | PAUSED | | Owner paused 9–10 until Scenario 8 is revalidated. |
+| 10 | Chat delete | Workspace delete contract, E.1–E.3 regression | PAUSED | | Owner paused 9–10 until Scenario 8 is revalidated. |
 
-Statuses: `READY` → `MANUAL PASS` / `MANUAL PARTIAL` / `LIVE BUG`.
+Statuses: `READY` → `MANUAL PASS` / `MANUAL PARTIAL` / `LIVE BUG` → `READY FOR REVALIDATION`.
 
 ---
 
@@ -494,6 +496,66 @@ timestamp. For a duplicate, say which two subsystems you think produced it.
 
 **Cleanup**
 Undo whatever you toggled in the second half of this scenario.
+
+---
+
+## Scenario 8.1 — OVERVIEW REVALIDATION (after the live bug)
+
+**Status:** LIVE BUG / READY FOR REVALIDATION. This scenario is **not** PASS.
+
+**What the Owner saw**
+After Scenario 7 completed the build task and its subtask, cancelled the linked reminder and
+resolved the one-shot watcher, chat synthesis was correct but **Обзор** still showed:
+
+- «Сегодня и ближайшее»: «Проверить задачу «Проверить авторизацию»» and «Задача #254 все еще открыта»
+- «Нужно внимание»: «Depends on Задача #253» / «Explicit depends_on relationship is still active»
+- «Жду»: «Задача #254 все еще открыта» / «One-shot watcher still waiting for its event»
+- «Что изменилось»: the same completion listed twice
+
+**What was fixed**
+Derived slices now ask the task table instead of trusting the knowledge graph, one semantic
+event produces one card, and every user-facing string goes through the presentation layer
+described in [WORKSPACE_PRESENTATION.md](WORKSPACE_PRESENTATION.md).
+
+**Owner action**
+Repeat Scenario 7 on a fresh pair (a parent task with one subtask, a reminder on the subtask,
+and a task watcher), complete the work from **Задачи**, then open **Обзор**.
+
+**Обзор must NOT show**
+- the completed subtask as open, upcoming, or waiting
+- the resolved one-shot watcher as still waiting
+- the cancelled linked reminder on the agenda
+- an active dependency or blocker pointing at the completed parent
+- the same completion twice, in one section or across two
+
+**Обзор must show**
+- the completion once, in «Что изменилось», as a sentence («Задача «…» выполнена»)
+- Marco's commitment in «Жду» while it is still open
+- the unrelated dentistry task/reminder in «Сегодня и ближайшее» — once, not as both a task
+  and its reminder
+
+**Presentation checks (all four panels)**
+- no enum values on screen: `task_state`, `overdue_by`, `depends_on`, `works_on`,
+  `knowledge_linked`, `task_completed`, `commitment_made`, `one_shot`
+- no health string, in particular no «В порядке» / `healthy`
+- no `#id` unless two items are otherwise indistinguishable
+- a watcher reads as a condition sentence; a reminder shows only its time unless delivery failed
+- a task card shows the schedule, not «Открыта»; priority appears only when high or urgent
+- a parent task expands to its subtasks with «X из Y подзадач выполнено»
+- completing a parent with open subtasks opens the Workspace dialog («Выполнить всё» /
+  «Вернуться»), never a browser `confirm`
+
+**Subtask visibility check**
+If a parent was completed earlier while a subtask stayed open, that subtask must appear in the
+active list on its own, labelled «Подзадача задачи «…»». Nothing open may be invisible.
+
+**Pass criteria**
+Every section is explainable from your own records, nothing closed appears as live, nothing is
+duplicated, no internal field is on screen, and **Обзор** updates after the mutation without F5.
+
+**Failure capture**
+Report the section, the exact line as shown, the task/reminder/watcher ids involved, and the
+timestamp. If a line is stale, say which surface disagreed with **Задачи**.
 
 ---
 
