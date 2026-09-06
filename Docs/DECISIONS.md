@@ -2348,9 +2348,9 @@
 
 **Контекст.** After reminders work in Web without Telegram, users will need in-browser alerts.
 
-**Решение.** Web Push / browser notifications are **future** Phase B work. M25U.3.1 must not implement Web Push. Current delivery remains Telegram until that milestone plus later push work.
+**Решение.** Web Push / browser notifications were **future** Phase B work at M25U.3.1. Implemented in Phase B.1 (ADR-258).
 
-**Следствие.** Do not add push subscriptions in the reminders-without-Telegram milestone unless explicitly scoped later.
+**Следствие.** Superseded by ADR-258.
 
 ---
 
@@ -2501,6 +2501,16 @@
 **Решение.** Curate six currently available voices: Jessica, Sarah, Lily; Eric, George, Chris. Store the selected ID in nullable `users.voice_id`, validate it against `ElevenLabsVoiceCatalog`, and expose selection in each user's Workspace settings. Resolve the user explicitly at Web Voice and Telegram delivery boundaries and pass the existing optional Voice ID into `SpeechSynthesizer::synthesize`. Provider/API key/STT settings remain instance-level and owner-only; the instance Voice ID is fallback only.
 
 **Следствие.** One user's choice applies to both Web Voice and Telegram TTS and cannot alter another user. Supersedes the instance-only Voice ID clauses in ADR-248/254. No `user_voice_settings` table and no request-global `Auth::user()` inside TTS providers.
+
+---
+
+## ADR-258 — Reminders 2.0: Core lifecycle, per-channel delivery, Web Push
+
+**Контекст.** M25U.3.1 made reminder create channel-independent with Telegram as an optional adapter. Users still needed browser notifications, a real Reminder Center, edit/snooze/done, and recurrence without collapsing into Tasks.
+
+**Решение.** Reminder remains the Core object. Telegram and Web Push are independent adapters with `reminder_deliveries` per channel. Missing channels is not a Core failure. Done (`completed`) is distinct from Delivered. Recurrence is a simple token (`daily`/`weekdays`/`weekly`/`monthly`) on the same row plus `reminder_occurrences` history; next fire uses local wall clock so DST keeps e.g. 09:00 Europe/Rome. Web Push uses instance VAPID env keys (`minishlink/web-push`), `push_subscriptions` owned by the authenticated user, and `/reminder-sw.js`. Permission only after a user gesture. Push payload is bounded and allowlisted. Tools: list/update/snooze/complete/cancel plus create; ambiguous matches do not mutate.
+
+**Следствие.** Supersedes ADR-242 (Web Push is no longer future). Tasks, Notification Center, Daily Brief remain Phase B.2 (ADR-243). [REMINDERS.md](REMINDERS.md).
 
 ---
 

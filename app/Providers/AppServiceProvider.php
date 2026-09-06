@@ -13,6 +13,10 @@ use App\Services\Integrations\Providers\ElevenLabsIntegrationProvider;
 use App\Services\Integrations\Providers\GitHubIntegrationProvider;
 use App\Services\Integrations\Providers\GoogleIntegrationProvider;
 use App\Services\Integrations\Providers\TelegramIntegrationProvider;
+use App\Services\Reminders\Contracts\SendsReminderTelegram;
+use App\Services\Reminders\Contracts\SendsWebPush;
+use App\Services\Reminders\MinishlinkWebPushSender;
+use App\Services\Reminders\TelegramReminderSender;
 use App\Services\Telegram\Contracts\CompletesTelegramUserTurn;
 use App\Services\Telegram\Contracts\LooksUpTelegramInbound;
 use App\Services\Telegram\SpokenTextNormalizer;
@@ -23,11 +27,12 @@ use App\Services\Telegram\TelegramInboundLookup;
 use App\Services\Telegram\TelegramReplyDeliveryService;
 use App\Services\Telegram\TelegramVoiceInboundService;
 use App\Services\Telegram\TelegramVoiceSuitabilityPolicy;
+use App\Services\Tools\CancelReminderTool;
 use App\Services\Tools\CancelToolActionTool;
 use App\Services\Tools\CompleteAssistantOnboardingTool;
+use App\Services\Tools\CompleteReminderTool;
 use App\Services\Tools\ConfirmToolActionTool;
 use App\Services\Tools\CreateReminderTool;
-use App\Services\Tools\GetAssistantProfileTool;
 use App\Services\Tools\GetProjectContextTool;
 use App\Services\Tools\GetTelegramResponseModeTool;
 use App\Services\Tools\GitHub\CommentGitHubIssueTool;
@@ -65,9 +70,11 @@ use App\Services\Tools\Google\SearchCalendarEventsTool;
 use App\Services\Tools\Google\SearchGmailTool;
 use App\Services\Tools\Google\SendGmailMessageTool;
 use App\Services\Tools\Google\UpdateCalendarEventTool;
+use App\Services\Tools\ListRemindersTool;
 use App\Services\Tools\SearchConversationHistoryTool;
 use App\Services\Tools\SearchGroupKnowledgeTool;
 use App\Services\Tools\SetTelegramResponseModeTool;
+use App\Services\Tools\SnoozeReminderTool;
 use App\Services\Tools\Storage\DeleteStorageFileTool;
 use App\Services\Tools\Storage\GetStorageFileTool;
 use App\Services\Tools\Storage\ListStorageFilesTool;
@@ -76,6 +83,7 @@ use App\Services\Tools\Storage\SearchStorageFileContentsTool;
 use App\Services\Tools\Storage\SearchStorageFilesTool;
 use App\Services\Tools\ToolRegistry;
 use App\Services\Tools\UpdateAssistantProfileTool;
+use App\Services\Tools\UpdateReminderTool;
 use App\Services\Tools\WebResearch\FetchWebPageTool;
 use App\Services\Tools\WebResearch\SearchWebTool;
 use App\Services\Users\ResolvesTelegramResponseMode;
@@ -163,9 +171,17 @@ class AppServiceProvider extends ServiceProvider
             return $app->make(TextToSpeechManager::class)->activeProvider();
         });
 
+        $this->app->bind(SendsReminderTelegram::class, TelegramReminderSender::class);
+        $this->app->bind(SendsWebPush::class, MinishlinkWebPushSender::class);
+
         $this->app->singleton(ToolRegistry::class, function ($app): ToolRegistry {
             return new ToolRegistry([
                 $app->make(CreateReminderTool::class),
+                $app->make(ListRemindersTool::class),
+                $app->make(UpdateReminderTool::class),
+                $app->make(SnoozeReminderTool::class),
+                $app->make(CompleteReminderTool::class),
+                $app->make(CancelReminderTool::class),
                 $app->make(GetAssistantProfileTool::class),
                 $app->make(UpdateAssistantProfileTool::class),
                 $app->make(CompleteAssistantOnboardingTool::class),

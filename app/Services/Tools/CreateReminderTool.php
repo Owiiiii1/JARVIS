@@ -9,6 +9,7 @@ use App\Services\Ai\DTO\ToolCall;
 use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\DTO\ToolResult;
 use App\Services\Reminders\ReminderException;
+use App\Services\Reminders\ReminderRecurrenceCalculator;
 use App\Services\Reminders\ReminderService;
 use App\Services\Users\UserCapability;
 
@@ -29,7 +30,7 @@ final class CreateReminderTool implements JarvisTool
     {
         return new ToolDefinition(
             name: self::NAME,
-            description: 'Создаёт персональное напоминание пользователя в Jarvis. Telegram доставит его, только если аккаунт уже подключён. Напоминание создаётся и без Telegram.',
+            description: 'Создаёт персональное напоминание пользователя в Jarvis без Telegram как обязательного условия. Telegram и Web Push — независимые каналы доставки, не требование для создания. Поддерживает recurrence: daily, weekdays, weekly, monthly.',
             parameters: [
                 'type' => 'OBJECT',
                 'properties' => [
@@ -48,6 +49,10 @@ final class CreateReminderTool implements JarvisTool
                     'original_time_expression' => [
                         'type' => 'STRING',
                         'description' => 'Optional original time phrase from the user.',
+                    ],
+                    'recurrence' => [
+                        'type' => 'STRING',
+                        'description' => 'Optional recurrence: daily, weekdays, weekly, or monthly. Omit for a one-time reminder.',
                     ],
                 ],
                 'required' => ['text', 'run_at_local'],
@@ -74,6 +79,9 @@ final class CreateReminderTool implements JarvisTool
         $text = trim((string) ($call->arguments['text'] ?? ''));
         $runAtLocal = trim((string) ($call->arguments['run_at_local'] ?? ''));
         $timezone = (string) $context->user->timezone;
+        $recurrence = isset($call->arguments['recurrence'])
+            ? trim((string) $call->arguments['recurrence'])
+            : (isset($call->arguments['recurrence_rule']) ? trim((string) $call->arguments['recurrence_rule']) : null);
 
         if ($text === '' || $runAtLocal === '') {
             return ToolResult::failure($call->id, $this->name(), [
@@ -82,10 +90,10 @@ final class CreateReminderTool implements JarvisTool
             ]);
         }
 
-        if (isset($call->arguments['recurrence_rule']) || isset($call->arguments['recurrence'])) {
+        if ($recurrence !== null && $recurrence !== '' && ReminderRecurrenceCalculator::parse($recurrence) === null) {
             return ToolResult::failure($call->id, $this->name(), [
                 'success' => false,
-                'error' => 'unsupported_recurrence',
+                'error' => 'invalid_recurrence',
             ]);
         }
 
@@ -121,6 +129,7 @@ final class CreateReminderTool implements JarvisTool
                 timezone: $timezone,
                 conversation: $context->conversation,
                 sourceMessage: $context->inbound,
+                recurrence: $recurrence !== '' ? $recurrence : null,
             );
 
             return ToolResult::success($call->id, $this->name(), $this->successPayload(
@@ -146,6 +155,7 @@ final class CreateReminderTool implements JarvisTool
         string $timezone,
         bool $telegramLinked,
         bool $existing = false,
+        bool $webPushAvailable = false,
     ): array {
         return [
             'success' => true,
@@ -153,9 +163,28 @@ final class CreateReminderTool implements JarvisTool
             'text' => $reminder->text,
             'run_at_local' => $runAtLocal,
             'timezone' => $timezone,
+            'recurrence' => $reminder->recurrence_rule,
             'telegram_connected' => $telegramLinked,
-            'delivery' => $telegramLinked ? 'telegram' : 'none',
+            'web_push_available' => $webPushAvailable,
+            'delivery' => $this->deliveryLabel($telegramLinked, $webPushAvailable),
             'existing' => $existing,
         ];
+    }
+
+    private function deliveryLabel(bool $telegramLinked, bool $webPushAvailable): string
+    {
+        if ($telegramLinked && $webPushAvailable) {
+            return 'both';
+        }
+
+        if ($telegramLinked) {
+            return 'telegram';
+        }
+
+        if ($webPushAvailable) {
+            return 'web_push';
+        }
+
+        return 'none';
     }
 }

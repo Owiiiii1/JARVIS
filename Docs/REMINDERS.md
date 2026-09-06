@@ -1,102 +1,149 @@
 # Reminders
 
-Собственная подсистема Jarvis. **Не** Google Calendar.
+Собственная подсистема Jarvis. **Не** Google Calendar. **Не** Tasks.
 
 Owner и Users создают reminders в **своём** space. Cross-user reminder обычному user недоступен.
 
-**Status.** M25U.3.1 IMPLEMENTED / NOT VALIDATED. Reminder existence is channel-independent. Telegram is an optional delivery adapter. Recurrence is not implemented. Web Push is not implemented.
+**Status.** Phase B.1 — Reminders 2.0: **IMPLEMENTED / NOT VALIDATED**. Not MANUAL PASS until Owner live validation.
+
+M25U.3.1 remains the create-without-Telegram baseline. This milestone adds Web Push, Reminder Center v2, edit / snooze / done / cancel, recurrence, and per-channel delivery.
+
+Still **not** implemented (Phase B.2): Tasks, general Notification Center, Daily Brief, proactive suggestions, mobile app.
 
 ---
 
-## Current implementation
+## Product model
+
+Reminder is a **Core object**. Telegram and Web Push are **independent delivery adapters**.
+
+Lifecycle (Core):
 
 ```
-Conversation AI
-  → create_reminder tool
-  → ReminderService.validateCreate  (Core invariants only; Telegram is not required)
-  → reminders row, status=scheduled
-  → visible in Web panel on /jarvis and /chat
-  → jarvis:reminders:dispatch (every minute)
-  → ReminderDeliveryService
-       Telegram linked → sendMessage → delivered
-       Telegram absent → stay scheduled, delivery_state=no_channel, next_retry_at +30 minutes
-       Telegram send error → bounded retry (max 3) then failed
+scheduled → (due / processing) → delivered | completed | cancelled | failed
 ```
 
-Create does **not** require `ChannelIdentity` Telegram. Ordinary user and Owner can persist a reminder without Telegram.
+- **Delivered** — at least one adapter successfully notified the user.
+- **Done / completed** — the user closed the reminder. Distinct from delivered.
+- **Cancelled** — the user (or disabled-user path) stopped it.
+- Missing both channels is **not** a Core failure. The row stays `scheduled` / due.
 
-### Entity (`reminders`)
-
-No migration for M25U.3.1. Existing columns and `metadata` JSON.
-
-| Field | Meaning |
-| --- | --- |
-| user_id | owner of the reminder |
-| source_conversation_id / source_message_id | optional provenance |
-| text | what to remind |
-| run_at | UTC |
-| original_local_time / timezone | local intent |
-| status | `scheduled` / `processing` / `delivered` / `cancelled` / `failed` |
-| delivered_at / cancelled_at | |
-| recurrence_rule | nullable; **create tool still rejects recurrence** |
-| last_error / metadata | delivery bookkeeping; `last_error` is null for no-channel |
-
-### Metadata keys (no-channel / delivery)
-
-| Key | Meaning |
-| --- | --- |
-| `attempts` | Telegram send attempts only. **Not** incremented when there is no channel |
-| `delivery_state` | `no_channel` \| `error` \| `delivered` |
-| `delivery_channel` | `telegram` or `null` |
-| `next_retry_at` | UTC `Y-m-d H:i:s`. No-channel recheck: **30 minutes**. Telegram send retry: 1 then 2 minutes |
-| `last_error_class` | set only for real Telegram send failures |
-
-Absence of a delivery adapter is **not** a reminder failure. Status stays `scheduled`. The row is still a valid due Core reminder.
-
-If the user later links Telegram, the next bounded recheck can deliver an overdue reminder.
-
-### Workspace panel
-
-- UI: `resources/js/personal-workspace/RemindersPanel.jsx`
-- Routes: `GET {/jarvis|/chat}/reminders` (`jarvis.reminders.index` / `chat.reminders.index`), `POST …/reminders/{id}/cancel`
-- Header entry (Owner and `role=user`, when `capabilities.reminders=true`): Bell + **Напоминания** on desktop (`sm+`); compact Bell + `aria-label` + badge on mobile
-- Owner context drawer also has a Напоминания section; it is extra, not a substitute for the header control
-- Panel opens with zero reminders and without Telegram
-- JSON includes `is_due`, `delivery_state`, `delivery_channel`, `delivery_available`, `telegram_connected`. Full `metadata` is not leaked
-- Informational notice when Telegram is absent: reminder is saved in Jarvis; Telegram delivery is unavailable. It does **not** say the reminder does not work
-
-Due in Web: `status` is `scheduled` or `processing` **and** `run_at <= now`. Labels: «Срок наступил», and «Telegram не подключён» when there is no channel.
-
-### Delivery rules
-
-- Disabled user → cancel `user_disabled` (unchanged)
-- Identity rebound → send to **current** Telegram identity of that `user_id`
-- No Telegram identity at send time → `delivery_state=no_channel`, stay `scheduled`, recheck in 30 minutes, attempts unchanged
-- Telegram connected but API/send fails → retry then `failed` after 3 attempts
-
-Google Calendar remains a separate Owner tool. “Поставь встречу” ≠ “напомни”.
-
-Natural-language time is **not** regex-parsed in Core. The model sends structured `run_at_local`; Core validates and stores UTC.
-
-Web Push / browser notifications are **not** implemented. A due reminder without Telegram is visible in the Web panel; Jarvis cannot notify a closed browser tab.
+One reminder may have Web Push, Telegram, both, or neither.
 
 ---
 
-## Target leftovers (not this milestone)
+## Schema (additive, Phase B.1)
 
-- Recurrence
-- Web Push / browser notifications
-- snooze / edit / done
-- Notification Center
+Existing `reminders` plus:
+
+| Change | Meaning |
+| --- | --- |
+| `reminders.completed_at` | user Done |
+| `reminders.status` | also `completed` (string column; no destructive enum migration) |
+| `reminder_deliveries` | per-channel status, attempts, `delivered_at`, `last_error`, `next_retry_at` |
+| `reminder_occurrences` | fired occurrence history for recurring series |
+| `push_subscriptions` | browser PushManager subscription owned by `user_id` |
+
+`recurrence_rule` stores a simple token: `daily` \| `weekdays` \| `weekly` \| `monthly`. Not a full RRULE engine.
+
+Core `metadata` still holds dispatcher bookkeeping (`attempts`, `next_retry_at`, `delivery_state`, per-channel attempt counts, occurrence snapshots). Per-channel truth lives in `reminder_deliveries`.
+
+---
+
+## Recurrence
+
+Same reminder row **advances `run_at`**. History is written to `reminder_occurrences` (and a bounded `metadata.occurrence_history` snapshot).
+
+DST: next occurrence is computed from **local wall clock** in the reminder IANA timezone (`Europe/Rome` 09:00 stays 09:00 across DST). Carbon `create(..., timezone)`, not a homemade calendar parser.
+
+Done on a recurring reminder completes **this occurrence** and schedules the next. Cancel stops the series.
+
+---
+
+## Delivery
+
+`jarvis:reminders:dispatch` every minute.
+
+1. Claim due Core rows (`scheduled`, `run_at <= now`, retry due).
+2. Run adapters independently:
+   - Telegram if `ChannelIdentity` is linked
+   - Web Push to **all active** subscriptions of that user
+3. Persist `reminder_deliveries`.
+4. Core status:
+   - any adapter success → `delivered` (one-shot) or record occurrence + advance (recurring)
+   - no adapters → `scheduled`, `delivery_state=no_channel`, recheck 30 minutes
+   - all available adapters fail after bounded retries → `failed` (one-shot) or record failed occurrence + advance (recurring)
+5. Adapter error on one channel does **not** void success on the other.
+
+### Telegram retry
+
+Unchanged: max 3 send attempts, backoff 1 then 2 minutes, then fail that channel.
+
+### Web Push retry
+
+Transient (5xx / 429 / network): bounded retry (max 3).
+Permanent / expired (404 / 410): **revoke subscription**, do not retry that endpoint.
+
+---
+
+## Web Push
+
+- Library: `minishlink/web-push`
+- VAPID: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` via `config/reminders.php`
+- Generate **once**: `php artisan jarvis:reminders:vapid` (does not rotate existing keys)
+- Private key never sent to the browser
+- Public key is returned to Workspace with the reminders panel JSON
+- Service worker: `/reminder-sw.js` (`public/reminder-sw.js`)
+- Permission is requested only after **«Включить уведомления»** (user gesture). No prompt on page load.
+- UI states: enabled / disabled / browser denied / unsupported
+- Click: focus an existing JARVIS client or `openWindow` an **allowlisted** `/jarvis` or `/chat` path built server-side
+- Payload keys only: `reminder_id`, `title`, `body` (bounded), `url`, `timestamp`
+
+`p256dh` / `auth` are encrypted at rest. Subscriptions belong to the authenticated user; client cannot pass `user_id`.
+
+---
+
+## Reminder Center v2
+
+Drawer: `resources/js/personal-workspace/RemindersPanel.jsx`
+
+Sections: **Due**, **Сегодня**, **Предстоящие**, **История**.
+
+Actions: Edit, Snooze (+10 мин / +1 час / завтра / своё), **Готово**, **Отменить**.
+
+Source conversation: «Из разговора: …» with an owned `chats.show` link when present.
+
+Badge counts `scheduled` + `processing` only. Recurring parent is one row (no double count). History / done / cancelled are excluded.
+
+Routes (same for `/jarvis` and `/chat`):
+
+- `GET …/reminders`
+- `PATCH …/reminders/{id}`
+- `POST …/reminders/{id}/snooze|complete|cancel`
+- `GET|POST|DELETE …/reminders/push`
+
+Foreign reminder → `404 not_found`.
+
+---
+
+## AI tools
+
+| Tool | Role |
+| --- | --- |
+| `create_reminder` | create, optional `recurrence` |
+| `list_reminders` | disambiguation |
+| `update_reminder` | text / time / timezone / recurrence |
+| `snooze_reminder` | `10m`, `1h`, `tomorrow`, `custom` |
+| `complete_reminder` | user Done |
+| `cancel_reminder` | stop |
+
+If several reminders could match, tools return `ambiguous` + candidates and **do not mutate**.
+
+---
+
+## Leftovers (Phase B.2)
+
 - Tasks
-
----
-
-## Tasks vs reminders
-
-See [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).
-
-- **Reminder:** when should Jarvis notify me?
-- **Task:** what do I need to accomplish?
-
-Do not collapse them into one table.
+- Notification Center of general events
+- Daily Brief / Weekly Review
+- Proactive suggestions
+- Mobile push / native app

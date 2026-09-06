@@ -52,7 +52,7 @@ The former hands-free «Диалог» mode was removed; only «Рация» rem
 
 - Onboarding / «Знакомство» **appears** (Owner)
 - Full onboarding conversation / completion / profile update: **not** MANUAL PASS
-- Reminders panel: **IMPLEMENTED / NOT VALIDATED** (header **Напоминания** for Owner and users)
+- Reminders panel / Reminders 2.0: **IMPLEMENTED / NOT VALIDATED** (Web Push, Center v2, recurrence, edit/snooze/done)
 - `create_reminder` without Telegram: **IMPLEMENTED / NOT VALIDATED**
 
 **Not claimed:** A/B IDOR campaign; combined Google/GitHub live campaign; Tavily; `fetch_web_page` as a distinct Owner check; screenshot purge; destructive Storage delete.
@@ -64,7 +64,7 @@ The former hands-free «Диалог» mode was removed; only «Рация» rem
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | `main`, aligned with `origin/main` after M25U.3.1 channel-independent reminders |
+| HEAD | `main`, aligned with `origin/main` after Phase B.1 Reminders 2.0 |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 
 Production checkout is the GitHub source of truth. Gemini STT request-shape and bounded ElevenLabs voice fallback are committed. Laravel Boost is require-dev tooling in a separate commit. `.env` stays gitignored.
@@ -161,7 +161,7 @@ Personal voice preference: nullable `users.voice_id`; effective fallback is the 
 
 ## 8. Reminders
 
-M25U.3.1 IMPLEMENTED / NOT VALIDATED. Create no longer requires Telegram. Reminders persist in Core, appear in the Web panel, and can be cancelled by the owner of the row. Telegram is optional delivery. No-channel due reminders stay `scheduled` with `metadata.delivery_state=no_channel` and a 30-minute recheck; they are not `failed`. Web Push and recurrence are not implemented. [REMINDERS.md](REMINDERS.md).
+Phase B.1 Reminders 2.0 IMPLEMENTED / NOT VALIDATED. Core reminders remain channel-independent. Web Push, Reminder Center v2, edit/snooze/done/cancel, and simple recurrence are in code. Telegram remains an optional adapter. Tasks / Notification Center / Daily Brief are **not** implemented. [REMINDERS.md](REMINDERS.md).
 
 ---
 
@@ -176,8 +176,8 @@ Code: Google OAuth (Gmail + Calendar tools; **no Drive**), GitHub OAuth + tools,
 - Desktop / Tauri / tray / hotkey
 - Mobile app
 - Public registration
-- Web Push
 - Tasks domain
+- General Notification Center / Daily Brief
 - Knowledge Graph
 - Proactive engine
 - Wake word

@@ -1,137 +1,118 @@
-# M25U.3.1 — Channel-independent Reminders
+# Phase B.1 — Reminders 2.0
+
+**Status.** IMPLEMENTED / NOT VALIDATED. Not MANUAL PASS. No live Web Push or live Telegram delivery was performed.
 
 ## Starting HEAD
 
-- Branch: `main`
-- Local HEAD = `origin/main` = `16a647e50527be06a1c475e689146a09cc9d49bf` (`chore: add Laravel Boost development tooling`)
-- Working tree: clean
-- Production DB `jarvis` was not written by this work. No `migrate:fresh`, no `RefreshDatabase`, no live Telegram / AI / Gemini / ElevenLabs.
+`24370378358cdf17993d22d7e91303c797ff6e57` — `feat: decouple reminders from Telegram` (`origin/main`). Working tree was clean.
 
-## Current reminder architecture found
+## Schema changes
 
-Before this change, Core already had `reminders`, `ReminderService`, `ReminderDispatchService` (`jarvis:reminders:dispatch` every minute), `ReminderDeliveryService`, `CreateReminderTool`, workspace routes, and `RemindersPanel`.
+Additive only. No `migrate:fresh`, no destructive column drops in `up()`.
 
-Create was Telegram-gated: `ReminderService::assertCanCreate()` threw `telegram_not_connected` when `ChannelIdentity::findTelegramForUser` was null. The same requirement was in `ConversationContextBuilder`, `AiFailureFallback`, and the tool description. Delivery treated missing Telegram as a send failure (`failOrRetry` → `failed` after 3 attempts). The header Bell was icon-only; Owner had a second English “Reminders” block only in the context drawer.
+| Migration | Change |
+| --- | --- |
+| `2026_09_06_103407_add_completed_at_to_reminders_table` | `reminders.completed_at` nullable timestamp |
+| `2026_09_06_103408_create_reminder_deliveries_table` | `reminder_id`, `channel`, `status`, `attempts`, `delivered_at`, `last_error`, `next_retry_at`, timestamps; unique `(reminder_id, channel)` |
+| `2026_09_06_103409_create_reminder_occurrences_table` | `reminder_id`, `run_at`, `status`, `delivered_at`, `completed_at`, `delivery_snapshot` JSON |
+| `2026_09_06_103410_create_push_subscriptions_table` | `user_id`, `endpoint` unique, encrypted `p256dh`/`auth`, `user_agent`, `is_active`, `revoked_at`, `last_used_at` |
 
-## Creation changes
+`reminders.status` remains `string(32)`. New value: `completed`. Existing values unchanged.
 
-`ReminderService::validateCreate()` checks only Core invariants: reminders capability, active user, non-empty text, valid IANA timezone, future `run_at`. Telegram is not a create precondition.
+## Reminder lifecycle
 
-`CreateReminderTool` persists without Telegram. Success payload includes `telegram_connected` and `delivery` (`telegram` | `none`). Recurrence is still rejected (`unsupported_recurrence`).
+Core: `scheduled` → due/`processing` → `delivered` | `completed` | `cancelled` | `failed`.
 
-AI copy no longer says reminders require Telegram. After success: if Telegram is linked, confirm Telegram delivery; if not, say the reminder is saved in Jarvis and visible in the Web panel. No extra LLM call. No Web Push promise.
+- Delivered = at least one adapter notified.
+- Done (`completed`) = user closed it. Not the same as delivered.
+- Cancel stops the row / series.
+- No delivery channel: stay `scheduled` / due, `delivery_state=no_channel`, 30-minute recheck. Not a failure.
 
-## Delivery semantics
+## Delivery architecture
 
-Two different outcomes:
+Adapters: Telegram, Web Push. Independent. One reminder may use both, one, or neither.
 
-**A. No delivery channel** (Telegram not linked, or empty `external_chat_id`): not a reminder error. Status returns to `scheduled`. `last_error` stays null. Attempts are not incremented.
+`ReminderDeliveryService::deliverToChannels` runs both, then `ReminderDeliveryState::applyAttempts` sets Core status. Per-channel rows in `reminder_deliveries`. A Telegram failure does not void a Push success (and the reverse).
 
-**B. Telegram linked, send failed:** existing bounded retry. Attempts increment. After 3 attempts → `failed`. `delivery_state=error`, `delivery_channel=telegram`.
+## Web Push
 
-Successful Telegram send → `delivered`, `delivery_state=delivered`.
+- Package: `minishlink/web-push` ^11
+- VAPID: `config/reminders.php` ← `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+- Command: `php artisan jarvis:reminders:vapid` (creates keys **once**, writes `.env`, does not rotate)
+- Private key is never sent to the frontend
+- Service worker: `/reminder-sw.js`
+- Subscribe only after «Включить уведомления»
+- Click: `postMessage` + `focus` existing same-origin client, else `clients.openWindow` on allowlisted `/jarvis` or `/chat` URL built server-side
+- Payload: `reminder_id`, `title`, `body` (≤120), `url`, `timestamp`
+- Multi-device: all active subscriptions for the user
+- 404/410: subscription revoked, no retry of that endpoint
 
-Disabled user → still cancelled with `user_disabled`.
+## Telegram compatibility
 
-No live Telegram calls in this work. Dispatcher concurrency (`lockForUpdate` / `skipLocked`, status `processing`) is unchanged.
+Existing `TelegramBotManager::sendTextMessage` via `TelegramReminderSender`. Retry max 3, 1 then 2 minutes. Optional; create still does not require Telegram.
 
-## No-channel due behavior
+## Reminder Center v2
 
-- Recheck interval: **30 minutes** (`ReminderDeliveryState::NO_CHANNEL_RECHECK_MINUTES`)
-- Metadata keys: `delivery_state=no_channel`, `delivery_channel=null`, `next_retry_at` (UTC `Y-m-d H:i:s`)
-- `attempts` is **not** incremented for no-channel
-- Scheduler will not immediately reclaim the row because `metadata->next_retry_at` is in the future
-- If the user later links Telegram, the next recheck can deliver an overdue reminder
+Workspace drawer sections: Due / Сегодня / Предстоящие / История. Edit, snooze, Done, Cancel. Delivery labels. Source conversation link when owned. Notification enable control.
 
-## Web panel changes
+## Edit / Snooze / Done / Cancel
 
-- Routes: `GET /jarvis/reminders`, `GET /chat/reminders`; cancel `POST …/reminders/{id}/cancel`
-- Header UI entry for Owner and `role=user` when `capabilities.reminders=true`: Bell + **Напоминания** on `sm+`; compact Bell, `aria-label="Напоминания"`, badge on mobile
-- Panel visibility is not tied to Telegram. Empty list still opens
-- Informational notice if Telegram is absent: saved in Jarvis; Telegram delivery unavailable; connect Telegram for delivery outside Web
-- Panel JSON: `is_due`, `delivery_state`, `delivery_channel`, `delivery_available`, `telegram_connected`. Full metadata is not returned
-- Due label: «Срок наступил»; no-channel: «Telegram не подключён»; real send failure: «Ошибка доставки»
+- Edit: text, `run_at`, timezone, recurrence. Owned only. Not cancelled/completed. Resets delivery retry.
+- Snooze: +10m, +1h, tomorrow (same local wall clock next calendar day), custom. Same row, new `run_at`, `scheduled`, delivery reset.
+- Done: `completed` (one-shot) or complete this occurrence + advance (recurring).
+- Cancel: existing semantics; UI labels distinguish Done vs Cancel.
 
-## Ownership/isolation
+## Recurrence
 
-Cancel and list still filter `user_id = current user`. Foreign id → `not_found` (404). Extra in-memory guard: loaded reminder `user_id` must match. Impersonation continues to use the effective authenticated user. Owner and ordinary user see only their own personal reminders. Same panel routes on `/jarvis` and `/chat`.
+Format: `daily` | `weekdays` | `weekly` | `monthly`. Same row advances `run_at`. History in `reminder_occurrences`. DST: local wall clock in IANA timezone (Europe/Rome 09:00 stays 09:00). No RRULE package.
 
-## Schema/migrations
+## AI tools
 
-**No migration.** Existing statuses + `metadata` JSON are enough.
+`create_reminder` (recurrence allowed), `list_reminders`, `update_reminder`, `snooze_reminder`, `complete_reminder`, `cancel_reminder`. Ambiguous selection returns `ambiguous` + candidates and does not mutate.
+
+## Ownership
+
+`user_id` from Auth. Foreign reminder/subscription → `not_found` 404. Push subscribe cannot set arbitrary `user_id`.
 
 ## Tests
 
-Isolated unit tests only. Production MySQL was not used as a test database. sqlite PDO is not installed here. Feature `RemindersTest` was updated to match the new behavior but **not executed** (it creates temporary rows on production).
+Isolated unit tests only. Production MySQL was not used as a test database. Feature `RemindersTest` was not executed.
 
-Covered without persisting:
+Covered: create validation without channels; no-channel due stays valid; edit/snooze/done/cancel; daily/weekdays/weekly/monthly + Europe/Rome DST; occurrence history; Telegram only / Push only / both / neither / mixed success-fail; retry then fail; subscription ownership; expired subscription deactivated; bounded payload; tool list/update/snooze/done/cancel/recurrence; ambiguous selection does not mutate.
 
-- create validation without Telegram (user and owner)
-- rejects inactive, empty text, invalid timezone, past time
-- no-channel deferral: scheduled, not failed/cancelled/delivered, future `next_retry_at`, attempts unchanged
-- Telegram success / retry / fail-after-3 via `ReminderDeliveryState` (fake state, no live send)
-- panel row `is_due` + `delivery_state=no_channel` without leaking metadata
-- owned cancel vs foreign/missing → `not_found`
-- `capabilities.reminders` true for user and owner without Telegram
-- tool description/payload; recurrence still rejected
-- reminder prompt has no `telegram_not_connected` create gate
-- `/jarvis` and `/chat` reminder routes
-- header entry is capability-gated, not Telegram-gated (static JSX assertion)
+## Build/static checks
 
-## Static/build checks
-
-- targeted PHPUnit under `tests/Unit/Reminders` + `AiFailureFallbackTest`
-- Pint on dirty PHP
-- `php -l`
-- `npm run build`
-- `composer validate`
-- `git diff --check`
-- `php artisan route:list --name=reminders`
-- `php artisan migrate:status` read-only
-
-No live Telegram sends.
+`vendor/bin/pint --dirty --format agent` on PHP changes. `npm run build` after frontend / service worker work.
 
 ## Production safety
 
-- No schema change
-- No mass updates/deletes
-- Owner Telegram identities were not touched
-- Tests that persist were not run against `jarvis`
-
-## Documentation updates
-
-- `Docs/REMINDERS.md`
-- `Docs/CURRENT_STATE.md`
-- `Docs/IMPLEMENTATION_PLAN.md`
-- `Docs/TASKS_AND_PRODUCTIVITY.md`
-- `Docs/ROADMAP.md` (M25U.3.1 was explicitly pending)
-- this file
-
-M25U.3.1: **IMPLEMENTED / NOT VALIDATED**. Not MANUAL PASS.
+No `migrate:fresh`, `RefreshDatabase`, truncate, live Telegram, live Web Push to real devices, live Gemini/ElevenLabs. Additive `php artisan migrate` only.
 
 ## Known limitations
 
-- No Web Push / browser notifications. Closed tab will not get a background ping
-- No recurrence
-- No-channel overdue reminders wait up to 30 minutes after a later Telegram pairing before the dispatcher retries delivery
-- Existing feature tests that hit production were not executed here
-- Live Telegram delivery was not re-validated in this session
+- Tasks / Notification Center / Daily Brief / proactive engine / mobile app: not this milestone (Phase B.2)
+- Recurrence is four simple frequencies, not RFC 5545 RRULE
+- Service worker is reminder-only, not a full PWA
+- No live Owner validation of push permission, background notification, or Telegram+Push together
 
 ## Owner manual checklist
 
-A. User WITHOUT Telegram:
-1. Open `/chat`
-2. See explicit **Напоминания** control (text on desktop, Bell on mobile)
-3. Open the panel even with 0 reminders
-4. Write: `Напомни мне через 5 минут проверить чайник`
-5. Confirm the reminder is created
-6. Open the panel: reminder is visible
-7. Telegram requirement does **not** appear as a create blocker
+A. Workspace → Напоминания → **Включить уведомления** (user gesture; HTTPS). Confirm state «Уведомления включены».
 
-B. Cancel: create a reminder → Отменить → it moves to history as cancelled
+B. Create a reminder for +2 minutes **without** Telegram. Expect a browser notification when due.
 
-C. Due, no Telegram: short reminder → after due it stays valid in Web (`Срок наступил`), not Failed because Telegram is missing
+C. Close or background the tab. Expect the notification still.
 
-D. User WITH Telegram: create a reminder → Telegram delivery still works
+D. Click the notification. JARVIS should focus or open; reminders panel should open (`?reminder=`).
 
-E. Isolation: an ordinary user sees only their own reminders
+E. Snooze **+10 мин**. Confirm new time and `scheduled`.
+
+F. Edit text / time.
+
+G. **Готово** (Done). Confirm it leaves the active list. Distinct from **Отменить**.
+
+H. Recurring daily at a local time. After fire, next day same local clock; history keeps the occurrence.
+
+I. Telegram-linked user: both Telegram message and Web Push.
+
+J. Ordinary user cannot see or mutate another user’s reminders.

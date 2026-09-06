@@ -48,6 +48,7 @@ Includes (in code unless noted):
 | Full onboarding completion / profile update E2E | IMPLEMENTED / NOT VALIDATED |
 | Reminders panel in live user workspace | IMPLEMENTED / NOT VALIDATED |
 | Reminder create without Telegram | IMPLEMENTED / NOT VALIDATED |
+| Reminders 2.0 (Web Push, Center v2, recurrence, edit/snooze/done) | IMPLEMENTED / NOT VALIDATED |
 | Combined Google / GitHub live smoke | IMPLEMENTED / NOT VALIDATED |
 | A/B isolation campaign | PREPARED / NOT EXECUTED |
 
@@ -62,15 +63,15 @@ Includes (in code unless noted):
 
 ## PHASE B — Time & Productivity
 
-**Status.** PLANNED. After reminders-without-Telegram.
+**Status.** B.1 Reminders 2.0 IMPLEMENTED / NOT VALIDATED. B.2 (Tasks / Notification Center / Daily Brief) still PLANNED.
 
 Jarvis should become time-aware and action-aware, not merely chat-aware.
 
-1. Reminder Core decoupled from Telegram (M25U.3.1 in code / not Owner-validated; see [REMINDERS.md](REMINDERS.md))
-2. Web Reminder Center
-3. Web Push / browser notifications
-4. Recurring reminders
-5. Snooze / done / edit
+1. Reminder Core decoupled from Telegram (M25U.3.1)
+2. Web Reminder Center v2 — IMPLEMENTED / NOT VALIDATED
+3. Web Push / browser notifications — IMPLEMENTED / NOT VALIDATED
+4. Recurring reminders — IMPLEMENTED / NOT VALIDATED
+5. Snooze / done / edit — IMPLEMENTED / NOT VALIDATED
 6. Tasks (separate domain from reminders)
 7. Task ↔ Reminder relationships
 8. Task ↔ Conversation relationships

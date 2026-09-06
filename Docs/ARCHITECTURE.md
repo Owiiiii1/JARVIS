@@ -19,7 +19,7 @@ Source of truth is production code plus Owner-confirmed validation. Phases: [ROA
      |
      +-- Storage / attachments
      +-- Memory / Context Budget
-     +-- Reminders (Core; Telegram delivery today)
+     +-- Reminders (Core; Telegram + Web Push adapters)
      +-- Projects (Owner)
      |
  future (not current)

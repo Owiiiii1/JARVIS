@@ -1,8 +1,10 @@
 # Tasks, productivity, and proactive Jarvis
 
-**Status.** PLANNED (Phase B / E). Not implemented. No task tables in this documentation pass.
+**Status.** PLANNED (Phase B.2 / E). Tasks are **not** implemented. No task tables.
 
 Related: [REMINDERS.md](REMINDERS.md), [ROADMAP.md](ROADMAP.md).
+
+Phase B.1 (Reminders 2.0) is IMPLEMENTED / NOT VALIDATED: Web Push, Reminder Center v2, edit/snooze/done/cancel, recurrence. It does **not** include Tasks, Notification Center, Daily Brief, or proactive suggestions.
 
 ---
 
@@ -11,7 +13,7 @@ Related: [REMINDERS.md](REMINDERS.md), [ROADMAP.md](ROADMAP.md).
 | | Reminder | Task |
 | --- | --- | --- |
 | Question | When should Jarvis notify me? | What do I need to accomplish? |
-| Today | Core table `reminders`; channel-independent create; Telegram optional delivery | **Does not exist** |
+| Today | Core table `reminders`; Web Push + optional Telegram; Reminder Center v2; recurrence | **Does not exist** |
 | Target | Channel-independent; Web + optional Telegram / Push | Own domain with status, deadline, relations |
 
 A task may have:
@@ -36,7 +38,7 @@ A single in-workspace inbox for:
 - tool/watch events the user opted into
 - brief summaries the user requested
 
-Web Push / browser notifications are a **transport**, not the Center itself. Mobile push is Phase D.
+Web Push / browser notifications are a **transport** (Phase B.1, reminder-scoped). The Notification Center itself is still future (B.2). Mobile push is Phase D.
 
 ---
 

@@ -76,6 +76,11 @@ Core does not know Google token field names. Envelope is provider-specific insid
 | Tool | Class | Provider |
 | --- | --- | --- |
 | `create_reminder` | write (core) | null |
+| `list_reminders` | read (core) | null |
+| `update_reminder` | write (core) | null |
+| `snooze_reminder` | write (core) | null |
+| `complete_reminder` | write (core) | null |
+| `cancel_reminder` | write (core) | null |
 | `search_conversation_history` | read | null |
 | `get_project_context` | read | null |
 | `search_group_knowledge` | read | null |
@@ -130,7 +135,7 @@ Model cannot pass `authorized`, `confirmation`, `user_id`, or `integration_accou
 | Класс | Решение |
 | --- | --- |
 | Read | allowed |
-| Core write (`create_reminder`) | allowed (existing explicit-request UX) |
+| Core write (`create_reminder`, `update_reminder`, `snooze_reminder`, `complete_reminder`, `cancel_reminder`) | allowed (existing explicit-request UX) |
 | External write + `explicitUserCommand=true` | allowed (except always-confirm tools) |
 | External write + model-proposed / unknown | confirmation_required |
 | `send_gmail_message` (`alwaysConfirm`) | confirmation_required even on an explicit «отправь» |

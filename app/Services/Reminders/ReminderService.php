@@ -7,6 +7,7 @@ use App\Models\ChannelIdentity;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Reminder;
+use App\Models\ReminderOccurrence;
 use App\Models\User;
 use App\Services\Users\UserCapability;
 use Carbon\CarbonImmutable;
@@ -17,6 +18,11 @@ use Illuminate\Support\Facades\Log;
 
 final class ReminderService
 {
+    public function __construct(
+        private readonly ReminderRecurrenceCalculator $recurrence = new ReminderRecurrenceCalculator,
+        private readonly PushSubscriptionService $pushSubscriptions = new PushSubscriptionService,
+    ) {}
+
     public function create(
         User $user,
         string $text,
@@ -24,7 +30,9 @@ final class ReminderService
         string $timezone,
         ?Conversation $conversation = null,
         ?Message $sourceMessage = null,
+        ?string $recurrence = null,
     ): Reminder {
+        $rule = $this->normalizeRecurrence($recurrence);
         $this->validateCreate($user, $text, $runAt, $timezone);
 
         $utc = $runAt->utc();
@@ -39,6 +47,7 @@ final class ReminderService
             'timezone' => $timezone,
             'original_local_time' => $originalLocal,
             'status' => ReminderStatus::Scheduled,
+            'recurrence_rule' => $rule,
             'metadata' => [
                 'attempts' => 0,
             ],
@@ -79,11 +88,31 @@ final class ReminderService
         }
     }
 
+    public function normalizeRecurrence(?string $rule): ?string
+    {
+        if ($rule === null || trim($rule) === '') {
+            return null;
+        }
+
+        $normalized = ReminderRecurrenceCalculator::normalize($rule);
+
+        if ($normalized === null) {
+            throw new ReminderException('invalid_recurrence', 'Recurrence is not supported.');
+        }
+
+        return $normalized;
+    }
+
     public function telegramIsLinked(User $user): bool
     {
         $identity = ChannelIdentity::findTelegramForUser((int) $user->id);
 
         return $identity !== null && filled($identity->external_chat_id);
+    }
+
+    public function webPushIsAvailable(User $user): bool
+    {
+        return VapidConfig::isConfigured() && $this->pushSubscriptions->hasActive($user);
     }
 
     public function localWallTimeToUtc(string $runAtLocal, string $timezone): CarbonImmutable
@@ -114,10 +143,24 @@ final class ReminderService
     {
         return Reminder::query()
             ->where('user_id', $user->id)
-            ->whereIn('status', [ReminderStatus::Scheduled, ReminderStatus::Processing])
+            ->whereIn('status', ReminderLifecycle::openStatuses())
             ->orderBy('run_at')
-            ->limit(max(1, min(20, $limit)))
+            ->limit(max(1, min(50, $limit)))
             ->get();
+    }
+
+    /**
+     * @return list<Reminder>
+     */
+    public function candidatesForMutation(User $user): array
+    {
+        return Reminder::query()
+            ->where('user_id', $user->id)
+            ->whereIn('status', ReminderLifecycle::openStatuses())
+            ->orderBy('run_at')
+            ->limit(50)
+            ->get()
+            ->all();
     }
 
     public function isValidTimezone(string $timezone): bool
@@ -139,12 +182,12 @@ final class ReminderService
 
         return Reminder::query()
             ->where('user_id', $user->id)
-            ->whereIn('status', [ReminderStatus::Scheduled, ReminderStatus::Processing])
+            ->whereIn('status', ReminderLifecycle::openStatuses())
             ->count();
     }
 
     /**
-     * @return array{active: list<array<string, mixed>>, history: list<array<string, mixed>>, telegram_connected: bool, delivery_available: bool}
+     * @return array<string, mixed>
      */
     public function panelFor(User $user): array
     {
@@ -154,55 +197,235 @@ final class ReminderService
 
         $timezone = (string) ($user->timezone ?: 'UTC');
         $telegramConnected = $this->telegramIsLinked($user);
-        $active = Reminder::query()
+        $webPushAvailable = $this->webPushIsAvailable($user);
+        $now = CarbonImmutable::now('UTC');
+
+        $open = Reminder::query()
+            ->with(['sourceConversation:id,user_id,title', 'deliveries'])
             ->where('user_id', $user->id)
-            ->whereIn('status', [ReminderStatus::Scheduled, ReminderStatus::Processing])
+            ->whereIn('status', ReminderLifecycle::openStatuses())
             ->orderBy('run_at')
-            ->limit(50)
+            ->limit(80)
             ->get();
 
         $history = Reminder::query()
+            ->with(['sourceConversation:id,user_id,title', 'deliveries'])
             ->where('user_id', $user->id)
-            ->whereIn('status', [ReminderStatus::Delivered, ReminderStatus::Cancelled, ReminderStatus::Failed])
+            ->whereIn('status', [
+                ReminderStatus::Delivered,
+                ReminderStatus::Completed,
+                ReminderStatus::Cancelled,
+                ReminderStatus::Failed,
+            ])
             ->orderByDesc('updated_at')
-            ->limit(30)
+            ->limit(40)
             ->get();
+
+        $occurrences = ReminderOccurrence::query()
+            ->whereHas('reminder', fn ($query) => $query->where('user_id', $user->id))
+            ->with('reminder.sourceConversation')
+            ->orderByDesc('run_at')
+            ->limit(40)
+            ->get();
+
+        $today = [];
+        $upcoming = [];
+        $due = [];
+
+        foreach ($open as $reminder) {
+            $row = $this->serializeForPanel($reminder, $timezone, $telegramConnected, $webPushAvailable, $user);
+
+            if ($row['is_due']) {
+                $due[] = $row;
+
+                continue;
+            }
+
+            if ($this->isLocalToday($reminder->run_at, $timezone, $now)) {
+                $today[] = $row;
+
+                continue;
+            }
+
+            $upcoming[] = $row;
+        }
+
+        $historyRows = $history
+            ->map(fn (Reminder $reminder): array => $this->serializeForPanel($reminder, $timezone, $telegramConnected, $webPushAvailable, $user))
+            ->values()
+            ->all();
+
+        foreach ($occurrences as $occurrence) {
+            $parent = $occurrence->reminder;
+
+            if ($parent === null) {
+                continue;
+            }
+
+            $historyRows[] = $this->serializeOccurrence($occurrence, $parent, $timezone, $telegramConnected, $webPushAvailable, $user);
+        }
+
+        usort($historyRows, static function (array $left, array $right): int {
+            return strcmp((string) ($right['sort_at'] ?? $right['run_at'] ?? ''), (string) ($left['sort_at'] ?? $left['run_at'] ?? ''));
+        });
+
+        $historyRows = array_slice($historyRows, 0, 40);
 
         return [
             'telegram_connected' => $telegramConnected,
-            'delivery_available' => $telegramConnected,
+            'web_push_available' => $webPushAvailable,
+            'web_push_configured' => VapidConfig::isConfigured(),
+            'vapid_public_key' => VapidConfig::publicKey(),
+            'delivery_available' => $telegramConnected || $webPushAvailable,
             'active_count' => $this->activeCount($user),
-            'active' => $active->map(fn (Reminder $reminder): array => $this->serializeForPanel($reminder, $timezone, $telegramConnected))->values()->all(),
-            'history' => $history->map(fn (Reminder $reminder): array => $this->serializeForPanel($reminder, $timezone, $telegramConnected))->values()->all(),
+            'today' => $today,
+            'upcoming' => $upcoming,
+            'due' => $due,
+            'history' => $historyRows,
+            'active' => array_merge($due, $today, $upcoming),
         ];
     }
 
     public function cancelOwned(User $user, int $reminderId): Reminder
     {
-        $reminder = Reminder::query()
-            ->where('user_id', $user->id)
-            ->whereKey($reminderId)
-            ->first();
-
+        $reminder = $this->findOwned($user, $reminderId);
         $reminder = $this->assertOwnedCancellable($user, $reminder);
-        $this->markCancelled($reminder);
+        ReminderLifecycle::markCancelled($reminder, CarbonImmutable::now('UTC'));
         $reminder->save();
 
         return $reminder->fresh() ?? $reminder;
     }
 
+    public function completeOwned(User $user, int $reminderId): Reminder
+    {
+        $reminder = $this->assertOwnedCompletable($user, $this->findOwned($user, $reminderId));
+        $now = CarbonImmutable::now('UTC');
+
+        if ($reminder->isRecurring() && ReminderLifecycle::isOpen($reminder)) {
+            $occurrenceAt = $reminder->run_at ?? $now;
+            ReminderLifecycle::recordOccurrence($reminder, ReminderStatus::Completed, $occurrenceAt, $now);
+            ReminderLifecycle::advanceRecurring($reminder, $occurrenceAt, $now, $this->recurrence);
+            $this->persistPendingOccurrence($reminder, $now);
+            $reminder->save();
+
+            return $reminder->fresh() ?? $reminder;
+        }
+
+        ReminderLifecycle::markCompleted($reminder, $now);
+        $reminder->save();
+
+        return $reminder->fresh() ?? $reminder;
+    }
+
+    public function snoozeOwned(User $user, int $reminderId, string $preset, ?string $customLocal = null): Reminder
+    {
+        $reminder = $this->assertOwnedSnoozable($user, $this->findOwned($user, $reminderId));
+        $timezone = $reminder->timezone ?: (string) ($user->timezone ?: 'UTC');
+        $now = CarbonImmutable::now('UTC');
+        $customUtc = null;
+
+        if ($preset === 'custom') {
+            if ($customLocal === null || trim($customLocal) === '') {
+                throw new ReminderException('invalid_time', 'Custom snooze time is required.');
+            }
+
+            $customUtc = $this->localWallTimeToUtc($customLocal, $timezone);
+
+            if ($customUtc->lessThanOrEqualTo($now)) {
+                throw new ReminderException('past_time', 'Reminder time is in the past.');
+            }
+        }
+
+        $runAt = ReminderLifecycle::resolveSnoozeAt($reminder, $preset, $now, $customUtc);
+        ReminderLifecycle::snoozeTo($reminder, $runAt, $timezone);
+        $this->clearDeliveries($reminder);
+        $reminder->save();
+
+        return $reminder->fresh() ?? $reminder;
+    }
+
+    public function updateOwned(
+        User $user,
+        int $reminderId,
+        ?string $text = null,
+        ?string $runAtLocal = null,
+        ?string $timezone = null,
+        mixed $recurrence = false,
+    ): Reminder {
+        $reminder = $this->assertOwnedEditable($user, $this->findOwned($user, $reminderId));
+        $nextTimezone = $timezone ?? (string) $reminder->timezone;
+
+        if ($text !== null) {
+            if (trim($text) === '') {
+                throw new ReminderException('empty_text', 'Reminder text is empty.');
+            }
+
+            $reminder->text = trim($text);
+        }
+
+        if ($runAtLocal !== null || $timezone !== null) {
+            $local = $runAtLocal ?? (string) $reminder->original_local_time;
+
+            if ($local === '') {
+                throw new ReminderException('invalid_time', 'run_at_local is invalid.');
+            }
+
+            $runAtUtc = $this->localWallTimeToUtc($local, $nextTimezone);
+
+            if ($runAtUtc->lessThanOrEqualTo(CarbonImmutable::now('UTC'))) {
+                throw new ReminderException('past_time', 'Reminder time is in the past.');
+            }
+
+            $rule = $recurrence === false
+                ? ReminderRecurrenceCalculator::normalize($reminder->recurrence_rule)
+                : $this->normalizeRecurrence(is_string($recurrence) ? $recurrence : null);
+
+            ReminderLifecycle::applySchedule($reminder, $runAtUtc, $nextTimezone, $rule);
+            $this->clearDeliveries($reminder);
+        } elseif ($recurrence !== false) {
+            $reminder->recurrence_rule = $this->normalizeRecurrence(is_string($recurrence) ? $recurrence : null);
+        }
+
+        $reminder->save();
+
+        return $reminder->fresh() ?? $reminder;
+    }
+
+    public function findOwned(User $user, int $reminderId): ?Reminder
+    {
+        return Reminder::query()
+            ->where('user_id', $user->id)
+            ->whereKey($reminderId)
+            ->first();
+    }
+
     public function assertOwnedCancellable(User $user, ?Reminder $reminder): Reminder
     {
-        if (! $user->canUseCapability(UserCapability::REMINDERS)) {
-            throw new ReminderException('capability_denied', 'Reminders are not available.');
-        }
+        $reminder = $this->assertOwnedOpen($user, $reminder, 'not_cancellable', 'This reminder cannot be cancelled.');
+
+        return $reminder;
+    }
+
+    public function assertOwnedEditable(User $user, ?Reminder $reminder): Reminder
+    {
+        return $this->assertOwnedOpen($user, $reminder, 'not_editable', 'This reminder cannot be edited.');
+    }
+
+    public function assertOwnedSnoozable(User $user, ?Reminder $reminder): Reminder
+    {
+        return $this->assertOwnedOpen($user, $reminder, 'not_snoozable', 'This reminder cannot be snoozed.');
+    }
+
+    public function assertOwnedCompletable(User $user, ?Reminder $reminder): Reminder
+    {
+        $this->assertCapability($user);
 
         if ($reminder === null || (int) $reminder->user_id !== (int) $user->id) {
             throw new ReminderException('not_found', 'Reminder not found.');
         }
 
-        if (! in_array($reminder->status, [ReminderStatus::Scheduled, ReminderStatus::Processing], true)) {
-            throw new ReminderException('not_cancellable', 'This reminder cannot be cancelled.');
+        if (! ReminderLifecycle::isCompletable($reminder)) {
+            throw new ReminderException('not_completable', 'This reminder cannot be marked done.');
         }
 
         return $reminder;
@@ -210,17 +433,19 @@ final class ReminderService
 
     public function markCancelled(Reminder $reminder): void
     {
-        $reminder->forceFill([
-            'status' => ReminderStatus::Cancelled,
-            'cancelled_at' => CarbonImmutable::now('UTC'),
-        ]);
+        ReminderLifecycle::markCancelled($reminder, CarbonImmutable::now('UTC'));
     }
 
     /**
      * @return array<string, mixed>
      */
-    public function serializeForPanel(Reminder $reminder, string $fallbackTimezone, bool $telegramConnected): array
-    {
+    public function serializeForPanel(
+        Reminder $reminder,
+        string $fallbackTimezone,
+        bool $telegramConnected,
+        ?bool $webPushAvailable = null,
+        ?User $user = null,
+    ): array {
         $timezone = $reminder->timezone ?: $fallbackTimezone;
 
         try {
@@ -231,20 +456,23 @@ final class ReminderService
         }
 
         $recurrence = trim((string) ($reminder->recurrence_rule ?? ''));
-        $isDue = in_array($reminder->status, [ReminderStatus::Scheduled, ReminderStatus::Processing], true)
+        $isDue = ReminderLifecycle::isOpen($reminder)
             && $reminder->run_at !== null
             && $reminder->run_at->utc()->lessThanOrEqualTo(CarbonImmutable::now('UTC'));
 
         $metadata = is_array($reminder->metadata) ? $reminder->metadata : [];
         $deliveryState = $metadata['delivery_state'] ?? null;
+        $pushOn = $webPushAvailable === true;
 
-        if ($deliveryState === null && $isDue && ! $telegramConnected) {
+        if ($deliveryState === null && $isDue && ! $telegramConnected && ! $pushOn) {
             $deliveryState = ReminderDeliveryState::STATE_NO_CHANNEL;
         }
 
         $deliveryChannel = $deliveryState === ReminderDeliveryState::STATE_NO_CHANNEL
             ? null
-            : ($metadata['delivery_channel'] ?? ($telegramConnected ? 'telegram' : null));
+            : ($metadata['delivery_channel'] ?? $this->inferredChannel($telegramConnected, $pushOn));
+
+        $source = $this->sourceConversationPayload($reminder, $user);
 
         return [
             'id' => (int) $reminder->id,
@@ -256,14 +484,187 @@ final class ReminderService
             'original_local_time' => $reminder->original_local_time,
             'recurrence' => $recurrence !== '' ? $recurrence : null,
             'is_due' => $isDue,
+            'is_occurrence' => false,
             'delivery_state' => $deliveryState,
             'delivery_channel' => $deliveryChannel,
-            'delivery_available' => $telegramConnected,
-            'cancellable' => in_array($reminder->status, [ReminderStatus::Scheduled, ReminderStatus::Processing], true),
+            'deliveries' => $this->serializeDeliveries($reminder),
+            'delivery_available' => $telegramConnected || $pushOn,
+            'telegram_connected' => $telegramConnected,
+            'web_push_available' => $pushOn,
+            'cancellable' => ReminderLifecycle::isOpen($reminder),
+            'editable' => ReminderLifecycle::isEditable($reminder),
+            'snoozable' => ReminderLifecycle::isSnoozable($reminder),
+            'completable' => ReminderLifecycle::isCompletable($reminder),
+            'source_conversation' => $source,
             'created_at' => optional($reminder->created_at)?->toIso8601String(),
             'delivered_at' => optional($reminder->delivered_at)?->toIso8601String(),
             'cancelled_at' => optional($reminder->cancelled_at)?->toIso8601String(),
+            'completed_at' => optional($reminder->completed_at)?->toIso8601String(),
+            'sort_at' => optional($reminder->updated_at)?->toIso8601String() ?? optional($reminder->run_at)?->toIso8601String(),
             'last_error' => $deliveryState === ReminderDeliveryState::STATE_NO_CHANNEL ? null : $reminder->last_error,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function serializeOccurrence(
+        ReminderOccurrence $occurrence,
+        Reminder $parent,
+        string $fallbackTimezone,
+        bool $telegramConnected,
+        bool $webPushAvailable,
+        ?User $user,
+    ): array {
+        $row = $this->serializeForPanel($parent, $fallbackTimezone, $telegramConnected, $webPushAvailable, $user);
+        $timezone = $parent->timezone ?: $fallbackTimezone;
+
+        try {
+            $local = $occurrence->run_at?->setTimezone($timezone);
+        } catch (Exception) {
+            $local = $occurrence->run_at?->utc();
+        }
+
+        $row['id'] = 'occurrence-'.$occurrence->id;
+        $row['occurrence_id'] = (int) $occurrence->id;
+        $row['parent_id'] = (int) $parent->id;
+        $row['is_occurrence'] = true;
+        $row['status'] = $occurrence->status->value;
+        $row['run_at'] = optional($occurrence->run_at)?->toIso8601String();
+        $row['run_at_local'] = $local?->format('Y-m-d\TH:i:sP');
+        $row['is_due'] = false;
+        $row['cancellable'] = false;
+        $row['editable'] = false;
+        $row['snoozable'] = false;
+        $row['completable'] = false;
+        $row['delivered_at'] = optional($occurrence->delivered_at)?->toIso8601String();
+        $row['completed_at'] = optional($occurrence->completed_at)?->toIso8601String();
+        $row['sort_at'] = optional($occurrence->run_at)?->toIso8601String();
+
+        return $row;
+    }
+
+    private function assertOwnedOpen(User $user, ?Reminder $reminder, string $error, string $message): Reminder
+    {
+        $this->assertCapability($user);
+
+        if ($reminder === null || (int) $reminder->user_id !== (int) $user->id) {
+            throw new ReminderException('not_found', 'Reminder not found.');
+        }
+
+        if (! ReminderLifecycle::isOpen($reminder)) {
+            throw new ReminderException($error, $message);
+        }
+
+        return $reminder;
+    }
+
+    private function assertCapability(User $user): void
+    {
+        if (! $user->canUseCapability(UserCapability::REMINDERS)) {
+            throw new ReminderException('capability_denied', 'Reminders are not available.');
+        }
+    }
+
+    private function inferredChannel(bool $telegramConnected, bool $webPushAvailable): ?string
+    {
+        if ($telegramConnected && $webPushAvailable) {
+            return 'both';
+        }
+
+        if ($telegramConnected) {
+            return 'telegram';
+        }
+
+        if ($webPushAvailable) {
+            return 'web_push';
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array{channel: string, status: string}>
+     */
+    private function serializeDeliveries(Reminder $reminder): array
+    {
+        if (! $reminder->relationLoaded('deliveries')) {
+            return [];
+        }
+
+        return $reminder->deliveries
+            ->map(static fn ($delivery): array => [
+                'channel' => $delivery->channel->value,
+                'status' => $delivery->status->value,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array{id: int, title: string}|null
+     */
+    private function sourceConversationPayload(Reminder $reminder, ?User $user): ?array
+    {
+        $conversation = $reminder->sourceConversation;
+
+        if ($conversation === null || $reminder->source_conversation_id === null) {
+            return null;
+        }
+
+        if ($user !== null && (int) $conversation->user_id !== (int) $user->id) {
+            return null;
+        }
+
+        $title = trim((string) $conversation->title);
+
+        return [
+            'id' => (int) $conversation->id,
+            'title' => $title !== '' ? $title : 'Основной',
+        ];
+    }
+
+    private function isLocalToday(?CarbonImmutable $runAt, string $timezone, CarbonImmutable $now): bool
+    {
+        if ($runAt === null) {
+            return false;
+        }
+
+        try {
+            return $runAt->setTimezone($timezone)->toDateString() === $now->setTimezone($timezone)->toDateString();
+        } catch (Exception) {
+            return false;
+        }
+    }
+
+    private function persistPendingOccurrence(Reminder $reminder, CarbonImmutable $now): void
+    {
+        $pending = $reminder->metadata['pending_occurrence'] ?? null;
+
+        if (! is_array($pending) || ! $reminder->exists) {
+            return;
+        }
+
+        ReminderOccurrence::query()->create([
+            'reminder_id' => $reminder->id,
+            'run_at' => CarbonImmutable::parse($pending['run_at'])->utc(),
+            'status' => $pending['status'] ?? ReminderStatus::Completed->value,
+            'delivered_at' => null,
+            'completed_at' => $now,
+            'delivery_snapshot' => $pending,
+        ]);
+
+        $metadata = is_array($reminder->metadata) ? $reminder->metadata : [];
+        unset($metadata['pending_occurrence']);
+        $reminder->metadata = $metadata;
+    }
+
+    private function clearDeliveries(Reminder $reminder): void
+    {
+        if (! $reminder->exists) {
+            return;
+        }
+
+        $reminder->deliveries()->delete();
     }
 }

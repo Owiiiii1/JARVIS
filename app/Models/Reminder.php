@@ -6,6 +6,7 @@ use App\Enums\ReminderStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'user_id',
@@ -18,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'status',
     'delivered_at',
     'cancelled_at',
+    'completed_at',
     'recurrence_rule',
     'last_error',
     'metadata',
@@ -33,6 +35,7 @@ class Reminder extends Model
             'run_at' => 'immutable_datetime',
             'delivered_at' => 'immutable_datetime',
             'cancelled_at' => 'immutable_datetime',
+            'completed_at' => 'immutable_datetime',
             'status' => ReminderStatus::class,
             'metadata' => 'array',
         ];
@@ -51,5 +54,20 @@ class Reminder extends Model
     public function sourceMessage(): BelongsTo
     {
         return $this->belongsTo(Message::class, 'source_message_id');
+    }
+
+    public function deliveries(): HasMany
+    {
+        return $this->hasMany(ReminderDelivery::class);
+    }
+
+    public function occurrences(): HasMany
+    {
+        return $this->hasMany(ReminderOccurrence::class);
+    }
+
+    public function isRecurring(): bool
+    {
+        return filled($this->recurrence_rule);
     }
 }

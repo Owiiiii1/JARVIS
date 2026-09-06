@@ -316,6 +316,40 @@ export default function PersonalWorkspace() {
     });
 
     useEffect(() => {
+        if (typeof window === 'undefined') {
+            return undefined;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+
+        if (params.get('reminder')) {
+            setRemindersOpen(true);
+        }
+
+        const onMessage = (event) => {
+            if (event.data?.type !== 'open-reminder') {
+                return;
+            }
+
+            setRemindersOpen(true);
+
+            if (typeof event.data.url === 'string' && event.data.url.startsWith('/') && !event.data.url.includes('://')) {
+                const next = event.data.url.split('?')[0];
+
+                if (next && next !== window.location.pathname) {
+                    router.visit(event.data.url);
+                }
+            }
+        };
+
+        navigator.serviceWorker?.addEventListener('message', onMessage);
+
+        return () => {
+            navigator.serviceWorker?.removeEventListener('message', onMessage);
+        };
+    }, []);
+
+    useEffect(() => {
         setMessages(initialMessages.map((item) => withStatus(item)));
         setHasMore(initialHasMore);
         setOldestId(initialOldestId);

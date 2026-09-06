@@ -50,6 +50,7 @@ class RemindersTest extends TestCase
             'status',
             'delivered_at',
             'cancelled_at',
+            'completed_at',
             'recurrence_rule',
             'last_error',
             'metadata',

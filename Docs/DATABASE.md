@@ -40,7 +40,13 @@ Engine: MySQL. CRM leftover tables were dropped. Vector DB is not used.
 
 ## Reminders
 
-**reminders:** `user_id`, source conversation/message, text, `run_at` UTC, timezone, status scheduled\|processing\|delivered\|cancelled\|failed, `recurrence_rule` (unused on create), errors/metadata.
+**reminders:** `user_id`, source conversation/message, text, `run_at` UTC, timezone, status scheduled\|processing\|delivered\|completed\|cancelled\|failed, `completed_at`, `recurrence_rule` (`daily`/`weekdays`/`weekly`/`monthly`).
+
+**reminder_deliveries:** per-channel (`telegram`/`web_push`) status, attempts, timestamps.
+
+**reminder_occurrences:** fired occurrence history for recurring series.
+
+**push_subscriptions:** user-owned Web Push endpoints; encrypted `p256dh`/`auth`.
 
 ---
 

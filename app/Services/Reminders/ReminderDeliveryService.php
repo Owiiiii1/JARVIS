@@ -2,10 +2,16 @@
 
 namespace App\Services\Reminders;
 
+use App\Enums\ReminderChannel;
+use App\Enums\ReminderDeliveryStatus;
 use App\Enums\ReminderStatus;
 use App\Models\ChannelIdentity;
+use App\Models\PushSubscription;
 use App\Models\Reminder;
-use App\Services\Telegram\TelegramBotManager;
+use App\Models\ReminderDelivery;
+use App\Models\ReminderOccurrence;
+use App\Services\Reminders\Contracts\SendsReminderTelegram;
+use App\Services\Reminders\Contracts\SendsWebPush;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -17,7 +23,11 @@ final class ReminderDeliveryService
     public const NO_CHANNEL_RECHECK_MINUTES = ReminderDeliveryState::NO_CHANNEL_RECHECK_MINUTES;
 
     public function __construct(
-        private readonly TelegramBotManager $telegram,
+        private readonly SendsReminderTelegram $telegram,
+        private readonly SendsWebPush $webPush,
+        private readonly PushPayloadBuilder $payloads,
+        private readonly PushSubscriptionService $subscriptions,
+        private readonly ReminderRecurrenceCalculator $recurrence,
     ) {}
 
     public function deliver(Reminder $reminder): void
@@ -32,45 +42,227 @@ final class ReminderDeliveryService
         }
 
         $identity = ChannelIdentity::findTelegramForUser((int) $user->id);
+        $chatId = ($identity !== null && filled($identity->external_chat_id))
+            ? (string) $identity->external_chat_id
+            : null;
+        $pushSubscriptions = $this->subscriptions->activeFor($user)->all();
 
-        if ($identity === null || ! filled($identity->external_chat_id)) {
-            ReminderDeliveryState::deferNoChannel($reminder, CarbonImmutable::now('UTC'));
-            $reminder->save();
+        $attempts = $this->deliverToChannels($reminder, $chatId, $pushSubscriptions, CarbonImmutable::now('UTC'));
+        $this->persist($reminder, $attempts, CarbonImmutable::now('UTC'));
+    }
 
-            Log::info('reminder waiting for delivery channel', [
-                'reminder_id' => $reminder->id,
-                'user_id' => $user->id,
-                'status' => ReminderStatus::Scheduled->value,
-                'delivery_state' => ReminderDeliveryState::STATE_NO_CHANNEL,
-            ]);
+    /**
+     * @param  list<PushSubscription>  $pushSubscriptions
+     * @return list<ChannelAttempt>
+     */
+    public function deliverToChannels(
+        Reminder $reminder,
+        ?string $telegramChatId,
+        array $pushSubscriptions,
+        CarbonImmutable $now,
+    ): array {
+        $attempts = [
+            $this->attemptTelegram($reminder, $telegramChatId),
+            $this->attemptWebPush($reminder, $pushSubscriptions, $now),
+        ];
 
-            return;
+        ReminderDeliveryState::applyAttempts($reminder, $attempts, $now, $this->recurrence);
+
+        return $attempts;
+    }
+
+    private function attemptTelegram(Reminder $reminder, ?string $chatId): ChannelAttempt
+    {
+        $previous = (int) ($reminder->metadata['telegram_attempts'] ?? 0);
+
+        if ($chatId === null || $chatId === '') {
+            return new ChannelAttempt(
+                ReminderChannel::Telegram,
+                ReminderDeliveryStatus::Skipped,
+                $previous,
+                false,
+            );
         }
 
-        $body = '⏰ Напоминание: '.$reminder->text;
-
         try {
-            $this->telegram->sendTextMessage((string) $identity->external_chat_id, $body);
+            $this->telegram->send($chatId, '⏰ Напоминание: '.$reminder->text);
         } catch (Throwable $exception) {
-            Log::warning('reminder delivery failed', [
+            Log::warning('reminder telegram delivery failed', [
                 'reminder_id' => $reminder->id,
-                'user_id' => $user->id,
+                'user_id' => $reminder->user_id,
                 'error_class' => $exception::class,
             ]);
 
-            $this->failOrRetry($reminder, 'telegram_delivery_failed');
+            $attempts = $previous + 1;
 
+            return new ChannelAttempt(
+                ReminderChannel::Telegram,
+                ReminderDeliveryStatus::Failed,
+                $attempts,
+                $attempts < self::MAX_ATTEMPTS,
+                'telegram_delivery_failed',
+            );
+        }
+
+        return new ChannelAttempt(
+            ReminderChannel::Telegram,
+            ReminderDeliveryStatus::Sent,
+            $previous + 1,
+            false,
+        );
+    }
+
+    /**
+     * @param  list<PushSubscription>  $subscriptions
+     */
+    private function attemptWebPush(Reminder $reminder, array $subscriptions, CarbonImmutable $now): ChannelAttempt
+    {
+        $previous = (int) ($reminder->metadata['push_attempts'] ?? 0);
+
+        if ($subscriptions === [] || ! VapidConfig::isConfigured()) {
+            return new ChannelAttempt(
+                ReminderChannel::WebPush,
+                ReminderDeliveryStatus::Skipped,
+                $previous,
+                false,
+            );
+        }
+
+        $user = $reminder->user;
+
+        if ($user === null) {
+            return new ChannelAttempt(
+                ReminderChannel::WebPush,
+                ReminderDeliveryStatus::Skipped,
+                $previous,
+                false,
+            );
+        }
+
+        $payload = $this->payloads->payload($reminder, $user, $now->toIso8601String());
+        $anySent = false;
+        $anyTransient = false;
+        $activeRemaining = false;
+
+        foreach ($subscriptions as $subscription) {
+            $result = $this->webPush->send($subscription, $payload);
+
+            if ($result->succeeded()) {
+                $anySent = true;
+                $activeRemaining = true;
+                $subscription->forceFill(['last_used_at' => $now]);
+
+                continue;
+            }
+
+            if ($result->gone() || $result->outcome->value === 'permanent') {
+                $this->subscriptions->revoke($subscription);
+
+                continue;
+            }
+
+            if ($result->retryable()) {
+                $anyTransient = true;
+                $activeRemaining = true;
+            }
+        }
+
+        if ($anySent) {
+            return new ChannelAttempt(
+                ReminderChannel::WebPush,
+                ReminderDeliveryStatus::Sent,
+                $previous + 1,
+                false,
+            );
+        }
+
+        if ($anyTransient && $activeRemaining) {
+            $attempts = $previous + 1;
+
+            return new ChannelAttempt(
+                ReminderChannel::WebPush,
+                ReminderDeliveryStatus::Failed,
+                $attempts,
+                $attempts < self::MAX_ATTEMPTS,
+                'web_push_delivery_failed',
+            );
+        }
+
+        if (! $activeRemaining) {
+            return new ChannelAttempt(
+                ReminderChannel::WebPush,
+                ReminderDeliveryStatus::Skipped,
+                $previous,
+                false,
+                'subscription_expired',
+            );
+        }
+
+        return new ChannelAttempt(
+            ReminderChannel::WebPush,
+            ReminderDeliveryStatus::Failed,
+            $previous + 1,
+            false,
+            'web_push_delivery_failed',
+        );
+    }
+
+    /**
+     * @param  list<ChannelAttempt>  $attempts
+     */
+    public function persist(Reminder $reminder, array $attempts, CarbonImmutable $now): void
+    {
+        foreach ($attempts as $attempt) {
+            $this->persistChannel($reminder, $attempt, $now);
+        }
+
+        $pending = $reminder->metadata['pending_occurrence'] ?? null;
+
+        if (is_array($pending) && $reminder->exists && isset($pending['run_at'], $pending['status'])) {
+            ReminderOccurrence::query()->create([
+                'reminder_id' => $reminder->id,
+                'run_at' => CarbonImmutable::parse($pending['run_at'])->utc(),
+                'status' => $pending['status'],
+                'delivered_at' => ($pending['status'] ?? null) === ReminderStatus::Delivered->value
+                    ? $now
+                    : null,
+                'completed_at' => ($pending['status'] ?? null) === ReminderStatus::Completed->value
+                    ? $now
+                    : null,
+                'delivery_snapshot' => $pending,
+            ]);
+
+            $metadata = is_array($reminder->metadata) ? $reminder->metadata : [];
+            unset($metadata['pending_occurrence']);
+            $reminder->metadata = $metadata;
+        }
+
+        if ($reminder->exists) {
+            $reminder->save();
+        }
+    }
+
+    public function persistChannel(Reminder $reminder, ChannelAttempt $attempt, CarbonImmutable $now): void
+    {
+        if (! $reminder->exists) {
             return;
         }
 
-        ReminderDeliveryState::markDelivered($reminder, CarbonImmutable::now('UTC'));
-        $reminder->save();
-
-        Log::info('reminder delivered', [
-            'reminder_id' => $reminder->id,
-            'user_id' => $user->id,
-            'status' => ReminderStatus::Delivered->value,
-        ]);
+        ReminderDelivery::query()->updateOrCreate(
+            [
+                'reminder_id' => $reminder->id,
+                'channel' => $attempt->channel->value,
+            ],
+            [
+                'status' => $attempt->status->value,
+                'attempts' => $attempt->attempts,
+                'delivered_at' => $attempt->succeeded() ? $now : null,
+                'last_error' => $attempt->error,
+                'next_retry_at' => $attempt->retryable
+                    ? $now->utc()->addMinutes(max(1, $attempt->attempts))
+                    : null,
+            ],
+        );
     }
 
     private function cancel(Reminder $reminder, string $reason): void
@@ -90,34 +282,6 @@ final class ReminderDeliveryService
             'user_id' => $reminder->user_id,
             'status' => ReminderStatus::Cancelled->value,
             'error_class' => $reason,
-        ]);
-    }
-
-    private function failOrRetry(Reminder $reminder, string $error): void
-    {
-        ReminderDeliveryState::retryOrFail($reminder, $error, CarbonImmutable::now('UTC'));
-        $reminder->save();
-
-        $attempts = (int) (($reminder->metadata['attempts'] ?? 0));
-
-        if ($reminder->status === ReminderStatus::Scheduled) {
-            Log::info('reminder retry scheduled', [
-                'reminder_id' => $reminder->id,
-                'user_id' => $reminder->user_id,
-                'status' => ReminderStatus::Scheduled->value,
-                'error_class' => $error,
-                'attempts' => $attempts,
-            ]);
-
-            return;
-        }
-
-        Log::warning('reminder failed', [
-            'reminder_id' => $reminder->id,
-            'user_id' => $reminder->user_id,
-            'status' => ReminderStatus::Failed->value,
-            'error_class' => $error,
-            'attempts' => $attempts,
         ]);
     }
 }

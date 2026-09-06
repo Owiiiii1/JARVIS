@@ -5,6 +5,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Jarvis\JarvisAttachmentController;
 use App\Http\Controllers\Jarvis\JarvisConfirmationController;
+use App\Http\Controllers\Jarvis\JarvisPushSubscriptionController;
 use App\Http\Controllers\Jarvis\JarvisReminderController;
 use App\Http\Controllers\Jarvis\JarvisStorageController;
 use App\Http\Controllers\Jarvis\JarvisVoiceController;
@@ -100,6 +101,24 @@ $registerPersonalWorkspace = static function (string $prefix, string $as, array 
         Route::get('/reminders', [JarvisReminderController::class, 'index'])
             ->middleware('throttle:30,1')
             ->name('reminders.index');
+        Route::get('/reminders/push', [JarvisPushSubscriptionController::class, 'status'])
+            ->middleware('throttle:30,1')
+            ->name('reminders.push.status');
+        Route::post('/reminders/push', [JarvisPushSubscriptionController::class, 'store'])
+            ->middleware('throttle:20,1')
+            ->name('reminders.push.store');
+        Route::delete('/reminders/push', [JarvisPushSubscriptionController::class, 'destroy'])
+            ->middleware('throttle:20,1')
+            ->name('reminders.push.destroy');
+        Route::patch('/reminders/{reminder}', [JarvisReminderController::class, 'update'])
+            ->middleware('throttle:30,1')
+            ->name('reminders.update');
+        Route::post('/reminders/{reminder}/snooze', [JarvisReminderController::class, 'snooze'])
+            ->middleware('throttle:30,1')
+            ->name('reminders.snooze');
+        Route::post('/reminders/{reminder}/complete', [JarvisReminderController::class, 'complete'])
+            ->middleware('throttle:30,1')
+            ->name('reminders.complete');
         Route::post('/reminders/{reminder}/cancel', [JarvisReminderController::class, 'cancel'])
             ->middleware('throttle:30,1')
             ->name('reminders.cancel');

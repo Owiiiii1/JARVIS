@@ -20,7 +20,6 @@ use App\Services\Memory\PersonalMemoryRetriever;
 use App\Services\Reminders\ReminderToolPrompt;
 use App\Services\Storage\StoredFileService;
 use App\Services\Tools\CompleteAssistantOnboardingTool;
-use App\Services\Tools\CreateReminderTool;
 use App\Services\Tools\GetAssistantProfileTool;
 use App\Services\Tools\GetProjectContextTool;
 use App\Services\Tools\GetTelegramResponseModeTool;
@@ -163,7 +162,7 @@ final class ConversationContextBuilder
             'Never pass user_id or conversation_id as tool arguments. Identity comes from the current conversation.',
         ];
 
-        if (in_array(CreateReminderTool::NAME, $names, true)) {
+        if (array_intersect(ReminderToolPrompt::toolNames(), $names) !== []) {
             $lines = array_merge($lines, ReminderToolPrompt::lines());
         }
 

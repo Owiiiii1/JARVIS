@@ -66,19 +66,19 @@ class CreateReminderToolTest extends TestCase
         $this->assertSame('telegram', $payload['delivery']);
     }
 
-    public function test_execute_rejects_unsupported_recurrence_without_persisting(): void
+    public function test_execute_rejects_invalid_recurrence_without_persisting(): void
     {
         $result = (new CreateReminderTool(new ReminderService))->execute(
             new ToolCall('c1', CreateReminderTool::NAME, [
                 'text' => 'every morning',
                 'run_at_local' => '2026-09-07T10:00:00+02:00',
-                'recurrence' => 'daily',
+                'recurrence' => 'FREQ=DAILY',
             ]),
             $this->context(),
         );
 
         $this->assertFalse($result->success);
-        $this->assertSame('unsupported_recurrence', $result->payload['error']);
+        $this->assertSame('invalid_recurrence', $result->payload['error']);
     }
 
     public function test_execute_rejects_empty_text(): void

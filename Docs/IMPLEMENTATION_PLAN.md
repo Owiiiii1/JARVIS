@@ -97,6 +97,16 @@ Historical detailed “implement this” write-ups for M0–M24 are obsolete as 
 - Selected Google / GitHub manual validation if Owner wants
 - Optional A/B isolation campaign
 
+### Phase B.1 — Reminders 2.0
+
+**Status.** IMPLEMENTED / NOT VALIDATED. Do not treat as MANUAL PASS until Owner live test.
+
+**In code:** Web Push, Reminder Center v2, edit / snooze / done / cancel, recurrence (`daily`/`weekdays`/`weekly`/`monthly`), per-channel `reminder_deliveries`.
+
+**Not in this milestone:** Tasks, Notification Center, Daily Brief, proactive suggestions, mobile app (Phase B.2).
+
+Detail: [REMINDERS.md](REMINDERS.md), [Docs/Development/Cursor_Work_Report.md](Development/Cursor_Work_Report.md).
+
 ### Telegram Voice Replies / Input
 
 **Replies.** MANUAL PASS. DM `sendVoice` via existing TTS; default text.
@@ -111,8 +121,8 @@ Detail: [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
 | Item | Phase |
 | --- | --- |
-| Web Push / Notification Center | B |
-| Recurrence, snooze, done, edit | B |
+| Web Push / Notification Center | B.1 transport done / B.2 center remaining |
+| Recurrence, snooze, done, edit | B.1 IMPLEMENTED / NOT VALIDATED |
 | Tasks domain + relations | B |
 | Daily Brief / Weekly Review | B |
 | Streaming STT/TTS, richer barge-in | C |
