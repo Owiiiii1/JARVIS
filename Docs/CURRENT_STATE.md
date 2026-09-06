@@ -1,6 +1,6 @@
 # Jarvis — current implementation snapshot
 
-**Date:** 2026-09-06 (Product Validation & Polish — Core Daily Workflow prepared)
+**Date:** 2026-09-07 (Core Daily Workflow — MANUAL PASS 10/10)  
 **Host path:** `/var/www/jarvis`  
 **Public URL:** https://jarvis.owlsolutions.net  
 **GitHub:** https://github.com/Owiiiii1/JARVIS.git
@@ -22,6 +22,38 @@ This file is a **runtime snapshot**. If it disagrees with older milestone prose,
 ---
 
 ## Manual production validation
+
+**PASS — Core Daily Workflow (2026-09-07):**
+
+Owner completed the sequential campaign in [VALIDATION_CORE_WORKFLOW.md](VALIDATION_CORE_WORKFLOW.md) by hand. Clean repeat chat: **Validation Core 2**. Result: **MANUAL PASS 10/10** (Scenarios 1–10). Cursor did not execute the scenarios, did not create production records, and did not run automated tests for this close-out.
+
+This is a pass of the **tested core chain**, not of every subsystem edge case. Confirmed behaviors:
+
+1. Conversation continuity / reference resolution
+2. Task + visible/manageable subtask
+3. Reminder create/update
+4. Internal watcher creation
+5. Knowledge cross-chat retrieval
+6. Cross-source synthesis
+7. Waiting / explicit commitments
+8. State-change propagation through Task → Reminder → Watcher → Synthesis
+9. Overview refresh / dedupe / canonical-state precedence
+10. Humanized Workspace presentation
+11. Memory vs Knowledge separation
+12. Conversation delete preserving durable Tasks / Knowledge / Memory semantics
+
+The first Scenario 8 on the earlier `Validation Core` chat was a **LIVE FAIL** (stale derived Overview + backend wording on screen). Commit `bcca7ca8ea72181cb6414b2f9d3102178b8b6c63` fixed those defects. Scenario 8 on **Validation Core 2** is **MANUAL PASS**. Workspace Presentation is **MANUAL PASS** after that live revalidation.
+
+Layer wording after this campaign:
+
+| Layer | After Core Daily Workflow |
+| --- | --- |
+| C.1 Conversation Intelligence | **MANUAL PASS** for the continuation / reference / clarification behavior exercised in the campaign. Not a claim that all Conversation Intelligence is covered. |
+| E.1 Knowledge | **MANUAL PASS** for the tested core flow (explicit fact → async extraction → retrieval → provenance). Not all Knowledge edge cases. |
+| E.2 Watchers | **MANUAL PASS** for the internal task watcher flow. External Gmail / Calendar / GitHub watchers remain deferred. |
+| E.3 Cross-source Synthesis | **MANUAL PASS** for the tested core synthesis / Overview / waiting / state-change flow. |
+| B.2 Tasks / Reminder Center as used in the campaign | **MANUAL PASS** for that core productivity chain. Briefs, proactive suggestions, and Notification Center as a full product are not claimed. |
+| Workspace Presentation | **MANUAL PASS** after Scenario 8 revalidation |
 
 **PASS — core ordinary user (M25U.2):**
 
@@ -52,35 +84,11 @@ The former hands-free «Диалог» VAD capture was removed from Рация. 
 
 - Onboarding / «Знакомство» **appears** (Owner)
 - Full onboarding conversation / completion / profile update: **not** MANUAL PASS
-- Reminders panel / Reminders 2.0: **MANUAL PASS for confirmed live core flow** (Web Push, Reminder Center, basic user flow). Not exhaustive DST/recurrence/multi-device MANUAL PASS.
+- Reminders panel / Reminders 2.0: **MANUAL PASS for confirmed live core flow** (Web Push, Reminder Center, basic user flow, and the Core Daily Workflow create/update). Not exhaustive DST/recurrence/multi-device MANUAL PASS.
 - `create_reminder` without Telegram: covered by that same live core flow
-- Phase B.2 Tasks / Notification Center / briefs / proactive: **IMPLEMENTED / NOT VALIDATED**
+- Phase B.2 briefs / proactive / Notification Center as a full product: **IMPLEMENTED / NOT VALIDATED**
 
-**Not claimed:** A/B IDOR campaign; combined Google/GitHub live campaign; Tavily; `fetch_web_page` as a distinct Owner check; screenshot purge; destructive Storage delete.
-
-**IN PROGRESS — Core Daily Workflow campaign.** The sequential manual runbook for the end-to-end chain
-(Conversation → Task → Reminder → internal Watcher → Knowledge → Synthesis → Overview → state change →
-chat delete) lives in [VALIDATION_CORE_WORKFLOW.md](VALIDATION_CORE_WORKFLOW.md). The Owner ran
-Scenarios 1–8; Scenario 6 and 7 are MANUAL PASS, **Scenario 8 was a LIVE BUG and is now READY FOR
-REVALIDATION**, Scenarios 9–10 are paused. Cursor did not execute the scenarios and did not create
-production records.
-
-**LIVE BUG (fixed, awaiting revalidation) — stale Overview after a state change.** With the task
-completed, its linked reminder cancelled and its one-shot watcher resolved, chat synthesis was correct
-but **Обзор** still listed the work as upcoming, waiting and blocked, and showed the completion twice.
-Cause: the derived synthesis slices trusted knowledge relations and the watcher rows instead of the task
-table, and one completion carried two different fingerprints. Derived slices now resolve every knowledge
-entity back to its canonical task ([`CanonicalStateResolver`](../app/Services/Synthesis/CanonicalStateResolver.php))
-and a task change shares one fingerprint across domains. Historical knowledge evidence is preserved; it
-simply no longer implies live work.
-
-**Human presentation layer for the Workspace.** Every user-facing string in the productivity panels and
-in the synthesis slices is produced by `app/Services/Workspace/Presentation/` (`HumanMoment`,
-`HumanStatusLabel`, `HumanWatcherDescription`, `HumanRelationLabel`, `HumanSynthesisText`) — deterministic,
-computed at serialization time, never stored. Enum values, ids, health strings and delivery internals no
-longer reach the screen or the Conversation AI. Tasks, Reminders, Watchers and Overview share one card
-system, task cards expand to their subtasks, and an open subtask under a completed parent is listed as
-work of its own. Contract: [WORKSPACE_PRESENTATION.md](WORKSPACE_PRESENTATION.md).
+**Not claimed:** A/B IDOR campaign; combined Google/GitHub live campaign; Tavily; `fetch_web_page` as a distinct Owner check; screenshot purge; destructive Storage delete; external watcher campaigns; ElevenLabs realtime Диалог Beta; Telegram Groups; DST/timezone edge cases; historical retry/prune; Mobile / Client API.
 
 ---
 
@@ -89,7 +97,7 @@ work of its own. Contract: [WORKSPACE_PRESENTATION.md](WORKSPACE_PRESENTATION.md
 | Item | Value |
 | --- | --- |
 | Branch | `main` |
-| HEAD | `main`, aligned with `origin/main` after Phase E.3 Cross-source Synthesis |
+| HEAD | `main`, aligned with `origin/main` after Core Daily Workflow documentation close-out |
 | Origin | `https://github.com/Owiiiii1/JARVIS.git` |
 
 Production checkout is the GitHub source of truth. Gemini STT request-shape and bounded ElevenLabs voice fallback are committed. Laravel Boost is require-dev tooling in a separate commit. `.env` stays gitignored.
@@ -147,14 +155,14 @@ See [DATABASE.md](DATABASE.md).
 | Surface | Path | Status |
 | --- | --- | --- |
 | Login | `/` | IMPLEMENTED |
-| Owner Workspace | `/jarvis` | PRIMARY, MANUAL PASS (selected flows) |
+| Owner Workspace | `/jarvis` | PRIMARY, MANUAL PASS (selected flows + Core Daily Workflow) |
 | User Workspace | `/chat` | MANUAL PASS (core) |
 | `/cabinet` | compatibility redirects + leftover JSON | LEGACY |
 | Admin | `/dashboard`, `/settings/*` | IMPLEMENTED |
 | Voice | workspace Text/Voice + `/…/voice/sessions/*` | MANUAL PASS |
-| Storage page | `/jarvis/storage` Owner-only | IMPLEMENTED |
-| Projects | `/projects` Owner | IMPLEMENTED |
-| Telegram Groups | `/telegram-groups` Owner | IMPLEMENTED |
+| Storage page | `/jarvis/storage` | Owner-only, IMPLEMENTED |
+| Projects | `/projects` | Owner, IMPLEMENTED |
+| Telegram Groups | `/telegram-groups` | Owner, IMPLEMENTED / NOT VALIDATED |
 | Desktop | — | CANCELLED |
 | Mobile | — | DEFERRED |
 | Versioned Client API | — | DEFERRED |
@@ -163,19 +171,19 @@ Frontend: `resources/js/personal-workspace/PersonalWorkspace.jsx` shared, with S
 
 Main Workspace is chat + Task / Reminder / Watcher / Notification centers + compact **Обзор** (Сегодня и ближайшее / Нужно внимание / Жду / Что изменилось / Открытая работа) + Voice + compact **Настройки**. Memory and Integrations are **not** on the main screen; they live in Settings.
 
-Workspace conversation delete is implemented for Owner and ordinary users. Sidebar overflow menu → confirmation dialog → `DELETE /jarvis/chats/{conversation}` or `DELETE /chat/chats/{conversation}`. Own personal conversations only (`ensureOwned`; Owner is not a bypass for someone else’s chat). Group conversations are 404. Hard delete of the chat and child messages/ephemeral screenshots; tasks, reminders, projects, persistent Storage files, durable memories, and Knowledge entities survive with sources detached. Deleting the open chat switches to the latest remaining personal chat, or creates `Основной` if none remain. No full page reload.
+Workspace conversation delete is implemented for Owner and ordinary users. Sidebar overflow menu → confirmation dialog → `DELETE /jarvis/chats/{conversation}` or `DELETE /chat/chats/{conversation}`. Own personal conversations only (`ensureOwned`; Owner is not a bypass for someone else’s chat). Group conversations are 404. Hard delete of the chat and child messages/ephemeral screenshots; tasks, reminders, projects, persistent Storage files, durable memories, and Knowledge entities survive with sources detached. Deleting the open chat switches to the latest remaining personal chat, or creates `Основной` if none remain. No full page reload. **MANUAL PASS** (original Workspace delete + Core Daily Workflow Scenario 10 regression).
 
-Phase C.1 Conversation Intelligence is **IMPLEMENTED / NOT VALIDATED**. Same Conversation Engine. Derived working context (topic mode, recent entities, trusted recent tool refs, temporary style) plus clarification/initiative policy. Mutation tools do not guess ids. Web composer can send a new message while a previous turn is thinking; stale JSON is ignored. Server generation is not cancelled.
+Phase C.1 Conversation Intelligence is **MANUAL PASS for the tested continuation / reference / clarification behavior**. Same Conversation Engine. Derived working context (topic mode, recent entities, trusted recent tool refs, temporary style) plus clarification/initiative policy. Mutation tools do not guess ids. Web composer can send a new message while a previous turn is thinking; stale JSON is ignored. Server generation is not cancelled. Full Conversation Intelligence coverage is **not** claimed.
 
 Phase C.2 Beta (ElevenLabs realtime Web voice) is **IMPLEMENTED / NOT VALIDATED**. Parallel to Рация. Telegram Voice unchanged. Legacy removal NOT NOW.
 
-Phase E.1 Knowledge Layer is **IMPLEMENTED / NOT VALIDATED**. Relational entities/relations/events with provenance. Settings → Knowledge. Bounded conversation slice. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
+Phase E.1 Knowledge Layer is **MANUAL PASS for the tested core flow**. Relational entities/relations/events with provenance. Settings → Knowledge. Bounded conversation slice. Not all Knowledge edge cases. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
 
-Phase E.2 Watchers is **IMPLEMENTED / NOT VALIDATED**. Explicit persisted conditions; Notification Center / Web Push delivery; no silent external writes. Workspace Center **Автоматизации**. A one-shot task watcher whose condition can only match while the task is open (`overdue_by`, `deadline_within`, `status_equals` on an open status) is finished with `cursor.resolved_reason = task_closed` when that task is completed or cancelled, instead of staying Active forever; `status_changed` watchers still fire on the closing transition. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
+Phase E.2 Watchers is **MANUAL PASS for the internal task watcher flow**. Explicit persisted conditions; Notification Center / Web Push delivery; no silent external writes. Workspace Center **Автоматизации**. A one-shot task watcher whose condition can only match while the task is open is finished with `cursor.resolved_reason = task_closed` when that task is completed or cancelled, instead of staying Active forever; `status_changed` watchers still fire on the closing transition. External Gmail / Calendar / GitHub watchers and proposed-action → confirmation → external write remain **IMPLEMENTED / NOT VALIDATED**. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
 
-Phase E.3 Cross-source Synthesis is **IMPLEMENTED / NOT VALIDATED**. Derived FactPack over Knowledge / Tasks / Reminders / Watchers / Projects / conversation summaries. Tools-first; tiny `synthesis_context` only with an active project. No integration polling. No `waiting_items` table. Phase E as a whole is **not** complete. [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
+Phase E.3 Cross-source Synthesis is **MANUAL PASS for the tested core synthesis / Overview / waiting / state-change flow**. Derived FactPack over Knowledge / Tasks / Reminders / Watchers / Projects / conversation summaries. Tools-first; tiny `synthesis_context` only with an active project. No integration polling. No `waiting_items` table. Phase E as a whole is **not** complete. [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
 
-Authoritative-domain precedence now applies to the derived slices, not only to the narrative: upcoming, attention, waiting-for, open-work and blockers all resolve knowledge entities and watchers back to the canonical task before deciding anything is live, and a task change carries one fingerprint across the task table and its knowledge event so a completion is one card. Item titles and reasons are human sentences produced by the presentation layer, so the Conversation AI is handed already-humanized content instead of enum names. [WORKSPACE_PRESENTATION.md](WORKSPACE_PRESENTATION.md).
+Authoritative-domain precedence applies to the derived slices, not only to the narrative: upcoming, attention, waiting-for, open-work and blockers all resolve knowledge entities and watchers back to the canonical task before deciding anything is live, and a task change carries one fingerprint across the task table and its knowledge event so a completion is one card. Item titles and reasons are human sentences produced by the presentation layer. **MANUAL PASS** after Scenario 8 revalidation on Validation Core 2. [WORKSPACE_PRESENTATION.md](WORKSPACE_PRESENTATION.md).
 
 Workspace Settings sections: Profile, Assistant, Memory, Knowledge, Productivity, Voice, Integrations. Desktop: nav + detail. Mobile: list → detail. Direct section: `?settings=memory` / `?settings=knowledge` / `?settings=integrations` on first load (allowlist only). Opening Settings from the UI does not rewrite `history.state`, so the chat list stays intact.
 
@@ -204,18 +212,13 @@ Personal voice preference: nullable `users.voice_id`; effective fallback is the 
 
 ## 8. Reminders
 
-Phase B.1 Reminders 2.0: Owner **MANUAL PASS for confirmed live core flow** (Web Push, Reminder Center, basic user flow). Not exhaustive edge-case MANUAL PASS. Telegram remains an optional adapter.
+Phase B.1 Reminders 2.0: Owner **MANUAL PASS for confirmed live core flow** (Web Push, Reminder Center, basic user flow, Core Daily Workflow create/update). Not exhaustive edge-case MANUAL PASS. Telegram remains an optional adapter.
 
 ## 8.1 Tasks & productivity
 
-Phase B.2 **IMPLEMENTED / NOT VALIDATED**. Separate `tasks` domain, Task Center, Notification Center, opt-in Daily/Evening/Weekly briefs, bounded proactive suggestions. [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).
+Phase B.2 core Task Center flow as exercised in Core Daily Workflow: **MANUAL PASS**. Briefs, proactive suggestions, and Notification Center as a full product remain **IMPLEMENTED / NOT VALIDATED**. Separate `tasks` domain, Task Center, Notification Center, opt-in Daily/Evening/Weekly briefs, bounded proactive suggestions. [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).
 
-Panel presentation: one card per task with its schedule as the secondary line, priority only when high or
-urgent, an expandable subtask list with «X из Y подзадач выполнено», and a Workspace dialog («Выполнить
-всё» / «Вернуться») when a parent still has open subtasks — the force-complete path that left a live
-subtask behind is no longer reachable from the UI. A subtask whose parent is already closed is listed in
-the active sections as «Подзадача задачи «…»» so nothing open is invisible.
-[WORKSPACE_PRESENTATION.md](WORKSPACE_PRESENTATION.md).
+Panel presentation: one card per task with its schedule as the secondary line, priority only when high or urgent, an expandable subtask list with «X из Y подзадач выполнено», and a Workspace dialog («Выполнить всё» / «Вернуться») when a parent still has open subtasks. A subtask whose parent is already closed is listed in the active sections as «Подзадача задачи «…»» so nothing open is invisible. **MANUAL PASS** with Workspace Presentation after Scenario 8 revalidation. [WORKSPACE_PRESENTATION.md](WORKSPACE_PRESENTATION.md).
 
 ---
 
@@ -230,12 +233,16 @@ Code: Google OAuth (Gmail + Calendar tools; **no Drive**), GitHub OAuth + tools,
 - Desktop / Tauri / tray / hotkey
 - Mobile app
 - Public registration
-- Knowledge Graph product / Neo4j (E.1 is a relational index; E.2 watchers are IMPLEMENTED / NOT VALIDATED, not a generic agent)
+- Knowledge Graph product / Neo4j (E.1 is a relational index; E.2 external watchers are not a generic agent)
 - Wake word
 - Real-time WebSocket/SSE for scheduler events
 - Telegram Voice Input live Owner checklist (code shipped)
-- Phase C.1 live Owner checklist (code shipped; not MANUAL PASS)
 - Phase C.2 Beta live Owner A/B (code shipped; not MANUAL PASS; do not remove Рация)
 - Historical async retry/prune (classified; Owner decides)
+- External watcher campaigns (Gmail / Calendar / GitHub) and proposed-action → confirmation → external write
+- DST / timezone edge cases
+- Destructive Storage edge cases
+- Full IDOR / security campaign
+- Optional future integrations
 
-Live campaigns: [DEFERRED_VALIDATION.md](DEFERRED_VALIDATION.md). Core Reliability is IMPLEMENTED; historical failures CLASSIFIED.
+Live campaigns still open: [DEFERRED_VALIDATION.md](DEFERRED_VALIDATION.md). Core Reliability is IMPLEMENTED; historical failures CLASSIFIED.

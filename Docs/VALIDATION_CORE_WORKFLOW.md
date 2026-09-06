@@ -1,10 +1,13 @@
 # Validation Campaign — Core Daily Workflow
 
-**Status:** IN PROGRESS — Scenarios 1–7 run by the Owner, Scenario 8 hit a live bug and is
-READY FOR REVALIDATION (see [Scenario 8.1](#scenario-81--overview-revalidation-after-the-live-bug)),
-Scenarios 9–10 paused.
+**Status:** COMPLETE — **MANUAL PASS 10/10**. Owner ran a clean repeat campaign in chat
+**Validation Core 2**. Scenarios 1–10 all PASS. This is a pass of the tested core daily chain,
+not of every subsystem edge case. See [CURRENT_STATE.md](CURRENT_STATE.md) and
+[DEFERRED_VALIDATION.md](DEFERRED_VALIDATION.md).
+**Closed:** 2026-09-07
 **Prepared:** 2026-09-06
 **Surface:** Owner Personal Workspace — https://jarvis.owlsolutions.net/jarvis
+**Fix commit for the first Scenario 8 LIVE FAIL:** `bcca7ca8ea72181cb6414b2f9d3102178b8b6c63`
 **Prepared at HEAD:** see [Cursor_Work_Report.md](Development/Cursor_Work_Report.md)
 
 This is a **product validation** runbook, not a feature plan. Nothing new is being built. The question this
@@ -39,8 +42,9 @@ Conversation → Task → Reminder → Watcher → Knowledge → Synthesis → O
 passing this campaign does **not** validate any of them:
 
 Gmail live · Google Calendar live · GitHub live · ElevenLabs realtime («Диалог Beta») · Telegram Groups ·
-destructive Storage delete · historical retry/prune · Mobile · external watcher polling adapters (Gmail /
-Calendar / GitHub sources).
+external watcher campaigns · external watcher proposed action → confirmation → external write ·
+DST/timezone edge cases · destructive Storage · historical retry/prune · full IDOR/security campaign ·
+Mobile / Client API · optional future integrations.
 
 ---
 
@@ -82,16 +86,16 @@ Cursor fills nothing but the first three columns. `Owner result` and `Notes` are
 
 | # | Scenario | Subsystems | Status | Owner result | Notes |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Conversation continuity | Conversation Engine, C.1, Tasks, live refresh | READY | | |
-| 2 | Task + Reminder | Tasks, Reminders, C.1 references, timezone | READY | | |
-| 3 | Internal watcher | Watchers E.2 (task source), C.1 routing | READY | | |
-| 4 | Knowledge | Knowledge E.1, async extraction, provenance | READY | | |
-| 5 | Synthesis | Synthesis E.3, project status, grounding | READY | | |
-| 6 | Waiting / commitments | Synthesis E.3, Knowledge, person resolution | MANUAL PASS | MANUAL PASS | Owner: correct facts, technical wording. Presentation reworked afterwards — reread the answer during the Scenario 8 revalidation. |
-| 7 | State change | Tasks, Reminders, Watchers, Synthesis, cache | MANUAL PASS | MANUAL PASS | Owner confirmed the completion semantics. Force-completing a parent left a live subtask; the UI no longer offers that path. |
-| 8 | Overview | Overview panel, Synthesis, ownership | READY FOR REVALIDATION | LIVE BUG | Stale Overview after Scenario 7. Root cause fixed; §8.1 below is the exact recheck. |
-| 9 | Memory vs Knowledge | Memory, Knowledge, context budget | PAUSED | | Owner paused 9–10 until Scenario 8 is revalidated. |
-| 10 | Chat delete | Workspace delete contract, E.1–E.3 regression | PAUSED | | Owner paused 9–10 until Scenario 8 is revalidated. |
+| 1 | Conversation continuity | Conversation Engine, C.1, Tasks, live refresh | MANUAL PASS | MANUAL PASS | Validation Core 2. Continuation / reference / subtask. |
+| 2 | Task + Reminder | Tasks, Reminders, C.1 references, timezone | MANUAL PASS | MANUAL PASS | Create/update reminder. |
+| 3 | Internal watcher | Watchers E.2 (task source), C.1 routing | MANUAL PASS | MANUAL PASS | Internal task watcher only. |
+| 4 | Knowledge | Knowledge E.1, async extraction, provenance | MANUAL PASS | MANUAL PASS | Tested core flow, not all Knowledge edge cases. |
+| 5 | Synthesis | Synthesis E.3, project status, grounding | MANUAL PASS | MANUAL PASS | Tested core synthesis. |
+| 6 | Waiting / commitments | Synthesis E.3, Knowledge, person resolution | MANUAL PASS | MANUAL PASS | Waiting / explicit commitments. |
+| 7 | State change | Tasks, Reminders, Watchers, Synthesis, cache | MANUAL PASS | MANUAL PASS | Task → Reminder → Watcher → Synthesis. |
+| 8 | Overview | Overview panel, Synthesis, ownership, presentation | MANUAL PASS | MANUAL PASS | First run LIVE FAIL; `bcca7ca` fixed stale derived state + wording; Validation Core 2 PASS. Workspace Presentation MANUAL PASS. |
+| 9 | Memory vs Knowledge | Memory, Knowledge, context budget | MANUAL PASS | MANUAL PASS | Layers stay separate. |
+| 10 | Chat delete | Workspace delete contract, E.1–E.3 regression | MANUAL PASS | MANUAL PASS | Durable Tasks / Knowledge / Memory survive. |
 
 Statuses: `READY` → `MANUAL PASS` / `MANUAL PARTIAL` / `LIVE BUG` → `READY FOR REVALIDATION`.
 
@@ -501,7 +505,7 @@ Undo whatever you toggled in the second half of this scenario.
 
 ## Scenario 8.1 — OVERVIEW REVALIDATION (after the live bug)
 
-**Status:** LIVE BUG / READY FOR REVALIDATION. This scenario is **not** PASS.
+**Status:** MANUAL PASS on campaign **Validation Core 2** (2026-09-07), after the first-run LIVE FAIL.
 
 **What the Owner saw**
 After Scenario 7 completed the build task and its subtask, cancelled the linked reminder and
@@ -515,7 +519,13 @@ resolved the one-shot watcher, chat synthesis was correct but **Обзор** sti
 **What was fixed**
 Derived slices now ask the task table instead of trusting the knowledge graph, one semantic
 event produces one card, and every user-facing string goes through the presentation layer
-described in [WORKSPACE_PRESENTATION.md](WORKSPACE_PRESENTATION.md).
+described in [WORKSPACE_PRESENTATION.md](WORKSPACE_PRESENTATION.md). Shipped in
+`bcca7ca8ea72181cb6414b2f9d3102178b8b6c63`.
+
+**Revalidation result**
+Owner repeated the chain on a clean chat **Validation Core 2**. Scenario 8 is **MANUAL PASS**.
+Workspace Presentation is **MANUAL PASS** after that live revalidation. This does not claim
+every Overview edge case outside the campaign.
 
 **Owner action**
 Repeat Scenario 7 on a fresh pair (a parent task with one subtask, a reminder on the subtask,
@@ -709,16 +719,21 @@ Nothing here requires a command line, and nothing here should be done by Cursor.
 
 ## 17. What a full pass does and does not close
 
-If every scenario is MANUAL PASS, the following may move out of the deferred backlog — **only these**:
+Every scenario is MANUAL PASS on Validation Core 2. The following leave the deferred backlog **only
+for the flows actually exercised** — not as “all edge cases validated”:
 
-- B.2 core productivity flow (Tasks / Reminders / Notification Center) as exercised above
+- B.2 core productivity flow (Tasks / Reminders) as exercised above
 - E.1 core Knowledge flow (explicit fact → async extraction → retrieval → provenance)
 - E.2 internal watcher flow (task/time source only)
 - E.3 synthesis core flow (project status, waiting-for, commitments, recent changes, Overview)
-- the specific C.1 behaviours exercised in Scenarios 1–2 (pronoun resolution, temporary style, no id guessing)
+- the specific C.1 behaviours exercised in Scenarios 1–2 (continuation, reference resolution, clarification; no id guessing)
+- Workspace Presentation as exercised in Scenario 8 revalidation
 
-Everything else stays deferred, including: external watcher campaigns (Gmail / Calendar / GitHub), C.2
-realtime voice, Google and GitHub live campaigns, Telegram Groups, DST and recurrence edge cases, destructive
-Storage, historical retry/prune, Mobile, and the two-user IDOR campaign.
+Everything else stays deferred, including: ElevenLabs realtime Диалог Beta (C.2), external watcher
+campaigns, Gmail live validation, Google Calendar live validation, GitHub live validation (no
+separate confirmed manual campaign), Telegram Groups, external watcher proposed action →
+confirmation → external write, DST/timezone edge cases, destructive Storage edge cases,
+historical retry/prune campaign, full IDOR/security campaign, Mobile / Client API, and optional
+future integrations.
 
 See [DEFERRED_VALIDATION.md](DEFERRED_VALIDATION.md).

@@ -4,7 +4,9 @@
 
 Это не маркетинговый буклет и не техническая документация разработчика. Цель — понять, **что это**, **зачем**, **как пользоваться каждый день**, и **где границы**.
 
-Статус функций ниже отражает фактическое состояние на **6 сентября 2026**. Если код и старые описания расходятся, верны код и [CURRENT_STATE.md](CURRENT_STATE.md).
+Статус функций ниже отражает фактическое состояние на **7 сентября 2026**. Если код и старые описания расходятся, верны код и [CURRENT_STATE.md](CURRENT_STATE.md).
+
+Core Daily Workflow (чистый повтор **Validation Core 2**): **MANUAL PASS 10/10**. Это проверенная ежедневная цепочка, не закрытие всех edge cases подсистем.
 
 > **Как читать статусы.**  
 > **MANUAL PASS** — Owner проверил в живой системе.  
@@ -69,13 +71,13 @@ ChatGPT — модель в окне чата. Jarvis — система вок�
 - **список разговоров** слева (можно завести несколько тем)
 - **текущий чат** в центре
 - **голос** — переключение Text / Voice
-- **Обзор** — компактная картина дня: внимание, ожидания, недавние изменения (**IMPLEMENTED / NOT VALIDATED**)
+- **Обзор** — компактная картина дня: внимание, ожидания, недавние изменения (**MANUAL PASS** для проверенного core flow после Validation Core 2 / Scenario 8; не все edge cases)
 - **Задачи**, **Напоминания**, **Автоматизации** (watchers), **Уведомления**
 - **Настройки**: профиль, ассистент, Memory, Knowledge, продуктивность, голос, интеграции
 
 Memory, Knowledge и интеграции **не** висят отдельными гигантскими экранами на главной. Они живут в Настройках (плюс карточки сущностей в Knowledge).
 
-Удаление чата: меню у разговора → подтверждение. Удаляется этот чат и его сообщения. Задачи, напоминания, память, Knowledge и постоянные файлы **не** стираются.
+Удаление чата: меню у разговора → подтверждение. Удаляется этот чат и его сообщения. Задачи, напоминания, память, Knowledge и постоянные файлы **не** стираются. Owner подтвердил это в Core Daily Workflow Scenario 10: **MANUAL PASS** для проверенной семантики.
 
 ### Owner и обычный пользователь
 
@@ -94,7 +96,7 @@ Owner в чужом Personal Workspace **не** обходит владение:
 
 ## 3. Как работает чат
 
-Разговоры постоянные. Можно держать несколько чатов («Основной», «YFS», «Знакомство»). Jarvis понимает продолжение темы в текущем чате, помнит недавние ссылки на задачи / людей / проекты и умеет искать старое через summaries и поиск истории. Неоднозначные опасные действия он не угадывает.
+Разговоры постоянные. Можно держать несколько чатов («Основной», «YFS», «Знакомство»). Jarvis понимает продолжение темы в текущем чате, помнит недавние ссылки на задачи / людей / проекты и умеет искать старое через summaries и поиск истории. Неоднозначные опасные действия он не угадывает. Проверенное поведение continuation / reference / clarification: **MANUAL PASS** в Core Daily Workflow. Это не полное покрытие всей Conversation Intelligence.
 
 Путь одного сообщения:
 
@@ -185,9 +187,9 @@ Knowledge хранит:
 
 Это **не** CRM-книга контактов и не полный граф всей жизни. Нет массового сканирования почты «на всякий случай». Люди не выдумываются. Чувствительные поля вроде религии или здоровья не ведутся.
 
-Статус слоя: **IMPLEMENTED / NOT VALIDATED**.
+Статус слоя: **MANUAL PASS** для проверенного core flow (явный факт → извлечение → retrieval между чатами → provenance). Не все edge cases Knowledge.
 
-Над Knowledge есть ещё **синтез** (Phase E.3, тоже **IMPLEMENTED / NOT VALIDATED**): ответ на «что сейчас по YFS?» собирается из задач, знаний, watchers, напоминаний — не просто список поисковых хитов. Это производный взгляд, не вторая база.
+Над Knowledge есть ещё **синтез** (Phase E.3, **MANUAL PASS** для проверенного core synthesis / Overview / waiting / state-change): ответ на «что сейчас по YFS?» собирается из задач, знаний, watchers, напоминаний — не просто список поисковых хитов. Это производный взгляд, не вторая база.
 
 ---
 
@@ -215,7 +217,7 @@ Task = работа, которую нужно сделать.
 
 Центр **Задачи**: Просрочено / Сегодня / Предстоящие / Без срока / Выполненные.
 
-Статус: **IMPLEMENTED / NOT VALIDATED**.
+Статус core Task Center (создание, подзадача, закрытие, связь с напоминанием) в Core Daily Workflow: **MANUAL PASS**. Briefs, proactive и Notification Center как полный продукт — **IMPLEMENTED / NOT VALIDATED**.
 
 ---
 
@@ -264,7 +266,7 @@ Watcher **не** отправляет Gmail, не пишет в Calendar и не
 
 Обычный пользователь: внутренние источники (задачи, напоминания, Knowledge). Gmail/Calendar/GitHub-watchers — Owner.
 
-Статус: **IMPLEMENTED / NOT VALIDATED**. Jarvis может **предложить** поставить watcher («ты часто ждёшь ответы Apple»), но не создаёт его сам.
+Статус: **MANUAL PASS** для внутреннего task watcher flow в Core Daily Workflow. Внешние интеграции (Gmail / Calendar / GitHub) и цепочка proposed action → confirmation → external write остаются **IMPLEMENTED / NOT VALIDATED**. Jarvis может **предложить** поставить watcher («ты часто ждёшь ответы Apple»), но не создаёт его сам.
 
 ---
 
@@ -503,7 +505,7 @@ Jarvis **не** отправляет модели всю историю цели
 
 > Что сейчас по YFS?
 
-→ Синтез: открытые задачи, недавние события, ожидания, блокеры. **IMPLEMENTED / NOT VALIDATED.** Для Owner.
+→ Синтез: открытые задачи, недавние события, ожидания, блокеры. **MANUAL PASS** для проверенного core synthesis в Core Daily Workflow; не все edge cases. Для Owner.
 
 **E. Люди**
 
@@ -594,7 +596,7 @@ Jarvis готовит отправку и **спрашивает подтвер�
 - wake word
 - realtime-стрим планировщика в браузер (события приходят при открытии, Push или навигации)
 
-Phase E (Knowledge + Watchers + Synthesis) в коде есть, **как целое не закрыта** и не прошла живую валидацию Owner’ом.
+Phase E (Knowledge + Watchers + Synthesis) в коде есть. Проверенный core flow каждого слоя — **MANUAL PASS** в Core Daily Workflow. Слой **как целое** (все edge cases, внешние watchers, live Gmail/Calendar/GitHub) **не** закрыт.
 
 ---
 
@@ -612,13 +614,16 @@ Phase E (Knowledge + Watchers + Synthesis) в коде есть, **как цел
 | Онбординг — полное прохождение / смена профиля | IMPLEMENTED | NOT VALIDATED | |
 | Telegram Voice Input (voice note → STT) | IMPLEMENTED | NOT VALIDATED | группы: заглушка `[voice]` |
 | Диалог Beta (ElevenLabs realtime) | IMPLEMENTED, флаг | NOT VALIDATED | Рация не удаляется |
-| Conversation Intelligence (продолжение темы, не угадывать id) | IMPLEMENTED | NOT VALIDATED | |
-| Tasks, Notification Center, briefs, proactive | IMPLEMENTED | NOT VALIDATED | briefs/proactive по умолчанию выкл |
-| Knowledge Layer | IMPLEMENTED | NOT VALIDATED | не CRM |
-| Watchers | IMPLEMENTED | NOT VALIDATED | без тихих внешних write |
-| Синтез («что по YFS») | IMPLEMENTED | NOT VALIDATED | без опроса интеграций |
+| Conversation Intelligence (продолжение темы, не угадывать id) | IMPLEMENTED | **MANUAL PASS** (tested continuation / reference / clarification) | не всё покрытие C.1 |
+| Tasks core chain (задача, подзадача, reminder, state change) | IMPLEMENTED | **MANUAL PASS** | Core Daily Workflow |
+| Notification Center, briefs, proactive | IMPLEMENTED | NOT VALIDATED | briefs/proactive по умолчанию выкл |
+| Knowledge Layer | IMPLEMENTED | **MANUAL PASS** (tested core flow) | не все edge cases; не CRM |
+| Watchers — internal task flow | IMPLEMENTED | **MANUAL PASS** | внешние интеграции deferred |
+| Watchers — Gmail / Calendar / GitHub; proposed action → write | IMPLEMENTED | NOT VALIDATED | без тихих внешних write |
+| Синтез / Обзор («что по YFS», waiting, state-change) | IMPLEMENTED | **MANUAL PASS** (tested core flow) | без опроса интеграций |
+| Workspace Presentation (человеческий язык панелей) | IMPLEMENTED | **MANUAL PASS** | после revalidation Scenario 8 |
 | Gmail / Calendar | IMPLEMENTED | NOT VALIDATED | Owner; нет Drive |
-| GitHub | IMPLEMENTED | NOT VALIDATED | Owner; нет merge |
+| GitHub | IMPLEMENTED | NOT VALIDATED | Owner; нет merge; отдельной manual campaign нет |
 | Telegram Groups analysis | IMPLEMENTED | NOT VALIDATED | Owner |
 | Tavily / fetch страницы как отдельная проверка | IMPLEMENTED | NOT VALIDATED | |
 | Чистка скриншотов, деструктивный delete Storage | IMPLEMENTED | NOT VALIDATED | |
@@ -707,7 +712,7 @@ Phase E (Knowledge + Watchers + Synthesis) в коде есть, **как цел
 2. Написать обычный вопрос в чат — это главный способ работы.
 3. Попробовать задачу и напоминание словами, как в §20.
 4. Открыть Настройки → Ассистент / Memory / Knowledge.
-5. Owner: не считать Gmail/GitHub «проверенными в бою», пока в таблице §23 стоит NOT VALIDATED.
+5. Owner: не считать Gmail/Calendar/GitHub «проверенными в бою», пока в таблице §23 стоит NOT VALIDATED. Core Daily Workflow 10/10 — это ежедневная цепочка, не все интеграции.
 6. Не ждать Desktop и не ждать, что Jarvis сам отправит письмо.
 
 Для разработчика дальше: [CURRENT_STATE.md](CURRENT_STATE.md), [Docs/README.md](README.md).
