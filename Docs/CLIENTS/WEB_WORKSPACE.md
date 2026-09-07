@@ -105,8 +105,8 @@ Web inbound stays `channel=web` + client UUID idempotency. Channel is transport,
 | PATCH | `/jarvis/storage/{file}` | `jarvis.storage.update` rename |
 | DELETE | `/jarvis/storage/{file}` | `jarvis.storage.destroy` |
 | GET | `/jarvis/storage/{file}/download` | `jarvis.storage.download` |
-| POST | `/jarvis/confirmations/{confirmation}/confirm` | `jarvis.confirmations.confirm` |
-| POST | `/jarvis/confirmations/{confirmation}/cancel` | `jarvis.confirmations.cancel` |
+| POST | `/jarvis/confirmations/{confirmation}/confirm` | `jarvis.confirmations.confirm` (JSON; pending executes once; already resolved returns `already_resolved`) |
+| POST | `/jarvis/confirmations/{confirmation}/cancel` | `jarvis.confirmations.cancel` (JSON; duplicate cancel is `already_resolved`) |
 | PATCH | `/jarvis/settings/general-prompt` | `jarvis.settings.prompt.update` |
 | GET | `/jarvis/workspace/status` | `jarvis.workspace.status` (lightweight tasks/reminders/notifications counts; `/chat/workspace/status` mirror) |
 

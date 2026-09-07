@@ -1,6 +1,11 @@
 import SafeMarkdown from '@/Components/Jarvis/SafeMarkdown';
 import JarvisWorkspaceLayout from '@/Layouts/JarvisWorkspaceLayout';
 import { workspaceRoute } from '@/personal-workspace/named';
+import {
+    isActionableConfirmation,
+    resolvedConfirmationCopy,
+    withConfirmationState,
+} from '@/personal-workspace/confirmationState';
 import RemindersPanel from '@/personal-workspace/RemindersPanel';
 import TasksPanel from '@/personal-workspace/TasksPanel';
 import WatchersPanel from '@/personal-workspace/WatchersPanel';
@@ -594,7 +599,7 @@ export default function PersonalWorkspace() {
     const applyTurnPayload = (payload, optimisticId, clientMessageId) => {
         setMessages((current) => {
             const withoutOptimistic = current.filter((item) => item.id !== optimisticId);
-            const next = [...withoutOptimistic];
+            let next = withConfirmationState(withoutOptimistic, payload.confirmation);
 
             if (payload.inbound && !next.some((item) => Number(item.id) === Number(payload.inbound.id))) {
                 next.push(withStatus(payload.inbound, 'completed'));
@@ -909,7 +914,20 @@ export default function PersonalWorkspace() {
             });
             const payload = await response.json().catch(() => ({}));
 
+            if (payload.already_resolved && payload.confirmation) {
+                setMessages((current) => withConfirmationState(current, payload.confirmation));
+                return;
+            }
+
             if (!response.ok) {
+                if (response.status === 404 || response.status === 409) {
+                    setMessages((current) => withConfirmationState(current, {
+                        id: confirmationId,
+                        status: 'expired',
+                    }));
+                    return;
+                }
+
                 throw new Error(payload.message || 'Confirmation could not be processed.');
             }
 
@@ -1456,7 +1474,8 @@ export default function PersonalWorkspace() {
 
     const pendingVoiceConfirmation = [...messages]
         .reverse()
-        .find((item) => item?.pending_confirmation?.id)?.pending_confirmation ?? null;
+        .find((item) => isActionableConfirmation(item?.pending_confirmation))
+        ?.pending_confirmation ?? null;
 
     return (
         <div onClick={closeOverlaysFromBackdrop}>
@@ -1904,9 +1923,16 @@ function ExpiredScreenshotCard({ attachment }) {
 
 function ConfirmationCard({ pending, sending, onConfirm, onCancel }) {
     const preview = pending.preview || {};
+    const actionable = isActionableConfirmation(pending);
+    const resolvedCopy = resolvedConfirmationCopy(pending);
 
     return (
-        <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/5 p-3">
+        <div className={`mt-3 rounded-xl border p-3 ${
+            actionable
+                ? 'border-amber-400/20 bg-amber-400/5'
+                : 'border-white/10 bg-white/5'
+        }`}
+        >
             <p className="text-[11px] uppercase tracking-[0.14em] text-amber-200/80">{providerLabel(pending.tool_name)}</p>
             {pending.summary ? <p className="mt-1 text-sm text-slate-200">{pending.summary}</p> : null}
             {preview.to?.length ? <p className="mt-2 text-xs text-slate-400">To: {preview.to.join(', ')}</p> : null}
@@ -1922,28 +1948,33 @@ function ConfirmationCard({ pending, sending, onConfirm, onCancel }) {
                         {key.replaceAll('_', ' ')}: {String(value)}
                     </p>
                 ))}
-            {pending.expires_at ? (
+            {actionable && pending.expires_at ? (
                 <p className="mt-2 text-[11px] text-slate-500">Expires {formatWhen(pending.expires_at)}</p>
             ) : null}
-            <div className="mt-3 flex gap-2">
-                <button
-                    type="button"
-                    disabled={sending}
-                    onClick={onConfirm}
-                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/90 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-400 disabled:opacity-60"
-                >
-                    <Check className="h-3.5 w-3.5" />
-                    Confirm
-                </button>
-                <button
-                    type="button"
-                    disabled={sending}
-                    onClick={onCancel}
-                    className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/5 disabled:opacity-60"
-                >
-                    Cancel
-                </button>
-            </div>
+            {resolvedCopy ? (
+                <p className="mt-2 text-xs font-medium text-slate-300">{resolvedCopy}</p>
+            ) : null}
+            {actionable ? (
+                <div className="mt-3 flex gap-2">
+                    <button
+                        type="button"
+                        disabled={sending}
+                        onClick={onConfirm}
+                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/90 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-400 disabled:opacity-60"
+                    >
+                        <Check className="h-3.5 w-3.5" />
+                        Confirm
+                    </button>
+                    <button
+                        type="button"
+                        disabled={sending}
+                        onClick={onCancel}
+                        className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/5 disabled:opacity-60"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            ) : null}
         </div>
     );
 }

@@ -4,6 +4,7 @@ namespace App\Services\Conversations;
 
 use App\Enums\MessageChannel;
 use App\Models\Conversation;
+use App\Models\ToolConfirmation;
 use App\Models\User;
 use App\Services\Assistant\AssistantProfileService;
 use App\Services\ChatAttachments\Exceptions\ChatAttachmentException;
@@ -220,24 +221,59 @@ final class PersonalChatSurfaceService
         }
 
         $conversation = $this->conversations->ensureOwned($user, (int) $row->conversation_id);
-        $pending = $this->confirmations->findOwnedPending($user, $conversation, $publicId);
+        $this->confirmations->expireStale($user, $conversation);
+        $row = $row->fresh() ?? $row;
 
-        if ($pending === null || ! $pending->isPending()) {
-            abort(404);
+        if (! $row->isPending()) {
+            return $this->alreadyResolvedPayload($row, $conversation);
         }
 
         $latest = $this->confirmations->latestPending($user, $conversation);
 
-        if ($latest === null || $latest->public_id !== $pending->public_id) {
-            abort(409, 'This confirmation is no longer the active pending action.');
+        if ($latest === null || $latest->public_id !== $row->public_id) {
+            return $this->alreadyResolvedPayload($row, $conversation);
         }
 
-        return $this->sendTurn(
+        $payload = $this->sendTurn(
             $user,
             $conversation,
             $confirm ? 'да' : 'отмена',
             $clientMessageId,
         );
+        $resolved = $this->confirmations->findOwnedByPublicId($user, $publicId) ?? $row;
+        $payload['already_resolved'] = false;
+        $payload['confirmation'] = $this->history->confirmationCard(
+            $resolved->public_id,
+            null,
+            $resolved,
+        );
+
+        return $payload;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function alreadyResolvedPayload(ToolConfirmation $row, Conversation $conversation): array
+    {
+        $fresh = $conversation->fresh() ?? $conversation;
+        $fresh->loadMissing('user');
+
+        return [
+            'already_resolved' => true,
+            'confirmation' => $this->history->confirmationCard($row->public_id, null, $row),
+            'inbound' => null,
+            'assistant' => null,
+            'error' => null,
+            'duplicate' => false,
+            'conversation' => [
+                'id' => $fresh->id,
+                'title' => $fresh->title,
+                'last_activity_at' => optional($fresh->last_activity_at)?->toIso8601String(),
+            ],
+            'assistant_profile' => $this->assistantProfiles->workspacePayload($fresh->user),
+            ...$this->workspaceState->turnCounts($fresh->user),
+        ];
     }
 
     /**

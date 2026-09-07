@@ -228,6 +228,8 @@ Code: Google OAuth (Gmail + Calendar tools; **no Drive**), GitHub OAuth + tools,
 
 Google OAuth **client** configuration (Client ID / Client Secret / Redirect URI) can be managed in Admin → Settings → Integrations → Google. Stored in `google_oauth_settings`; Client Secret encrypted at rest. DB overrides `.env`; `.env` remains fallback. OAuth **account** tokens stay separately encrypted in `integration_accounts`. Admin save is **READY FOR OWNER VALIDATION**, not MANUAL PASS. Cursor did not Connect Google or call Gmail/Calendar.
 
+**Gmail read/send (Owner live):** read/send flow was Owner-tested. After a successful confirmed send, Voice mode still showed the same confirmation card (stale `pending_confirmation` on the historical message; overlay selected any id). That is a **LIVE BUG** in confirmation presentation, not in Gmail send itself. Cross-mode confirmation lifecycle fix is **READY FOR OWNER REVALIDATION**. Do **not** mark Gmail confirmation **MANUAL PASS** until Owner rechecks Text → Voice after confirm/cancel/expiry.
+
 ---
 
 ## 10. What is not here

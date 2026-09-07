@@ -1,110 +1,87 @@
-# Google Admin Configuration
+# Cross-mode Confirmation Lifecycle Fix
 
 ## Starting HEAD
 
-`5456841dcc85c29dc588e3481265db4ecab24ef6`, equal to `origin/main` at the start of this task.
-
-Working tree was not clean (unrelated WIP from a previous session). That WIP was left unstaged and is not part of this commit.
+`40ecc57a6a9d5651e40bb3d934c9d74a07d1362d` (`feat: add admin google oauth configuration`), equal to `origin/main` at the start of this task.
 
 Branch `main`. No dependency changes.
 
-## Existing Google configuration architecture
+## Owner live bug
 
-Google OAuth client ID, secret, and optional redirect URI were read only from `config/integrations.php` → `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`).
+Owner created a Gmail send action. Jarvis showed a confirmation card. Owner confirmed in Text chat. The email sent. After switching to Voice, the same card stayed on top: Cancel did nothing useful, Confirm hit a backend error because the action was already resolved.
 
-`GoogleOAuthService::isConfigured()` required both ID and secret. Missing env → Admin card **Not configured**, diagnostic **Google client configuration is missing.**, Connect Google disabled.
+## Root cause
 
-Connected Google **accounts** (access/refresh tokens) were already encrypted on `integration_accounts`. That path is unchanged.
+Workspace Voice overlay selected the latest message with `pending_confirmation.id` and ignored confirmation status. Message metadata keeps the original confirmation snapshot after execute. Serializer emitted that snapshot without live `tool_confirmations.status`. Local `messages` were not patched after Confirm/Cancel, so Text → Voice reused a stale actionable card.
 
-## Existing secure settings pattern
+HTTP `resolveConfirmation` aborted 404/409 on a non-pending row, so a second Confirm surfaced as an error instead of a quiet already-resolved response.
 
-Singleton Admin settings tables with Laravel `encrypted` casts and DB-over-env precedence:
+## Confirmation lifecycle
 
-- `voice_settings.elevenlabs_api_key`
-- `web_research_settings.tavily_api_key`
-- `ai_provider_settings.api_key`
+`pending` → `confirmed` / `executed` / `cancelled` / `expired`.
 
-Admin payloads expose `*_source` (`admin` / `env`) and never return the secret. Empty save keeps the stored secret. Env is not copied into the DB on page load.
+Only `pending` (and not past `expires_at`) is actionable in Text cards, Voice overlay, after mode switch, Inertia remount, or conversation refresh.
 
-## Storage decision
+## Frontend state fix
 
-New singleton table `google_oauth_settings` (same pattern as Voice / Web Research). No extra generic secrets system.
+`applyTurnPayload` / `resolveConfirmation` patch the matching message with the backend confirmation card (`status` included). `already_resolved` updates local state and does not append a turn or show a raw 409/422.
 
-Columns: `client_id`, encrypted `client_secret`, `redirect_uri`.
+Shared helper: `resources/js/personal-workspace/confirmationState.js`.
 
-## Encryption
+## Voice overlay fix
 
-`GoogleOAuthSetting::$casts['client_secret'] = 'encrypted'`. Attribute is `$hidden`. Raw DB ciphertext is not the plaintext secret.
+Overlay uses `isActionableConfirmation` (`status === 'pending'` and not expired). Resolved history never hangs at the top of Voice. Text and Voice share the same message list and the same confirmation id.
 
-OAuth user tokens remain in `integration_accounts.credentials_encrypted`. This work does not read or rewrite those rows.
+## Backend idempotency
 
-## Config precedence
+`PersonalChatSurfaceService::resolveConfirmation`:
 
-`GoogleOAuthSettingsService`:
+- unknown / foreign id → 404
+- pending and latest → existing `да` / `отмена` turn (exactly-once execute via `ToolConfirmationService`)
+- already executed / cancelled / expired / superseded → HTTP 200 `{ already_resolved: true, confirmation }` with no second sendTurn and no external write
 
-1. Admin DB value if present
-2. `config('integrations.google.*')` / `.env`
-3. Redirect URI default: `rtrim(APP_URL) + /integrations/google/callback`
+`MessageHistoryService` hydrates live status (batch lookup on history pages).
 
-DB values work at runtime even when Laravel config is cached. `.env` support is not removed. Existing env secrets are not migrated into the DB automatically.
+## Expired state
 
-## GoogleOAuthService changes
+Serializer and overlay treat past `expires_at` as `expired` without polling. Confirm/cancel after expiry return `already_resolved` and do not execute.
 
-Injects `GoogleOAuthSettingsService`. `isConfigured()`, `clientId()`, `clientSecret()`, `redirectUri()` go through that single source. No Google HTTP on save or on Integrations page load.
+## External-action safety
 
-## Admin UI changes
-
-Settings → Integrations → Overview → Google:
-
-- OAuth client vs Account status lines
-- Badge: Not configured / Configured / Connected
-- Google Configuration form: Client ID, Client Secret (password), Redirect URI (empty uses effective default as hint)
-- Save Google configuration → `POST /settings/integrations/google`
-
-Connect Google remains disabled until Client ID + Secret exist.
-
-## Security / permissions
-
-Same `integrations_admin` gate as other integration settings. Ordinary users get 403. Guests redirect to login. Save is throttled `10,1`.
-
-## Secret handling
-
-Client Secret is never in Inertia props, HTML, logs, flash, or this report. UI shows `••••••••••••` + “Secret saved” or “Using deployment configuration”. Blank secret on Save does not clear storage. No Remove-secret action (replace-only).
-
-## Validation
-
-Client ID: nullable string, max 255. Client Secret: nullable, min 8 if present, max 512. Redirect URI: nullable, max 2048, https required; http only for localhost / 127.0.0.1. No remote Google validation on Save.
-
-## Backward compatibility
-
-`.env` fallback kept. Existing Google OAuth connect/callback/token refresh unchanged aside from where client credentials are read.
+`executeConfirmed` lock and one-time `Executed` status are unchanged. Duplicate HTTP Confirm cannot reach a second Gmail send. No live Gmail/Google calls were made for this fix. Production confirmation rows were not edited by hand.
 
 ## Files changed
 
-Model, migration, settings service, settings controller, OAuth service, Google provider status, Integrations payload/UI, routes, docs, tests (authored, not executed).
-
-## Static checks
-
-`php -l` on touched PHP, `vendor/bin/pint --dirty --format agent`, `composer validate`, `npm run build`, `git diff --check`, `php artisan route:list` (google settings route), `php artisan migrate:status` / `migrate --force` for the new table.
+- `app/Services/Conversations/MessageHistoryService.php`
+- `app/Services/Conversations/PersonalChatSurfaceService.php`
+- `app/Services/Conversations/ConversationAiService.php` (snapshot includes `status`)
+- `resources/js/personal-workspace/confirmationState.js`
+- `resources/js/personal-workspace/PersonalWorkspace.jsx`
+- `resources/js/Pages/Cabinet/Chat.jsx`
+- tests (authored, not executed)
+- docs: CURRENT_STATE, INTEGRATIONS, CONVERSATION_ENGINE, WEB_WORKSPACE, this report
 
 ## Tests authored but NOT executed
 
-`tests/Feature/GoogleOAuthSettingsTest.php` plus restore helpers in existing Google OAuth/Calendar/Gmail tests so config() fallback still works if the suite is run later. **Not run on this production server.**
+- `tests/Feature/Http/Controllers/Jarvis/JarvisConfirmationControllerTest.php` — duplicate confirm, duplicate cancel, expired confirm, foreign 404, guest
+- `tests/Unit/Conversations/MessageHistoryConfirmationTest.php` — serializer executed vs pending; expired snapshot
+- `tests/Unit/WorkspaceConfirmationLifecycleTest.php` — Voice selector requires pending status
 
-## Manual validation steps
+`php artisan test` / phpunit / Pest were not run.
 
-Owner only, no Cursor Connect:
+## Static checks
 
-1. Admin → Settings → Integrations → Google
-2. Enter Client ID and Client Secret
-3. Save Google configuration
-4. Reload
-5. Secret not displayed (•••• / Secret saved)
-6. Status Configured
-7. Connect Google active
+`php -l` on touched PHP, `vendor/bin/pint --dirty`, `composer validate`, `npm run build`, `git diff --check`, `php artisan route:list` (confirm/cancel routes).
 
-READY FOR OWNER VALIDATION. Not MANUAL PASS. Live Google OAuth was not started.
+## Owner revalidation steps
+
+1. Create a Gmail send confirmation in Text.
+2. Confirm. Card should become non-actionable (“Письмо отправлено”).
+3. Switch to Voice: no overlay card.
+4. Switch back to Text: still no Confirm/Cancel.
+5. Repeat with Cancel and with waiting past Expires.
+6. A second Confirm on a resolved card must not send another email and must not show a raw error.
 
 ## Production safety
 
-No Connect Google. No Gmail/Calendar requests. No edits to `integration_accounts` tokens. Unrelated dirty WIP was not committed.
+No phpunit. No live Google HTTP from Cursor. No manual updates to production `tool_confirmations`. Gmail confirmation is **READY FOR OWNER REVALIDATION**, not MANUAL PASS.

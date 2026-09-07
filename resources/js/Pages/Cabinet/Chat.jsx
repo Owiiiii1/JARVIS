@@ -2,6 +2,10 @@ import CabinetLayout from '@/Layouts/CabinetLayout';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Loader2, Pencil, Send } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import {
+    isActionableConfirmation,
+    resolvedConfirmationCopy,
+} from '@/personal-workspace/confirmationState';
 
 function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
@@ -399,7 +403,7 @@ function Bubble({ message, time, sending = false, onConfirm, onCancel }) {
                         ) : null}
                     </div>
                 ) : null}
-                {pending?.id && !mine ? (
+                {pending?.id && !mine && isActionableConfirmation(pending) ? (
                     <div className="mt-2 flex gap-2">
                         <button
                             type="button"
@@ -418,6 +422,9 @@ function Bubble({ message, time, sending = false, onConfirm, onCancel }) {
                             Cancel
                         </button>
                     </div>
+                ) : null}
+                {pending?.id && !mine && !isActionableConfirmation(pending) && resolvedConfirmationCopy(pending) ? (
+                    <p className="mt-2 text-xs font-medium text-slate-600">{resolvedConfirmationCopy(pending)}</p>
                 ) : null}
                 <p className={`mt-1 text-[11px] ${mine ? 'text-indigo-100' : 'text-slate-400'}`}>{time}</p>
             </div>
