@@ -96,6 +96,8 @@ Oversize / too long: short **text** error. Audio is not truncated. STT is not st
 
 Telegram `sendVoice` accepts OGG/OPUS, **MP3**, M4A. ElevenLabs returns MP3. HTTP multipart `sendVoice` via `TelegramBotManager` (no reply keyboard on the voice file). Fallback: one `sendMessage`. Canonical assistant text is never deleted.
 
+**Telegram TTS speed:** **IMPLEMENTED / READY FOR OWNER VALIDATION**. Admin → Voice/Speech → **Telegram TTS speed**. Default **1.15** (slightly faster than ElevenLabs 1.00). Range **0.70…1.20**. Applies only to generated Telegram voice replies. Web Voice / realtime unchanged.
+
 Outbound temp: `voice-outbound/` (deploy queue worker). Web inbound chunks still use `voice-temp/` (php-fpm).
 
 ---

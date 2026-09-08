@@ -8,12 +8,19 @@ use App\Models\AiProviderSetting;
 use App\Models\User;
 use App\Models\VoiceSetting;
 use App\Services\Ai\GeminiCredentialResolver;
+use App\Services\Voice\Contracts\ResolvesTelegramTtsSpeed;
 use App\Services\Voice\Contracts\ResolvesUserVoice;
 use App\Services\Voice\DTO\VoiceEffectiveSettings;
 use Illuminate\Support\Facades\Schema;
 
-final class VoiceSettingsService implements ResolvesUserVoice
+final class VoiceSettingsService implements ResolvesTelegramTtsSpeed, ResolvesUserVoice
 {
+    public const TELEGRAM_TTS_SPEED_DEFAULT = 1.15;
+
+    public const TELEGRAM_TTS_SPEED_MIN = 0.70;
+
+    public const TELEGRAM_TTS_SPEED_MAX = 1.20;
+
     public function __construct(
         private readonly GeminiCredentialResolver $geminiCredentials,
     ) {}
@@ -49,6 +56,10 @@ final class VoiceSettingsService implements ResolvesUserVoice
             $attributes['stt_model'] = $effective->sttModel !== '' ? $effective->sttModel : null;
         }
 
+        if ($this->hasTelegramTtsSpeedColumn()) {
+            $attributes['telegram_tts_speed'] = $this->telegramTtsSpeed();
+        }
+
         return VoiceSetting::query()->create($attributes);
     }
 
@@ -76,6 +87,24 @@ final class VoiceSettingsService implements ResolvesUserVoice
             elevenLabsVoiceId: $voiceId !== '' ? $voiceId : $this->fromConfig()->elevenLabsVoiceId,
             sttModel: $this->sttModelFromRecord($record, $provider),
         );
+    }
+
+    public function telegramTtsSpeed(): float
+    {
+        $raw = null;
+
+        if ($this->hasTelegramTtsSpeedColumn()) {
+            $record = $this->record();
+            if ($record !== null && $record->telegram_tts_speed !== null) {
+                $raw = $record->telegram_tts_speed;
+            }
+        }
+
+        if ($raw === null) {
+            $raw = config('voice.telegram_voice.tts_speed', self::TELEGRAM_TTS_SPEED_DEFAULT);
+        }
+
+        return $this->normalizeTelegramTtsSpeed($raw);
     }
 
     public function spokenStyleEnabled(): bool
@@ -244,6 +273,14 @@ final class VoiceSettingsService implements ResolvesUserVoice
             unset($attributes['stt_model']);
         }
 
+        if (array_key_exists('telegram_tts_speed', $attributes) && ! $this->hasTelegramTtsSpeedColumn()) {
+            unset($attributes['telegram_tts_speed']);
+        }
+
+        if (array_key_exists('telegram_tts_speed', $attributes)) {
+            $attributes['telegram_tts_speed'] = $this->normalizeTelegramTtsSpeed($attributes['telegram_tts_speed']);
+        }
+
         $record = $this->ensureRecord();
         $record->fill($attributes);
         $record->save();
@@ -306,6 +343,11 @@ final class VoiceSettingsService implements ResolvesUserVoice
             'elevenlabs_configured' => $elevenConfigured,
             'elevenlabs_key_source' => $this->elevenLabsKeySource(),
             'elevenlabs_voice_id' => $effective->elevenLabsVoiceId,
+            'telegram_tts_speed' => $this->telegramTtsSpeed(),
+            'telegram_tts_speed_min' => self::TELEGRAM_TTS_SPEED_MIN,
+            'telegram_tts_speed_max' => self::TELEGRAM_TTS_SPEED_MAX,
+            'telegram_tts_speed_step' => 0.05,
+            'telegram_tts_speed_default' => self::TELEGRAM_TTS_SPEED_DEFAULT,
             'realtime' => $this->realtimeAdminPayload(),
             'limits' => [
                 'max_audio_chunk_bytes' => (int) config('voice.max_audio_chunk_bytes'),
@@ -373,6 +415,33 @@ final class VoiceSettingsService implements ResolvesUserVoice
     private function hasSttModelColumn(): bool
     {
         return $this->tableReady() && Schema::hasColumn('voice_settings', 'stt_model');
+    }
+
+    private function hasTelegramTtsSpeedColumn(): bool
+    {
+        return $this->tableReady() && Schema::hasColumn('voice_settings', 'telegram_tts_speed');
+    }
+
+    private function normalizeTelegramTtsSpeed(mixed $value): float
+    {
+        if (is_string($value)) {
+            $value = trim($value);
+        }
+
+        if (! is_numeric($value)) {
+            return self::TELEGRAM_TTS_SPEED_DEFAULT;
+        }
+
+        $speed = (float) $value;
+
+        if (! is_finite($speed)) {
+            return self::TELEGRAM_TTS_SPEED_DEFAULT;
+        }
+
+        $min = (float) config('voice.telegram_voice.tts_speed_min', self::TELEGRAM_TTS_SPEED_MIN);
+        $max = (float) config('voice.telegram_voice.tts_speed_max', self::TELEGRAM_TTS_SPEED_MAX);
+
+        return round(min($max, max($min, $speed)), 2);
     }
 
     private function sttModelFromRecord(VoiceSetting $record, VoiceSttProvider $provider): string

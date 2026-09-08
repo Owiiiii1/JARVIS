@@ -21,6 +21,7 @@ export default function VoicePanel() {
         tts_provider: voice.tts_provider ?? 'none',
         spoken_style_enabled: Boolean(voice.spoken_style_enabled),
         stt_model: voice.stt_model ?? voice.stt_model_default ?? 'gemini-3.5-transcribe',
+        telegram_tts_speed: Number(voice.telegram_tts_speed ?? voice.telegram_tts_speed_default ?? 1.15),
     });
 
     const text = {
@@ -42,6 +43,8 @@ export default function VoicePanel() {
             geminiNoKey: 'No Voice/Speech Gemini API key field. Configure Gemini under AI provider credentials.',
             spoken: 'Spoken-style presentation hint',
             spokenHelp: 'Adds a bounded spoken-response hint. It is not a second personality prompt.',
+            telegramTtsSpeed: 'Telegram TTS speed',
+            telegramTtsSpeedHelp: 'Скорость голосовых ответов Jarvis в Telegram. 1.00 — обычная скорость ElevenLabs.',
             save: 'Save settings',
             sttConfigured: 'STT configured',
             ttsConfigured: 'TTS configured',
@@ -81,6 +84,8 @@ export default function VoicePanel() {
             geminiNoKey: 'Поля Gemini API key в Voice/Speech нет. Gemini настраивается в AI provider credentials.',
             spoken: 'Spoken-style presentation hint',
             spokenHelp: 'Ограниченная подсказка для устной речи. Это не второй personality prompt.',
+            telegramTtsSpeed: 'Telegram TTS speed',
+            telegramTtsSpeedHelp: 'Скорость голосовых ответов Jarvis в Telegram. 1.00 — обычная скорость ElevenLabs.',
             save: 'Save settings',
             sttConfigured: 'STT configured',
             ttsConfigured: 'TTS configured',
@@ -120,6 +125,8 @@ export default function VoicePanel() {
             geminiNoKey: 'Поля Gemini API key у Voice/Speech немає. Gemini налаштовується в AI provider credentials.',
             spoken: 'Spoken-style presentation hint',
             spokenHelp: 'Обмежена підказка для усного мовлення. Це не другий personality prompt.',
+            telegramTtsSpeed: 'Telegram TTS speed',
+            telegramTtsSpeedHelp: 'Скорость голосовых ответов Jarvis в Telegram. 1.00 — обычная скорость ElevenLabs.',
             save: 'Save settings',
             sttConfigured: 'STT configured',
             ttsConfigured: 'TTS configured',
@@ -253,8 +260,39 @@ export default function VoicePanel() {
                 </label>
                 <p className="text-xs text-slate-500">{t.spokenHelp}</p>
 
+                <div className="space-y-2">
+                    <label className="block text-sm text-slate-700" htmlFor="telegram-tts-speed">
+                        {t.telegramTtsSpeed}
+                    </label>
+                    <p className="text-xs text-slate-500">{t.telegramTtsSpeedHelp}</p>
+                    <div className="flex items-center gap-3">
+                        <input
+                            id="telegram-tts-speed"
+                            type="range"
+                            min={voice.telegram_tts_speed_min ?? 0.7}
+                            max={voice.telegram_tts_speed_max ?? 1.2}
+                            step={voice.telegram_tts_speed_step ?? 0.05}
+                            value={form.telegram_tts_speed}
+                            onChange={(event) => setForm((current) => ({
+                                ...current,
+                                telegram_tts_speed: Number(event.target.value),
+                            }))}
+                            className="w-full accent-slate-900"
+                        />
+                        <span className="w-12 shrink-0 text-right text-sm font-medium tabular-nums text-slate-900">
+                            {Number(form.telegram_tts_speed).toFixed(2)}
+                        </span>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-500">
+                        <span>0.70</span>
+                        <span>1.00</span>
+                        <span>1.20</span>
+                    </div>
+                </div>
+
                 {errors.stt_provider && <p className="text-sm text-red-600">{errors.stt_provider}</p>}
                 {errors.stt_model && <p className="text-sm text-red-600">{errors.stt_model}</p>}
+                {errors.telegram_tts_speed && <p className="text-sm text-red-600">{errors.telegram_tts_speed}</p>}
 
                 <button
                     type="submit"

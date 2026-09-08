@@ -199,7 +199,7 @@ Regular user capabilities: chat, memory, knowledge, watchers, telegram_dm, remin
 
 Committed path: two Web modes. **Рация** (default): push-to-talk, Gemini STT, ElevenLabs HTTP TTS, responsive Orb — Owner MANUAL PASS for the core pipeline. **Диалог Beta**: ElevenLabs realtime transport + Jarvis Custom LLM adapter — IMPLEMENTED / NOT VALIDATED; disabled unless env is configured. Admin Voice panel shows Realtime Conversation Configured / Not configured. Each user chooses one of six curated voices in Workspace settings (`users.voice_id`); Beta passes it as an Agent TTS override when the catalog matches. Empty Gemini `audioTranscriptionConfig` is sent as JSON `{}`. If a selected ElevenLabs voice is unavailable on the account, TTS makes at most one fallback request to the instance/default voice; auth, quota, rate-limit, and generic server errors do not retry. Live Gemini/ElevenLabs validation was not run. [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md).
 
-Telegram Voice Replies (`sendVoice`): **MANUAL PASS**.  
+Telegram Voice Replies (`sendVoice`): **MANUAL PASS** for delivery; Telegram TTS speed is **IMPLEMENTED / READY FOR OWNER VALIDATION**. Admin Voice/Speech setting `telegram_tts_speed` (default **1.15**, range **0.70…1.20**) applies only to Telegram ElevenLabs HTTP TTS. Web Рация and Диалог Beta are unchanged.
 Telegram Voice Input (DM `Message.voice` → existing Gemini STT → Core): **IMPLEMENTED / NOT VALIDATED**. Groups still store `[voice]` placeholder (no STT). Default Telegram reply mode remains **text**. C.2 does **not** instantiate a realtime ElevenLabs agent on Telegram. [TELEGRAM_VOICE.md](TELEGRAM_VOICE.md).
 
 ---

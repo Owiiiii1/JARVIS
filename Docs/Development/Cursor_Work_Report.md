@@ -1,97 +1,82 @@
-# Gmail Event Monitoring
+# Telegram TTS Speed
 
 ## Starting HEAD
 
-`45bd7dabd4c359b7d900c7d56c26bd0397903979` (`fix: harden agent runtime recovery`).
+`c6d21ae3eaf7297eeed736e2e77d871746c3802d` (`fix: distinguish gmail alerts from digests`).
 
 Branch `main`. No dependency changes.
 
-## Live production failure
+## Current Telegram TTS path
 
-Owner asked Jarvis to wait for school/academy mail (`@marcellinequadronno.it`, `@accademiaucraina.it`) and notify when messages arrive. Jarvis claimed 5–15 minute Gmail polling. Production had no Gmail event watcher: `create_watcher` for Gmail failed `invalid_config` twice, then a Knowledge watcher (#190) was created (`entity_event_type` / fictional `new_email`). Later domain clarification only called `search_gmail`. The morning digest watcher is a separate daily product.
+Telegram voice replies: `TelegramReplyDeliveryService` → `SpeechSynthesizer` / `TextToSpeechManager` → `ElevenLabsTextToSpeechProvider` → ElevenLabs HTTP TTS → temp MP3 → `sendVoice`.
 
-## Root cause
+Web Рация: `VoiceRuntimeService` → the same synthesizer **without** TTS options.
 
-1. Generic “monitor mail” intent was steered into a morning digest (or, before that, into Knowledge).
-2. Gmail create required a sender/query the model often omitted, then silently accepted a Knowledge fallback.
-3. `new_email` is not a Knowledge event type (`email_received` is). Knowledge is not a Gmail poller.
-4. Success text was inferred from user intent, not from a successful Gmail `create_watcher`.
-5. Gmail watchers defaulted to `one_shot` and a 1h cooldown, which is wrong for continuous mail alerts.
+Диалог Beta: `ElevenLabsRealtimeSessionService` / `ElevenLabsRealtimeClient` signed websocket; no HTTP TTS payload.
 
-## Reminder vs Digest vs Event semantics
+## Settings architecture
 
-- Reminder: the user acts at a known time (“напомни проверить почту”).
-- Digest: Jarvis summarizes new mail on a local daily schedule (“каждое утро дай сводку”).
-- Event: Jarvis polls Gmail and notifies on matching new messages (“жди письмо от школы”). Not a digest.
+Additive `voice_settings.telegram_tts_speed` (nullable decimal 3,2).
 
-## Event watcher canonical config
+`VoiceSettingsService::telegramTtsSpeed()`: DB admin value → `config('voice.telegram_voice.tts_speed')` → **1.15**. Clamp **0.70…1.20**. Invalid / NaN → 1.15.
 
-`trigger_type=gmail_message`, `condition_type=new_item`, `mode=recurring`, structured `senders` / `sender_domains` / `subject` / `thread_id`. Runtime compiles a Gmail `OR` query. No `daily_local`. Cooldown 0.
+Admin payload: `telegram_tts_speed`, `_min` 0.70, `_max` 1.20, `_step` 0.05, `_default` 1.15.
 
-## Sender/domain normalization
+Not exposed in ordinary user Workspace voice picker.
 
-`GmailWatcherQuery` accepts sender email, domain (`example.com` / `@example.com`), lists of either, subject, or an existing safe query. The model does not need Gmail query grammar.
+## ElevenLabs request change
 
-## Multiple domains
+`TextToSpeechOptions` optional third argument on `synthesize()`. Provider stays transport-focused. When speed is present it is merged into `voice_settings` (does not drop stability / similarity_boost / style / use_speaker_boost if a caller supplies them). Web two-arg synthesize still sends only `text` + `model_id`.
 
-One watcher. `sender_domains: [marcellinequadronno.it, accademiaucraina.it]` → `(from:a OR from:b)`. Human copy names the domains.
+## Telegram-only scoping
 
-## Recurring / one-shot semantics
+Only `TelegramReplyDeliveryService` passes `TextToSpeechOptions::withSpeed($this->ttsSpeed->telegramTtsSpeed())`.
 
-Continuous wording defaults to recurring. One-shot only for explicit first-letter / one-reply phrasing.
+## Admin UI
 
-## Poll cadence
+Settings → Integrations → Voice/Speech: slider + numeric value, labels 0.70 / 1.00 / 1.20. Saves with the existing Voice settings POST.
 
-Existing `jarvis:watchers:dispatch` (every 5 min) + Gmail cadence (~8 min). Chat does not promise an exact interval.
+## Validation
 
-## Baseline semantics
+Controller: required numeric `between:0.7,1.2`. Service clamp. Provider clamp; invalid speed is not sent.
 
-First evaluation stores current matching ids. Later evals notify only new ids. “Already in inbox?” is a `search_gmail` then watcher, not a silent later alert of old mail.
+## Fallback voice behavior
 
-## No wrong-type fallback
-
-Gmail event/digest inbound cannot create Knowledge/Reminder/project watchers. Missing sender/domain returns `gmail_filter_required`. Disconnected Gmail still asks to connect.
-
-## Grounded success responses
-
-`create_watcher` payload includes `kind` (`gmail_event` / `gmail_digest` / `failed`) and `confirm_as`. Synthesis and fallback may claim Gmail monitoring only after success + Gmail kind.
-
-## Conversational watcher refinement
-
-“И ещё следи за письмами от example.com” merges into the unique trusted (or unique active) Gmail event watcher. Ambiguous sets ask. Ids are not guessed among several.
-
-## Security
-
-`user_id` / `integration_account_id` stripped. Ownership checks unchanged. Event watcher is read-only. Metadata bounded to sender/subject/ids — no bodies.
-
-## Notifications
-
-Existing occurrence → Notification Center / Telegram. No separate Telegram path.
-
-## Existing broken watcher remediation
-
-Cursor did **not** modify Owner watcher #190. After deploy, Owner cancels it and creates a Gmail event watcher in chat (see `Docs/WATCHERS_AND_AUTOMATIONS.md`).
+Preferred-voice failure still retries the instance fallback voice with the **same** options/speed.
 
 ## Files changed
 
-New: `GmailWatcherQuery`, `GmailEventRequest`, `GmailEventMonitoringTest`, `GmailWatcherQueryTest`.
+New: `ResolvesTelegramTtsSpeed`, `TextToSpeechOptions`, migration, tests, `RestoresVoiceSettings`.
 
-Updated: create/update watcher tools, reminder reroute, intent split, WatcherService, LiveGmail client, evaluation multi-match, prompts, grounding, docs.
+Updated: Voice settings service/model/config/admin UI/controller, TTS contracts/manager/providers, Telegram reply delivery, docs.
 
-Unrelated dirty workspace files were left unstaged.
+## Migration
+
+`2026_09_08_125830_add_telegram_tts_speed_to_voice_settings_table` — additive nullable column. No rollback run.
 
 ## Tests authored but NOT executed
 
-Feature `GmailEventMonitoringTest` (intents 1–14). Unit query/intent/presentation/fallback. Existing digest/reminder tests updated. PHPUnit was not run.
+- default 1.15
+- config fallback / min-max / invalid strings
+- saved setting + admin persist / range reject / non-admin 403
+- Telegram synthesis passes speed
+- fallback voice keeps speed
+- Web TTS two-arg path has no `voice_settings`
+- realtime / Рация sources do not reference Telegram speed
+
+PHPUnit / `php artisan test` / Pest were not run.
 
 ## Static checks
 
-`php -l` on touched PHP, `vendor/bin/pint --dirty --format agent`, `composer validate`, `git diff --check`. No live Gmail, no watcher dispatch, no phpunit.
+`php -l` on touched PHP, `vendor/bin/pint --dirty --format agent`, `composer validate`, `npm run build`, `git diff --check`, `php artisan migrate --force` for the new migration only.
 
 ## Owner validation
 
-Cancel #190. Ask Jarvis to watch the two school/academy domains. Confirm Автоматизации shows a recurring Gmail event watcher. Send two matching test emails; both should notify. Add `example.com` as a follow-up. Unrelated mail silent. Digest and reminder phrases still split.
+1. Admin → Voice settings: Telegram TTS speed = 1.15.
+2. Telegram voice reply vs previous pace.
+3. Set 1.20 — faster. Set 1.00 — normal ElevenLabs pace.
+4. Web Voice unchanged.
 
 ## Production safety
 
-No Owner watcher/mail/account writes from Cursor. No live Gmail API. No phpunit on this server.
+No live ElevenLabs calls from Cursor. No Telegram voice messages sent. No production user rows edited. Unrelated dirty workspace files were not committed.

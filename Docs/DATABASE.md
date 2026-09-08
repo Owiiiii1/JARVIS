@@ -68,7 +68,7 @@ Engine: MySQL. CRM leftover tables were dropped. Vector DB is not used.
 
 ## Voice
 
-**voice_settings:** singleton STT/TTS providers, `stt_model`, spoken style, encrypted ElevenLabs key + voice id.
+**voice_settings:** singleton STT/TTS providers, `stt_model`, spoken style, encrypted ElevenLabs key + voice id, `telegram_tts_speed` (nullable decimal 0.70…1.20; app default 1.15).
 
 **voice_sessions:** `public_id`, user, conversation, origin, status, providers used, timestamps, error, metadata.
 

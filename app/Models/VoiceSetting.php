@@ -19,6 +19,7 @@ class VoiceSetting extends Model
         'spoken_style_enabled',
         'elevenlabs_api_key',
         'elevenlabs_voice_id',
+        'telegram_tts_speed',
     ];
 
     /**
@@ -31,6 +32,7 @@ class VoiceSetting extends Model
             'tts_provider' => VoiceTtsProvider::class,
             'spoken_style_enabled' => 'boolean',
             'elevenlabs_api_key' => 'encrypted',
+            'telegram_tts_speed' => 'float',
         ];
     }
 }

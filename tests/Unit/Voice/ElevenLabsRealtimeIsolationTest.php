@@ -4,8 +4,10 @@ namespace Tests\Unit\Voice;
 
 use App\Services\Telegram\TelegramReplyDeliveryService;
 use App\Services\Telegram\TelegramVoiceInboundService;
+use App\Services\Voice\ElevenLabsRealtimeClient;
 use App\Services\Voice\ElevenLabsRealtimeSessionService;
 use App\Services\Voice\ElevenLabsRealtimeTurnAdapter;
+use App\Services\Voice\VoiceRuntimeService;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
@@ -19,6 +21,28 @@ class ElevenLabsRealtimeIsolationTest extends TestCase
     public function test_telegram_voice_replies_do_not_depend_on_realtime_session(): void
     {
         $this->assertConstructorAvoidsRealtime(TelegramReplyDeliveryService::class);
+    }
+
+    public function test_web_runtime_tts_does_not_pass_telegram_speed(): void
+    {
+        $source = (string) file_get_contents((new ReflectionClass(VoiceRuntimeService::class))->getFileName());
+
+        $this->assertStringContainsString('$this->tts->synthesize($spoken, $voiceId)', $source);
+        $this->assertStringNotContainsString('telegramTtsSpeed', $source);
+        $this->assertStringNotContainsString('TextToSpeechOptions', $source);
+    }
+
+    public function test_realtime_session_does_not_use_telegram_tts_speed(): void
+    {
+        $sessionSource = (string) file_get_contents((new ReflectionClass(ElevenLabsRealtimeSessionService::class))->getFileName());
+        $clientSource = (string) file_get_contents((new ReflectionClass(ElevenLabsRealtimeClient::class))->getFileName());
+
+        $this->assertStringNotContainsString('telegramTtsSpeed', $sessionSource);
+        $this->assertStringNotContainsString('telegram_tts_speed', $sessionSource);
+        $this->assertStringNotContainsString('TextToSpeechOptions', $sessionSource);
+        $this->assertStringNotContainsString('SpeechSynthesizer', $sessionSource);
+        $this->assertStringNotContainsString('telegramTtsSpeed', $clientSource);
+        $this->assertStringNotContainsString('voice_settings', $clientSource);
     }
 
     public function test_adapter_reads_last_user_text_only(): void

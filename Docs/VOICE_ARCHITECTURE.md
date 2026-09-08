@@ -228,7 +228,9 @@ Errors: `voice_session_not_found`, `voice_session_invalid_state`, `voice_session
 
 This is **not** Web Voice. It does **not** use the `voice_sessions` state machine.
 
-Telegram DM text or voice note → Conversation Engine → persist canonical **text** → `TelegramReplyDeliveryService` → existing `TextToSpeechManager` (ElevenLabs MP3) → `sendVoice` when the delivery policy says so. ffmpeg is not used.
+Telegram DM text or voice note → Conversation Engine → persist canonical **text** → `TelegramReplyDeliveryService` → existing `TextToSpeechManager` (ElevenLabs MP3, Telegram-only `voice_settings.speed`) → `sendVoice` when the delivery policy says so. ffmpeg is not used.
+
+**Telegram TTS speed** is **IMPLEMENTED / READY FOR OWNER VALIDATION**. Admin setting `telegram_tts_speed` (default **1.15**, range **0.70…1.20**, slider step **0.05**). It is passed only on the Telegram voice-reply path. Web Рация HTTP TTS and Диалог Beta realtime overrides do not inherit it. Fallback voice retries keep the same speed.
 
 Voice notes use existing `SpeechToTextManager` / Gemini STT. No `voice_sessions`.
 

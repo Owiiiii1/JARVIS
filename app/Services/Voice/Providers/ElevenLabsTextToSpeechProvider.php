@@ -4,6 +4,7 @@ namespace App\Services\Voice\Providers;
 
 use App\Services\Voice\Contracts\TextToSpeechProvider;
 use App\Services\Voice\DTO\SynthesizedSpeech;
+use App\Services\Voice\DTO\TextToSpeechOptions;
 use App\Services\Voice\Exceptions\VoiceException;
 use App\Services\Voice\VoiceSettingsService;
 use Illuminate\Http\Client\ConnectionException;
@@ -28,7 +29,7 @@ final class ElevenLabsTextToSpeechProvider implements TextToSpeechProvider
         return $this->settings->elevenLabsApiKey() !== '';
     }
 
-    public function synthesize(string $text, ?string $voiceId = null): SynthesizedSpeech
+    public function synthesize(string $text, ?string $voiceId = null, ?TextToSpeechOptions $options = null): SynthesizedSpeech
     {
         $apiKey = $this->settings->elevenLabsApiKey();
 
@@ -40,7 +41,7 @@ final class ElevenLabsTextToSpeechProvider implements TextToSpeechProvider
         $fallback = $this->fallbackVoiceId($preferred);
 
         try {
-            return $this->requestSpeech($text, $preferred, $apiKey);
+            return $this->requestSpeech($text, $preferred, $apiKey, $options);
         } catch (VoiceException $exception) {
             if (! $this->shouldFallbackVoice($exception, $fallback)) {
                 throw $exception;
@@ -52,7 +53,7 @@ final class ElevenLabsTextToSpeechProvider implements TextToSpeechProvider
                 'http_status' => $exception->context['http_status'] ?? null,
             ]);
 
-            return $this->requestSpeech($text, $fallback, $apiKey);
+            return $this->requestSpeech($text, $fallback, $apiKey, $options);
         }
     }
 
@@ -78,7 +79,7 @@ final class ElevenLabsTextToSpeechProvider implements TextToSpeechProvider
         return $fallback;
     }
 
-    private function requestSpeech(string $text, string $voice, string $apiKey): SynthesizedSpeech
+    private function requestSpeech(string $text, string $voice, string $apiKey, ?TextToSpeechOptions $options): SynthesizedSpeech
     {
         $timeout = max(2, (int) config('voice.tts_timeout_seconds', 25));
         $connect = max(1, (int) config('voice.connect_timeout_seconds', 5));
@@ -86,6 +87,8 @@ final class ElevenLabsTextToSpeechProvider implements TextToSpeechProvider
         $model = (string) config('voice.elevenlabs.model_id', 'eleven_multilingual_v2');
         $format = (string) config('voice.elevenlabs.output_format', 'mp3_44100_128');
         $url = $base.'/v1/text-to-speech/'.rawurlencode($voice).'?output_format='.urlencode($format);
+        $payload = $this->requestPayload($text, $model, $options);
+        $speed = isset($payload['voice_settings']['speed']) ? (float) $payload['voice_settings']['speed'] : null;
 
         try {
             $response = Http::timeout($timeout)
@@ -95,10 +98,7 @@ final class ElevenLabsTextToSpeechProvider implements TextToSpeechProvider
                     'Accept' => 'audio/mpeg',
                 ])
                 ->asJson()
-                ->post($url, [
-                    'text' => $text,
-                    'model_id' => $model,
-                ]);
+                ->post($url, $payload);
         } catch (ConnectionException) {
             throw VoiceException::ttsFailed(['reason' => 'connection']);
         } catch (Throwable) {
@@ -109,18 +109,86 @@ final class ElevenLabsTextToSpeechProvider implements TextToSpeechProvider
             throw $this->httpFailure($response, $voice);
         }
 
+        $metadata = [
+            'provider' => $this->name(),
+            'model' => $model,
+            'format' => $format,
+        ];
+
+        if ($speed !== null) {
+            $metadata['speed'] = $speed;
+        }
+
         return new SynthesizedSpeech(
             bytes: $response->body(),
             mime: 'audio/mpeg',
             voiceId: $voice,
             sampleRate: 44100,
             durationSeconds: null,
-            providerMetadata: [
-                'provider' => $this->name(),
-                'model' => $model,
-                'format' => $format,
-            ],
+            providerMetadata: $metadata,
         );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function requestPayload(string $text, string $model, ?TextToSpeechOptions $options): array
+    {
+        $payload = [
+            'text' => $text,
+            'model_id' => $model,
+        ];
+
+        $voiceSettings = $this->voiceSettingsPayload($options);
+
+        if ($voiceSettings !== []) {
+            $payload['voice_settings'] = $voiceSettings;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function voiceSettingsPayload(?TextToSpeechOptions $options): array
+    {
+        if ($options === null) {
+            return [];
+        }
+
+        $settings = $options->voiceSettings;
+        $speed = $this->normalizedSpeed($options->speed ?? ($settings['speed'] ?? null));
+
+        if ($speed !== null) {
+            $settings['speed'] = $speed;
+        } else {
+            unset($settings['speed']);
+        }
+
+        return $settings;
+    }
+
+    private function normalizedSpeed(mixed $value): ?float
+    {
+        if (is_string($value)) {
+            $value = trim($value);
+        }
+
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        $speed = (float) $value;
+
+        if (! is_finite($speed)) {
+            return null;
+        }
+
+        $min = 0.70;
+        $max = 1.20;
+
+        return round(min($max, max($min, $speed)), 2);
     }
 
     private function httpFailure(Response $response, string $voice): VoiceException

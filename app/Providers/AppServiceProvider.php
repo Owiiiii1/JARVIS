@@ -135,6 +135,7 @@ use App\Services\Tools\WebResearch\SearchWebTool;
 use App\Services\Users\ResolvesTelegramResponseMode;
 use App\Services\Users\UserChannelPreferenceService;
 use App\Services\Voice\Contracts\RecordsVoiceMetrics;
+use App\Services\Voice\Contracts\ResolvesTelegramTtsSpeed;
 use App\Services\Voice\Contracts\ResolvesUserVoice;
 use App\Services\Voice\Contracts\SpeechSynthesizer;
 use App\Services\Voice\Contracts\SpeechToTextProvider;
@@ -174,6 +175,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(ResolvesTelegramResponseMode::class, UserChannelPreferenceService::class);
         $this->app->bind(ResolvesUserVoice::class, VoiceSettingsService::class);
+        $this->app->bind(ResolvesTelegramTtsSpeed::class, VoiceSettingsService::class);
         $this->app->bind(SpeechSynthesizer::class, TextToSpeechManager::class);
         $this->app->bind(StoresEphemeralVoiceAudio::class, VoiceTempAudioStore::class);
         $this->app->bind(RecordsVoiceMetrics::class, VoiceMetricsLogger::class);
@@ -198,6 +200,7 @@ class AppServiceProvider extends ServiceProvider
             return new TelegramReplyDeliveryService(
                 $app->make(ResolvesTelegramResponseMode::class),
                 $app->make(ResolvesUserVoice::class),
+                $app->make(ResolvesTelegramTtsSpeed::class),
                 $app->make(SpeechSynthesizer::class),
                 $app->make(StoresEphemeralVoiceAudio::class),
                 $app->make(TelegramVoiceSuitabilityPolicy::class),

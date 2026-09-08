@@ -6,6 +6,7 @@ use App\Enums\VoiceTtsProvider;
 use App\Services\Voice\Contracts\SpeechSynthesizer;
 use App\Services\Voice\Contracts\TextToSpeechProvider;
 use App\Services\Voice\DTO\SynthesizedSpeech;
+use App\Services\Voice\DTO\TextToSpeechOptions;
 use App\Services\Voice\Exceptions\VoiceException;
 use App\Services\Voice\Providers\ElevenLabsTextToSpeechProvider;
 use App\Services\Voice\Providers\NullTextToSpeechProvider;
@@ -36,7 +37,7 @@ final class TextToSpeechManager implements SpeechSynthesizer
         return $this->activeProvider()->name();
     }
 
-    public function synthesize(string $text, ?string $voiceId = null): SynthesizedSpeech
+    public function synthesize(string $text, ?string $voiceId = null, ?TextToSpeechOptions $options = null): SynthesizedSpeech
     {
         $provider = $this->activeProvider();
 
@@ -44,6 +45,6 @@ final class TextToSpeechManager implements SpeechSynthesizer
             throw VoiceException::ttsNotConfigured();
         }
 
-        return $provider->synthesize($text, $voiceId);
+        return $provider->synthesize($text, $voiceId, $options);
     }
 }

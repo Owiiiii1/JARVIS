@@ -35,6 +35,9 @@ return [
         'max_inbound_bytes' => (int) env('TELEGRAM_VOICE_MAX_INBOUND_BYTES', 2_000_000),
         'max_inbound_seconds' => (int) env('TELEGRAM_VOICE_MAX_INBOUND_SECONDS', 30),
         'api_download_max_bytes' => 20_000_000,
+        'tts_speed' => (float) env('TELEGRAM_TTS_SPEED', 1.15),
+        'tts_speed_min' => 0.70,
+        'tts_speed_max' => 1.20,
     ],
 
     'stt_timeout_seconds' => (int) env('VOICE_STT_TIMEOUT', 20),

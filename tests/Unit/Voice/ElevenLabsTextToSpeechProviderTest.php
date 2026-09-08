@@ -3,6 +3,7 @@
 namespace Tests\Unit\Voice;
 
 use App\Services\Ai\GeminiCredentialResolver;
+use App\Services\Voice\DTO\TextToSpeechOptions;
 use App\Services\Voice\Exceptions\VoiceException;
 use App\Services\Voice\Providers\ElevenLabsTextToSpeechProvider;
 use App\Services\Voice\VoiceSettingsService;
@@ -30,7 +31,8 @@ class ElevenLabsTextToSpeechProviderTest extends VoiceProviderTestCase
         Http::assertSentCount(1);
         Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/text-to-speech/'.self::USER_VOICE)
             && $request->hasHeader('xi-api-key', self::API_KEY)
-            && ($request['text'] ?? null) === 'Hello there.');
+            && ($request['text'] ?? null) === 'Hello there.'
+            && ! isset($request['voice_settings']));
     }
 
     public function test_unavailable_selected_voice_falls_back_once_to_instance_voice(): void
@@ -154,6 +156,84 @@ class ElevenLabsTextToSpeechProviderTest extends VoiceProviderTestCase
         $this->assertSame('user-mp3', $speech->bytes);
         Http::assertSentCount(1);
         Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/text-to-speech/'.self::FALLBACK_VOICE));
+    }
+
+    public function test_speed_option_is_sent_inside_voice_settings(): void
+    {
+        Http::fake([
+            'api.elevenlabs.io/v1/text-to-speech/'.self::USER_VOICE.'*' => Http::response('mp3-bytes', 200),
+        ]);
+
+        $speech = $this->provider()->synthesize(
+            'Hello there.',
+            self::USER_VOICE,
+            TextToSpeechOptions::withSpeed(1.15),
+        );
+
+        $this->assertSame(1.15, $speech->providerMetadata['speed'] ?? null);
+        Http::assertSent(fn (Request $request): bool => ($request['voice_settings']['speed'] ?? null) === 1.15
+            && ($request['text'] ?? null) === 'Hello there.'
+            && ($request['model_id'] ?? null) !== null);
+    }
+
+    public function test_fallback_voice_keeps_the_same_speed(): void
+    {
+        Http::fake([
+            'api.elevenlabs.io/v1/text-to-speech/'.self::USER_VOICE.'*' => Http::response(['detail' => 'invalid_voice_id'], 404),
+            'api.elevenlabs.io/v1/text-to-speech/'.self::FALLBACK_VOICE.'*' => Http::response('fallback-mp3', 200),
+        ]);
+
+        $this->provider()->synthesize(
+            'Hello there.',
+            self::USER_VOICE,
+            TextToSpeechOptions::withSpeed(1.15),
+        );
+
+        Http::assertSentCount(2);
+        Http::assertSentInOrder([
+            fn (Request $request): bool => str_contains($request->url(), '/text-to-speech/'.self::USER_VOICE)
+                && ($request['voice_settings']['speed'] ?? null) === 1.15,
+            fn (Request $request): bool => str_contains($request->url(), '/text-to-speech/'.self::FALLBACK_VOICE)
+                && ($request['voice_settings']['speed'] ?? null) === 1.15,
+        ]);
+    }
+
+    public function test_out_of_range_speed_is_clamped_before_elevenlabs(): void
+    {
+        Http::fake([
+            'api.elevenlabs.io/v1/text-to-speech/'.self::USER_VOICE.'*' => Http::response('mp3-bytes', 200),
+        ]);
+
+        $this->provider()->synthesize(
+            'Hello there.',
+            self::USER_VOICE,
+            TextToSpeechOptions::withSpeed(1.90),
+        );
+
+        Http::assertSent(fn (Request $request): bool => ($request['voice_settings']['speed'] ?? null) === 1.2);
+    }
+
+    public function test_speed_merges_into_existing_voice_settings(): void
+    {
+        Http::fake([
+            'api.elevenlabs.io/v1/text-to-speech/'.self::USER_VOICE.'*' => Http::response('mp3-bytes', 200),
+        ]);
+
+        $this->provider()->synthesize(
+            'Hello there.',
+            self::USER_VOICE,
+            new TextToSpeechOptions(
+                speed: 1.15,
+                voiceSettings: [
+                    'stability' => 0.5,
+                    'similarity_boost' => 0.75,
+                ],
+            ),
+        );
+
+        Http::assertSent(fn (Request $request): bool => ($request['voice_settings']['speed'] ?? null) === 1.15
+            && ($request['voice_settings']['stability'] ?? null) === 0.5
+            && ($request['voice_settings']['similarity_boost'] ?? null) === 0.75);
     }
 
     public function test_connection_failure_does_not_fall_back(): void

@@ -14,10 +14,12 @@ use App\Services\Telegram\TelegramVoiceDeliveryDecision;
 use App\Services\Telegram\TelegramVoiceSuitabilityPolicy;
 use App\Services\Users\ResolvesTelegramResponseMode;
 use App\Services\Voice\Contracts\RecordsVoiceMetrics;
+use App\Services\Voice\Contracts\ResolvesTelegramTtsSpeed;
 use App\Services\Voice\Contracts\ResolvesUserVoice;
 use App\Services\Voice\Contracts\SpeechSynthesizer;
 use App\Services\Voice\Contracts\StoresEphemeralVoiceAudio;
 use App\Services\Voice\DTO\SynthesizedSpeech;
+use App\Services\Voice\DTO\TextToSpeechOptions;
 use App\Services\Voice\Exceptions\VoiceException;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -194,6 +196,21 @@ class TelegramVoiceRepliesTest extends TestCase
             ->deliver($this->recordingOutbound(), $secondUser, 'Второй ответ', null, 'text');
 
         $this->assertSame(['female-voice', 'male-voice'], $tts->voiceIds);
+        $this->assertSame([1.15, 1.15], $tts->speeds);
+    }
+
+    public function test_voice_synthesis_passes_telegram_tts_speed(): void
+    {
+        $tts = new FakeSpeechSynthesizer(configured: true, speech: new SynthesizedSpeech('mp3-bytes', 'audio/mpeg', 'v'));
+
+        $this->service($tts, TelegramResponseMode::Voice, 1.20)
+            ->deliver($this->recordingOutbound(), $this->user(1), 'Короткий тест.', null, 'text');
+
+        $this->assertSame(1, $tts->calls);
+        $this->assertCount(1, $tts->options);
+        $this->assertInstanceOf(TextToSpeechOptions::class, $tts->options[0]);
+        $this->assertSame(1.2, $tts->options[0]?->speed);
+        $this->assertSame([1.2], $tts->speeds);
     }
 
     public function test_pending_confirmation_forces_text(): void
@@ -221,8 +238,11 @@ class TelegramVoiceRepliesTest extends TestCase
         return $user;
     }
 
-    private function service(SpeechSynthesizer $tts, TelegramResponseMode $mode): TelegramReplyDeliveryService
-    {
+    private function service(
+        SpeechSynthesizer $tts,
+        TelegramResponseMode $mode,
+        float $telegramTtsSpeed = 1.15,
+    ): TelegramReplyDeliveryService {
         $prefs = new class($mode) implements ResolvesTelegramResponseMode
         {
             public function __construct(private readonly TelegramResponseMode $mode) {}
@@ -233,12 +253,13 @@ class TelegramVoiceRepliesTest extends TestCase
             }
         };
 
-        return $this->serviceWith($tts, $prefs);
+        return $this->serviceWith($tts, $prefs, $telegramTtsSpeed);
     }
 
     private function serviceWith(
         SpeechSynthesizer $tts,
         ResolvesTelegramResponseMode $prefs,
+        float $telegramTtsSpeed = 1.15,
     ): TelegramReplyDeliveryService {
         return new TelegramReplyDeliveryService(
             $prefs,
@@ -247,6 +268,15 @@ class TelegramVoiceRepliesTest extends TestCase
                 public function voiceIdFor(User $user): string
                 {
                     return (string) ($user->voice_id ?: 'default-voice');
+                }
+            },
+            new class($telegramTtsSpeed) implements ResolvesTelegramTtsSpeed
+            {
+                public function __construct(private readonly float $speed) {}
+
+                public function telegramTtsSpeed(): float
+                {
+                    return $this->speed;
                 }
             },
             $tts,
@@ -273,6 +303,12 @@ final class FakeSpeechSynthesizer implements SpeechSynthesizer
     /** @var list<string|null> */
     public array $voiceIds = [];
 
+    /** @var list<TextToSpeechOptions|null> */
+    public array $options = [];
+
+    /** @var list<float|null> */
+    public array $speeds = [];
+
     public function __construct(
         private readonly bool $configured,
         private readonly ?SynthesizedSpeech $speech = null,
@@ -284,10 +320,12 @@ final class FakeSpeechSynthesizer implements SpeechSynthesizer
         return $this->configured;
     }
 
-    public function synthesize(string $text, ?string $voiceId = null): SynthesizedSpeech
+    public function synthesize(string $text, ?string $voiceId = null, ?TextToSpeechOptions $options = null): SynthesizedSpeech
     {
         $this->calls++;
         $this->voiceIds[] = $voiceId;
+        $this->options[] = $options;
+        $this->speeds[] = $options?->speed;
 
         if ($this->exception !== null) {
             throw $this->exception;

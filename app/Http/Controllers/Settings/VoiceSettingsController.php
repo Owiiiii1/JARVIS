@@ -30,6 +30,7 @@ class VoiceSettingsController extends Controller
             'tts_provider' => ['required', Rule::enum(VoiceTtsProvider::class)],
             'spoken_style_enabled' => ['required', 'boolean'],
             'stt_model' => ['nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9._-]*$/'],
+            'telegram_tts_speed' => ['required', 'numeric', 'between:0.7,1.2'],
         ]);
 
         $provider = VoiceSttProvider::from($validated['stt_provider']);
@@ -44,6 +45,7 @@ class VoiceSettingsController extends Controller
             'tts_provider' => $validated['tts_provider'],
             'spoken_style_enabled' => $validated['spoken_style_enabled'],
             'stt_model' => $model !== '' ? $model : null,
+            'telegram_tts_speed' => $validated['telegram_tts_speed'],
         ]);
 
         return back()->with('success', 'Voice settings saved.');

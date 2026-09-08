@@ -388,7 +388,7 @@ Owner-only capability `web_research`. Tools `search_web` and `fetch_web_page`. S
 
 ### ElevenLabs / Voice Speech (M23 + M23.2)
 
-Admin: Settings → Integrations → Voice/Speech. TTS adapter `ElevenLabsTextToSpeechProvider`. Encrypted key on `voice_settings` (env `ELEVENLABS_API_KEY` fallback). Overview ElevenLabs card shows configured/not configured only. Selecting TTS/STT does **not** change Conversation AI. No live Test Connection. Telephony is not implemented.
+Admin: Settings → Integrations → Voice/Speech. TTS adapter `ElevenLabsTextToSpeechProvider`. Encrypted key on `voice_settings` (env `ELEVENLABS_API_KEY` fallback). Overview ElevenLabs card shows configured/not configured only. Selecting TTS/STT does **not** change Conversation AI. **Telegram TTS speed** (`telegram_tts_speed`, default 1.15, range 0.70…1.20) is an Admin-only system setting for Telegram voice replies; Web Voice does not use it. No live Test Connection. Telephony is not implemented.
 
 Provider matrix:
 

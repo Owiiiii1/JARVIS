@@ -4,6 +4,7 @@ namespace App\Services\Voice\Providers;
 
 use App\Services\Voice\Contracts\TextToSpeechProvider;
 use App\Services\Voice\DTO\SynthesizedSpeech;
+use App\Services\Voice\DTO\TextToSpeechOptions;
 use App\Services\Voice\Exceptions\VoiceException;
 
 final class NullTextToSpeechProvider implements TextToSpeechProvider
@@ -18,7 +19,7 @@ final class NullTextToSpeechProvider implements TextToSpeechProvider
         return false;
     }
 
-    public function synthesize(string $text, ?string $voiceId = null): SynthesizedSpeech
+    public function synthesize(string $text, ?string $voiceId = null, ?TextToSpeechOptions $options = null): SynthesizedSpeech
     {
         throw VoiceException::ttsNotConfigured();
     }
