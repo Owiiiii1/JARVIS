@@ -15,6 +15,7 @@ use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\DTO\AiChatMessage;
 use App\Services\Ai\DTO\AiChatResponse;
 use App\Services\Ai\DTO\ToolCall;
+use App\Services\Ai\Exceptions\AiEmptyResponseException;
 use App\Services\Conversations\ConversationAiService;
 use App\Services\Conversations\ConversationService;
 use App\Services\Reminders\ReminderDispatchService;
@@ -26,6 +27,7 @@ use App\Services\Tools\CreateReminderTool;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 use Tests\Support\CleansTemporaryJarvisRecords;
 use Tests\Support\FakeAiChatGateway;
@@ -380,6 +382,59 @@ class RemindersTest extends TestCase
         }
     }
 
+    public function test_speak_back_after_tools_retries_a_transient_provider_failure(): void
+    {
+        $user = null;
+        $fake = new FakeAiChatGateway;
+        Sleep::fake();
+
+        try {
+            $this->snapshotAiRoleSettings();
+            $this->enableRoleForTests(AiRoleKey::UserConversation);
+            $this->app->instance(AiChatGateway::class, $fake);
+
+            $user = $this->createTemporaryUser();
+            $conversation = app(ConversationService::class)->getOrCreateDefault($user);
+            $runAtLocal = CarbonImmutable::now($user->timezone)->addHour()->format('Y-m-d\\TH:i:sP');
+            $fake->script = [
+                new AiChatResponse(
+                    text: '',
+                    provider: 'fake',
+                    model: 'fake-model',
+                    finishReason: 'tool_calls',
+                    toolCalls: [new ToolCall('c1', CreateReminderTool::NAME, [
+                        'text' => 'магазин',
+                        'run_at_local' => $runAtLocal,
+                    ])],
+                ),
+                static function (): never {
+                    throw new AiEmptyResponseException;
+                },
+                new AiChatResponse(
+                    text: 'Напоминание создано. Оно сохранено в Jarvis.',
+                    provider: 'fake',
+                    model: 'fake-model',
+                    finishReason: 'stop',
+                ),
+            ];
+
+            $this->actingAs($user)->postJson('/cabinet/chats/'.$conversation->id.'/messages', [
+                'body' => 'Напомни завтра в 11 сходить в магазин',
+                'client_message_id' => (string) Str::uuid(),
+            ])->assertOk();
+
+            $this->assertSame(1, Reminder::query()->where('user_id', $user->id)->count());
+            $this->assertSame(3, count($fake->conversationCalls()));
+            $this->assertSame(
+                'Напоминание создано. Оно сохранено в Jarvis.',
+                Message::query()->where('conversation_id', $conversation->id)->where('role', MessageRole::Assistant)->value('body'),
+            );
+        } finally {
+            $this->restoreAiRoleSettings();
+            $this->deleteTemporaryUser($user);
+        }
+    }
+
     public function test_max_tool_rounds_prevents_a_loop(): void
     {
         $user = null;
@@ -389,6 +444,10 @@ class RemindersTest extends TestCase
             $this->snapshotAiRoleSettings();
             $this->enableRoleForTests(AiRoleKey::UserConversation);
             $this->app->instance(AiChatGateway::class, $fake);
+            config([
+                'context_budget.no_progress_tool_rounds' => 99,
+                'context_budget.final_synthesis_retries' => 0,
+            ]);
 
             $user = $this->createTemporaryUser();
             $this->createTemporaryTelegramIdentity($user, '940107');
@@ -399,16 +458,30 @@ class RemindersTest extends TestCase
                 provider: 'fake',
                 model: 'fake-model',
                 finishReason: 'tool_calls',
-                toolCalls: [new ToolCall('loop', 'loop_forever', [])],
+                toolCalls: [new ToolCall('loop', 'search_loop_forever', [])],
             );
             $fake->script = array_fill(0, ConversationAiService::MAX_TOOL_ROUNDS + 1, $loop);
+            $fake->script[] = new AiChatResponse(
+                text: '',
+                provider: 'fake',
+                model: 'fake-model',
+                finishReason: 'stop',
+            );
 
-            $this->actingAs($user)->postJson('/cabinet/chats/'.$conversation->id.'/messages', [
+            $response = $this->actingAs($user)->postJson('/cabinet/chats/'.$conversation->id.'/messages', [
                 'body' => 'loop please',
                 'client_message_id' => (string) Str::uuid(),
-            ])->assertOk()->assertJsonPath('error', ConversationAiService::AI_FAILURE);
+            ])->assertOk();
 
-            $this->assertSame(ConversationAiService::MAX_TOOL_ROUNDS + 1, count($fake->conversationCalls()));
+            $this->assertNull($response->json('error'));
+            $this->assertSame(
+                ConversationAiService::AI_FAILURE,
+                Message::query()->where('conversation_id', $conversation->id)->where('role', MessageRole::Assistant)->value('body'),
+            );
+
+            $calls = $fake->conversationCalls();
+            $this->assertSame(ConversationAiService::MAX_TOOL_ROUNDS + 2, count($calls));
+            $this->assertSame([], $calls[array_key_last($calls)]['request']->tools);
             $this->assertSame(0, Reminder::query()->where('user_id', $user->id)->count());
         } finally {
             $this->restoreAiRoleSettings();

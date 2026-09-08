@@ -1,6 +1,6 @@
 # Jarvis — current implementation snapshot
 
-**Date:** 2026-09-08 (Recurring Gmail morning digest — READY FOR OWNER VALIDATION)
+**Date:** 2026-09-08 (Agent runtime recovery — READY FOR OWNER VALIDATION)
 **Host path:** `/var/www/jarvis`  
 **Public URL:** https://jarvis.owlsolutions.net  
 **GitHub:** https://github.com/Owiiiii1/JARVIS.git
@@ -174,6 +174,8 @@ Main Workspace is chat + Task / Reminder / Watcher / Notification centers + comp
 Workspace conversation delete is implemented for Owner and ordinary users. Sidebar overflow menu → confirmation dialog → `DELETE /jarvis/chats/{conversation}` or `DELETE /chat/chats/{conversation}`. Own personal conversations only (`ensureOwned`; Owner is not a bypass for someone else’s chat). Group conversations are 404. Hard delete of the chat and child messages/ephemeral screenshots; tasks, reminders, projects, persistent Storage files, durable memories, and Knowledge entities survive with sources detached. Deleting the open chat switches to the latest remaining personal chat, or creates `Основной` if none remain. No full page reload. **MANUAL PASS** (original Workspace delete + Core Daily Workflow Scenario 10 regression).
 
 Phase C.1 Conversation Intelligence is **MANUAL PASS for the tested continuation / reference / clarification behavior**. Same Conversation Engine. Derived working context (topic mode, recent entities, trusted recent tool refs, temporary style) plus clarification/initiative policy. Mutation tools do not guess ids. Web composer can send a new message while a previous turn is thinking; stale JSON is ignored. Server generation is not cancelled. Full Conversation Intelligence coverage is **not** claimed.
+
+Agent runtime recovery (2026-09-08): **IMPLEMENTED / READY FOR OWNER VALIDATION**. Every user turn must end in a useful answer, a partial answer with a limitation, or a short unavailable message after recovery is exhausted. Tool loops are turn-scoped (a new message such as «эй» does not resume an unfinished Storage plan). Repeated no-progress tool calls force a no-tools synthesis before the hard round cap. Read-only tool success never falls back to «Готово.» Cursor did **not** run PHPUnit, live provider calls, or live Storage/Gmail/Calendar/GitHub tools. Owner should re-check the CNC Storage analysis that previously ended with «техническая ошибка».
 
 Phase C.2 Beta (ElevenLabs realtime Web voice) is **IMPLEMENTED / NOT VALIDATED**. Parallel to Рация. Telegram Voice unchanged. Legacy removal NOT NOW.
 

@@ -84,4 +84,16 @@ class AsyncFailureClassifierTest extends TestCase
         $this->assertFalse($failure->retryable);
         $this->assertSame('stale_source', $failure->lastError());
     }
+
+    public function test_gemini_function_call_args_list_is_not_retryable(): void
+    {
+        $classifier = new AsyncFailureClassifier;
+        $failure = $classifier->classify(new AiProviderException(
+            'Invalid JSON payload received. Unknown name "args" at \'contents[11].parts[0].function_call\': Proto field is not repeating, cannot start list.'
+        ));
+
+        $this->assertSame(AsyncFailureCategory::Serialization, $failure->category);
+        $this->assertFalse($failure->retryable);
+        $this->assertSame('serialization', $failure->code);
+    }
 }

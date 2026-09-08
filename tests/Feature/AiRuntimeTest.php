@@ -11,9 +11,13 @@ use App\Models\Message;
 use App\Models\TelegramBotSetting;
 use App\Models\UserAiSetting;
 use App\Services\Ai\Contracts\AiChatGateway;
+use App\Services\Ai\DTO\AiChatResponse;
+use App\Services\Ai\DTO\ToolCall;
+use App\Services\Ai\Exceptions\AiEmptyResponseException;
 use App\Services\Ai\Exceptions\AiProviderException;
 use App\Services\Conversations\ConversationAiService;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Sleep;
 use Tests\Support\CleansTemporaryJarvisRecords;
 use Tests\Support\FakeAiChatGateway;
 use Tests\Support\RestoresAiRoleSettings;
@@ -77,6 +81,84 @@ class AiRuntimeTest extends TestCase
             $this->assertSame(1, count($fake->conversationCalls()));
             $this->assertSame(AiRoleKey::UserConversation->value, $fake->conversationCalls()[0]['role_key']);
             $this->assertStringContainsString('Always answer with the word banana.', $fake->calls[0]['request']->systemPrompt);
+        } finally {
+            $this->restoreAiRoleSettings();
+            $this->deleteTelegramIdentity($externalUserId);
+            $this->deleteTemporaryUser($user);
+        }
+    }
+
+    public function test_transient_empty_provider_response_is_retried(): void
+    {
+        $user = null;
+        $externalUserId = '930108';
+        $fake = new FakeAiChatGateway;
+        Sleep::fake();
+        $fake->script = [
+            static function (): never {
+                throw new AiEmptyResponseException;
+            },
+            new AiChatResponse(
+                text: 'Второй заход удался.',
+                provider: 'fake',
+                model: 'fake-model',
+                finishReason: 'stop',
+            ),
+        ];
+
+        try {
+            $this->snapshotAiRoleSettings();
+            $this->enableRoleForTests(AiRoleKey::UserConversation);
+            $this->app->instance(AiChatGateway::class, $fake);
+
+            $user = $this->createTemporaryUser();
+            $this->createTemporaryTelegramIdentity($user, $externalUserId);
+            $this->postTelegramUpdate($externalUserId, 'Привет ещё раз', 930108, messageId: 61);
+
+            $this->assertSame(
+                'Второй заход удался.',
+                Message::query()->where('user_id', $user->id)->where('role', MessageRole::Assistant)->value('body'),
+            );
+            $this->assertSame(2, count($fake->conversationCalls()));
+        } finally {
+            $this->restoreAiRoleSettings();
+            $this->deleteTelegramIdentity($externalUserId);
+            $this->deleteTemporaryUser($user);
+        }
+    }
+
+    public function test_invalid_api_key_is_not_retried(): void
+    {
+        $user = null;
+        $externalUserId = '930109';
+        $fake = new FakeAiChatGateway;
+        Sleep::fake();
+        $fake->script = [
+            static function (): never {
+                throw new AiProviderException('API key not valid');
+            },
+            new AiChatResponse(
+                text: 'This must not be used.',
+                provider: 'fake',
+                model: 'fake-model',
+                finishReason: 'stop',
+            ),
+        ];
+
+        try {
+            $this->snapshotAiRoleSettings();
+            $this->enableRoleForTests(AiRoleKey::UserConversation);
+            $this->app->instance(AiChatGateway::class, $fake);
+
+            $user = $this->createTemporaryUser();
+            $this->createTemporaryTelegramIdentity($user, $externalUserId);
+            $this->postTelegramUpdate($externalUserId, 'Hello auth', 930109, messageId: 62);
+
+            $this->assertSame(1, count($fake->conversationCalls()));
+            $this->assertSame(
+                ConversationAiService::AI_FAILURE,
+                Message::query()->where('user_id', $user->id)->where('role', MessageRole::System)->value('body'),
+            );
         } finally {
             $this->restoreAiRoleSettings();
             $this->deleteTelegramIdentity($externalUserId);
@@ -197,6 +279,50 @@ class AiRuntimeTest extends TestCase
             if ($user !== null) {
                 $user->forceFill(['role' => UserRole::User])->save();
             }
+            $this->restoreAiRoleSettings();
+            $this->deleteTelegramIdentity($externalUserId);
+            $this->deleteTemporaryUser($user);
+        }
+    }
+
+    public function test_tool_loop_limit_requests_a_final_text_answer_without_tools(): void
+    {
+        $user = null;
+        $externalUserId = '930110';
+        $fake = new FakeAiChatGateway;
+        $loop = new AiChatResponse(
+            text: '',
+            provider: 'fake',
+            model: 'fake-model',
+            finishReason: 'tool_calls',
+            toolCalls: [new ToolCall('loop', 'search_conversation_history', ['query' => 'axis'])],
+        );
+        $fake->script = array_fill(0, ConversationAiService::MAX_TOOL_ROUNDS + 1, $loop);
+        $fake->script[] = new AiChatResponse(
+            text: 'По файлу ось A сдвигается на 0.02 на программу.',
+            provider: 'fake',
+            model: 'fake-model',
+            finishReason: 'stop',
+        );
+
+        try {
+            $this->snapshotAiRoleSettings();
+            $this->enableRoleForTests(AiRoleKey::UserConversation);
+            $this->app->instance(AiChatGateway::class, $fake);
+            config(['context_budget.no_progress_tool_rounds' => 99]);
+
+            $user = $this->createTemporaryUser();
+            $this->createTemporaryTelegramIdentity($user, $externalUserId);
+            $this->postTelegramUpdate($externalUserId, 'Посчитай сдвиг оси A', 930110, messageId: 70);
+
+            $calls = $fake->conversationCalls();
+            $this->assertSame(ConversationAiService::MAX_TOOL_ROUNDS + 2, count($calls));
+            $this->assertSame([], $calls[array_key_last($calls)]['request']->tools);
+            $this->assertSame(
+                'По файлу ось A сдвигается на 0.02 на программу.',
+                Message::query()->where('user_id', $user->id)->where('role', MessageRole::Assistant)->value('body'),
+            );
+        } finally {
             $this->restoreAiRoleSettings();
             $this->deleteTelegramIdentity($externalUserId);
             $this->deleteTemporaryUser($user);

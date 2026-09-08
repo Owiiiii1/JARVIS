@@ -7,26 +7,21 @@ use App\Enums\ConversationKind;
 use App\Enums\MessageChannel;
 use App\Enums\MessageRole;
 use App\Enums\MessageType;
+use App\Enums\ToolConfirmationStatus;
 use App\Models\AiRoleSetting;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\Ai\AgentToolLoop;
+use App\Services\Ai\AgentTurnTrace;
 use App\Services\Ai\AiConfigurationResolver;
 use App\Services\Ai\AiFailureFallback;
-use App\Services\Ai\AiSafetyResponseService;
 use App\Services\Ai\Contracts\AiChatGateway;
-use App\Services\Ai\DTO\AiChatMessage;
-use App\Services\Ai\DTO\AiChatRequest;
 use App\Services\Ai\DTO\AiChatResponse;
-use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\DTO\ToolResult;
 use App\Services\Ai\Exceptions\AiConfigurationException;
-use App\Services\Ai\Exceptions\AiEmptyResponseException;
-use App\Services\Ai\Exceptions\AiSafetyException;
 use App\Services\ChatAttachments\Exceptions\ChatAttachmentException;
-use App\Services\Context\ContextBudgetManager;
 use App\Services\Context\ContextDiagnosticsLogger;
-use App\Services\Context\ToolResultBudgetManager;
 use App\Services\Memory\MemoryTurnDispatcher;
 use App\Services\Tools\ConfirmationIntentParser;
 use App\Services\Tools\ToolConfirmationService;
@@ -42,7 +37,7 @@ final class ConversationAiService
 
     public const ONBOARDING_GREETING_EVENT = 'Начни знакомство: поприветствуй пользователя и мягко спроси, как тебя называть. Не используй анкету. Не завершай знакомство в этом первом сообщении.';
 
-    public const AI_FAILURE = 'Произошла техническая ошибка при обращении к AI. Попробуйте ещё раз позже.';
+    public const AI_FAILURE = 'Сейчас не удалось сформировать ответ. Попробуй ещё раз.';
 
     public const VISION_NOT_SUPPORTED = 'Этот AI-провайдер не принимает изображения. Смените модель в Admin или отправьте текст.';
 
@@ -59,12 +54,10 @@ final class ConversationAiService
         private readonly MemoryTurnDispatcher $memoryTurns,
         private readonly ToolConfirmationService $confirmations,
         private readonly ConfirmationIntentParser $confirmationIntent,
-        private readonly ContextBudgetManager $contextBudgets,
-        private readonly ToolResultBudgetManager $toolResultBudgets,
+        private readonly AgentToolLoop $toolLoop,
         private readonly ContextDiagnosticsLogger $contextLogs,
         private readonly VoiceSettingsService $voiceSettings,
         private readonly AiFailureFallback $failureFallback,
-        private readonly AiSafetyResponseService $safetyResponses,
     ) {}
 
     public function completeUserTurn(Message $inbound): ConversationAiTurnResult
@@ -154,6 +147,7 @@ final class ConversationAiService
     ): ConversationAiTurnResult {
         $startedAt = microtime(true);
         $configuration = $this->resolver->resolveConversation($user);
+        $trace = AgentTurnTrace::start($user->id, $conversation->id, $inbound?->id);
 
         if ($inbound !== null) {
             $this->markInbound($inbound, 'pending');
@@ -170,7 +164,21 @@ final class ConversationAiService
                 return $this->completeWithoutVision($conversation, $inbound, $configuration, $startedAt, $eventName);
             }
 
-            $intent = $this->confirmationIntent->parse($inbound?->body);
+            $userText = $inbound?->body;
+            $presenceCheck = TurnIsolation::isPresenceCheck($userText);
+
+            if ($presenceCheck) {
+                $trace->toolsDisabledForTurn = true;
+                $applicationEvent = $applicationEvent === null
+                    ? TurnIsolation::presenceHint()
+                    : $applicationEvent."\n\n".TurnIsolation::presenceHint();
+            } elseif (TurnIsolation::isRepeatRequest($userText)) {
+                $applicationEvent = $applicationEvent === null
+                    ? TurnIsolation::repeatHint()
+                    : $applicationEvent."\n\n".TurnIsolation::repeatHint();
+            }
+
+            $intent = $this->confirmationIntent->parse($userText);
             $toolContext = new ToolExecutionContext(
                 user: $user,
                 conversation: $conversation,
@@ -189,7 +197,7 @@ final class ConversationAiService
                 }
             }
 
-            $toolDefinitions = $this->gateway->supportsTools($configuration)
+            $toolDefinitions = ($this->gateway->supportsTools($configuration) && ! $presenceCheck)
                 ? $this->tools->definitionsFor($toolContext)
                 : [];
 
@@ -215,50 +223,88 @@ final class ConversationAiService
             );
 
             $toolResults = [];
+            $parameters = is_array($configuration->parameters) ? $configuration->parameters : [];
 
             try {
-                $response = $this->completeWithTools(
+                $response = $this->toolLoop->run(
                     $configuration,
                     $context['system_prompt'],
                     $context['messages'],
                     $toolDefinitions,
                     $toolContext,
+                    $trace,
                     $toolResults,
                     $diagnostics,
+                    $userText,
                 );
             } catch (Throwable $exception) {
-                $fallback = $this->failureFallback->resolve(
-                    $exception,
-                    $toolResults,
-                    $inbound?->body,
-                );
-
-                if ($fallback === null) {
-                    throw $exception;
+                if ($this->toolLoop->hasUsefulResults($toolResults)) {
+                    try {
+                        $response = $this->toolLoop->synthesize(
+                            $configuration,
+                            $context['system_prompt'],
+                            $context['messages'],
+                            $parameters,
+                            $toolResults,
+                            $trace,
+                            $userText,
+                            $diagnostics,
+                        );
+                    } catch (Throwable $synthesisException) {
+                        $exception = $synthesisException;
+                        $response = null;
+                    }
+                } else {
+                    $response = null;
                 }
 
-                try {
-                    Log::warning('AI response failed; using safe fallback reply', [
-                        'configuration' => $configuration->roleKey()->value,
-                        'provider' => $configuration->provider,
-                        'model' => $configuration->model,
-                        'error_class' => $exception::class,
-                        'tool_results_count' => count($toolResults),
-                    ]);
-                } catch (Throwable) {
-                }
+                if ($response === null) {
+                    $fallback = $this->failureFallback->resolve(
+                        $exception,
+                        $toolResults,
+                        $userText,
+                    );
 
-                $response = new AiChatResponse(
-                    text: $fallback,
-                    provider: (string) $configuration->provider,
-                    model: (string) $configuration->model,
-                    finishReason: 'fallback',
-                );
+                    if ($fallback === null) {
+                        throw $exception;
+                    }
+
+                    $trace->finalOutcome = $this->fallbackOutcome($fallback, $toolResults);
+
+                    try {
+                        Log::warning('AI response failed; using safe fallback reply', [
+                            'configuration' => $configuration->roleKey()->value,
+                            'provider' => $configuration->provider,
+                            'model' => $configuration->model,
+                            'error_class' => $exception::class,
+                            'error_message' => $exception->getMessage(),
+                            'tool_results_count' => count($toolResults),
+                        ]);
+                    } catch (Throwable) {
+                    }
+
+                    $response = new AiChatResponse(
+                        text: $fallback,
+                        provider: (string) $configuration->provider,
+                        model: (string) $configuration->model,
+                        finishReason: 'fallback',
+                        metadata: [
+                            'fallback_error_class' => $exception::class,
+                        ],
+                    );
+                } else {
+                    $trace->finalOutcome = $trace->partialRecovery ? 'partial' : 'answer';
+                }
+            }
+
+            if ($trace->finalOutcome === 'answer' && $trace->partialRecovery) {
+                $trace->finalOutcome = 'partial';
             }
 
             $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
             $roleKey = $configuration->roleKey()->value;
             $this->contextLogs->log($user->id, $conversation->id, $diagnostics);
+            $this->logTrace($trace);
 
             $pendingConfirmation = $this->pendingConfirmationFromResults($toolResults);
             $metadata = [
@@ -273,6 +319,10 @@ final class ConversationAiService
                     'finish_reason' => $response->finishReason,
                     'event' => $eventName,
                     'context' => $this->safeContextMetadata($diagnostics),
+                    'runtime' => $trace->toMetadata(),
+                    'fallback_error_class' => is_string($response->metadata['fallback_error_class'] ?? null)
+                        ? $response->metadata['fallback_error_class']
+                        : null,
                 ],
                 'pending_confirmation' => $pendingConfirmation,
             ];
@@ -299,6 +349,8 @@ final class ConversationAiService
 
             return new ConversationAiTurnResult(assistantMessage: $assistant);
         } catch (Throwable $exception) {
+            $trace->finalOutcome = 'unavailable';
+            $this->logTrace($trace);
             $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
 
             try {
@@ -307,6 +359,7 @@ final class ConversationAiService
                     'model' => $configuration->model,
                     'configuration' => $configuration->roleKey()->value,
                     'error_class' => $exception::class,
+                    'error_message' => $exception->getMessage(),
                     'latency_ms' => $latencyMs,
                 ]);
             } catch (Throwable) {
@@ -351,102 +404,6 @@ final class ConversationAiService
     }
 
     /**
-     * @param  list<AiChatMessage>  $messages
-     * @param  list<ToolDefinition>  $tools
-     * @param  list<ToolResult>  $toolResults
-     * @param  array<string, mixed>  $diagnostics
-     */
-    private function completeWithTools(
-        AiRoleSetting $configuration,
-        string $systemPrompt,
-        array $messages,
-        array $tools,
-        ToolExecutionContext $toolContext,
-        array &$toolResults = [],
-        array &$diagnostics = [],
-    ): AiChatResponse {
-        $rounds = 0;
-        $maxRounds = max(1, (int) config('context_budget.max_tool_rounds', self::MAX_TOOL_ROUNDS));
-
-        while (true) {
-            $enforced = $this->contextBudgets->enforceRequest($systemPrompt, $messages, $configuration, $diagnostics);
-            $systemPrompt = $enforced['system_prompt'];
-            $messages = $enforced['messages'];
-            $diagnostics = $enforced['diagnostics'];
-
-            $parameters = is_array($configuration->parameters) ? $configuration->parameters : [];
-
-            try {
-                $response = $this->gateway->chat($configuration, new AiChatRequest(
-                    model: (string) $configuration->model,
-                    systemPrompt: $systemPrompt,
-                    messages: $messages,
-                    parameters: $parameters,
-                    tools: $tools,
-                ));
-            } catch (AiSafetyException $exception) {
-                try {
-                    Log::warning('AI response blocked; retrying with safety guidance', [
-                        'configuration' => $configuration->roleKey()->value,
-                        'provider' => $configuration->provider,
-                        'model' => $configuration->model,
-                        'reason' => $exception->reason,
-                    ]);
-
-                    return $this->safetyResponses->retry(
-                        $configuration,
-                        $messages,
-                        $parameters,
-                    );
-                } catch (Throwable) {
-                    throw $exception;
-                }
-            }
-
-            if (! $response->hasToolCalls()) {
-                if (trim($response->text) === '') {
-                    throw new AiEmptyResponseException;
-                }
-
-                return $response;
-            }
-
-            if ($rounds >= $maxRounds) {
-                try {
-                    Log::warning('AI tool loop limit reached', [
-                        'configuration' => $configuration->roleKey()->value,
-                        'provider' => $configuration->provider,
-                        'model' => $configuration->model,
-                        'error_class' => 'tool_loop_limit',
-                    ]);
-                } catch (Throwable) {
-                }
-
-                throw new AiConfigurationException('AI tool loop exceeded the safety limit.');
-            }
-
-            $nativeParts = is_array($response->metadata['native_parts'] ?? null)
-                ? $response->metadata['native_parts']
-                : [];
-
-            $messages[] = AiChatMessage::assistantToolCalls(
-                $response->toolCalls,
-                $response->text,
-                $nativeParts,
-            );
-
-            foreach ($response->toolCalls as $call) {
-                $result = $this->tools->execute($call, $toolContext);
-                $result = $this->toolResultBudgets->apply($result, $toolContext->budgets);
-                $toolResults[] = $result;
-                $messages[] = AiChatMessage::toolResult($result);
-            }
-
-            $rounds++;
-        }
-    }
-
-    /**
      * @param  array<string, mixed>  $diagnostics
      * @return array<string, mixed>
      */
@@ -470,7 +427,33 @@ final class ConversationAiService
 
     /**
      * @param  list<ToolResult>  $results
-     * @return array{id: string, tool_name: string, summary: string, preview: array<string, mixed>|null}|null
+     */
+    private function fallbackOutcome(string $fallback, array $results): string
+    {
+        if ($fallback === AiFailureFallback::ANSWER_UNAVAILABLE) {
+            return 'unavailable';
+        }
+
+        $lower = mb_strtolower($fallback);
+
+        if (str_contains($lower, 'готово') || str_contains($lower, 'напомню')) {
+            return 'mutation_fallback';
+        }
+
+        return $results === [] ? 'unavailable' : 'partial';
+    }
+
+    private function logTrace(AgentTurnTrace $trace): void
+    {
+        try {
+            Log::info('agent_turn', $trace->toLogContext());
+        } catch (Throwable) {
+        }
+    }
+
+    /**
+     * @param  list<ToolResult>  $results
+     * @return array{id: string, status: string, tool_name: string, summary: string, preview: array<string, mixed>|null, expires_at: string|null}|null
      */
     private function pendingConfirmationFromResults(array $results): ?array
     {
@@ -488,6 +471,7 @@ final class ConversationAiService
 
             return [
                 'id' => $id,
+                'status' => ToolConfirmationStatus::Pending->value,
                 'tool_name' => $result->name,
                 'summary' => (string) ($result->payload['summary'] ?? ''),
                 'preview' => is_array($preview) ? $preview : null,

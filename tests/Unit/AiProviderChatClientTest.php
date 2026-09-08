@@ -180,6 +180,59 @@ class AiProviderChatClientTest extends TestCase
         });
     }
 
+    public function test_gemini_encodes_empty_function_call_args_as_object_not_list(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [[
+                    'content' => ['parts' => [['text' => 'Напомню утром.']]],
+                    'finishReason' => 'STOP',
+                ]],
+            ], 200),
+        ]);
+
+        $tools = [new ToolDefinition(
+            name: 'create_reminder',
+            description: 'Создаёт персональное напоминание.',
+            parameters: [
+                'type' => 'OBJECT',
+                'properties' => [
+                    'text' => ['type' => 'STRING'],
+                ],
+            ],
+        )];
+
+        (new GeminiClient)->chat('gemini-key', new AiChatRequest(
+            model: 'gemini-test',
+            systemPrompt: 'You are Jarvis.',
+            messages: [
+                new AiChatMessage('user', 'напомни утром про медиаматериалы'),
+                AiChatMessage::assistantToolCalls(
+                    [],
+                    '',
+                    [[
+                        'functionCall' => [
+                            'name' => 'create_reminder',
+                            'args' => [],
+                        ],
+                    ]],
+                ),
+                AiChatMessage::toolResult(ToolResult::success('call_empty', 'create_reminder', [])),
+            ],
+            tools: $tools,
+        ));
+
+        Http::assertSent(function ($httpRequest): bool {
+            $encoded = json_encode($httpRequest->data()) ?: '';
+
+            return str_contains($httpRequest->url(), 'generateContent')
+                && str_contains($encoded, '"args":{}')
+                && ! str_contains($encoded, '"args":[]')
+                && str_contains($encoded, '"response":{}')
+                && ! str_contains($encoded, '"response":[]');
+        });
+    }
+
     public function test_gemini_exposes_safety_block_without_leaking_prompt(): void
     {
         Http::fake([

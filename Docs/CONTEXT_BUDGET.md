@@ -20,7 +20,7 @@ After the conversation-summary threshold, adding more raw messages to MySQL must
 
 | Piece | Role |
 | --- | --- |
-| `config/context_budget.php` | Named token slices and tool-round cap |
+| `config/context_budget.php` | Named token slices, tool-round cap, no-progress threshold, provider retries |
 | `config/ai_model_context.php` | Per-provider / per-model context windows + output reserve |
 | `AiModelContextPolicy` | Resolves max context and input budget; unknown model → conservative default (32k / 2k) |
 | `TokenEstimator` | Provider-neutral overestimate (Unicode chars/words + overhead). Prefer overestimating. |
@@ -86,6 +86,10 @@ Local per-tool bounds remain. `ToolResultBudgetManager` is a second layer.
 Shared token budget for all tool responses in one turn. Trim **content/excerpts/lists** first. Preserve success/error, ids, pagination/`truncated`, key metadata. Never emit invalid object shape.
 
 If the remaining budget is too small: compact `tool_context_budget_exceeded` rather than a huge payload.
+
+Forced final synthesis compacting: duplicate tool results (same semantic fingerprint: file + chunk indexes + query, not raw text) are replaced with a `duplicate` marker so the no-tools pass is not flooded with the same Storage chunks.
+
+Hard `max_tool_rounds` (default 8) is an emergency cap. `no_progress_tool_rounds` (default 2) stops the tool phase earlier when calls add no new information. `provider_retries` / `final_synthesis_retries` apply to the model call only; tools are not re-executed.
 
 ---
 

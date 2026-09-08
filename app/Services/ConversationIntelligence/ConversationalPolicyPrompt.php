@@ -2,6 +2,8 @@
 
 namespace App\Services\ConversationIntelligence;
 
+use App\Services\Conversations\TurnIsolation;
+
 final class ConversationalPolicyPrompt
 {
     /**
@@ -21,6 +23,7 @@ final class ConversationalPolicyPrompt
             'Never guess a mutation target id. Use trusted recent tool result ids from working context, or list/search tools then ask. Do not invent ids.',
             'If the user returns to an earlier topic, recover it from topics/summary/working context. Call search_conversation_history only when a deeper raw detail is needed.',
             'Default: answer and stop. At most one contextual suggestion, only when it has high value for this turn (for example offering to create a task after a concrete problem was just solved). Never end every reply with “Хочешь, я…” / “Могу также…”. No generic advice. No automatic external writes from a suggestion.',
+            ...TurnIsolation::policyLines(),
         ];
     }
 }

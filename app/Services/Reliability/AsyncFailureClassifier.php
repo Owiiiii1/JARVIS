@@ -200,7 +200,17 @@ final class AsyncFailureClassifier
             return new AsyncFailure(AsyncFailureCategory::MalformedProviderResponse, 'empty_provider_response', true, $class);
         }
 
-        if ($this->contains($haystack, ['malformed', 'must be an array', 'must be an object', 'unserialize', 'serialization'])) {
+        if ($this->contains($haystack, [
+            'malformed',
+            'must be an array',
+            'must be an object',
+            'unserialize',
+            'serialization',
+            'invalid json payload',
+            'proto field is not repeating',
+            'cannot start list',
+            'unknown name "args"',
+        ])) {
             return new AsyncFailure(AsyncFailureCategory::Serialization, 'serialization', false, $class);
         }
 

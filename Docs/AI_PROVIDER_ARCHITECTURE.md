@@ -78,7 +78,9 @@ User Conversation AI: reminder, history search, assistant profile/onboarding, Te
 
 Every tool execute goes through `ToolExecutionService`. Conversation Engine does not import provider SDKs. `search_web` does not call Tavily, Gemini Search, or HTTP itself.
 
-Порт chat/complete возвращает text **и** tool requests. `one message ≠ max one tool call`. Tool rounds capped by `context_budget.max_tool_rounds` (default 8) so research can search + fetch a few pages without an unbounded loop.
+Порт chat/complete возвращает text **и** tool requests. `one message ≠ max one tool call`. Tool rounds capped by `context_budget.max_tool_rounds` (default 8). Runtime also exits the tool phase on no-progress repetition (`no_progress_tool_rounds`, default 2) and then runs a no-tools final synthesis. Transient provider failures (timeout, 429, 5xx, empty response) retry without re-executing tools (`provider_retries`). Hard auth/config/safety/serialization errors are not retried. Identical mutation fingerprints in one turn are not executed twice.
+
+Read vs write is explicit on `ToolMeta` (`ToolMutationKind`: read / write_internal / write_external / destructive). `AiFailureFallback` may say «Готово.» only for known mutations. Read/search/fetch/compare tools never complete as «Готово.» User-facing unavailable copy is short; provider exception names stay in logs (`agent_turn` trace: round count, tool names, repetition, forced synthesis, retries, outcome — no payloads, prompts, or secrets).
 
 `AiChatRequest` передаёт provider-neutral `ToolDefinition`. `AiChatResponse` возвращает text, zero or more `ToolCall`, finish reason, usage.
 

@@ -4,12 +4,20 @@ namespace Tests\Unit;
 
 use App\Services\Ai\AiFailureFallback;
 use App\Services\Ai\DTO\ToolResult;
+use App\Services\Ai\Exceptions\AiConfigurationException;
 use App\Services\Ai\Exceptions\AiEmptyResponseException;
 use App\Services\Ai\Exceptions\AiProviderException;
 use App\Services\Ai\Exceptions\AiSafetyException;
 use App\Services\Tools\CompleteAssistantOnboardingTool;
 use App\Services\Tools\CreateReminderTool;
+use App\Services\Tools\Storage\GetStorageFileTool;
+use App\Services\Tools\Storage\ReadStorageFileChunksTool;
+use App\Services\Tools\Storage\SearchStorageFileContentsTool;
+use App\Services\Tools\Synthesis\ListCommitmentsTool;
+use App\Services\Tools\Synthesis\ListWaitingForTool;
 use App\Services\Tools\UpdateAssistantProfileTool;
+use App\Services\Tools\Watchers\CreateWatcherTool;
+use App\Services\Tools\Watchers\ListWatchersTool;
 use PHPUnit\Framework\TestCase;
 
 class AiFailureFallbackTest extends TestCase
@@ -78,7 +86,7 @@ class AiFailureFallbackTest extends TestCase
         $this->assertNull($fallback);
     }
 
-    public function test_completed_tool_reports_follow_up_technical_failure(): void
+    public function test_completed_mutation_keeps_safe_fallback_without_technical_error(): void
     {
         $fallback = (new AiFailureFallback)->resolve(
             new AiProviderException('upstream unavailable'),
@@ -90,9 +98,10 @@ class AiFailureFallbackTest extends TestCase
         );
 
         $this->assertSame(
-            'Готово, настройки ассистента сохранены. Но при формировании ответа произошла техническая ошибка.',
+            'Готово, настройки ассистента сохранены.',
             $fallback,
         );
+        $this->assertStringNotContainsString('техническая ошибка', (string) $fallback);
     }
 
     public function test_successful_reminder_without_telegram_says_it_is_saved_in_jarvis(): void
@@ -126,5 +135,137 @@ class AiFailureFallbackTest extends TestCase
         );
 
         $this->assertSame('Хорошо, напомню: проверить чайник. Я также пришлю его в Telegram.', $fallback);
+    }
+
+    public function test_successful_list_after_failed_watcher_does_not_claim_the_action_worked(): void
+    {
+        $fallback = (new AiFailureFallback)->resolve(
+            new AiProviderException('upstream unavailable'),
+            [
+                ToolResult::failure('call-1', CreateWatcherTool::NAME, [
+                    'success' => false,
+                    'error' => 'invalid_config',
+                    'message' => 'Не получилось поставить автоматизацию: не хватает задачи или условия. Если речь о конкретной задаче, назовите её или уточните, о какой из недавних.',
+                ]),
+                ToolResult::success('call-2', ListWatchersTool::NAME, [
+                    'success' => true,
+                    'watchers' => [],
+                ]),
+            ],
+        );
+
+        $this->assertSame(
+            'Не получилось поставить автоматизацию: не хватает задачи или условия. Если речь о конкретной задаче, назовите её или уточните, о какой из недавних.',
+            $fallback,
+        );
+        $this->assertStringNotContainsString('Готово', (string) $fallback);
+    }
+
+    public function test_successful_list_alone_does_not_claim_the_action_worked(): void
+    {
+        $fallback = (new AiFailureFallback)->resolve(
+            new AiProviderException('upstream unavailable'),
+            [
+                ToolResult::success('call-1', ListWatchersTool::NAME, [
+                    'success' => true,
+                    'watchers' => [],
+                ]),
+            ],
+        );
+
+        $this->assertSame(AiFailureFallback::ANSWER_UNAVAILABLE, $fallback);
+        $this->assertStringNotContainsString('Готово', (string) $fallback);
+    }
+
+    public function test_waiting_for_read_answers_even_if_follow_up_fails(): void
+    {
+        $fallback = (new AiFailureFallback)->resolve(
+            new AiProviderException('upstream unavailable'),
+            [
+                ToolResult::success('call-1', ListWaitingForTool::NAME, [
+                    'success' => true,
+                    'waiting_for' => [
+                        [
+                            'title' => 'Ждём выполнения «VC2 проверить новый билд»',
+                            'why' => 'Если «VC2 проверить новый билд» завтра всё ещё будет открытой, я сообщу вам.',
+                        ],
+                    ],
+                ]),
+                ToolResult::success('call-2', ListCommitmentsTool::NAME, [
+                    'success' => true,
+                    'commitments' => [],
+                ]),
+            ],
+            'Чего я сейчас жду?',
+        );
+
+        $this->assertSame(
+            'Сейчас вы ждёте: Ждём выполнения «VC2 проверить новый билд». Если «VC2 проверить новый билд» завтра всё ещё будет открытой, я сообщу вам.',
+            $fallback,
+        );
+        $this->assertStringNotContainsString('Готово', (string) $fallback);
+        $this->assertStringNotContainsString('техническая ошибка', (string) $fallback);
+    }
+
+    public function test_empty_waiting_for_read_says_there_is_nothing_open(): void
+    {
+        $fallback = (new AiFailureFallback)->resolve(
+            new AiProviderException('upstream unavailable'),
+            [
+                ToolResult::success('call-1', ListWaitingForTool::NAME, [
+                    'success' => true,
+                    'waiting_for' => [],
+                ]),
+            ],
+            'Чего я сейчас жду?',
+        );
+
+        $this->assertSame('Сейчас нет открытых ожиданий.', $fallback);
+    }
+
+    public function test_successful_watcher_reports_the_human_description_when_follow_up_fails(): void
+    {
+        $fallback = (new AiFailureFallback)->resolve(
+            new AiProviderException('upstream unavailable'),
+            [
+                ToolResult::success('call-1', CreateWatcherTool::NAME, [
+                    'success' => true,
+                    'description' => 'Если «VC2 проверить новый билд» завтра всё ещё будет открытой, я сообщу вам.',
+                ]),
+            ],
+        );
+
+        $this->assertSame(
+            'Готово. Если «VC2 проверить новый билд» завтра всё ещё будет открытой, я сообщу вам.',
+            $fallback,
+        );
+        $this->assertStringNotContainsString('техническая ошибка', (string) $fallback);
+    }
+
+    public function test_storage_reads_do_not_claim_the_action_worked_when_follow_up_fails(): void
+    {
+        $fallback = (new AiFailureFallback)->resolve(
+            new AiConfigurationException('AI tool loop exceeded the safety limit.'),
+            [
+                ToolResult::success('call-1', GetStorageFileTool::NAME, [
+                    'success' => true,
+                    'truncated' => true,
+                ]),
+                ToolResult::success('call-2', SearchStorageFileContentsTool::NAME, [
+                    'success' => true,
+                    'count' => 3,
+                ]),
+                ToolResult::success('call-3', ReadStorageFileChunksTool::NAME, [
+                    'success' => true,
+                    'count' => 1,
+                    'chunks' => [['index' => 0, 'text' => 'G1 A90']],
+                ]),
+            ],
+            'посмотри программу и посчитай сдвиг оси A',
+        );
+
+        $this->assertSame(AiFailureFallback::ANSWER_UNAVAILABLE, $fallback);
+        $this->assertStringNotContainsString('Готово', (string) $fallback);
+        $this->assertStringNotContainsString('техническая ошибка', (string) $fallback);
     }
 }

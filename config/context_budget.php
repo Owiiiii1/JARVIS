@@ -67,6 +67,25 @@ return [
 
     'max_tool_rounds' => (int) env('CONTEXT_MAX_TOOL_ROUNDS', 8),
 
+    /*
+    | Consecutive tool rounds with no new information before forced synthesis.
+    | The hard max_tool_rounds cap remains an emergency stop.
+    */
+    'no_progress_tool_rounds' => (int) env('CONTEXT_NO_PROGRESS_TOOL_ROUNDS', 2),
+
+    /*
+    | Extra generateContent attempts after a transient provider failure.
+    | Tools are not executed again; only the same model request is repeated.
+    */
+    'provider_retries' => (int) env('CONTEXT_PROVIDER_RETRIES', 2),
+
+    'provider_retry_delay_ms' => (int) env('CONTEXT_PROVIDER_RETRY_DELAY_MS', 400),
+
+    /*
+    | Extra no-tools synthesis attempts after an empty final-answer response.
+    */
+    'final_synthesis_retries' => (int) env('CONTEXT_FINAL_SYNTHESIS_RETRIES', 1),
+
     'image_tokens' => (int) env('CONTEXT_IMAGE_TOKENS', 768),
 
     'summary_max_chars' => (int) env('CONTEXT_SUMMARY_MAX_CHARS', 4000),

@@ -2,10 +2,11 @@
 
 namespace App\Enums;
 
-enum ToolOperationClass: string
+enum ToolMutationKind: string
 {
     case Read = 'read';
-    case Write = 'write';
+    case WriteInternal = 'write_internal';
+    case WriteExternal = 'write_external';
     case Destructive = 'destructive';
 
     public function isReadOnly(): bool

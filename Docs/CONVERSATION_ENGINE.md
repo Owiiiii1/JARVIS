@@ -177,9 +177,13 @@ Runtime: [VOICE_ARCHITECTURE.md](VOICE_ARCHITECTURE.md). Orb UI: [CLIENTS/VOICE_
 
 ## Tools / actions
 
-Tool loop в одном turn: несколько последовательных calls. Не `one message = max one tool call`. Safety limit: **max 5 tool rounds**.
+Tool loop в одном turn: несколько последовательных calls. Не `one message = max one tool call`. Hard safety limit: **max 8 tool rounds** (`context_budget.max_tool_rounds`). Runtime also stops earlier on **no-progress** repetition (same tool + args / same result fingerprint / short alternating loop; default 2 consecutive no-progress rounds).
 
-Реализовано в Core (`ConversationAiService`): AI → tool call(s) → `ToolRegistry` → `ToolExecutionService` (capability + confirmation policy + `tool_execution_logs`) → tool result(s) → AI → возможно ещё tools → final answer. Telegram и Web Workspace не знают, какой tool сработал. Future Mobile would use the same Core; there is no Desktop client.
+Invariant: every user turn ends in a user-facing response — a useful answer, a partial answer with a natural limitation, or a short unavailable line after recovery is exhausted. Reaching the tool cap or a no-progress stop does **not** produce a generic technical-error fallback. `AgentToolLoop` runs a **forced final synthesis** with tools disabled: original request + bounded collected results + “Do not call tools.” Duplicate identical mutation calls in the same turn are not executed again.
+
+A new user message is a new execution turn. Previous tool plans, retry state, and incomplete loops do not continue. Short presence checks («эй», «ты тут?») disable tools for that turn. «Повтори предыдущий» restates the previous semantic answer; it does not blindly replay a stale tool plan.
+
+Реализовано в Core (`ConversationAiService` + `AgentToolLoop`): AI → tool call(s) → `ToolRegistry` → `ToolExecutionService` (capability + confirmation policy + `tool_execution_logs`) → tool result(s) → AI → possibly more tools or forced synthesis → final answer. Telegram и Web Workspace не знают, какой tool сработал. Future Mobile would use the same Core; there is no Desktop client.
 
 Tools:
 

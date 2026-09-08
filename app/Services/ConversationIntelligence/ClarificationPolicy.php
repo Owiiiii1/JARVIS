@@ -14,7 +14,7 @@ final class ClarificationPolicy
         bool $externalDestinationAmbiguous = false,
         bool $contextContradiction = false,
     ): ?string {
-        $mutation = in_array($operation, [ToolOperationClass::Write, ToolOperationClass::Destructive], true);
+        $mutation = $operation?->isMutation() ?? false;
 
         if ($contextContradiction) {
             return 'context_contradiction';

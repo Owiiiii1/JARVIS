@@ -244,7 +244,7 @@ class GeminiClient implements AiProviderClient
     private function contents(AiChatRequest $request): array
     {
         if ($this->hasToolMessages($request) || $request->hasImageParts()) {
-            return $this->structuredContents($request);
+            return $this->sanitizeContents($this->structuredContents($request));
         }
 
         $messages = AiProviderMessageNormalizer::ensureStartsWithUser(
@@ -253,12 +253,12 @@ class GeminiClient implements AiProviderClient
             )
         );
 
-        return array_map(static function (array $message): array {
+        return $this->sanitizeContents(array_map(static function (array $message): array {
             return [
                 'role' => $message['role'] === 'assistant' ? 'model' : 'user',
                 'parts' => [['text' => $message['content']]],
             ];
-        }, $messages);
+        }, $messages));
     }
 
     /**
@@ -314,7 +314,7 @@ class GeminiClient implements AiProviderClient
         if ($message->nativeParts !== []) {
             return [
                 'role' => $message->role === 'assistant' ? 'model' : 'user',
-                'parts' => $message->nativeParts,
+                'parts' => $this->sanitizeNativeParts($message->nativeParts),
             ];
         }
 
@@ -323,7 +323,7 @@ class GeminiClient implements AiProviderClient
             $payload = $message->toolResponse ?? [];
             $response = [
                 'name' => $name,
-                'response' => $payload === [] ? (object) [] : $payload,
+                'response' => $this->protoStruct($payload),
             ];
 
             if (filled($message->toolCallId) && ! str_starts_with((string) $message->toolCallId, 'gemini_')) {
@@ -348,7 +348,7 @@ class GeminiClient implements AiProviderClient
             foreach ($message->toolCalls as $index => $call) {
                 $functionCall = [
                     'name' => $call->name,
-                    'args' => $call->arguments === [] ? (object) [] : $call->arguments,
+                    'args' => $this->protoStruct($call->arguments),
                 ];
 
                 if (filled($call->id) && ! str_starts_with($call->id, 'gemini_')) {
@@ -436,5 +436,88 @@ class GeminiClient implements AiProviderClient
             'description' => $tool->description,
             'parameters' => $tool->parameters,
         ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $contents
+     * @return list<array<string, mixed>>
+     */
+    private function sanitizeContents(array $contents): array
+    {
+        foreach ($contents as $index => $content) {
+            if (! is_array($content) || ! isset($content['parts']) || ! is_array($content['parts'])) {
+                continue;
+            }
+
+            $contents[$index]['parts'] = $this->sanitizeNativeParts($content['parts']);
+        }
+
+        return $contents;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $parts
+     * @return list<array<string, mixed>>
+     */
+    private function sanitizeNativeParts(array $parts): array
+    {
+        foreach ($parts as $index => $part) {
+            if (! is_array($part)) {
+                continue;
+            }
+
+            foreach (['functionCall', 'function_call'] as $key) {
+                if (! isset($part[$key]) || ! is_array($part[$key])) {
+                    continue;
+                }
+
+                $args = $part[$key]['args'] ?? $part[$key]['arguments'] ?? [];
+                $part[$key]['args'] = $this->protoStruct($args);
+                unset($part[$key]['arguments']);
+            }
+
+            foreach (['functionResponse', 'function_response'] as $key) {
+                if (! isset($part[$key]) || ! is_array($part[$key])) {
+                    continue;
+                }
+
+                $part[$key]['response'] = $this->protoStruct($part[$key]['response'] ?? []);
+            }
+
+            $parts[$index] = $part;
+        }
+
+        return $parts;
+    }
+
+    /**
+     * Gemini protobuf JSON requires functionCall.args and functionResponse.response to be objects.
+     * PHP json_encode turns an empty array into [], which Gemini rejects as a repeating field.
+     *
+     * @return array<string, mixed>|\stdClass
+     */
+    private function protoStruct(mixed $value): array|\stdClass
+    {
+        if ($value instanceof \stdClass) {
+            return $value;
+        }
+
+        if (! is_array($value)) {
+            return (object) [];
+        }
+
+        if ($value === []) {
+            return (object) [];
+        }
+
+        if (array_is_list($value)) {
+            if (count($value) === 1 && is_array($value[0]) && $value[0] !== [] && ! array_is_list($value[0])) {
+                return $this->protoStruct($value[0]);
+            }
+
+            return (object) [];
+        }
+
+        return $value;
     }
 }
