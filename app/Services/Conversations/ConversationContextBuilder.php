@@ -25,6 +25,7 @@ use App\Services\Memory\DTO\MemoryContextPackage;
 use App\Services\Memory\PersonalMemoryRetriever;
 use App\Services\Productivity\ProductivitySnapshot;
 use App\Services\Reminders\ReminderToolPrompt;
+use App\Services\Reports\ScheduledReportToolPrompt;
 use App\Services\Storage\StoredFileService;
 use App\Services\Synthesis\CrossSourceSynthesisService;
 use App\Services\Synthesis\SynthesisToolPrompt;
@@ -266,6 +267,10 @@ final class ConversationContextBuilder
             $lines = array_merge($lines, WatcherToolPrompt::lines());
         }
 
+        if (array_intersect(ScheduledReportToolPrompt::toolNames(), $names) !== []) {
+            $lines = array_merge($lines, ScheduledReportToolPrompt::lines());
+        }
+
         if (in_array(GetAssistantProfileTool::NAME, $names, true)
             || in_array(UpdateAssistantProfileTool::NAME, $names, true)
             || in_array(CompleteAssistantOnboardingTool::NAME, $names, true)) {
@@ -322,10 +327,10 @@ final class ConversationContextBuilder
         }
 
         if (in_array(SearchGmailTool::NAME, $names, true) || in_array(ListGmailMessagesTool::NAME, $names, true)) {
-            $lines[] = 'You can read Gmail now (search_gmail, list_gmail_messages, get_gmail_message) and create Gmail watchers. Never say you have no Gmail monitoring, cannot check mail yourself, or lack a Gmail watcher capability.';
-            $lines[] = 'For a one-off “есть новые письма?” call list_gmail_messages or search_gmail. For “проверяй каждое утро почту и сообщай, что нового” call create_watcher (digest). For “жди письмо от школы / следи за письмами от @example.com / сообщи, когда придёт письмо” call create_watcher (gmail event), not a digest, not create_reminder, and not knowledge_event.';
-            $lines[] = 'Only claim Gmail monitoring after create_watcher succeeded with kind gmail_event or gmail_digest. If create_watcher failed, say that it failed. Do not promise an exact poll interval.';
-            $lines[] = 'If a Gmail tool or create_watcher returns google_not_connected, say Jarvis can do this after Gmail is connected. If it returns gmail_scope_required, say Gmail access must be granted. Gmail watchers are read-only: never mark as read, archive, label, or reply.';
+            $lines[] = 'You can read Gmail now (search_gmail, list_gmail_messages, get_gmail_message), create scheduled mail/group reports, and create Gmail event watchers. Never say you have no Gmail monitoring, cannot check mail yourself, or lack a Gmail watcher capability.';
+            $lines[] = 'For a one-off “есть новые письма?” call list_gmail_messages or search_gmail. For “проверяй каждое утро почту / каждое утро дай сводку почты / каждое утро письма и группы” call create_scheduled_report. For “жди письмо от школы / следи за письмами от @example.com / сообщи, когда придёт письмо” call create_watcher (gmail event), not a scheduled report, not create_reminder, and not knowledge_event.';
+            $lines[] = 'Only claim a scheduled report after create_scheduled_report succeeded with success=true and report_id. Only claim Gmail event monitoring after create_watcher succeeded with kind gmail_event. If creation failed, say that it failed. Do not promise an exact poll interval.';
+            $lines[] = 'If a Gmail tool or create_watcher returns google_not_connected, say Jarvis can do this after Gmail is connected. If it returns gmail_scope_required, say Gmail access must be granted. Gmail watchers and scheduled mail reports are read-only: never mark as read, archive, label, or reply.';
         } elseif ($user->canUseCapability(UserCapability::GMAIL)) {
             $lines[] = 'Jarvis can monitor Gmail on a schedule after Gmail is connected. If the user asks you to check mail yourself, say that Gmail needs to be connected first. Do not invent a reminder to check mail instead.';
         }

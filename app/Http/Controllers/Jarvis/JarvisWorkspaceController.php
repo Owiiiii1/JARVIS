@@ -10,6 +10,7 @@ use App\Services\Conversations\ConversationService;
 use App\Services\Conversations\PersonalChatSurfaceService;
 use App\Services\Notifications\JarvisNotificationService;
 use App\Services\Reminders\ReminderService;
+use App\Services\Reports\ScheduledReportService;
 use App\Services\Storage\StoredFileConfig;
 use App\Services\Tasks\TaskService;
 use App\Services\Voice\ElevenLabsRealtimeSessionService;
@@ -39,6 +40,7 @@ class JarvisWorkspaceController extends Controller
         private readonly ReminderService $reminders,
         private readonly TaskService $tasks,
         private readonly WatcherService $watchers,
+        private readonly ScheduledReportService $reports,
         private readonly JarvisNotificationService $notifications,
         private readonly WorkspaceSurfaceStateService $workspaceState,
     ) {}
@@ -88,6 +90,7 @@ class JarvisWorkspaceController extends Controller
             'activeReminderCount' => $this->reminders->activeCount($user),
             'activeTaskCount' => $this->tasks->activeOpenCount($user),
             'activeWatcherCount' => $this->watchers->activeCount($user),
+            'activeReportCount' => $this->reports->activeCount($user),
             'unreadNotificationCount' => $this->notifications->unreadCount($user),
         ]);
     }

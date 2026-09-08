@@ -29,6 +29,8 @@ scheduled → (due / processing) → delivered | completed | cancelled | failed
 
 One reminder may have Web Push, Telegram, both, or neither.
 
+Scheduled Reports reuse the same Telegram adapter (`SendsReminderTelegram`) and Notification Center / Web Push path. They are not reminder rows.
+
 ---
 
 ## Schema (additive, Phase B.1)

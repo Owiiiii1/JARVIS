@@ -25,6 +25,8 @@ use App\Models\MessageAttachment;
 use App\Models\MessageTopicRelation;
 use App\Models\Project;
 use App\Models\Reminder;
+use App\Models\ScheduledReport;
+use App\Models\ScheduledReportRun;
 use App\Models\Task;
 use App\Models\TelegramGroup;
 use App\Models\TelegramGroupAnalysisRun;
@@ -109,6 +111,12 @@ trait CleansTemporaryJarvisRecords
         }
         if (Schema::hasTable('watchers')) {
             Watcher::query()->where('user_id', $user->id)->delete();
+        }
+        if (Schema::hasTable('scheduled_report_runs')) {
+            ScheduledReportRun::query()->where('user_id', $user->id)->delete();
+        }
+        if (Schema::hasTable('scheduled_reports')) {
+            ScheduledReport::query()->where('user_id', $user->id)->delete();
         }
         if (Schema::hasTable('jarvis_notifications')) {
             JarvisNotification::query()->where('user_id', $user->id)->delete();

@@ -14,6 +14,7 @@ use App\Services\ConversationIntelligence\ReferenceResolver;
 use App\Services\Integrations\Exceptions\IntegrationException;
 use App\Services\Integrations\Google\GoogleOAuthService;
 use App\Services\Integrations\IntegrationAccountService;
+use App\Services\Reports\ScheduledReportIntent;
 use App\Services\Tools\JarvisTool;
 use App\Services\Tools\ToolExecutionContext;
 use App\Services\Tools\ToolMeta;
@@ -46,7 +47,7 @@ final class CreateWatcherTool implements JarvisTool
     {
         return new ToolDefinition(
             name: self::NAME,
-            description: 'Creates an explicit Jarvis watcher for a future condition or a recurring Jarvis-performed check (not a reminder). Reminder: “напомни мне проверить почту”. Digest: “каждое утро дай сводку почты” → gmail digest (source.digest=true, daily_local). Event: “жди письмо от школы / следи за письмами от @example.com / когда Marco ответит” → gmail_message recurring event watcher with source.sender, source.senders, or source.sender_domains. Never use knowledge_event for Gmail. Never invent user_id or integration_account_id. First Gmail check only baselines existing mail.',
+            description: 'Creates an explicit Jarvis watcher for a future condition or event (not a reminder, not a scheduled report). Reminder: “напомни мне проверить почту”. Scheduled report: “каждое утро дай сводку почты / планы на завтра” → create_scheduled_report. Event: “жди письмо от школы / следи за письмами от @example.com / когда Marco ответит” → gmail_message recurring event watcher. Never use knowledge_event for Gmail. Never invent user_id or integration_account_id.',
             parameters: [
                 'type' => 'OBJECT',
                 'properties' => [
@@ -82,6 +83,16 @@ final class CreateWatcherTool implements JarvisTool
 
     public function execute(ToolCall $call, ToolExecutionContext $context): ToolResult
     {
+        $inbound = trim((string) ($context->inbound?->body ?? ''));
+        if ($inbound !== '' && ScheduledReportIntent::matches($inbound)) {
+            return ToolResult::failure($call->id, $this->name(), [
+                'success' => false,
+                'error' => 'use_scheduled_report',
+                'message' => 'This request is a scheduled report. Call create_scheduled_report.',
+                'kind' => 'failed',
+            ]);
+        }
+
         try {
             $input = $this->normalizeInput($call, $context);
             $this->assertNotWrongGmailFallback($input, $context);
@@ -127,6 +138,10 @@ final class CreateWatcherTool implements JarvisTool
         }
 
         $inbound = trim((string) ($context->inbound?->body ?? ''));
+        if (ScheduledReportIntent::matches($inbound)) {
+            throw new WatcherException('use_scheduled_report', 'This request is a scheduled report. Call create_scheduled_report.');
+        }
+
         $digest = WatcherDigestRequest::gmailMorningFromInbound($inbound, $context->user);
         if ($digest !== null) {
             return array_merge($digest, array_filter([

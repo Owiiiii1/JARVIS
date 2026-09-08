@@ -101,6 +101,13 @@ use App\Services\Tools\Knowledge\SearchKnowledgeTool;
 use App\Services\Tools\LinkTaskReminderTool;
 use App\Services\Tools\ListRemindersTool;
 use App\Services\Tools\ListTasksTool;
+use App\Services\Tools\Reports\CancelScheduledReportTool;
+use App\Services\Tools\Reports\CreateScheduledReportTool;
+use App\Services\Tools\Reports\GetScheduledReportTool;
+use App\Services\Tools\Reports\ListScheduledReportsTool;
+use App\Services\Tools\Reports\PauseScheduledReportTool;
+use App\Services\Tools\Reports\ResumeScheduledReportTool;
+use App\Services\Tools\Reports\UpdateScheduledReportTool;
 use App\Services\Tools\SearchConversationHistoryTool;
 use App\Services\Tools\SearchGroupKnowledgeTool;
 use App\Services\Tools\SetTelegramResponseModeTool;
@@ -329,6 +336,13 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(CancelWatcherTool::class),
                 $app->make(ListWatcherOccurrencesTool::class),
                 $app->make(RunWatcherNowTool::class),
+                $app->make(CreateScheduledReportTool::class),
+                $app->make(ListScheduledReportsTool::class),
+                $app->make(GetScheduledReportTool::class),
+                $app->make(UpdateScheduledReportTool::class),
+                $app->make(PauseScheduledReportTool::class),
+                $app->make(ResumeScheduledReportTool::class),
+                $app->make(CancelScheduledReportTool::class),
                 $app->make(ListGoogleCalendarsTool::class),
                 $app->make(ListCalendarEventsTool::class),
                 $app->make(GetCalendarEventTool::class),

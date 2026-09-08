@@ -283,7 +283,7 @@ final class ToolExecutionService
             $metadata['confirmation_id'] = $payload['confirmation_id'];
         }
 
-        foreach (['task_id', 'reminder_id', 'project_id', 'watcher_id'] as $key) {
+        foreach (['task_id', 'reminder_id', 'project_id', 'watcher_id', 'report_id', 'scheduled_report_id'] as $key) {
             if (isset($payload[$key]) && is_numeric($payload[$key]) && (int) $payload[$key] > 0) {
                 $metadata[$key] = (int) $payload[$key];
             }

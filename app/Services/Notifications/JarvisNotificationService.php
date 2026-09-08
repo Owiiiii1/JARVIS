@@ -201,6 +201,8 @@ final class JarvisNotificationService
             'mode' => $metadata['mode'] ?? null,
             'watcher_id' => $metadata['watcher_id'] ?? null,
             'occurrence_id' => $metadata['occurrence_id'] ?? null,
+            'scheduled_report_id' => $metadata['scheduled_report_id'] ?? null,
+            'slot_key' => $metadata['slot_key'] ?? null,
             'pending_action' => $metadata['pending_action'] ?? null,
         ];
 

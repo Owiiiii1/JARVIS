@@ -88,7 +88,7 @@ class GmailEventMonitoringTest extends TestCase
         }
     }
 
-    public function test_morning_digest_phrase_still_creates_a_daily_digest(): void
+    public function test_morning_digest_phrase_is_a_scheduled_report_not_a_watcher(): void
     {
         $user = null;
 
@@ -105,11 +105,9 @@ class GmailEventMonitoringTest extends TestCase
                 new ToolExecutionContext($user, $inbound->conversation, $inbound),
             );
 
-            $this->assertTrue($result->success);
-            $this->assertSame('gmail_digest', $result->payload['kind']);
-            $watcher = Watcher::query()->where('user_id', $user->id)->sole();
-            $this->assertTrue(WatcherSchedule::isDigest($watcher));
-            $this->assertSame('in:inbox', $watcher->source_config['query'] ?? null);
+            $this->assertFalse($result->success);
+            $this->assertSame('use_scheduled_report', $result->payload['error'] ?? null);
+            $this->assertSame(0, Watcher::query()->where('user_id', $user->id)->count());
         } finally {
             $this->deleteTemporaryUser($user);
         }

@@ -1,6 +1,6 @@
 # Jarvis — current implementation snapshot
 
-**Date:** 2026-09-08 (Gmail event monitoring — READY FOR OWNER VALIDATION)
+**Date:** 2026-09-08 (Scheduled Reports — IMPLEMENTED / READY FOR OWNER VALIDATION)
 **Host path:** `/var/www/jarvis`  
 **Public URL:** https://jarvis.owlsolutions.net  
 **GitHub:** https://github.com/Owiiiii1/JARVIS.git
@@ -169,7 +169,7 @@ See [DATABASE.md](DATABASE.md).
 
 Frontend: `resources/js/personal-workspace/PersonalWorkspace.jsx` shared, with Settings split into `resources/js/personal-workspace/settings/*`. Capabilities are presentation flags; backend ownership is authoritative.
 
-Main Workspace is chat + Task / Reminder / Watcher / Notification centers + compact **Обзор** (Сегодня и ближайшее / Нужно внимание / Жду / Что изменилось / Открытая работа) + Voice + compact **Настройки**. Memory and Integrations are **not** on the main screen; they live in Settings.
+Main Workspace is chat + Task / Reminder / Watcher / **Report** / Notification centers + compact **Обзор** (Сегодня и ближайшее / Нужно внимание / Жду / Что изменилось / Открытая работа) + Voice + compact **Настройки**. Memory and Integrations are **not** on the main screen; they live in Settings.
 
 Workspace conversation delete is implemented for Owner and ordinary users. Sidebar overflow menu → confirmation dialog → `DELETE /jarvis/chats/{conversation}` or `DELETE /chat/chats/{conversation}`. Own personal conversations only (`ensureOwned`; Owner is not a bypass for someone else’s chat). Group conversations are 404. Hard delete of the chat and child messages/ephemeral screenshots; tasks, reminders, projects, persistent Storage files, durable memories, and Knowledge entities survive with sources detached. Deleting the open chat switches to the latest remaining personal chat, or creates `Основной` if none remain. No full page reload. **MANUAL PASS** (original Workspace delete + Core Daily Workflow Scenario 10 regression).
 
@@ -181,7 +181,7 @@ Phase C.2 Beta (ElevenLabs realtime Web voice) is **IMPLEMENTED / NOT VALIDATED*
 
 Phase E.1 Knowledge Layer is **MANUAL PASS for the tested core flow**. Relational entities/relations/events with provenance. Settings → Knowledge. Bounded conversation slice. Not all Knowledge edge cases. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
 
-Phase E.2 Watchers is **MANUAL PASS for the internal task watcher flow**. Explicit persisted conditions; Notification Center / Web Push delivery; no silent external writes. Workspace Center **Автоматизации**. A one-shot task watcher whose condition can only match while the task is open is finished with `cursor.resolved_reason = task_closed` when that task is completed or cancelled, instead of staying Active forever; `status_changed` watchers still fire on the closing transition. Recurring Gmail morning digest (“проверяй каждое утро почту и сообщай, что нового”) is **IMPLEMENTED / READY FOR OWNER VALIDATION**. Gmail **event** monitoring (“жди письмо от школы / следи за письмами от @example.com”) is **IMPLEMENTED / READY FOR OWNER VALIDATION** — not live-validated; Cursor did not call Gmail, did not evaluate Owner watchers, and did not change Owner watcher #190. Owner should cancel that Knowledge watcher and create a real Gmail event watcher in chat. Other external Calendar / GitHub watchers and proposed-action → confirmation → external write remain **IMPLEMENTED / NOT VALIDATED**. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
+Phase E.2 Watchers is **MANUAL PASS for the internal task watcher flow**. Explicit persisted conditions; Notification Center / Web Push delivery; no silent external writes. Workspace Center **Автоматизации**. A one-shot task watcher whose condition can only match while the task is open is finished with `cursor.resolved_reason = task_closed` when that task is completed or cancelled, instead of staying Active forever; `status_changed` watchers still fire on the closing transition. Recurring Gmail morning **digest watchers are retired as the path for periodic reports**. “Каждое утро дай сводку почты / планы на завтра” now creates a **Scheduled Report**, not a Gmail or Calendar watcher. Gmail **event** monitoring (“жди письмо от школы / следи за письмами от @example.com”) remains `create_watcher`. Status: **IMPLEMENTED / READY FOR OWNER VALIDATION** — Cursor did not call Gmail, did not evaluate Owner watchers, and did not change Owner watchers #191 / #193 / #194. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md). [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).
 
 Phase E.3 Cross-source Synthesis is **MANUAL PASS for the tested core synthesis / Overview / waiting / state-change flow**. Derived FactPack over Knowledge / Tasks / Reminders / Watchers / Projects / conversation summaries. Tools-first; tiny `synthesis_context` only with an active project. No integration polling. No `waiting_items` table. Phase E as a whole is **not** complete. [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
 
@@ -191,7 +191,7 @@ Workspace Settings sections: Profile, Assistant, Memory, Knowledge, Productivity
 
 After a successful foreground chat turn, badges and open panels refresh via `GET /jarvis/workspace/status` and `GET /chat/workspace/status` plus turn-payload counts. A mutation made directly in the Tasks / Reminders / Watchers panel also refreshes an open **Обзор**. No page reload, no polling, no WebSocket. Scheduler events still appear on next open / Push / navigation.
 
-Regular user capabilities: chat, memory, knowledge, watchers, telegram_dm, reminders, tasks, notifications, cabinet, personal_workspace, profile, web_research, voice, storage. **Not** projects, admin, Google, GitHub. User Settings → Integrations shows Telegram pairing only. External (Gmail/Calendar/GitHub) watchers remain Owner-only.
+Regular user capabilities: chat, memory, knowledge, watchers, **scheduled_reports**, telegram_dm, reminders, tasks, notifications, cabinet, personal_workspace, profile, web_research, voice, storage. **Not** projects, admin, Google, GitHub. User Settings → Integrations shows Telegram pairing only. External (Gmail/Calendar/GitHub) watchers remain Owner-only.
 
 ---
 
@@ -219,6 +219,20 @@ Phase B.1 Reminders 2.0: Owner **MANUAL PASS for confirmed live core flow** (Web
 ## 8.1 Tasks & productivity
 
 Phase B.2 core Task Center flow as exercised in Core Daily Workflow: **MANUAL PASS**. Briefs, proactive suggestions, and Notification Center as a full product remain **IMPLEMENTED / NOT VALIDATED**. Separate `tasks` domain, Task Center, Notification Center, opt-in Daily/Evening/Weekly briefs, bounded proactive suggestions. [TASKS_AND_PRODUCTIVITY.md](TASKS_AND_PRODUCTIVITY.md).
+
+## 8.2 Scheduled Reports
+
+**IMPLEMENTED / READY FOR OWNER VALIDATION.**
+
+Named, persisted, multi-source reports at a known local time. Not a Reminder and not a Watcher. Chat tools `create_scheduled_report` / list / get / update / pause / resume / cancel. Workspace Center **Отчеты**. Scheduler `jarvis:reports:dispatch` every 5 minutes, idempotent per local date+time slot.
+
+Canonical types: `daily_plan`, `tomorrow_plan`, `mail_groups_digest`, `custom_composite`. Period is independent of fire time (`today` / `tomorrow` / `since_previous_report` with first-run last 24h).
+
+Owner live failure (conversation Основной, 2026-09-08): Jarvis claimed three daily reports. Production objects were watchers #193 (calendar change, not 22:00 tomorrow plan), #194 (Gmail digest at 08:30), #191 (Gmail digest; no Telegram groups). Cursor did **not** mutate those rows. After deploy Owner should cancel them in Автоматизации and recreate via chat.
+
+Generic B.2 Productivity Briefs stay opt-in (default off). If an active Scheduled Report already covers daily_plan or tomorrow_plan, the matching brief mode is skipped so the two engines do not double-send.
+
+Cursor did not dispatch a live report, did not call Gmail/Calendar/Telegram APIs, and did not create Owner reports.
 
 Panel presentation: one card per task with its schedule as the secondary line, priority only when high or urgent, an expandable subtask list with «X из Y подзадач выполнено», and a Workspace dialog («Выполнить всё» / «Вернуться») when a parent still has open subtasks. A subtask whose parent is already closed is listed in the active sections as «Подзадача задачи «…»» so nothing open is invisible. **MANUAL PASS** with Workspace Presentation after Scenario 8 revalidation. [WORKSPACE_PRESENTATION.md](WORKSPACE_PRESENTATION.md).
 

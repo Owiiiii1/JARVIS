@@ -88,6 +88,7 @@ final class PersonalChatSurfaceService
             'memory' => $user->canUseCapability(UserCapability::MEMORY),
             'knowledge' => $user->canUseCapability(UserCapability::KNOWLEDGE),
             'watchers' => $user->canUseCapability(UserCapability::WATCHERS),
+            'scheduledReports' => $user->canUseCapability(UserCapability::SCHEDULED_REPORTS),
             'telegramDm' => $user->canUseCapability(UserCapability::TELEGRAM_DM),
         ];
     }

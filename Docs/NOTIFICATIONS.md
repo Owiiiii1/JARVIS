@@ -4,7 +4,7 @@ Persistent in-app inbox (`jarvis_notifications`). Distinct from Reminder Center 
 
 **Status.** Phase B.2 IMPLEMENTED / NOT VALIDATED.
 
-Types: `reminder_due`, `task_due`, `task_overdue`, `brief_ready`, `proactive_suggestion`.
+Types: `reminder_due`, `task_due`, `task_overdue`, `brief_ready`, `proactive_suggestion`, `watcher_triggered`, `scheduled_report_ready`.
 
 Dedupe key is unique per user. Safe action URLs are `/jarvis` or `/chat` only.
 

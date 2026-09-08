@@ -10,15 +10,16 @@ use App\Models\MemoryAnalysisRun;
 use App\Models\Topic;
 use App\Models\User;
 use App\Services\Assistant\AssistantProfileService;
-use App\Services\Integrations\Exceptions\IntegrationException;
 use App\Services\Integrations\IntegrationRegistry;
 use App\Services\Notifications\JarvisNotificationService;
 use App\Services\Reminders\ReminderService;
+use App\Services\Reports\ScheduledReportService;
 use App\Services\Tasks\TaskService;
 use App\Services\Users\UserCapability;
 use App\Services\Users\UserChannelPreferenceService;
 use App\Services\Watchers\WatcherService;
 use App\Services\WebResearch\WebResearchSettingsService;
+use Throwable;
 
 final class WorkspaceSurfaceStateService
 {
@@ -26,6 +27,7 @@ final class WorkspaceSurfaceStateService
         private readonly ReminderService $reminders,
         private readonly TaskService $tasks,
         private readonly WatcherService $watchers,
+        private readonly ScheduledReportService $reports,
         private readonly JarvisNotificationService $notifications,
         private readonly AssistantProfileService $assistantProfiles,
         private readonly IntegrationRegistry $integrations,
@@ -48,6 +50,9 @@ final class WorkspaceSurfaceStateService
             ],
             'watchers' => [
                 'active_count' => $this->watchers->activeCount($user),
+            ],
+            'reports' => [
+                'active_count' => $this->reports->activeCount($user),
             ],
             'reminders' => [
                 'active_count' => $this->reminders->activeCount($user),
@@ -89,6 +94,7 @@ final class WorkspaceSurfaceStateService
             'active_reminder_count' => $this->reminders->activeCount($user),
             'active_task_count' => $this->tasks->activeOpenCount($user),
             'active_watcher_count' => $this->watchers->activeCount($user),
+            'active_report_count' => $this->reports->activeCount($user),
             'unread_notification_count' => $user->canUseCapability(UserCapability::NOTIFICATIONS)
                 ? $this->notifications->unreadCount($user)
                 : 0,
@@ -138,7 +144,7 @@ final class WorkspaceSurfaceStateService
 
         try {
             $statuses = $this->integrations->listForOwner($user);
-        } catch (IntegrationException) {
+        } catch (Throwable) {
             return [$this->webResearch->workspaceSummary()];
         }
 

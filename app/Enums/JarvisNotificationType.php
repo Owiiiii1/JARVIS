@@ -10,4 +10,5 @@ enum JarvisNotificationType: string
     case BriefReady = 'brief_ready';
     case ProactiveSuggestion = 'proactive_suggestion';
     case WatcherTriggered = 'watcher_triggered';
+    case ScheduledReportReady = 'scheduled_report_ready';
 }

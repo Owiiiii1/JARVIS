@@ -20,15 +20,15 @@ It does **not** claim MANUAL PASS for every DST / recurrence / multi-device / de
 
 ---
 
-## Reminder vs Task vs Watcher vs Proactive
+## Reminder vs Task vs Watcher vs Scheduled Report vs Proactive
 
-| | Reminder | Task | Watcher | B.2 Proactive |
-| --- | --- | --- | --- | --- |
-| Question | When should Jarvis notify me at a **known time**? | What do I need to accomplish? | Notify when a **future condition/event** is true | Bounded **heuristic** suggestion |
-| Table | `reminders` | `tasks` | `watchers` | `jarvis_notifications` (`proactive_suggestion`) |
-| Example | «напомни завтра в 9» | «сделай отчёт» | «если завтра всё ещё не готово» | overdue high-priority task |
+| | Reminder | Task | Watcher | Scheduled Report | B.2 Proactive |
+| --- | --- | --- | --- | --- | --- |
+| Question | When should Jarvis notify me at a **known time** so **I** act? | What do I need to accomplish? | Notify when a **future condition/event** is true | At a **known time**, collect sources and send **one report** | Bounded **heuristic** suggestion |
+| Table | `reminders` | `tasks` | `watchers` | `scheduled_reports` | `jarvis_notifications` (`proactive_suggestion`) |
+| Example | «напомни в 9 проверить почту» | «сделай отчёт» | «жди письмо от школы» | «каждый вечер в 22 планы на завтра» | overdue high-priority task |
 
-A task is **not** a reminder row. Completing or cancelling a task cancels **future open** linked reminders and keeps history (`reminder_occurrences`, delivered rows). A watcher is **not** a reminder: it evaluates a condition. B.2 proactive remains a separate engine and must not be recreated as implicit watchers.
+A task is **not** a reminder row. Completing or cancelling a task cancels **future open** linked reminders and keeps history (`reminder_occurrences`, delivered rows). A watcher is **not** a reminder: it evaluates a condition. A scheduled report is **not** a watcher: it does not wait for a source event; it runs at the clock and synthesizes. B.2 proactive remains a separate engine and must not be recreated as implicit watchers.
 
 Watchers: [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
 
@@ -55,7 +55,7 @@ Task Center: header **Задачи** on `/jarvis` and `/chat`. Sections: Про�
 
 In-app inbox table `jarvis_notifications`. **Not** a second Web Push stack.
 
-Types: `reminder_due`, `task_due`, `task_overdue`, `brief_ready`, `proactive_suggestion`.
+Types: `reminder_due`, `task_due`, `task_overdue`, `brief_ready`, `proactive_suggestion`, `watcher_triggered`, `scheduled_report_ready`.
 
 Dedupe: unique `(user_id, dedupe_key)`. Scheduler ticks do not spam.
 
@@ -73,9 +73,29 @@ Per-user opt-in in Workspace settings (Productivity). Defaults: **all off**, inc
 | Evening Review | 20:00 | same |
 | Weekly Review | Sunday 18:00 (`weekday=7`) | same |
 
-Sources gathered first (owned tasks, reminders, Owner projects, recent notifications). Phase E.3 optionally adds bounded synthesis: waiting-for, commitments, project changes, top attention items. Optional bounded LLM phrasing. If AI fails: deterministic fallback text is still delivered. No second Daily Brief system. [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
+**Canonical named reports** are Scheduled Reports (chat-created, persisted `scheduled_reports`). Generic B.2 briefs stay the opt-in unnamed fallback. If the user already has an active `daily_plan` report, Daily Brief is skipped; an active `tomorrow_plan` skips Evening Review. Do not run a watcher digest, a generic brief, and a scheduled report for the same slot.
 
-Calendar events may appear in a Daily Brief only when Google Calendar capability exists; a disconnected calendar does not break Tasks. Brief dispatch does **not** poll Google every 5 minutes.
+Sources gathered first (owned tasks, reminders, Owner projects, recent notifications). Phase E.3 optionally adds bounded synthesis: waiting-for, commitments, project changes, top attention items. Optional bounded LLM phrasing. If AI fails: deterministic fallback text is still delivered. Calendar events may appear only when Google Calendar capability exists; a disconnected calendar does not cancel the report. Brief dispatch does **not** poll Google every 5 minutes.
+
+### Scheduled Reports
+
+**Status: IMPLEMENTED / READY FOR OWNER VALIDATION.**
+
+Tables: `scheduled_reports`, `scheduled_report_runs` (unique `scheduled_report_id` + `slot_key`).
+
+At local `daily_local` time Jarvis collects the configured sources, writes a grounded report, and delivers via Notification Center / Web Push and the existing Telegram reminder sender. Partial source failure still sends, with a natural note.
+
+Types: `daily_plan` (period `today`), `tomorrow_plan` (period `tomorrow`), `mail_groups_digest` (period `since_previous_report`, first run last 24h), `custom_composite`.
+
+Sources (semantic, not raw provider queries): `tasks`, `reminders`, `projects`, `synthesis`, `google_calendar` (`calendar_scope=all_relevant` includes primary + selected + «Семья»), `gmail` (read-only, no mark-read/archive/label/reply), `telegram_groups` (stored group messages only), `notifications`.
+
+Tools: `create_scheduled_report`, `list_scheduled_reports`, `get_scheduled_report`, `update_scheduled_report`, `pause_scheduled_report`, `resume_scheduled_report`, `cancel_scheduled_report`. Success claims require `success=true` and `report_id`. Follow-ups update a unique trusted recent report; ambiguous morning reports ask which one.
+
+Scheduler: `jarvis:reports:dispatch` every 5 minutes, timezone-aware, DST-safe, one send per local date+time. Created before today’s slot → today; created after → next day.
+
+Workspace Center **Отчеты** (`?reports=1`). Pause / resume / cancel in UI; create/edit through chat.
+
+Owner must manually cancel misconfigured watchers **#193** (calendar change pretending to be the 22:00 tomorrow plan), **#194** (Gmail digest pretending to be the 08:30 plan), and overlapping Gmail digest **#191** before recreating the three reports in chat. Cursor does not mutate Owner rows.
 
 ---
 

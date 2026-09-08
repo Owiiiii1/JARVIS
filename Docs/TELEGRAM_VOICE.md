@@ -106,6 +106,7 @@ Outbound temp: `voice-outbound/` (deploy queue worker). Web inbound chunks still
 
 - Telegram Groups STT / auto-reply
 - Reminder dispatch
+- Scheduled report dispatch (same Telegram sender; not a second bot)
 - Disabled users (existing reject path; no STT)
 - Desktop / Mobile / Client API
 - ffmpeg

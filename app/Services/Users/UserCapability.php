@@ -18,6 +18,8 @@ final class UserCapability
 
     public const WATCHERS = 'watchers';
 
+    public const SCHEDULED_REPORTS = 'scheduled_reports';
+
     public const NOTIFICATIONS = 'notifications';
 
     public const CABINET = 'cabinet';
@@ -67,6 +69,7 @@ final class UserCapability
             self::REMINDERS,
             self::TASKS,
             self::WATCHERS,
+            self::SCHEDULED_REPORTS,
             self::NOTIFICATIONS,
             self::CABINET,
             self::PERSONAL_WORKSPACE,

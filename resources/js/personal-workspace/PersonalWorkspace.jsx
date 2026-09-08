@@ -9,6 +9,7 @@ import {
 import RemindersPanel from '@/personal-workspace/RemindersPanel';
 import TasksPanel from '@/personal-workspace/TasksPanel';
 import WatchersPanel from '@/personal-workspace/WatchersPanel';
+import ReportsPanel from '@/personal-workspace/ReportsPanel';
 import OverviewPanel from '@/personal-workspace/OverviewPanel';
 import NotificationsPanel from '@/personal-workspace/NotificationsPanel';
 import ConversationDeleteDialog from '@/personal-workspace/ConversationDeleteDialog';
@@ -229,6 +230,7 @@ export default function PersonalWorkspace() {
         activeReminderCount: activeReminderCountProp = 0,
         activeTaskCount: activeTaskCountProp = 0,
         activeWatcherCount: activeWatcherCountProp = 0,
+        activeReportCount: activeReportCountProp = 0,
         unreadNotificationCount: unreadNotificationCountProp = 0,
     } = usePage().props;
     const surface = surfaceProp === 'chat' ? 'chat' : 'jarvis';
@@ -248,6 +250,7 @@ export default function PersonalWorkspace() {
         memory: false,
         knowledge: false,
         watchers: false,
+        scheduledReports: false,
         telegramDm: false,
         ...capabilityProps,
     };
@@ -291,6 +294,7 @@ export default function PersonalWorkspace() {
     const [remindersOpen, setRemindersOpen] = useState(false);
     const [tasksOpen, setTasksOpen] = useState(false);
     const [watchersOpen, setWatchersOpen] = useState(false);
+    const [reportsOpen, setReportsOpen] = useState(false);
     const [overviewOpen, setOverviewOpen] = useState(false);
     const [notificationsOpen, setNotificationsOpen] = useState(false);
     const [assistantProfile, setAssistantProfile] = useState(assistantProfileProp);
@@ -298,6 +302,7 @@ export default function PersonalWorkspace() {
     const [activeReminderCount, setActiveReminderCount] = useState(Number(activeReminderCountProp) || 0);
     const [activeTaskCount, setActiveTaskCount] = useState(Number(activeTaskCountProp) || 0);
     const [activeWatcherCount, setActiveWatcherCount] = useState(Number(activeWatcherCountProp) || 0);
+    const [activeReportCount, setActiveReportCount] = useState(Number(activeReportCountProp) || 0);
     const [unreadNotificationCount, setUnreadNotificationCount] = useState(Number(unreadNotificationCountProp) || 0);
     const [productivityRefreshToken, setProductivityRefreshToken] = useState(0);
     const [overviewRefreshToken, setOverviewRefreshToken] = useState(0);
@@ -364,6 +369,12 @@ export default function PersonalWorkspace() {
             setActiveWatcherCount(payload.active_watcher_count);
         } else if (typeof payload.watchers?.active_count === 'number') {
             setActiveWatcherCount(payload.watchers.active_count);
+        }
+
+        if (typeof payload.active_report_count === 'number') {
+            setActiveReportCount(payload.active_report_count);
+        } else if (typeof payload.reports?.active_count === 'number') {
+            setActiveReportCount(payload.reports.active_count);
         }
 
         if (typeof payload.unread_notification_count === 'number') {
@@ -457,6 +468,10 @@ export default function PersonalWorkspace() {
             setWatchersOpen(true);
         }
 
+        if (params.get('reports')) {
+            setReportsOpen(true);
+        }
+
         if (params.get('notifications')) {
             setNotificationsOpen(true);
         }
@@ -535,6 +550,10 @@ export default function PersonalWorkspace() {
     useEffect(() => {
         setActiveWatcherCount(Number(activeWatcherCountProp) || 0);
     }, [activeWatcherCountProp]);
+
+    useEffect(() => {
+        setActiveReportCount(Number(activeReportCountProp) || 0);
+    }, [activeReportCountProp]);
 
     useEffect(() => {
         setUnreadNotificationCount(Number(unreadNotificationCountProp) || 0);
@@ -1254,6 +1273,22 @@ export default function PersonalWorkspace() {
                         ) : null}
                     </button>
                 ) : null}
+                {capabilities.scheduledReports ? (
+                    <button
+                        type="button"
+                        onClick={() => setReportsOpen(true)}
+                        className="relative inline-flex items-center gap-2 rounded-lg p-2 text-slate-300 hover:bg-white/10 sm:px-3"
+                        aria-label="Отчеты"
+                    >
+                        <FileText className="h-4 w-4" />
+                        <span className="hidden text-xs font-medium sm:inline">Отчеты</span>
+                        {activeReportCount > 0 ? (
+                            <span className="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-emerald-500 px-1 text-[10px] font-semibold leading-4 text-white">
+                                {activeReportCount > 99 ? '99+' : activeReportCount}
+                            </span>
+                        ) : null}
+                    </button>
+                ) : null}
                 {capabilities.reminders ? (
                     <button
                         type="button"
@@ -1757,6 +1792,20 @@ export default function PersonalWorkspace() {
                     setWatchersOpen(false);
                     setMode('text');
                     setDraft((current) => (current?.trim() ? current : 'Следи и сообщи, когда '));
+                    requestAnimationFrame(() => focusComposer(composerRef.current, { forceDesktopOnly: false }));
+                }}
+            />
+            <ReportsPanel
+                open={reportsOpen}
+                surface={surface}
+                refreshToken={productivityRefreshToken}
+                onClose={() => setReportsOpen(false)}
+                onCountChange={setActiveReportCount}
+                onDataChange={refreshOverview}
+                onCreateInChat={() => {
+                    setReportsOpen(false);
+                    setMode('text');
+                    setDraft((current) => (current?.trim() ? current : 'Каждый день присылай отчёт '));
                     requestAnimationFrame(() => focusComposer(composerRef.current, { forceDesktopOnly: false }));
                 }}
             />

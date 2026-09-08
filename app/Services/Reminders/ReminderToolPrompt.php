@@ -18,7 +18,7 @@ final class ReminderToolPrompt
     {
         return [
             'create_reminder creates a Jarvis Core reminder only when the user themselves must do something at a known time (“напомни мне проверить почту утром”, “remind me to check Gmail”). Telegram and Web Push are optional independent delivery adapters, not a create requirement.',
-            'If Jarvis must perform the check (“проверяй каждое утро почту и присылай сводку”, “жди письмо от школы и сообщи”, “следи за письмами от example.com”), use create_watcher, never create_reminder. Reminder = the user acts. Watcher = Jarvis reads/checks and reports. Event monitoring is not a digest and not a reminder.',
+            'If Jarvis must perform the check (“жди письмо от школы”, “следи за письмами от example.com”), use create_watcher. If Jarvis must send a scheduled multi-source report (“каждое утро дай сводку почты”, “каждый вечер в 22 планы на завтра”), use create_scheduled_report, never create_reminder or create_watcher. Reminder = the user acts. Watcher = Jarvis watches a condition. Scheduled report = Jarvis collects sources at a clock time.',
             'The same split applies to Calendar and GitHub: “напомни мне проверить календарь” is a reminder; “каждое утро проверь календарь и расскажи, что сегодня” is a watcher. “Проверяй каждый день GitHub и сообщай о новых commit” is a watcher.',
             'If the notification depends on a future state or event (“если завтра всё ещё не готово”, “когда Apple ответит”), use a watcher instead of create_reminder.',
             'Only call create_reminder when the current user message is itself a reminder request. Follow-ups such as "ты тут?" are not reminder requests.',

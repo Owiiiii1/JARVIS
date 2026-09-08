@@ -11,6 +11,7 @@ use App\Http\Controllers\Jarvis\JarvisProductivitySettingsController;
 use App\Http\Controllers\Jarvis\JarvisPushSubscriptionController;
 use App\Http\Controllers\Jarvis\JarvisRealtimeVoiceController;
 use App\Http\Controllers\Jarvis\JarvisReminderController;
+use App\Http\Controllers\Jarvis\JarvisScheduledReportController;
 use App\Http\Controllers\Jarvis\JarvisStorageController;
 use App\Http\Controllers\Jarvis\JarvisSynthesisController;
 use App\Http\Controllers\Jarvis\JarvisTaskController;
@@ -198,6 +199,18 @@ $registerPersonalWorkspace = static function (string $prefix, string $as, array 
         Route::get('/watchers/{watcher}/occurrences', [JarvisWatcherController::class, 'occurrences'])
             ->middleware('throttle:30,1')
             ->name('watchers.occurrences');
+        Route::get('/reports', [JarvisScheduledReportController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('reports.index');
+        Route::post('/reports/{report}/pause', [JarvisScheduledReportController::class, 'pause'])
+            ->middleware('throttle:30,1')
+            ->name('reports.pause');
+        Route::post('/reports/{report}/resume', [JarvisScheduledReportController::class, 'resume'])
+            ->middleware('throttle:30,1')
+            ->name('reports.resume');
+        Route::post('/reports/{report}/cancel', [JarvisScheduledReportController::class, 'cancel'])
+            ->middleware('throttle:30,1')
+            ->name('reports.cancel');
         Route::get('/notifications', [JarvisNotificationController::class, 'index'])
             ->middleware('throttle:30,1')
             ->name('notifications.index');

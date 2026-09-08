@@ -12,6 +12,7 @@ use App\Services\ConversationIntelligence\ReferenceResolver;
 use App\Services\Reminders\ReminderException;
 use App\Services\Reminders\ReminderRecurrenceCalculator;
 use App\Services\Reminders\ReminderService;
+use App\Services\Reports\ScheduledReportIntent;
 use App\Services\Tools\Watchers\CreateWatcherTool;
 use App\Services\Users\UserCapability;
 use App\Services\Watchers\ProactiveCheckIntent;
@@ -35,7 +36,7 @@ final class CreateReminderTool implements JarvisTool
     {
         return new ToolDefinition(
             name: self::NAME,
-            description: 'Создаёт персональное напоминание, когда пользователь сам должен что-то сделать в известное время («напомни мне проверить почту»), без Telegram как обязательного условия. Если Jarvis должен сам проверить почту, календарь или GitHub и сообщить результат — вызывай create_watcher, не это. Telegram и Web Push — независимые каналы доставки. Поддерживает recurrence: daily, weekdays, weekly, monthly.',
+            description: 'Создаёт персональное напоминание, когда пользователь сам должен что-то сделать в известное время («напомни мне проверить почту»), без Telegram как обязательного условия. Если Jarvis должен сам прислать отчёт в известное время — create_scheduled_report. Если Jarvis должен следить за событием («жди письмо») — create_watcher. Telegram и Web Push — независимые каналы доставки. Поддерживает recurrence: daily, weekdays, weekly, monthly.',
             parameters: [
                 'type' => 'OBJECT',
                 'properties' => [
@@ -86,6 +87,14 @@ final class CreateReminderTool implements JarvisTool
     public function execute(ToolCall $call, ToolExecutionContext $context): ToolResult
     {
         $inboundText = trim((string) ($context->inbound?->body ?? ''));
+        if ($inboundText !== '' && ScheduledReportIntent::matches($inboundText)) {
+            return ToolResult::failure($call->id, $this->name(), [
+                'success' => false,
+                'error' => 'use_scheduled_report',
+                'message' => 'This request is a scheduled report. Call create_scheduled_report.',
+                'kind' => 'failed',
+            ]);
+        }
         if ($inboundText !== ''
             && $this->watchers !== null
             && $context->user->canUseCapability(UserCapability::GMAIL)

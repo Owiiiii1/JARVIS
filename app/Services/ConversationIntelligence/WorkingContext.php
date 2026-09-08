@@ -39,6 +39,25 @@ final readonly class WorkingContext
         );
     }
 
+    public function uniqueTrustedReport(): ?ConversationalEntity
+    {
+        $reports = [];
+
+        foreach ($this->recentToolReferences as $entity) {
+            if ($entity->type !== 'scheduled_report' || $entity->id === null || $entity->expired || ! $entity->trusted) {
+                continue;
+            }
+
+            $reports[$entity->id] = $entity;
+        }
+
+        if (count($reports) !== 1) {
+            return null;
+        }
+
+        return array_values($reports)[0];
+    }
+
     public function uniqueTrustedTask(): ?ConversationalEntity
     {
         $tasks = [];
@@ -56,6 +75,32 @@ final readonly class WorkingContext
         }
 
         return array_values($tasks)[0];
+    }
+
+    /**
+     * “Эта задача” after a reminder on the parent, when a subtask is also in recent tools.
+     */
+    public function referredTask(): ?ConversationalEntity
+    {
+        $unique = $this->uniqueTrustedTask();
+
+        if ($unique !== null) {
+            return $unique;
+        }
+
+        $last = $this->lastImportantObject;
+
+        if (
+            $last instanceof ConversationalEntity
+            && $last->type === 'task'
+            && $last->id !== null
+            && $last->trusted
+            && ! $last->expired
+        ) {
+            return $last;
+        }
+
+        return null;
     }
 
     public function trustsTaskId(int $id): bool

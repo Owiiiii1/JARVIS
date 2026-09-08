@@ -27,6 +27,7 @@ class WorkspaceStatusControllerTest extends TestCase
             $response->assertOk();
             $response->assertJsonPath('tasks.active_count', 0);
             $response->assertJsonPath('reminders.active_count', 0);
+            $response->assertJsonPath('reports.active_count', 0);
             $response->assertJsonPath('notifications.unread_count', 0);
             $this->assertArrayNotHasKey('access_code', $response->json('telegram') ?? []);
             $this->assertArrayNotHasKey('elevenlabs_api_key', $response->json() ?? []);

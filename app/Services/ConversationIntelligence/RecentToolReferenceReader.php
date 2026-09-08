@@ -104,6 +104,8 @@ final class RecentToolReferenceReader
             'file_id' => 'file',
             'calendar_event_id' => 'calendar_event',
             'watcher_id' => 'watcher',
+            'scheduled_report_id' => 'scheduled_report',
+            'report_id' => 'scheduled_report',
         ];
 
         foreach ($map as $key => $type) {

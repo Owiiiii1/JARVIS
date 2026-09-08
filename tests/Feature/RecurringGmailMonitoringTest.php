@@ -8,8 +8,6 @@ use App\Enums\MessageChannel;
 use App\Enums\MessageRole;
 use App\Enums\MessageType;
 use App\Enums\UserRole;
-use App\Enums\WatcherMode;
-use App\Enums\WatcherTriggerType;
 use App\Jobs\EvaluateWatcherJob;
 use App\Models\AiRoleSetting;
 use App\Models\IntegrationAccount;
@@ -27,13 +25,13 @@ use App\Services\Conversations\ConversationService;
 use App\Services\Integrations\IntegrationAccountService;
 use App\Services\Tools\CreateReminderTool;
 use App\Services\Tools\Google\SearchGmailTool;
+use App\Services\Tools\Reports\CreateScheduledReportTool;
 use App\Services\Tools\ToolExecutionContext;
 use App\Services\Tools\Watchers\CreateWatcherTool;
 use App\Services\Watchers\Contracts\GmailWatcherClient;
 use App\Services\Watchers\Exceptions\WatcherException;
 use App\Services\Watchers\WatcherDigestRequest;
 use App\Services\Watchers\WatcherEvaluationService;
-use App\Services\Watchers\WatcherSchedule;
 use App\Services\Watchers\WatcherService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Http;
@@ -58,7 +56,7 @@ class RecurringGmailMonitoringTest extends TestCase
         $this->app->instance(AiChatGateway::class, new FakeAiChatGateway);
     }
 
-    public function test_morning_mail_check_creates_a_digest_watcher_not_a_reminder(): void
+    public function test_morning_mail_check_creates_a_scheduled_report_not_a_reminder_or_watcher(): void
     {
         $user = null;
 
@@ -68,7 +66,7 @@ class RecurringGmailMonitoringTest extends TestCase
             $this->connectGoogle($user);
             $inbound = $this->inbound($user, 'Проверяй каждое утро почту и сообщай мне, что нового пришло.');
 
-            $result = app(CreateReminderTool::class)->execute(
+            $reminder = app(CreateReminderTool::class)->execute(
                 new ToolCall('c1', CreateReminderTool::NAME, [
                     'text' => 'проверить почту',
                     'run_at_local' => '2026-09-09T08:00:00+02:00',
@@ -76,24 +74,29 @@ class RecurringGmailMonitoringTest extends TestCase
                 ]),
                 new ToolExecutionContext($user, $inbound->conversation, $inbound),
             );
+            $watcher = app(CreateWatcherTool::class)->execute(
+                new ToolCall('c2', CreateWatcherTool::NAME, []),
+                new ToolExecutionContext($user, $inbound->conversation, $inbound),
+            );
+            $report = app(CreateScheduledReportTool::class)->execute(
+                new ToolCall('c3', CreateScheduledReportTool::NAME, []),
+                new ToolExecutionContext($user, $inbound->conversation, $inbound),
+            );
 
-            $this->assertTrue($result->success);
-            $this->assertArrayHasKey('watcher_id', $result->payload);
-            $this->assertStringContainsString('буду проверять Gmail', (string) ($result->payload['description'] ?? ''));
-            $this->assertStringNotContainsString('напоминание', mb_strtolower((string) ($result->payload['description'] ?? '')));
+            $this->assertFalse($reminder->success);
+            $this->assertSame('use_scheduled_report', $reminder->payload['error'] ?? null);
+            $this->assertFalse($watcher->success);
+            $this->assertSame('use_scheduled_report', $watcher->payload['error'] ?? null);
+            $this->assertTrue($report->success);
             $this->assertSame(0, Reminder::query()->where('user_id', $user->id)->count());
-            $watcher = Watcher::query()->where('user_id', $user->id)->first();
-            $this->assertNotNull($watcher);
-            $this->assertSame(WatcherTriggerType::GmailMessage, $watcher->trigger_type);
-            $this->assertSame(WatcherMode::Recurring, $watcher->mode);
-            $this->assertTrue(WatcherSchedule::isDigest($watcher));
-            $this->assertSame('08:00', WatcherSchedule::localTime($watcher->source_config));
+            $this->assertSame(0, Watcher::query()->where('user_id', $user->id)->count());
+            $this->assertSame('mail_groups_digest', $report->payload['report_type'] ?? null);
         } finally {
             $this->deleteTemporaryUser($user);
         }
     }
 
-    public function test_create_watcher_tool_fills_a_morning_gmail_digest(): void
+    public function test_create_watcher_tool_does_not_hijack_a_morning_gmail_report(): void
     {
         $user = null;
 
@@ -108,12 +111,9 @@ class RecurringGmailMonitoringTest extends TestCase
                 new ToolExecutionContext($user, $inbound->conversation, $inbound),
             );
 
-            $this->assertTrue($result->success);
-            $watcher = Watcher::query()->find($result->payload['watcher_id']);
-            $this->assertNotNull($watcher);
-            $this->assertSame('07:30', WatcherSchedule::localTime($watcher->source_config));
-            $this->assertSame('in:inbox', $watcher->source_config['query'] ?? null);
-            $this->assertArrayNotHasKey('integration_account_id', $watcher->source_config);
+            $this->assertFalse($result->success);
+            $this->assertSame('use_scheduled_report', $result->payload['error'] ?? null);
+            $this->assertSame(0, Watcher::query()->where('user_id', $user->id)->count());
         } finally {
             $this->deleteTemporaryUser($user);
         }
@@ -325,7 +325,7 @@ class RecurringGmailMonitoringTest extends TestCase
             );
 
             $this->assertStringContainsString('Never say you have no Gmail monitoring', $context['system_prompt']);
-            $this->assertStringContainsString('create_watcher (digest)', $context['system_prompt']);
+            $this->assertStringContainsString('create_scheduled_report', $context['system_prompt']);
             $this->assertStringContainsString('create_watcher (gmail event)', $context['system_prompt']);
         } finally {
             $this->deleteTemporaryUser($user);
