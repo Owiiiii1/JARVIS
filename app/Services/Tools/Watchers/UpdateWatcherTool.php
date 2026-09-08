@@ -11,6 +11,7 @@ use App\Services\Tools\ToolExecutionContext;
 use App\Services\Tools\ToolMeta;
 use App\Services\Users\UserCapability;
 use App\Services\Watchers\Exceptions\WatcherException;
+use App\Services\Watchers\WatcherSchedule;
 use App\Services\Watchers\WatcherService;
 
 final class UpdateWatcherTool implements JarvisTool
@@ -30,7 +31,7 @@ final class UpdateWatcherTool implements JarvisTool
     {
         return new ToolDefinition(
             name: self::NAME,
-            description: 'Updates an owned watcher. Changing source/condition resets the baseline so historical items are not replayed.',
+            description: 'Updates an owned watcher. Use this to add another Gmail sender/domain to an existing Gmail event watcher. Changing source/condition resets the baseline so historical items are not replayed. Never pass user_id or integration_account_id.',
             parameters: [
                 'type' => 'OBJECT',
                 'properties' => [
@@ -71,6 +72,11 @@ final class UpdateWatcherTool implements JarvisTool
             'success' => true,
             'watcher_id' => (int) $watcher->id,
             'status' => $watcher->status->value,
+            'description' => $this->watchers->serialize($watcher, (string) ($context->user->timezone ?: 'UTC'))['description'] ?? null,
+            'trigger_type' => $watcher->trigger_type->value,
+            'kind' => $watcher->trigger_type->value === 'gmail_message'
+                ? (WatcherSchedule::isDigest($watcher) ? 'gmail_digest' : 'gmail_event')
+                : 'other',
         ]);
     }
 }

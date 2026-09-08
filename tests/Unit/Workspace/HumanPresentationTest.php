@@ -122,4 +122,24 @@ class HumanPresentationTest extends TestCase
         $this->assertStringNotContainsString('watcher', mb_strtolower(HumanWatcherDescription::sentence($watcher)));
         $this->assertStringNotContainsString('gmail_message', HumanWatcherDescription::sentence($watcher));
     }
+
+    public function test_gmail_event_watcher_names_domains_without_query_syntax(): void
+    {
+        $watcher = new Watcher([
+            'trigger_type' => WatcherTriggerType::GmailMessage,
+            'condition_type' => WatcherConditionType::NewItem,
+            'source_config' => [
+                'sender_domains' => ['marcellinequadronno.it', 'accademiaucraina.it'],
+            ],
+            'reaction_type' => WatcherReactionType::Notify,
+            'mode' => WatcherMode::Recurring,
+        ]);
+
+        $this->assertSame(
+            'Буду следить за новыми письмами от marcellinequadronno.it и accademiaucraina.it и сообщать, когда они появятся.',
+            HumanWatcherDescription::sentence($watcher),
+        );
+        $this->assertStringNotContainsString('from:', HumanWatcherDescription::sentence($watcher));
+        $this->assertStringNotContainsString('watcher', mb_strtolower(HumanWatcherDescription::sentence($watcher)));
+    }
 }

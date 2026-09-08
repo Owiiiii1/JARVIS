@@ -26,7 +26,7 @@ use Throwable;
 
 final class AgentToolLoop
 {
-    public const SYNTHESIS_INSTRUCTION = 'Do not call tools. Answer the user using the information already collected this turn. If some sources succeeded and others failed, answer from the successful ones and mention the limitation in plain language. Partial answers are useful. Do not mention tool names, error codes, stack traces, or internal identifiers.';
+    public const SYNTHESIS_INSTRUCTION = 'Do not call tools. Answer the user using the information already collected this turn. If some sources succeeded and others failed, answer from the successful ones and mention the limitation in plain language. Partial answers are useful. Do not mention tool names, error codes, stack traces, or internal identifiers. If create_watcher failed, do not claim monitoring exists. Only describe Gmail monitoring when create_watcher succeeded and payload.kind is gmail_event or gmail_digest.';
 
     public function __construct(
         private readonly AiChatGateway $gateway,

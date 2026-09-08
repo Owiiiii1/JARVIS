@@ -14,7 +14,7 @@ use App\Services\Reminders\ReminderRecurrenceCalculator;
 use App\Services\Reminders\ReminderService;
 use App\Services\Tools\Watchers\CreateWatcherTool;
 use App\Services\Users\UserCapability;
-use App\Services\Watchers\WatcherDigestRequest;
+use App\Services\Watchers\ProactiveCheckIntent;
 
 final class CreateReminderTool implements JarvisTool
 {
@@ -89,7 +89,9 @@ final class CreateReminderTool implements JarvisTool
         if ($inboundText !== ''
             && $this->watchers !== null
             && $context->user->canUseCapability(UserCapability::GMAIL)
-            && WatcherDigestRequest::gmailMorningFromInbound($inboundText, $context->user) !== null) {
+            && ! ProactiveCheckIntent::userSelfReminder($inboundText)
+            && (ProactiveCheckIntent::jarvisShouldMonitorMail($inboundText)
+                || ProactiveCheckIntent::isGmailEventMonitoring($inboundText))) {
             return $this->watchers->execute($call, $context);
         }
 

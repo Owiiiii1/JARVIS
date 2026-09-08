@@ -39,6 +39,28 @@ class ProactiveCheckIntentTest extends TestCase
     /**
      * @return array<string, array{0: string}>
      */
+    public static function eventPhrases(): array
+    {
+        return [
+            'wait_school' => ['Жди письмо от школы и сразу сообщи.'],
+            'watch_domain' => ['Следи за письмами от @example.com.'],
+            'when_marco' => ['Когда Marco ответит, сообщи мне.'],
+            'each_mail' => ['Сообщай о каждом письме от бухгалтерии.'],
+        ];
+    }
+
+    #[DataProvider('eventPhrases')]
+    public function test_event_mail_phrases_are_not_digests_or_reminders(string $text): void
+    {
+        $this->assertTrue(ProactiveCheckIntent::isGmailEventMonitoring($text));
+        $this->assertFalse(ProactiveCheckIntent::jarvisShouldMonitorMail($text));
+        $this->assertFalse(ProactiveCheckIntent::userSelfReminder($text));
+        $this->assertFalse(ProactiveCheckIntent::isPeriodicDigest($text));
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
     public static function reminderPhrases(): array
     {
         return [

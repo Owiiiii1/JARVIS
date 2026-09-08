@@ -4,6 +4,9 @@ namespace App\Services\Tools\Watchers;
 
 use App\Enums\ToolOperationClass;
 use App\Enums\WatcherCreatedBy;
+use App\Enums\WatcherStatus;
+use App\Enums\WatcherTriggerType;
+use App\Models\Watcher;
 use App\Services\Ai\DTO\ToolCall;
 use App\Services\Ai\DTO\ToolDefinition;
 use App\Services\Ai\DTO\ToolResult;
@@ -16,7 +19,11 @@ use App\Services\Tools\ToolExecutionContext;
 use App\Services\Tools\ToolMeta;
 use App\Services\Users\UserCapability;
 use App\Services\Watchers\Exceptions\WatcherException;
+use App\Services\Watchers\GmailEventRequest;
+use App\Services\Watchers\GmailWatcherQuery;
+use App\Services\Watchers\ProactiveCheckIntent;
 use App\Services\Watchers\WatcherDigestRequest;
+use App\Services\Watchers\WatcherSchedule;
 use App\Services\Watchers\WatcherService;
 
 final class CreateWatcherTool implements JarvisTool
@@ -39,22 +46,22 @@ final class CreateWatcherTool implements JarvisTool
     {
         return new ToolDefinition(
             name: self::NAME,
-            description: 'Creates an explicit Jarvis watcher for a future condition or a recurring Jarvis-performed check (not a reminder). Use when the user asked Jarvis to watch, check, or report something — including “проверяй каждое утро почту”. For “напомни мне проверить почту” use create_reminder instead. For “если эта задача завтра всё ещё будет открыта” use trigger_type=task_state, condition_type=status_equals (or still_open), condition.status=open, condition.hours=24, and the trusted recent task_id. Resolve stable ids. One-shot vs recurring must be explicit. Recurring Gmail morning digest: trigger_type=gmail_message, condition_type=new_item, mode=recurring, source.digest=true, source.schedule.kind=daily_local. Does not scan historical inbox/repo/calendar; first check only sets a baseline.',
+            description: 'Creates an explicit Jarvis watcher for a future condition or a recurring Jarvis-performed check (not a reminder). Reminder: “напомни мне проверить почту”. Digest: “каждое утро дай сводку почты” → gmail digest (source.digest=true, daily_local). Event: “жди письмо от школы / следи за письмами от @example.com / когда Marco ответит” → gmail_message recurring event watcher with source.sender, source.senders, or source.sender_domains. Never use knowledge_event for Gmail. Never invent user_id or integration_account_id. First Gmail check only baselines existing mail.',
             parameters: [
                 'type' => 'OBJECT',
                 'properties' => [
                     'name' => ['type' => 'STRING', 'description' => 'Short watcher name.'],
                     'trigger_type' => ['type' => 'STRING', 'description' => 'knowledge_event, task_state, reminder_state, time_condition, calendar_event, gmail_message, github_event.'],
                     'source_type' => ['type' => 'STRING', 'description' => 'knowledge_entity, project, task, reminder, gmail, calendar, github, time.'],
-                    'condition_type' => ['type' => 'STRING', 'description' => 'Controlled condition, e.g. thread_received_reply, github_new_commit, overdue_by, entity_event_type.'],
+                    'condition_type' => ['type' => 'STRING', 'description' => 'Controlled condition, e.g. thread_received_reply, github_new_commit, overdue_by, entity_event_type, new_item.'],
                     'reaction_type' => ['type' => 'STRING', 'description' => 'notify, create_notification, create_reminder, create_task, run_internal_analysis, propose_action.'],
-                    'mode' => ['type' => 'STRING', 'description' => 'one_shot or recurring. Recurring is required for “каждое утро / каждый день проверяй”.'],
+                    'mode' => ['type' => 'STRING', 'description' => 'one_shot or recurring. Gmail event monitoring (“следи / жди письма”) is recurring unless the user asked only for the first reply.'],
                     'task_id' => ['type' => 'INTEGER', 'description' => 'Owned task id when watching a task/deadline.'],
-                    'knowledge_entity_id' => ['type' => 'INTEGER', 'description' => 'Owned knowledge entity id when watching a timeline.'],
+                    'knowledge_entity_id' => ['type' => 'INTEGER', 'description' => 'Owned knowledge entity id when watching a timeline. Never use this for Gmail monitoring.'],
                     'project_id' => ['type' => 'INTEGER', 'description' => 'Owned project id when scoped.'],
                     'entity_name' => ['type' => 'STRING', 'description' => 'Fallback name/alias to resolve a knowledge entity, e.g. YFS.'],
                     'cooldown_seconds' => ['type' => 'INTEGER', 'description' => 'Minimum seconds between notifications.'],
-                    'source' => ['type' => 'OBJECT', 'description' => 'Bounded source filters: query, sender, thread_id, repository, branch, event_id, calendar_id, event_type. For a Gmail morning digest set digest=true, query=in:inbox, and schedule.kind=daily_local with schedule.local_time (HH:MM). Do not pass integration_account_id or user_id.'],
+                    'source' => ['type' => 'OBJECT', 'description' => 'Filters: sender, senders, sender_domain, sender_domains, subject, query, thread_id. For a Gmail digest set digest=true, query=in:inbox, schedule.kind=daily_local. For event monitoring pass sender_domains such as ["example.com"]. Do not pass integration_account_id or user_id.'],
                     'condition' => ['type' => 'OBJECT', 'description' => 'Bounded condition config: hours, status, event_type, sender, subject. For still-open-tomorrow set status=open and hours=24.'],
                     'reaction_config' => ['type' => 'OBJECT', 'description' => 'Bounded reaction config. For propose_action include tool name only — never execute it.'],
                 ],
@@ -77,7 +84,17 @@ final class CreateWatcherTool implements JarvisTool
     {
         try {
             $input = $this->normalizeInput($call, $context);
+            $this->assertNotWrongGmailFallback($input, $context);
             $this->assertGmailReady($input, $context);
+
+            $inbound = trim((string) ($context->inbound?->body ?? ''));
+            if (ProactiveCheckIntent::isGmailFilterAddon($inbound) || ProactiveCheckIntent::isGmailEventMonitoring($inbound)) {
+                $refined = $this->refineExistingGmailEvent($input, $context);
+                if ($refined !== null) {
+                    return $this->successPayload($call->id, $refined, (string) ($context->user->timezone ?: 'UTC'), updated: true);
+                }
+            }
+
             $input['conversation_id'] = $context->conversation->id;
             $watcher = $this->watchers->create($context->user, $input, WatcherCreatedBy::Tool);
         } catch (WatcherException $exception) {
@@ -85,6 +102,7 @@ final class CreateWatcherTool implements JarvisTool
                 'success' => false,
                 'error' => $exception->error,
                 'message' => $this->userMessage($exception),
+                'kind' => 'failed',
             ];
 
             if ($exception->candidates !== []) {
@@ -94,18 +112,7 @@ final class CreateWatcherTool implements JarvisTool
             return ToolResult::failure($call->id, $this->name(), $payload);
         }
 
-        $fresh = $watcher->fresh(['task', 'project', 'knowledgeEntity', 'reminder']) ?? $watcher;
-        $serialized = $this->watchers->serialize($fresh, (string) ($context->user->timezone ?: 'UTC'));
-
-        return ToolResult::success($call->id, $this->name(), [
-            'success' => true,
-            'watcher_id' => (int) $fresh->id,
-            'task_id' => $fresh->task_id !== null ? (int) $fresh->task_id : null,
-            'status' => $fresh->status->value,
-            'mode' => $fresh->mode->value,
-            'name' => $fresh->name,
-            'description' => $serialized['description'] ?? null,
-        ]);
+        return $this->successPayload($call->id, $watcher, (string) ($context->user->timezone ?: 'UTC'));
     }
 
     /**
@@ -119,12 +126,21 @@ final class CreateWatcherTool implements JarvisTool
             unset($input['source']['user_id'], $input['source']['integration_account_id']);
         }
 
-        $inbound = mb_strtolower(trim((string) ($context->inbound?->body ?? '')));
+        $inbound = trim((string) ($context->inbound?->body ?? ''));
         $digest = WatcherDigestRequest::gmailMorningFromInbound($inbound, $context->user);
         if ($digest !== null) {
             return array_merge($digest, array_filter([
                 'name' => trim((string) ($input['name'] ?? '')) !== '' ? $input['name'] : $digest['name'],
             ]));
+        }
+
+        $event = GmailEventRequest::fromInbound($inbound, $context->user, $input);
+        if ($event !== null && (ProactiveCheckIntent::isGmailEventMonitoring($inbound) || ProactiveCheckIntent::isGmailFilterAddon($inbound))) {
+            if (! GmailWatcherQuery::hasFilter(is_array($event['source'] ?? null) ? $event['source'] : [])) {
+                throw new WatcherException('gmail_filter_required', 'Gmail event watchers need a sender or domain.');
+            }
+
+            return $event;
         }
 
         $taskId = $this->resolveTaskId($call, $context);
@@ -135,10 +151,10 @@ final class CreateWatcherTool implements JarvisTool
             unset($input['task_id']);
         }
 
-        $inbound = mb_strtolower(trim((string) ($context->inbound?->body ?? '')));
+        $inboundLower = mb_strtolower($inbound);
         $condition = mb_strtolower(trim((string) ($input['condition_type'] ?? '')));
 
-        if ($condition === '' && $inbound !== '' && preg_match('/открыт|still open|останет/u', $inbound) === 1) {
+        if ($condition === '' && $inboundLower !== '' && preg_match('/открыт|still open|останет/u', $inboundLower) === 1) {
             $input['condition_type'] = 'still_open';
             $condition = 'still_open';
         }
@@ -153,7 +169,7 @@ final class CreateWatcherTool implements JarvisTool
             $conditionConfig = is_array($input['condition'] ?? null) ? $input['condition'] : [];
             $conditionConfig['status'] = $conditionConfig['status'] ?? $conditionConfig['expected'] ?? 'open';
 
-            if (! isset($conditionConfig['hours']) && preg_match('/завтра|tomorrow/u', $inbound) === 1) {
+            if (! isset($conditionConfig['hours']) && preg_match('/завтра|tomorrow/u', $inboundLower) === 1) {
                 $conditionConfig['hours'] = 24;
             }
 
@@ -167,7 +183,97 @@ final class CreateWatcherTool implements JarvisTool
             $input['name'] = 'Если задача останется открытой';
         }
 
+        if ($event !== null && mb_strtolower(trim((string) ($input['trigger_type'] ?? ''))) === 'gmail_message') {
+            return $event;
+        }
+
         return $input;
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     */
+    private function assertNotWrongGmailFallback(array $input, ToolExecutionContext $context): void
+    {
+        $inbound = trim((string) ($context->inbound?->body ?? ''));
+        if ($inbound === '' || (! ProactiveCheckIntent::isGmailEventMonitoring($inbound) && ! ProactiveCheckIntent::jarvisShouldMonitorMail($inbound))) {
+            return;
+        }
+
+        $trigger = mb_strtolower(trim((string) ($input['trigger_type'] ?? '')));
+        if ($trigger !== '' && $trigger !== 'gmail_message') {
+            throw new WatcherException('gmail_filter_required', 'Gmail monitoring cannot use a non-Gmail watcher.');
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     */
+    private function refineExistingGmailEvent(array $input, ToolExecutionContext $context): ?Watcher
+    {
+        $inbound = trim((string) ($context->inbound?->body ?? ''));
+        if (! ProactiveCheckIntent::isGmailFilterAddon($inbound)) {
+            return null;
+        }
+
+        $existing = $this->resolveGmailEventWatcher($context);
+        $source = is_array($input['source'] ?? null) ? $input['source'] : [];
+        if (! GmailWatcherQuery::hasFilter($source)) {
+            throw new WatcherException('gmail_filter_required', 'Gmail event watchers need a sender or domain.');
+        }
+
+        if ($existing === null) {
+            return null;
+        }
+
+        return $this->watchers->updateOwned($context->user, (int) $existing->id, [
+            'source' => $source,
+            'name' => GmailWatcherQuery::displayName(GmailWatcherQuery::merge(
+                is_array($existing->source_config) ? $existing->source_config : [],
+                $source,
+            )),
+        ]);
+    }
+
+    private function resolveGmailEventWatcher(ToolExecutionContext $context): ?Watcher
+    {
+        $candidates = [];
+
+        foreach ($context->working?->recentToolReferences ?? [] as $entity) {
+            if ($entity->type !== 'watcher' || $entity->id === null || ! $entity->trusted || $entity->expired) {
+                continue;
+            }
+
+            $watcher = Watcher::query()
+                ->where('user_id', $context->user->id)
+                ->whereKey($entity->id)
+                ->first();
+            if ($watcher !== null && GmailWatcherQuery::isEventWatcher($watcher) && $watcher->status === WatcherStatus::Active) {
+                $candidates[(int) $watcher->id] = $watcher;
+            }
+        }
+
+        if (count($candidates) > 1) {
+            throw new WatcherException('ambiguous', 'Several Gmail watchers could match.');
+        }
+        if (count($candidates) === 1) {
+            return array_values($candidates)[0];
+        }
+
+        $active = Watcher::query()
+            ->where('user_id', $context->user->id)
+            ->where('status', WatcherStatus::Active)
+            ->where('trigger_type', WatcherTriggerType::GmailMessage)
+            ->orderByDesc('id')
+            ->limit(8)
+            ->get()
+            ->filter(static fn (Watcher $watcher): bool => GmailWatcherQuery::isEventWatcher($watcher) && ! WatcherSchedule::isDigest($watcher));
+
+        if ($active->count() > 1) {
+            throw new WatcherException('ambiguous', 'Several Gmail watchers could match.');
+        }
+
+        return $active->first();
     }
 
     private function resolveTaskId(ToolCall $call, ToolExecutionContext $context): ?int
@@ -193,12 +299,41 @@ final class CreateWatcherTool implements JarvisTool
         return $trusted?->id;
     }
 
+    private function successPayload(string $callId, Watcher $watcher, string $timezone, bool $updated = false): ToolResult
+    {
+        $fresh = $watcher->fresh(['task', 'project', 'knowledgeEntity', 'reminder']) ?? $watcher;
+        $serialized = $this->watchers->serialize($fresh, $timezone !== '' ? $timezone : 'UTC');
+        $kind = 'other';
+        if ($fresh->trigger_type === WatcherTriggerType::GmailMessage) {
+            $kind = WatcherSchedule::isDigest($fresh) ? 'gmail_digest' : 'gmail_event';
+        }
+
+        return ToolResult::success($callId, $this->name(), [
+            'success' => true,
+            'watcher_id' => (int) $fresh->id,
+            'task_id' => $fresh->task_id !== null ? (int) $fresh->task_id : null,
+            'status' => $fresh->status->value,
+            'mode' => $fresh->mode->value,
+            'name' => $fresh->name,
+            'description' => $serialized['description'] ?? null,
+            'trigger_type' => $fresh->trigger_type->value,
+            'kind' => $kind,
+            'updated' => $updated,
+            'confirm_as' => (string) ($serialized['description'] ?? ''),
+        ]);
+    }
+
     private function userMessage(WatcherException $exception): string
     {
         return match ($exception->error) {
-            'invalid_config' => 'Не получилось поставить автоматизацию: не хватает задачи или условия. Если речь о конкретной задаче, назовите её или уточните, о какой из недавних.',
+            'gmail_filter_required' => 'Не удалось создать мониторинг Gmail: нужен отправитель или домен.',
+            'invalid_config' => str_contains(mb_strtolower($exception->getMessage()), 'gmail') || str_contains(mb_strtolower($exception->getMessage()), 'sender')
+                ? 'Не удалось создать мониторинг Gmail: нужен отправитель или домен.'
+                : 'Не получилось поставить автоматизацию: не хватает задачи или условия. Если речь о конкретной задаче, назовите её или уточните, о какой из недавних.',
             'not_found' => 'Не нашёл задачу, за которой нужно следить.',
-            'ambiguous' => 'Уточните, о какой задаче речь — сейчас их несколько.',
+            'ambiguous' => str_contains(mb_strtolower($exception->getMessage()), 'gmail')
+                ? 'Уточните, какую почтовую автоматизацию дополнить — сейчас их несколько.'
+                : 'Уточните, о какой задаче речь — сейчас их несколько.',
             'invalid_name' => 'Нужно короткое название для автоматизации.',
             'google_not_connected' => 'Могу это делать, но сначала нужно подключить Gmail.',
             'gmail_scope_required' => 'Нужно разрешить доступ к Gmail.',

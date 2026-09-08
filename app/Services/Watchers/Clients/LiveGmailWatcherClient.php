@@ -9,6 +9,8 @@ use App\Services\Integrations\Google\GoogleGmailService;
 use App\Services\Integrations\IntegrationAccountService;
 use App\Services\Users\UserCapability;
 use App\Services\Watchers\Contracts\GmailWatcherClient;
+use App\Services\Watchers\GmailWatcherQuery;
+use App\Services\Watchers\WatcherSchedule;
 use App\Services\Watchers\WatcherSupport;
 
 final class LiveGmailWatcherClient implements GmailWatcherClient
@@ -25,7 +27,13 @@ final class LiveGmailWatcherClient implements GmailWatcherClient
             throw new IntegrationException('google_not_connected', 'Gmail is not connected.');
         }
 
-        $query = $this->query($source);
+        $query = GmailWatcherQuery::compile($source);
+        if ($query === '') {
+            $query = WatcherSchedule::isDigest($source) ? 'in:inbox' : '';
+        }
+        if ($query === '') {
+            throw new IntegrationException('invalid_config', 'Gmail watchers need a sender, domain, subject, thread, or query.');
+        }
         $result = $this->gmail->searchMessages($account, $query, ['max_results' => 20]);
         $rows = [];
         foreach ($result['messages'] ?? [] as $message) {
@@ -59,29 +67,6 @@ final class LiveGmailWatcherClient implements GmailWatcherClient
             'snippet' => WatcherSupport::summary((string) ($message['snippet'] ?? ($message['text'] ?? ''))),
             'sender' => (string) ($message['from'] ?? ''),
         ];
-    }
-
-    /**
-     * @param  array<string, mixed>  $source
-     */
-    private function query(array $source): string
-    {
-        if (isset($source['query']) && trim((string) $source['query']) !== '') {
-            return trim((string) $source['query']);
-        }
-
-        $parts = [];
-        if (isset($source['thread_id']) && trim((string) $source['thread_id']) !== '') {
-            $parts[] = 'thread:'.trim((string) $source['thread_id']);
-        }
-        if (isset($source['sender']) && trim((string) $source['sender']) !== '') {
-            $parts[] = 'from:'.trim((string) $source['sender']);
-        }
-        if (isset($source['subject']) && trim((string) $source['subject']) !== '') {
-            $parts[] = 'subject:'.trim((string) $source['subject']);
-        }
-
-        return $parts !== [] ? implode(' ', $parts) : 'in:inbox';
     }
 
     /**

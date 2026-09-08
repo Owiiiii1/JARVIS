@@ -7,7 +7,9 @@ Watchers are explicit, bounded, user-scoped conditions: “when X happens, notif
 | Object | Question |
 | --- | --- |
 | Reminder | Notify at a **known time** when the **user** must act (“напомни мне проверить почту”) |
-| Watcher | Notify when a **future condition** is true, or when **Jarvis** should itself check a source and report (“проверяй каждое утро почту”) |
+| Gmail digest watcher | Jarvis periodically reads the mailbox and summarizes **new mail** (“каждое утро дай сводку почты”) |
+| Gmail event watcher | Jarvis polls Gmail and notifies when a **matching new message** appears (“жди письмо от школы”, “следи за письмами от @example.com”) |
+| Watcher (other) | Notify when a **future condition** is true, or when **Jarvis** should itself check a source and report |
 | Task | A **work item** |
 | B.2 Proactive | Bounded **heuristic** suggestion over tasks/time (not a persisted user condition) |
 | Knowledge Event | An **observed fact** on the timeline |
@@ -54,7 +56,7 @@ External writes are **never** executed by a watcher. `propose_action` creates a 
 ## Evaluation pipeline
 
 1. User creates a watcher (chat tool or Workspace Center).
-2. First check **establishes a baseline/cursor**. Historical Gmail/GitHub/Calendar/knowledge items do not fire.
+2. First check **establishes a baseline/cursor**. Historical Gmail/GitHub/Calendar/knowledge items do not fire. “Жди новые письма от X” baselines current matches. If the user also asked whether matching mail is **already** in the inbox, chat should `search_gmail` first, then create the watcher — the watcher itself will not later announce those already-seen messages.
 3. Later observations are normalized by a source adapter (`WatcherSourceAdapter`).
 4. `WatcherConditionEvaluator` is deterministic.
 5. Unique fingerprint + cooldown + per-watcher/day + global/day caps suppress spam. Short bursts may aggregate.
@@ -69,7 +71,11 @@ Internal events (`KnowledgeEventCreated`, task/reminder changes) dispatch `Evalu
 
 Polling happens **only** for active watchers that need it, with bounded queries.
 
-Defaults (config `watchers.cadence`): Gmail/GitHub ~8 minutes, Calendar/internal ~5 minutes. Recurring `schedule.kind=daily_local` watchers instead run at the user’s local time (default **08:00**, same as the productivity brief; Owner timezone `Europe/Rome`). Auth failures block the watcher and notify once (`Watcher needs reconnect`). Transient errors back off. No global inbox/repo/calendar mirror.
+Defaults (config `watchers.cadence`): Gmail/GitHub ~8 minutes, Calendar/internal ~5 minutes. Recurring `schedule.kind=daily_local` **digest** watchers instead run at the user’s local time (default **08:00**, same as the productivity brief; Owner timezone `Europe/Rome`). Gmail **event** watchers stay on the Gmail cadence (not daily). Auth failures block the watcher and notify once (`Watcher needs reconnect`). Transient errors back off. No global inbox/repo/calendar mirror.
+
+Gmail event monitoring is **IMPLEMENTED / READY FOR OWNER VALIDATION**. Canonical source filters: `sender` / `senders`, `sender_domain` / `sender_domains`, `subject`, `thread_id`, or a bounded `query`. Multiple domains compile to one Gmail `OR` query internally. The UI sentence names the domains (“Письма от marcellinequadronno.it и accademiaucraina.it”), not the raw query. Continuous wording (“следи”, “жди письма”, “сообщай когда приходят”) defaults to `recurring` with cooldown 0 so each new matching message can notify. One-shot only when the user clearly wants the first reply. Do not hijack event phrasing into a morning digest. Do not fall back to a Knowledge watcher, reminder, or project watcher if Gmail create fails.
+
+Broken production Knowledge watcher **#190** (“Письма по Танцевальной академии”, `entity_event_type` / `new_email`) is **not** Gmail monitoring. Cursor did not modify it. Owner remediation: cancel #190 in Автоматизации, then in chat: “Следи за письмами от marcellinequadronno.it и accademiaucraina.it и сообщай, когда они приходят.” Inspect the new watcher: Gmail, recurring, domains in the human description, not a daily digest. Send a fresh matching test email, then a second; both should notify after the normal poll interval. Unrelated senders must not notify. “Каждое утро дай сводку почты” still creates a separate digest. “Напомни завтра проверить почту” still creates a Reminder.
 
 ---
 
@@ -95,9 +101,11 @@ Center **Автоматизации** on the main Workspace chrome (`/jarvis/wat
 
 Capability `watchers` (regular users: internal sources; Gmail/Calendar/GitHub remain Owner). Core writes (`provider` null). Changing source/condition resets the baseline so history is not replayed. `run_watcher_now` is a check only.
 
-Tool prompt: Reminder = the user acts at a known time; Watcher = Jarvis checks or waits for a condition; Task = work item; B.2 proactive is separate. “Проверяй каждое утро почту” creates a recurring Gmail digest watcher, not a reminder. If Gmail is disconnected, chat says to connect it; missing scope asks to grant Gmail access. Confirmations use the human description (“Каждое утро около 8:00 буду проверять Gmail…”), never “создан watcher”.
+Tool prompt: Reminder = the user acts at a known time; Digest = Jarvis summarizes new mail on a local morning schedule; Event = Jarvis polls Gmail and notifies on matching new messages; Task = work item; B.2 proactive is separate. “Проверяй каждое утро почту” creates a recurring Gmail digest watcher. “Жди письмо от школы / следи за письмами от @example.com” creates a recurring Gmail event watcher, never a Knowledge watcher. If Gmail is disconnected, chat says to connect it; missing scope asks to grant Gmail access; missing sender/domain asks for a filter. Confirmations use the human description, never “создан watcher”. Success claims require `create_watcher` success and `kind` `gmail_event` or `gmail_digest`.
 
 Recurring Gmail morning digest: `mode=recurring`, `source.digest=true`, `source.query=in:inbox`, `source.schedule.kind=daily_local`. First evaluation baselines current ids. Later runs summarize only unseen messages (fingerprint + cursor). Zero new mail still sends a short daily “С утра новых писем нет.” Digest bodies are bounded sender+subject summaries; occurrence metadata does not store email bodies. Status: **READY FOR OWNER VALIDATION**. Cursor did not run live Gmail or create Owner watchers.
+
+Gmail event watcher: `mode=recurring` (default), `trigger_type=gmail_message`, `condition_type=new_item`, structured `sender_domains` / `senders`. No `daily_local`. First evaluation baselines. Later matching messages create occurrences and Notification Center items (Telegram if that channel is enabled). Status: **IMPLEMENTED / READY FOR OWNER VALIDATION**. Not live-validated by Cursor.
 
 ---
 

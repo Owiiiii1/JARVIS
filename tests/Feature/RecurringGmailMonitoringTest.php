@@ -326,6 +326,7 @@ class RecurringGmailMonitoringTest extends TestCase
 
             $this->assertStringContainsString('Never say you have no Gmail monitoring', $context['system_prompt']);
             $this->assertStringContainsString('create_watcher (digest)', $context['system_prompt']);
+            $this->assertStringContainsString('create_watcher (gmail event)', $context['system_prompt']);
         } finally {
             $this->deleteTemporaryUser($user);
         }

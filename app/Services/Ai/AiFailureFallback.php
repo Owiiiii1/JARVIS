@@ -255,10 +255,17 @@ final class AiFailureFallback
 
     private function watcherCreatedFallback(ToolResult $result): string
     {
-        $description = trim((string) ($result->payload['description'] ?? ''));
+        $kind = (string) ($result->payload['kind'] ?? '');
+        $description = trim((string) ($result->payload['confirm_as'] ?? $result->payload['description'] ?? ''));
+
+        if ($kind === 'failed' || $result->success !== true) {
+            $message = trim((string) ($result->payload['message'] ?? ''));
+
+            return $message !== '' ? $message : 'Не получилось создать автоматизацию.';
+        }
 
         if ($description !== '') {
-            return 'Готово. '.$description;
+            return str_starts_with($description, 'Готово') ? $description : 'Готово. '.$description;
         }
 
         return 'Готово. Поставлю автоматизацию на эту задачу.';

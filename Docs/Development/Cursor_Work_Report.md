@@ -1,101 +1,97 @@
-# Agent Runtime Reliability
+# Gmail Event Monitoring
 
 ## Starting HEAD
 
-`ac46f037e01a7370f486155dffa8227cefdb4cbd` (`feat: add recurring gmail monitoring`).
+`45bd7dabd4c359b7d900c7d56c26bd0397903979` (`fix: harden agent runtime recovery`).
 
 Branch `main`. No dependency changes.
 
-## Pre-existing uncommitted fix
+## Live production failure
 
-Working tree already had a local recovery patch that was **not** discarded:
-
-- `AiFailureFallback`: `list|get|search|find|show|describe|read|fetch|compare` no longer counted as a successful write → «Готово.»
-- `ConversationAiService`: after the hard tool-round cap, one no-tools pass was attempted
-- `context_budget.provider_retries` + Gemini `protoStruct` empty-args object encoding
-- matching tests in `AiRuntimeTest`, `AiFailureFallbackTest`, `RemindersTest`, `AiProviderChatClientTest`
-
-That patch is absorbed and replaced by the official runtime below.
-
-## Live failure class
-
-Owner CNC Storage analysis: the model called `get_storage_file` / `search_storage_file_contents` / `read_storage_file_chunks` until `MAX_TOOL_ROUNDS`, never synthesized, then the user saw «Но при формировании ответа произошла техническая ошибка.» Follow-ups («повтори», «ты тут?», «эй») could re-enter the same unfinished read loop.
+Owner asked Jarvis to wait for school/academy mail (`@marcellinequadronno.it`, `@accademiaucraina.it`) and notify when messages arrive. Jarvis claimed 5–15 minute Gmail polling. Production had no Gmail event watcher: `create_watcher` for Gmail failed `invalid_config` twice, then a Knowledge watcher (#190) was created (`entity_event_type` / fictional `new_email`). Later domain clarification only called `search_gmail`. The morning digest watcher is a separate daily product.
 
 ## Root cause
 
-1. Tool-round cap terminated the turn without a mandatory no-tools answer phase.
-2. Successful read tools were still eligible for a write-style fallback («Готово.» + technical-error suffix) when prefix matching failed.
-3. Empty/capped turns had no partial-answer path.
-4. A new user message still offered the full tool set, so the model could resume the previous Storage plan from history.
+1. Generic “monitor mail” intent was steered into a morning digest (or, before that, into Knowledge).
+2. Gmail create required a sender/query the model often omitted, then silently accepted a Knowledge fallback.
+3. `new_email` is not a Knowledge event type (`email_received` is). Knowledge is not a Gmail poller.
+4. Success text was inferred from user intent, not from a successful Gmail `create_watcher`.
+5. Gmail watchers defaulted to `one_shot` and a 1h cooldown, which is wrong for continuous mail alerts.
 
-## Turn isolation
+## Reminder vs Digest vs Event semantics
 
-`TurnIsolation` + conversational policy: each user message is a new execution turn. Tool plans, retry state, and incomplete loops are request-scoped. Presence checks («эй», «ты тут?») disable tools for that turn. «Повтори предыдущий» asks to restate the previous semantic answer, not to replay a stale tool plan.
+- Reminder: the user acts at a known time (“напомни проверить почту”).
+- Digest: Jarvis summarizes new mail on a local daily schedule (“каждое утро дай сводку”).
+- Event: Jarvis polls Gmail and notifies on matching new messages (“жди письмо от школы”). Not a digest.
 
-## Tool progress detection
+## Event watcher canonical config
 
-`ToolLoopProgress` + `ToolCallFingerprint` record per-round tool name, normalized args (ownership fields ignored), semantic result fingerprint (file/query/chunk indexes, not bodies), success, and whether new information appeared.
+`trigger_type=gmail_message`, `condition_type=new_item`, `mode=recurring`, structured `senders` / `sender_domains` / `subject` / `thread_id`. Runtime compiles a Gmail `OR` query. No `daily_local`. Cooldown 0.
 
-## Repetition detection
+## Sender/domain normalization
 
-Stops the tool phase after `context_budget.no_progress_tool_rounds` (default 2) consecutive no-progress rounds, or a 2–3 tool alternating cycle with no new fingerprints. Identical call fingerprints reuse the previous `ToolResult` and do **not** execute again (blocks duplicate external writes).
+`GmailWatcherQuery` accepts sender email, domain (`example.com` / `@example.com`), lists of either, subject, or an existing safe query. The model does not need Gmail query grammar.
 
-## Forced final synthesis
+## Multiple domains
 
-Official phase in `AgentToolLoop::synthesize()`: tools disabled, original request, compacted unique tool results, instruction “Do not call tools. Answer using information already collected.” Hard `max_tool_rounds` (default 8) also enters this phase instead of a fallback.
+One watcher. `sender_domains: [marcellinequadronno.it, accademiaucraina.it]` → `(from:a OR from:b)`. Human copy names the domains.
 
-## Provider retry
+## Recurring / one-shot semantics
 
-`chatWithRetries` retries only classified retryable failures: timeout, 429, 5xx, empty/malformed-empty response, network. Attempt 2 uses compacted messages. Not retried: invalid credentials, config, safety, serialization, deterministic validation. Tools are never re-executed on a provider retry. Gemini empty `functionCall.args` is encoded as `{}` so protobuf list errors are not generated.
+Continuous wording defaults to recurring. One-shot only for explicit first-letter / one-reply phrasing.
 
-## Partial recovery
+## Poll cadence
 
-If some tools succeed and others fail, synthesis is instructed to answer from the successful set and mention the limitation in plain language. No provider exception names, tool IDs, or stack traces in the user text.
+Existing `jarvis:watchers:dispatch` (every 5 min) + Gmail cadence (~8 min). Chat does not promise an exact interval.
 
-## Read/write classification
+## Baseline semantics
 
-`ToolMeta::mutationKind()` → `ToolMutationKind`: `read`, `write_internal` (no provider), `write_external` (provider set), `destructive`. Runtime uses `isReadOnly()` / `isMutation()`. Fallback no longer classifies by name prefix when `ToolSemantics` can resolve the registry.
+First evaluation stores current matching ids. Later evals notify only new ids. “Already in inbox?” is a `search_gmail` then watcher, not a silent later alert of old mail.
 
-## Failure fallback changes
+## No wrong-type fallback
 
-- Read-only success never returns «Готово.»
-- Mutation success may still use a short completion line (reminder/watcher/profile/onboarding) **without** «при формировании ответа произошла техническая ошибка»
-- Last-resort copy: «Сейчас не удалось сформировать ответ. Попробуй ещё раз.»
-- Same string is `ConversationAiService::AI_FAILURE` / `AiFailureFallback::ANSWER_UNAVAILABLE`
+Gmail event/digest inbound cannot create Knowledge/Reminder/project watchers. Missing sender/domain returns `gmail_filter_required`. Disconnected Gmail still asks to connect.
 
-## Logging
+## Grounded success responses
 
-Bounded `Log::info('agent_turn', …)`: `turn_id`, `conversation_id`, `user_id`, `tool_round_count`, tool **names** + success/progress/reused flags, `repetition_detected`, `forced_final_synthesis`, `provider_retry_count`, `partial_recovery`, `final_outcome`. No email bodies, file contents, prompts, secrets, or tokens.
+`create_watcher` payload includes `kind` (`gmail_event` / `gmail_digest` / `failed`) and `confirm_as`. Synthesis and fallback may claim Gmail monitoring only after success + Gmail kind.
+
+## Conversational watcher refinement
+
+“И ещё следи за письмами от example.com” merges into the unique trusted (or unique active) Gmail event watcher. Ambiguous sets ask. Ids are not guessed among several.
+
+## Security
+
+`user_id` / `integration_account_id` stripped. Ownership checks unchanged. Event watcher is read-only. Metadata bounded to sender/subject/ids — no bodies.
+
+## Notifications
+
+Existing occurrence → Notification Center / Telegram. No separate Telegram path.
+
+## Existing broken watcher remediation
+
+Cursor did **not** modify Owner watcher #190. After deploy, Owner cancels it and creates a Gmail event watcher in chat (see `Docs/WATCHERS_AND_AUTOMATIONS.md`).
 
 ## Files changed
 
-New: `AgentToolLoop`, `AgentTurnTrace`, `ToolLoopProgress`, `ToolCallFingerprint`, `ToolMutationKind`, `ToolSemantics`, `TurnIsolation`, `CountingFakeTool`, unit/feature reliability tests.
+New: `GmailWatcherQuery`, `GmailEventRequest`, `GmailEventMonitoringTest`, `GmailWatcherQueryTest`.
 
-Updated: `ConversationAiService`, `AiFailureFallback`, `ToolMeta`, `ToolOperationClass`, `ClarificationPolicy`, `ConversationalPolicyPrompt`, `GeminiClient`, `AsyncFailureClassifier`, `config/context_budget.php`, docs, existing AI/reminder tests.
+Updated: create/update watcher tools, reminder reroute, intent split, WatcherService, LiveGmail client, evaluation multi-match, prompts, grounding, docs.
 
-Unrelated dirty workspace files (OAuth UI, Workspace UX, watcher continuity, etc.) were left unstaged.
+Unrelated dirty workspace files were left unstaged.
 
 ## Tests authored but NOT executed
 
-- `tests/Feature/AgentRuntimeReliabilityTest.php` — A–I scenarios (multi-read answer, repetition exit, hard cap synthesis, partial, empty recovery, «эй» isolation, no duplicate write)
-- `tests/Unit/Ai/ToolLoopProgressTest.php`
-- `tests/Unit/Tools/ToolMetaTest.php`
-- `tests/Unit/Conversations/TurnIsolationTest.php`
-- updates: `AiFailureFallbackTest`, `AiRuntimeTest`, `RemindersTest`, `AiProviderChatClientTest`, `AsyncFailureClassifierTest`
-
-DO NOT EXECUTE phpunit / `php artisan test` / Pest on this server.
+Feature `GmailEventMonitoringTest` (intents 1–14). Unit query/intent/presentation/fallback. Existing digest/reminder tests updated. PHPUnit was not run.
 
 ## Static checks
 
-`php -l` on touched PHP, `vendor/bin/pint --dirty`, `composer validate`, `npm run build`, `git diff --check`. No scheduler, no live provider, no live tools.
+`php -l` on touched PHP, `vendor/bin/pint --dirty --format agent`, `composer validate`, `git diff --check`. No live Gmail, no watcher dispatch, no phpunit.
 
-## Owner validation plan
+## Owner validation
 
-1. CNC Storage: ask Jarvis to analyze the file and compute axis drift. Expect a real or partial answer, not «техническая ошибка».
-2. Then send «эй» / «ты тут?». Expect a short presence reply, not more Storage reads.
-3. «Напомни мне завтра проверить почту» still creates a Reminder.
-4. If a mutation (reminder/profile) succeeds and the speak-back fails, expect «Готово…» without a technical-error suffix.
+Cancel #190. Ask Jarvis to watch the two school/academy domains. Confirm Автоматизации shows a recurring Gmail event watcher. Send two matching test emails; both should notify. Add `example.com` as a follow-up. Unrelated mail silent. Digest and reminder phrases still split.
 
 ## Production safety
 
-No PHPUnit. No live AI/provider calls by Cursor. No live Storage/Gmail/Calendar/GitHub tool execution. No production user data edits. No emails sent. Gemini JSON encoding change is request-shape only.
+No Owner watcher/mail/account writes from Cursor. No live Gmail API. No phpunit on this server.

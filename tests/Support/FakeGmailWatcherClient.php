@@ -4,6 +4,7 @@ namespace Tests\Support;
 
 use App\Models\User;
 use App\Services\Watchers\Contracts\GmailWatcherClient;
+use App\Services\Watchers\GmailWatcherQuery;
 
 final class FakeGmailWatcherClient implements GmailWatcherClient
 {
@@ -22,7 +23,17 @@ final class FakeGmailWatcherClient implements GmailWatcherClient
             throw $this->exception;
         }
 
-        return $this->messages;
+        $rows = [];
+        foreach ($this->messages as $message) {
+            $sender = (string) ($message['sender'] ?? ($message['from'] ?? ''));
+            $subject = (string) ($message['subject'] ?? '');
+            if (! GmailWatcherQuery::messageMatches($source, $sender, $subject)) {
+                continue;
+            }
+            $rows[] = $message;
+        }
+
+        return $rows;
     }
 
     public function snippet(User $user, array $source, string $messageId): array

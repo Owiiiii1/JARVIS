@@ -242,6 +242,25 @@ class AiFailureFallbackTest extends TestCase
         $this->assertStringNotContainsString('техническая ошибка', (string) $fallback);
     }
 
+    public function test_failed_create_watcher_does_not_claim_gmail_monitoring(): void
+    {
+        $fallback = (new AiFailureFallback)->resolve(
+            new AiProviderException('upstream unavailable'),
+            [
+                ToolResult::failure('call-1', CreateWatcherTool::NAME, [
+                    'success' => false,
+                    'error' => 'gmail_filter_required',
+                    'message' => 'Не удалось создать мониторинг Gmail: нужен отправитель или домен.',
+                    'kind' => 'failed',
+                ]),
+            ],
+        );
+
+        $this->assertSame('Не удалось создать мониторинг Gmail: нужен отправитель или домен.', $fallback);
+        $this->assertStringNotContainsString('буду следить', mb_strtolower((string) $fallback));
+        $this->assertStringNotContainsString('Готово', (string) $fallback);
+    }
+
     public function test_storage_reads_do_not_claim_the_action_worked_when_follow_up_fails(): void
     {
         $fallback = (new AiFailureFallback)->resolve(

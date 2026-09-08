@@ -1,6 +1,6 @@
 # Jarvis — current implementation snapshot
 
-**Date:** 2026-09-08 (Agent runtime recovery — READY FOR OWNER VALIDATION)
+**Date:** 2026-09-08 (Gmail event monitoring — READY FOR OWNER VALIDATION)
 **Host path:** `/var/www/jarvis`  
 **Public URL:** https://jarvis.owlsolutions.net  
 **GitHub:** https://github.com/Owiiiii1/JARVIS.git
@@ -181,7 +181,7 @@ Phase C.2 Beta (ElevenLabs realtime Web voice) is **IMPLEMENTED / NOT VALIDATED*
 
 Phase E.1 Knowledge Layer is **MANUAL PASS for the tested core flow**. Relational entities/relations/events with provenance. Settings → Knowledge. Bounded conversation slice. Not all Knowledge edge cases. [KNOWLEDGE_LAYER.md](KNOWLEDGE_LAYER.md).
 
-Phase E.2 Watchers is **MANUAL PASS for the internal task watcher flow**. Explicit persisted conditions; Notification Center / Web Push delivery; no silent external writes. Workspace Center **Автоматизации**. A one-shot task watcher whose condition can only match while the task is open is finished with `cursor.resolved_reason = task_closed` when that task is completed or cancelled, instead of staying Active forever; `status_changed` watchers still fire on the closing transition. Recurring Gmail morning digest (“проверяй каждое утро почту и сообщай, что нового”) is **IMPLEMENTED / READY FOR OWNER VALIDATION** — not live-validated; Cursor did not call Gmail or create Owner watchers. Other external Calendar / GitHub watchers and proposed-action → confirmation → external write remain **IMPLEMENTED / NOT VALIDATED**. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
+Phase E.2 Watchers is **MANUAL PASS for the internal task watcher flow**. Explicit persisted conditions; Notification Center / Web Push delivery; no silent external writes. Workspace Center **Автоматизации**. A one-shot task watcher whose condition can only match while the task is open is finished with `cursor.resolved_reason = task_closed` when that task is completed or cancelled, instead of staying Active forever; `status_changed` watchers still fire on the closing transition. Recurring Gmail morning digest (“проверяй каждое утро почту и сообщай, что нового”) is **IMPLEMENTED / READY FOR OWNER VALIDATION**. Gmail **event** monitoring (“жди письмо от школы / следи за письмами от @example.com”) is **IMPLEMENTED / READY FOR OWNER VALIDATION** — not live-validated; Cursor did not call Gmail, did not evaluate Owner watchers, and did not change Owner watcher #190. Owner should cancel that Knowledge watcher and create a real Gmail event watcher in chat. Other external Calendar / GitHub watchers and proposed-action → confirmation → external write remain **IMPLEMENTED / NOT VALIDATED**. [WATCHERS_AND_AUTOMATIONS.md](WATCHERS_AND_AUTOMATIONS.md).
 
 Phase E.3 Cross-source Synthesis is **MANUAL PASS for the tested core synthesis / Overview / waiting / state-change flow**. Derived FactPack over Knowledge / Tasks / Reminders / Watchers / Projects / conversation summaries. Tools-first; tiny `synthesis_context` only with an active project. No integration polling. No `waiting_items` table. Phase E as a whole is **not** complete. [CROSS_SOURCE_SYNTHESIS.md](CROSS_SOURCE_SYNTHESIS.md).
 

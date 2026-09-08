@@ -8,6 +8,7 @@ use App\Enums\WatcherMode;
 use App\Enums\WatcherOccurrenceStatus;
 use App\Enums\WatcherReactionStatus;
 use App\Enums\WatcherStatus;
+use App\Enums\WatcherTriggerType;
 use App\Models\User;
 use App\Models\Watcher;
 use App\Models\WatcherOccurrence;
@@ -98,32 +99,83 @@ final class WatcherEvaluationService
                 return null;
             }
 
+            if ($locked->trigger_type === WatcherTriggerType::GmailMessage) {
+                return $this->fireGmailEventMatches($user, $locked, $matched, $now);
+            }
+
             $window = max(0, (int) $locked->aggregation_window_seconds);
             if ($window > 0 && count($matched) > 1) {
                 return $this->recordAggregated($user, $locked, $matched, $now);
             }
 
             $first = $matched[0];
-            $observation = $first['observation'];
-            $reason = $this->spam->shouldSuppress($user, $locked, $observation->fingerprint);
-            if ($reason !== null) {
-                $this->recordSuppressed($user, $locked, $observation, $reason, $now);
+            $occurrence = $this->fireMatch($user, $locked, $first, $now);
+            if ($occurrence === null) {
                 $this->markHealthy($locked, $now);
 
                 return null;
             }
 
-            $occurrence = $this->persistOccurrence($user, $locked, $observation, $first['match']->reasonCode, $now, WatcherOccurrenceStatus::Matched);
-            if ($occurrence === null) {
-                return null;
+            return $occurrence;
+        });
+    }
+
+    /**
+     * @param  list<array{observation: WatcherObservation, match: mixed}>  $matched
+     */
+    private function fireGmailEventMatches(User $user, Watcher $watcher, array $matched, CarbonImmutable $now): ?WatcherOccurrence
+    {
+        $last = null;
+        $current = $watcher;
+
+        foreach ($matched as $item) {
+            $current = $current->fresh() ?? $current;
+            if ($current->status !== WatcherStatus::Active) {
+                break;
             }
 
-            $this->knowledge->ingest($user, $locked, $observation);
-            $this->reactions->execute($user, $locked, $occurrence, $observation);
-            $this->afterTrigger($locked, $now);
+            $occurrence = $this->fireMatch($user, $current, $item, $now);
+            if ($occurrence === null) {
+                continue;
+            }
 
-            return $occurrence->fresh() ?? $occurrence;
-        });
+            $last = $occurrence;
+            $current = $current->fresh() ?? $current;
+            if ($current->mode === WatcherMode::OneShot) {
+                break;
+            }
+        }
+
+        if ($last === null) {
+            $this->markHealthy($watcher, $now);
+        }
+
+        return $last;
+    }
+
+    /**
+     * @param  array{observation: WatcherObservation, match: mixed}  $item
+     */
+    private function fireMatch(User $user, Watcher $watcher, array $item, CarbonImmutable $now): ?WatcherOccurrence
+    {
+        $observation = $item['observation'];
+        $reason = $this->spam->shouldSuppress($user, $watcher, $observation->fingerprint);
+        if ($reason !== null) {
+            $this->recordSuppressed($user, $watcher, $observation, $reason, $now);
+
+            return null;
+        }
+
+        $occurrence = $this->persistOccurrence($user, $watcher, $observation, $item['match']->reasonCode, $now, WatcherOccurrenceStatus::Matched);
+        if ($occurrence === null) {
+            return null;
+        }
+
+        $this->knowledge->ingest($user, $watcher, $observation);
+        $this->reactions->execute($user, $watcher, $occurrence, $observation);
+        $this->afterTrigger($watcher, $now);
+
+        return $occurrence->fresh() ?? $occurrence;
     }
 
     /**

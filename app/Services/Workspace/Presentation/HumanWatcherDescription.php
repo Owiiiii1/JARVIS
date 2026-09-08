@@ -7,6 +7,7 @@ use App\Enums\WatcherMode;
 use App\Enums\WatcherReactionType;
 use App\Enums\WatcherTriggerType;
 use App\Models\Watcher;
+use App\Services\Watchers\GmailWatcherQuery;
 use App\Services\Watchers\WatcherSchedule;
 
 /**
@@ -23,6 +24,11 @@ final class HumanWatcherDescription
         $digest = self::digestSentence($watcher);
         if ($digest !== null) {
             return $digest;
+        }
+
+        $event = self::gmailEventSentence($watcher);
+        if ($event !== null) {
+            return $event;
         }
 
         $condition = self::condition($watcher, $names, $timezone);
@@ -49,6 +55,21 @@ final class HumanWatcherDescription
             : 'Каждое утро в '.$display;
 
         return $when.' буду проверять Gmail и присылать короткую сводку новых писем.';
+    }
+
+    private static function gmailEventSentence(Watcher $watcher): ?string
+    {
+        if ($watcher->trigger_type !== WatcherTriggerType::GmailMessage || WatcherSchedule::isDigest($watcher)) {
+            return null;
+        }
+
+        $source = is_array($watcher->source_config) ? $watcher->source_config : [];
+        $who = GmailWatcherQuery::humanList($source);
+        $once = $watcher->mode === WatcherMode::OneShot;
+
+        return $once
+            ? 'Сообщу, когда появится письмо от '.$who.'.'
+            : 'Буду следить за новыми письмами от '.$who.' и сообщать, когда они появятся.';
     }
 
     /**

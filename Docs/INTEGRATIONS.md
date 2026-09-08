@@ -294,7 +294,7 @@ Reminder Engine remains a separate subsystem. «Напомни» ≠ Calendar ev
 
 ### Gmail (M19)
 
-Live Gmail is the source of truth. No local `emails` / `gmail_messages` / `gmail_threads` tables, no global inbox mirror, no `historyId` / users.watch. Active E.2 Gmail watchers may poll a bounded query (not a mailbox sync). A recurring local-morning digest watcher (`source.digest` + `schedule.kind=daily_local`) checks new mail since the previous cursor and notifies through the existing Notification Center. First evaluation only establishes a baseline and does not dump history. Digest evaluation is read-only.
+Live Gmail is the source of truth. No local `emails` / `gmail_messages` / `gmail_threads` tables, no global inbox mirror, no `historyId` / users.watch. Active E.2 Gmail watchers may poll a bounded query (not a mailbox sync). Two Gmail watcher kinds: (1) recurring local-morning **digest** (`source.digest` + `schedule.kind=daily_local`) summarizing new mail since the previous cursor; (2) recurring **event** watcher (`sender` / `senders` / `sender_domains`, no daily schedule) that notifies on each matching new message through the existing Notification Center. First evaluation only establishes a baseline and does not dump history. Both are read-only (no mark-as-read, archive, label, or reply). Event monitoring: **IMPLEMENTED / READY FOR OWNER VALIDATION**.
 
 Adapter: `GoogleGmailService` via Laravel HTTP client (`config/google_gmail.php` bounds and timeouts). `GmailMimeParser` (text/plain first, HTML→text fallback, nested multipart, attachment metadata only, body cap + `truncated`). `GmailMimeBuilder` (To/Cc/Bcc, RFC 2047 subject, text/plain UTF-8, reply headers, base64url). Tools never call Google HTTP.
 
