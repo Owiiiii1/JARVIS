@@ -28,6 +28,9 @@ return [
     'defaults' => [
         'cooldown_seconds' => (int) env('WATCHERS_COOLDOWN', 3600),
         'aggregation_window_seconds' => (int) env('WATCHERS_AGGREGATION_WINDOW', 300),
+        'morning_local_time' => env('WATCHERS_MORNING_LOCAL_TIME', '08:00'),
+        'digest_max_items' => (int) env('WATCHERS_DIGEST_MAX_ITEMS', 6),
+        'digest_max_chars' => (int) env('WATCHERS_DIGEST_MAX_CHARS', 800),
     ],
 
     'retention_days' => (int) env('WATCHERS_RETENTION_DAYS', 90),

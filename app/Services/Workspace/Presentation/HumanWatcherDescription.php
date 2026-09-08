@@ -7,6 +7,7 @@ use App\Enums\WatcherMode;
 use App\Enums\WatcherReactionType;
 use App\Enums\WatcherTriggerType;
 use App\Models\Watcher;
+use App\Services\Watchers\WatcherSchedule;
 
 /**
  * Builds the single human sentence a watcher card shows instead of its internal DSL:
@@ -19,6 +20,11 @@ final class HumanWatcherDescription
      */
     public static function sentence(Watcher $watcher, array $names = [], string $timezone = 'UTC'): string
     {
+        $digest = self::digestSentence($watcher);
+        if ($digest !== null) {
+            return $digest;
+        }
+
         $condition = self::condition($watcher, $names, $timezone);
         $reaction = self::reaction($watcher);
 
@@ -27,6 +33,22 @@ final class HumanWatcherDescription
         }
 
         return self::upper($condition).', '.$reaction.'.';
+    }
+
+    private static function digestSentence(Watcher $watcher): ?string
+    {
+        $source = is_array($watcher->source_config) ? $watcher->source_config : [];
+        if (! WatcherSchedule::isDigest($source) || $watcher->trigger_type !== WatcherTriggerType::GmailMessage) {
+            return null;
+        }
+
+        $time = WatcherSchedule::localTime($source);
+        $display = self::clockLabel($time);
+        $when = $time === WatcherSchedule::defaultMorningTime()
+            ? 'Каждое утро около '.$display
+            : 'Каждое утро в '.$display;
+
+        return $when.' буду проверять Gmail и присылать короткую сводку новых писем.';
     }
 
     /**
@@ -59,7 +81,12 @@ final class HumanWatcherDescription
      */
     private static function statusEquals(string $subject, array $config): string
     {
-        $status = mb_strtolower((string) ($config['status'] ?? $config['expected'] ?? ''));
+        $status = mb_strtolower((string) ($config['status'] ?? $config['expected'] ?? 'open'));
+        $hours = (int) ($config['hours'] ?? $config['after_hours'] ?? 0);
+
+        if ($status === 'open' && $hours >= 20 && $hours <= 36) {
+            return 'если '.$subject.' завтра всё ещё будет открытой';
+        }
 
         return match ($status) {
             'open' => 'если '.$subject.' останется открытой',
@@ -163,6 +190,13 @@ final class HumanWatcherDescription
             WatcherReactionType::RunInternalAnalysis => 'я разберу это и подготовлю выводы',
             WatcherReactionType::ProposeAction => 'я предложу, что сделать',
         };
+    }
+
+    private static function clockLabel(string $time): string
+    {
+        $parts = explode(':', $time);
+
+        return ((int) ($parts[0] ?? 8)).':'.str_pad((string) ((int) ($parts[1] ?? 0)), 2, '0', STR_PAD_LEFT);
     }
 
     private static function upper(string $value): string

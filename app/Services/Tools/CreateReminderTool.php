@@ -12,7 +12,9 @@ use App\Services\ConversationIntelligence\ReferenceResolver;
 use App\Services\Reminders\ReminderException;
 use App\Services\Reminders\ReminderRecurrenceCalculator;
 use App\Services\Reminders\ReminderService;
+use App\Services\Tools\Watchers\CreateWatcherTool;
 use App\Services\Users\UserCapability;
+use App\Services\Watchers\WatcherDigestRequest;
 
 final class CreateReminderTool implements JarvisTool
 {
@@ -20,6 +22,7 @@ final class CreateReminderTool implements JarvisTool
 
     public function __construct(
         private readonly ReminderService $reminders,
+        private readonly ?CreateWatcherTool $watchers = null,
         private readonly ReferenceResolver $references = new ReferenceResolver,
     ) {}
 
@@ -32,7 +35,7 @@ final class CreateReminderTool implements JarvisTool
     {
         return new ToolDefinition(
             name: self::NAME,
-            description: 'Создаёт персональное напоминание пользователя в Jarvis без Telegram как обязательного условия. Telegram и Web Push — независимые каналы доставки, не требование для создания. Поддерживает recurrence: daily, weekdays, weekly, monthly.',
+            description: 'Создаёт персональное напоминание, когда пользователь сам должен что-то сделать в известное время («напомни мне проверить почту»), без Telegram как обязательного условия. Если Jarvis должен сам проверить почту, календарь или GitHub и сообщить результат — вызывай create_watcher, не это. Telegram и Web Push — независимые каналы доставки. Поддерживает recurrence: daily, weekdays, weekly, monthly.',
             parameters: [
                 'type' => 'OBJECT',
                 'properties' => [
@@ -82,6 +85,14 @@ final class CreateReminderTool implements JarvisTool
 
     public function execute(ToolCall $call, ToolExecutionContext $context): ToolResult
     {
+        $inboundText = trim((string) ($context->inbound?->body ?? ''));
+        if ($inboundText !== ''
+            && $this->watchers !== null
+            && $context->user->canUseCapability(UserCapability::GMAIL)
+            && WatcherDigestRequest::gmailMorningFromInbound($inboundText, $context->user) !== null) {
+            return $this->watchers->execute($call, $context);
+        }
+
         $text = trim((string) ($call->arguments['text'] ?? ''));
         $runAtLocal = trim((string) ($call->arguments['run_at_local'] ?? ''));
         $timezone = (string) $context->user->timezone;

@@ -36,7 +36,9 @@ final class WatcherDispatchService
                 }
 
                 $watcher->forceFill([
-                    'next_check_at' => $now->addSeconds(WatcherSourceRegistry::cadenceSeconds($watcher->trigger_type)),
+                    'next_check_at' => WatcherSchedule::usesDailyLocal($watcher)
+                        ? $now->addSeconds(max(60, (int) config('watchers.cadence.internal_seconds', 300)))
+                        : $now->addSeconds(WatcherSourceRegistry::cadenceSeconds($watcher->trigger_type)),
                 ])->save();
 
                 return true;

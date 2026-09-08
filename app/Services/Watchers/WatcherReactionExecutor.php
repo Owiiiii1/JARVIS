@@ -133,11 +133,18 @@ final class WatcherReactionExecutor
         array $extra = [],
         bool $aiPhrased = false,
     ): void {
+        $max = WatcherSchedule::isDigest($watcher)
+            ? max(200, (int) config('watchers.defaults.digest_max_chars', 800))
+            : null;
+        $text = WatcherSchedule::isDigest($watcher)
+            ? WatcherSupport::clip($body !== '' ? $body : $observation->title, $max)
+            : WatcherSupport::summary($body !== '' ? $body : $observation->title, $max);
+
         $notification = $this->notifications->record(
             $user,
             JarvisNotificationType::WatcherTriggered,
             $watcher->name,
-            WatcherSupport::summary($body !== '' ? $body : $observation->title),
+            $text,
             'watcher:'.$watcher->id.':'.$occurrence->trigger_fingerprint,
             'watcher',
             (int) $watcher->id,

@@ -25,6 +25,10 @@ final class GmailWatcherSource implements WatcherSourceAdapter
     public function check(User $user, Watcher $watcher): array
     {
         $source = is_array($watcher->source_config) ? $watcher->source_config : [];
+        unset($source['integration_account_id'], $source['user_id']);
+        if ($watcher->integration_account_id) {
+            $source['integration_account_id'] = (int) $watcher->integration_account_id;
+        }
         $rows = $this->gmail->search($user, $source);
         $observations = [];
 

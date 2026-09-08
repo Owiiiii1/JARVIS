@@ -294,11 +294,11 @@ Reminder Engine remains a separate subsystem. «Напомни» ≠ Calendar ev
 
 ### Gmail (M19)
 
-Live Gmail is the source of truth. No local `emails` / `gmail_messages` / `gmail_threads` tables, no inbox polling, no `historyId` / watch, no cron.
+Live Gmail is the source of truth. No local `emails` / `gmail_messages` / `gmail_threads` tables, no global inbox mirror, no `historyId` / users.watch. Active E.2 Gmail watchers may poll a bounded query (not a mailbox sync). A recurring local-morning digest watcher (`source.digest` + `schedule.kind=daily_local`) checks new mail since the previous cursor and notifies through the existing Notification Center. First evaluation only establishes a baseline and does not dump history. Digest evaluation is read-only.
 
 Adapter: `GoogleGmailService` via Laravel HTTP client (`config/google_gmail.php` bounds and timeouts). `GmailMimeParser` (text/plain first, HTML→text fallback, nested multipart, attachment metadata only, body cap + `truncated`). `GmailMimeBuilder` (To/Cc/Bcc, RFC 2047 subject, text/plain UTF-8, reply headers, base64url). Tools never call Google HTTP.
 
-Account resolution: current owner → `IntegrationAccountService` → active Google account + granted Gmail scope. Model cannot pass `user_id` or `integration_account_id`. Remote Gmail message/thread ids may pass through the tool loop.
+Account resolution: current owner → `IntegrationAccountService` → active Google account + granted Gmail scope. Model cannot pass `user_id` or `integration_account_id` as rights. Watcher evaluation may pin `watchers.integration_account_id` only after ownership was checked at create; `source_config` cannot smuggle another account id. Remote Gmail message/thread ids may pass through the tool loop and must not be shown in user-facing digest text.
 
 Search/list are bounded. Default list is INBOX. `unread=true` adds `is:unread`. Pagination stops at the cap (`truncated`, `next_page_available`). Thread read is chronological and total-char capped. The service does not summarize; Conversation AI does.
 

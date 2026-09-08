@@ -15,6 +15,7 @@ use App\Services\Reliability\AsyncFailureClassifier;
 use App\Services\Synthesis\SynthesisCache;
 use App\Services\Watchers\DTO\WatcherObservation;
 use Carbon\CarbonImmutable;
+use DateTimeZone;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -26,6 +27,7 @@ final class WatcherEvaluationService
         private readonly WatcherAntiSpam $spam,
         private readonly WatcherReactionExecutor $reactions,
         private readonly WatcherKnowledgeBridge $knowledge,
+        private readonly WatcherDigestFormatter $digest = new WatcherDigestFormatter,
     ) {}
 
     public function evaluate(Watcher $watcher, bool $force = false): ?WatcherOccurrence
@@ -86,6 +88,10 @@ final class WatcherEvaluationService
 
             $this->advanceCursor($locked, $observations, $now, triggered: false);
 
+            if (WatcherSchedule::isDigest($locked)) {
+                return $this->recordDigest($user, $locked, $matched, $now);
+            }
+
             if ($matched === []) {
                 $this->markHealthy($locked, $now);
 
@@ -137,7 +143,7 @@ final class WatcherEvaluationService
                 'established_at' => $now->toIso8601String(),
             ],
             'last_checked_at' => $now,
-            'next_check_at' => $now->addSeconds(WatcherSourceRegistry::cadenceSeconds($watcher->trigger_type)),
+            'next_check_at' => $this->nextCheckAt($watcher, $now),
             'health' => WatcherHealth::Healthy,
             'consecutive_failures' => 0,
             'last_error' => null,
@@ -194,6 +200,75 @@ final class WatcherEvaluationService
 
         $occurrence = $this->persistOccurrence($user, $watcher, $observation, 'aggregated', $now, WatcherOccurrenceStatus::Aggregated);
         if ($occurrence === null) {
+            return null;
+        }
+
+        $this->reactions->execute($user, $watcher, $occurrence, $observation);
+        $this->afterTrigger($watcher, $now);
+
+        return $occurrence->fresh() ?? $occurrence;
+    }
+
+    /**
+     * @param  list<array{observation: WatcherObservation, match: mixed}>  $matched
+     */
+    private function recordDigest(User $user, Watcher $watcher, array $matched, CarbonImmutable $now): ?WatcherOccurrence
+    {
+        $timezone = WatcherSchedule::timezoneFor($user);
+        $dateKey = WatcherSchedule::localDateKey($now, $timezone);
+        $ids = [];
+        foreach ($matched as $row) {
+            $ids[] = $row['observation']->sourceId;
+        }
+        sort($ids);
+
+        if ($ids === [] && $watcher->last_triggered_at !== null
+            && WatcherSchedule::localDateKey($watcher->last_triggered_at, $timezone) === $dateKey) {
+            $this->markHealthy($watcher, $now);
+
+            return null;
+        }
+
+        $fingerprint = $ids === []
+            ? WatcherSupport::fingerprint('digest', (string) $watcher->id, $dateKey, 'empty')
+            : WatcherSupport::fingerprint('digest', (string) $watcher->id, implode(',', $ids));
+
+        $reason = $this->spam->shouldSuppress($user, $watcher, $fingerprint);
+        if ($reason !== null) {
+            $this->markHealthy($watcher, $now);
+
+            return null;
+        }
+
+        $hour = (int) $now->setTimezone(new DateTimeZone($timezone !== '' ? $timezone : 'UTC'))->format('G');
+        $body = $this->digest->format($matched, $hour < 12);
+        $observation = new WatcherObservation(
+            sourceType: $watcher->source_type->value,
+            sourceId: 'digest:'.$dateKey,
+            eventType: 'digest',
+            fingerprint: $fingerprint,
+            occurredAt: $now,
+            title: $body,
+            metadata: WatcherSupport::boundMetadata([
+                'count' => count($matched),
+                'digest' => true,
+            ]),
+            entityId: $watcher->knowledge_entity_id,
+            projectId: $watcher->project_id,
+            taskId: $watcher->task_id,
+        );
+
+        $occurrence = $this->persistOccurrence(
+            $user,
+            $watcher,
+            $observation,
+            $ids === [] ? 'digest_empty' : 'digest',
+            $now,
+            WatcherOccurrenceStatus::Aggregated,
+        );
+        if ($occurrence === null) {
+            $this->markHealthy($watcher, $now);
+
             return null;
         }
 
@@ -271,7 +346,7 @@ final class WatcherEvaluationService
         $watcher->forceFill([
             'last_checked_at' => $now,
             'last_triggered_at' => $now,
-            'next_check_at' => $now->addSeconds(WatcherSourceRegistry::cadenceSeconds($watcher->trigger_type)),
+            'next_check_at' => $this->nextCheckAt($watcher, $now),
             'health' => WatcherHealth::Healthy,
             'consecutive_failures' => 0,
             'last_error' => null,
@@ -289,7 +364,7 @@ final class WatcherEvaluationService
     {
         $watcher->forceFill([
             'last_checked_at' => $now,
-            'next_check_at' => $now->addSeconds(WatcherSourceRegistry::cadenceSeconds($watcher->trigger_type)),
+            'next_check_at' => $this->nextCheckAt($watcher, $now),
             'health' => $watcher->status === WatcherStatus::Active ? WatcherHealth::Healthy : $watcher->health,
             'consecutive_failures' => 0,
             'last_error' => null,
@@ -346,5 +421,14 @@ final class WatcherEvaluationService
         $backoff = min(3600, WatcherSourceRegistry::cadenceSeconds($watcher->trigger_type) * $failures);
 
         return $watcher->last_checked_at->addSeconds($backoff)->greaterThan($now);
+    }
+
+    private function nextCheckAt(Watcher $watcher, CarbonImmutable $now): CarbonImmutable
+    {
+        if (! $watcher->relationLoaded('user')) {
+            $watcher->loadMissing('user');
+        }
+
+        return WatcherSchedule::nextCheckAt($watcher, $now, WatcherSchedule::timezoneFor($watcher));
     }
 }

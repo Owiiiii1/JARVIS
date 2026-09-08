@@ -6,8 +6,8 @@ Watchers are explicit, bounded, user-scoped conditions: “when X happens, notif
 
 | Object | Question |
 | --- | --- |
-| Reminder | Notify at a **known time** |
-| Watcher | Notify when a **future condition/event** is true |
+| Reminder | Notify at a **known time** when the **user** must act (“напомни мне проверить почту”) |
+| Watcher | Notify when a **future condition** is true, or when **Jarvis** should itself check a source and report (“проверяй каждое утро почту”) |
 | Task | A **work item** |
 | B.2 Proactive | Bounded **heuristic** suggestion over tasks/time (not a persisted user condition) |
 | Knowledge Event | An **observed fact** on the timeline |
@@ -69,7 +69,7 @@ Internal events (`KnowledgeEventCreated`, task/reminder changes) dispatch `Evalu
 
 Polling happens **only** for active watchers that need it, with bounded queries.
 
-Defaults (config `watchers.cadence`): Gmail/GitHub ~8 minutes, Calendar/internal ~5 minutes. Auth failures block the watcher and notify once (`Watcher needs reconnect`). Transient errors back off. No global inbox/repo/calendar mirror.
+Defaults (config `watchers.cadence`): Gmail/GitHub ~8 minutes, Calendar/internal ~5 minutes. Recurring `schedule.kind=daily_local` watchers instead run at the user’s local time (default **08:00**, same as the productivity brief; Owner timezone `Europe/Rome`). Auth failures block the watcher and notify once (`Watcher needs reconnect`). Transient errors back off. No global inbox/repo/calendar mirror.
 
 ---
 
@@ -95,7 +95,9 @@ Center **Автоматизации** on the main Workspace chrome (`/jarvis/wat
 
 Capability `watchers` (regular users: internal sources; Gmail/Calendar/GitHub remain Owner). Core writes (`provider` null). Changing source/condition resets the baseline so history is not replayed. `run_watcher_now` is a check only.
 
-Tool prompt: Reminder = known time; Watcher = future condition; Task = work item; B.2 proactive is separate.
+Tool prompt: Reminder = the user acts at a known time; Watcher = Jarvis checks or waits for a condition; Task = work item; B.2 proactive is separate. “Проверяй каждое утро почту” creates a recurring Gmail digest watcher, not a reminder. If Gmail is disconnected, chat says to connect it; missing scope asks to grant Gmail access. Confirmations use the human description (“Каждое утро около 8:00 буду проверять Gmail…”), never “создан watcher”.
+
+Recurring Gmail morning digest: `mode=recurring`, `source.digest=true`, `source.query=in:inbox`, `source.schedule.kind=daily_local`. First evaluation baselines current ids. Later runs summarize only unseen messages (fingerprint + cursor). Zero new mail still sends a short daily “С утра новых писем нет.” Digest bodies are bounded sender+subject summaries; occurrence metadata does not store email bodies. Status: **READY FOR OWNER VALIDATION**. Cursor did not run live Gmail or create Owner watchers.
 
 ---
 

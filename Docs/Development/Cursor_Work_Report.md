@@ -1,87 +1,107 @@
-# Cross-mode Confirmation Lifecycle Fix
+# Recurring Gmail Monitoring
 
 ## Starting HEAD
 
-`40ecc57a6a9d5651e40bb3d934c9d74a07d1362d` (`feat: add admin google oauth configuration`), equal to `origin/main` at the start of this task.
+`460eeb2ba7f6457aabb0c9d9f8373fb05fd8286a` (`fix: synchronize confirmation lifecycle across workspace modes`).
 
 Branch `main`. No dependency changes.
 
-## Owner live bug
+## Live user gap
 
-Owner created a Gmail send action. Jarvis showed a confirmation card. Owner confirmed in Text chat. The email sent. After switching to Voice, the same card stayed on top: Cancel did nothing useful, Confirm hit a backend error because the action was already resolved.
+Owner said: “Проверяй каждое утро почту и сообщай мне, что нового пришло.”
+
+Jarvis created a Reminder to check mail, then claimed it could not check Gmail itself. That is a live product gap: Gmail watcher infrastructure already existed.
+
+## Existing Gmail watcher capability
+
+Already in code before this change:
+
+- `GmailWatcherSource` / `LiveGmailWatcherClient`
+- trigger `gmail_message`, condition `new_item`
+- first evaluation baseline (`cursor.baseline_established` + `seen`)
+- fingerprint anti-duplicate on `watcher_occurrences`
+- `jarvis:watchers:dispatch` every 5 minutes
+- Notification Center / Web Push via `WatcherReactionExecutor`
+
+Missing: NL routing, local-morning schedule, digest aggregation, capability copy.
 
 ## Root cause
 
-Workspace Voice overlay selected the latest message with `pending_confirmation.id` and ignored confirmation status. Message metadata keeps the original confirmation snapshot after execute. Serializer emitted that snapshot without live `tool_confirmations.status`. Local `messages` were not patched after Confirm/Cancel, so Text → Voice reused a stale actionable card.
+Prompt policy treated any known clock/recurrence as a Reminder. Watchers were described as “when something happens.” “Каждое утро проверяй почту” therefore became `create_reminder`. `read_storage_*`-style Gmail tools were one-shot chat reads, not a scheduled watcher. Fallback/capability text did not say Jarvis can monitor Gmail.
 
-HTTP `resolveConfirmation` aborted 404/409 on a non-pending row, so a second Confirm surfaced as an error instead of a quiet already-resolved response.
+## Reminder vs Watcher semantics
 
-## Confirmation lifecycle
+Reminder = the user must act (“напомни мне проверить почту”).
 
-`pending` → `confirmed` / `executed` / `cancelled` / `expired`.
+Watcher = Jarvis performs the read/check (“проверяй почту и сообщай”).
 
-Only `pending` (and not past `expires_at`) is actionable in Text cards, Voice overlay, after mode switch, Inertia remount, or conversation refresh.
+The same split is in `ReminderToolPrompt`, `WatcherToolPrompt`, `CreateWatcherTool` / `CreateReminderTool` descriptions, and `ConversationContextBuilder`. `CreateReminderTool` reroutes a Gmail-monitor inbound to `create_watcher` so a wrong tool call still creates the digest. Calendar/GitHub follow the same prompt rule; only Gmail digest creation is fully filled in.
 
-## Frontend state fix
+## Recurring schedule
 
-`applyTurnPayload` / `resolveConfirmation` patch the matching message with the backend confirmation card (`status` included). `already_resolved` updates local state and does not append a turn or show a raw 409/422.
+No new cron subsystem. `source.schedule.kind=daily_local` + `local_time` (HH:MM) on the existing watcher. Default morning time is `08:00` local (`watchers.defaults.morning_local_time`, same as the productivity brief). Owner timezone remains `Europe/Rome`. Explicit “в 7:30” is stored as `07:30`. After baseline/eval, `next_check_at` is the next local slot. Interval cadence (~8 min) remains for non-scheduled Gmail watchers.
 
-Shared helper: `resources/js/personal-workspace/confirmationState.js`.
+## Gmail baseline
 
-## Voice overlay fix
+Create still dispatches `EvaluateWatcherJob` immediately. First evaluation writes current message ids into `cursor.seen` and does not notify. Historical inbox is not dumped.
 
-Overlay uses `isActionableConfirmation` (`status === 'pending'` and not expired). Resolved history never hangs at the top of Voice. Text and Voice share the same message list and the same confirmation id.
+## New-mail cursor semantics
 
-## Backend idempotency
+Later evaluations skip ids already in `seen` (fingerprint `gmail|{watcherId}|{messageId}`). Digest occurrence fingerprint is the sorted new ids (or `empty|{localDate}`). Duplicate ids are not re-notified. A second empty digest on the same local day is suppressed.
 
-`PersonalChatSurfaceService::resolveConfirmation`:
+## Digest generation
 
-- unknown / foreign id → 404
-- pending and latest → existing `да` / `отмена` turn (exactly-once execute via `ToolConfirmationService`)
-- already executed / cancelled / expired / superseded → HTTP 200 `{ already_resolved: true, confirmation }` with no second sendTurn and no external write
+`WatcherDigestFormatter` builds a bounded human summary: total count, up to six important sender+subject lines, grouped promotional/technical noise. Zero mail: “С утра новых писем нет.” User-facing text has no Gmail/thread ids and no watcher jargon. Occurrence metadata is bounded filters/counts/summary — no email bodies. Read-only: no mark-as-read, archive, label, or reply.
 
-`MessageHistoryService` hydrates live status (batch lookup on history pages).
+## Notification delivery
 
-## Expired state
+Existing `JarvisNotificationService` (`WatcherTriggered`) + Web Push / Telegram adapters. No new send path.
 
-Serializer and overlay treat past `expires_at` as `expired` without polling. Confirm/cancel after expiry return `already_resolved` and do not execute.
+## Capability awareness
 
-## External-action safety
+If Gmail tools are on the turn: never claim Jarvis cannot check mail; morning monitoring is `create_watcher`. Disconnected: “Могу это делать, но сначала нужно подключить Gmail.” Missing readonly/modify scope: “Нужно разрешить доступ к Gmail.” Human create confirmation: “Готово. Каждое утро около 8:00 буду проверять Gmail и присылать короткую сводку новых писем.”
 
-`executeConfirmed` lock and one-time `Executed` status are unchanged. Duplicate HTTP Confirm cannot reach a second Gmail send. No live Gmail/Google calls were made for this fix. Production confirmation rows were not edited by hand.
+## Security
+
+`integration_account_id` / `user_id` stripped from tool `source`. Ownership checked on `watchers.integration_account_id` at create. Evaluation pins only that owned id; a foreign id is `not_found`. Live Gmail client will not use another user’s account.
 
 ## Files changed
 
-- `app/Services/Conversations/MessageHistoryService.php`
-- `app/Services/Conversations/PersonalChatSurfaceService.php`
-- `app/Services/Conversations/ConversationAiService.php` (snapshot includes `status`)
-- `resources/js/personal-workspace/confirmationState.js`
-- `resources/js/personal-workspace/PersonalWorkspace.jsx`
-- `resources/js/Pages/Cabinet/Chat.jsx`
-- tests (authored, not executed)
-- docs: CURRENT_STATE, INTEGRATIONS, CONVERSATION_ENGINE, WEB_WORKSPACE, this report
+- Watcher schedule/digest: `WatcherSchedule`, `WatcherDigestFormatter`, `WatcherDigestRequest`, `ProactiveCheckIntent`, evaluation/dispatch/service/reaction, Gmail source/client
+- Routing: `CreateWatcherTool`, `CreateReminderTool`, reminder/watcher prompts, `ConversationContextBuilder`
+- Presentation: `HumanWatcherDescription`
+- Config: `config/watchers.php`
+- Tests authored (not executed)
+- Docs: CURRENT_STATE, WATCHERS_AND_AUTOMATIONS, INTEGRATIONS, CONVERSATION_ENGINE, this report
 
 ## Tests authored but NOT executed
 
-- `tests/Feature/Http/Controllers/Jarvis/JarvisConfirmationControllerTest.php` — duplicate confirm, duplicate cancel, expired confirm, foreign 404, guest
-- `tests/Unit/Conversations/MessageHistoryConfirmationTest.php` — serializer executed vs pending; expired snapshot
-- `tests/Unit/WorkspaceConfirmationLifecycleTest.php` — Voice selector requires pending status
+- `tests/Unit/Watchers/ProactiveCheckIntentTest.php`
+- `tests/Unit/Watchers/WatcherScheduleTest.php`
+- `tests/Unit/Watchers/WatcherDigestFormatterTest.php`
+- `tests/Feature/RecurringGmailMonitoringTest.php` — reminder vs watcher routing, daily digest create, baseline then new mail, duplicate suppression, zero digest, ownership, disconnected Gmail, missing scope, capability prompt
+- Prompt / human-description assertion updates
 
 `php artisan test` / phpunit / Pest were not run.
 
 ## Static checks
 
-`php -l` on touched PHP, `vendor/bin/pint --dirty`, `composer validate`, `npm run build`, `git diff --check`, `php artisan route:list` (confirm/cancel routes).
+`php -l` on touched PHP, `vendor/bin/pint --dirty`, `composer validate`, `npm run build`, `git diff --check`, `php artisan route:list`, `php artisan schedule:list`.
 
-## Owner revalidation steps
+Scheduler was not run by hand. Watcher evaluation was not executed live. Gmail was not called.
 
-1. Create a Gmail send confirmation in Text.
-2. Confirm. Card should become non-actionable (“Письмо отправлено”).
-3. Switch to Voice: no overlay card.
-4. Switch back to Text: still no Confirm/Cancel.
-5. Repeat with Cancel and with waiting past Expires.
-6. A second Confirm on a resolved card must not send another email and must not show a raw error.
+## Owner validation steps
+
+1. “Проверяй каждое утро почту и сообщай мне, что нового пришло.” → automation/watcher, not a reminder.
+2. Automations UI shows the human Gmail monitoring sentence.
+3. Temporarily move the schedule earlier or wait for the next morning.
+4. Watcher reads Gmail itself.
+5. Summary contains only new mail after baseline.
+6. A repeat run does not duplicate old mail.
+7. “Напомни мне завтра проверить почту.” still creates a Reminder.
+
+Until then: **READY FOR OWNER VALIDATION**.
 
 ## Production safety
 
-No phpunit. No live Google HTTP from Cursor. No manual updates to production `tool_confirmations`. Gmail confirmation is **READY FOR OWNER REVALIDATION**, not MANUAL PASS.
+No Owner watcher rows created. No production user data edited. No live Gmail/HTTP. No email sent. No tests executed on this server.

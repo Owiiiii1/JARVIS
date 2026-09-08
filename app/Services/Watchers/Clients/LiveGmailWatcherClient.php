@@ -2,6 +2,7 @@
 
 namespace App\Services\Watchers\Clients;
 
+use App\Models\IntegrationAccount;
 use App\Models\User;
 use App\Services\Integrations\Exceptions\IntegrationException;
 use App\Services\Integrations\Google\GoogleGmailService;
@@ -19,7 +20,7 @@ final class LiveGmailWatcherClient implements GmailWatcherClient
 
     public function search(User $user, array $source): array
     {
-        $account = $this->accounts->getActiveAccount($user, 'google');
+        $account = $this->resolveAccount($user, $source);
         if ($account === null || ! $user->canUseCapability(UserCapability::GMAIL)) {
             throw new IntegrationException('google_not_connected', 'Gmail is not connected.');
         }
@@ -45,7 +46,7 @@ final class LiveGmailWatcherClient implements GmailWatcherClient
 
     public function snippet(User $user, array $source, string $messageId): array
     {
-        $account = $this->accounts->getActiveAccount($user, 'google');
+        $account = $this->resolveAccount($user, $source);
         if ($account === null) {
             throw new IntegrationException('google_not_connected', 'Gmail is not connected.');
         }
@@ -81,5 +82,22 @@ final class LiveGmailWatcherClient implements GmailWatcherClient
         }
 
         return $parts !== [] ? implode(' ', $parts) : 'in:inbox';
+    }
+
+    /**
+     * @param  array<string, mixed>  $source
+     */
+    private function resolveAccount(User $user, array $source): ?IntegrationAccount
+    {
+        $accountId = isset($source['integration_account_id']) ? (int) $source['integration_account_id'] : 0;
+        if ($accountId > 0) {
+            return IntegrationAccount::query()
+                ->where('user_id', $user->id)
+                ->where('provider', 'google')
+                ->whereKey($accountId)
+                ->first();
+        }
+
+        return $this->accounts->getActiveAccount($user, 'google');
     }
 }

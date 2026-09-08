@@ -6,6 +6,7 @@ use App\Enums\KnowledgeEntityType;
 use App\Enums\KnowledgeEventType;
 use App\Enums\KnowledgeSourceType;
 use App\Enums\UserRole;
+use App\Enums\WatcherConditionType;
 use App\Enums\WatcherHealth;
 use App\Enums\WatcherReactionStatus;
 use App\Enums\WatcherStatus;
@@ -438,7 +439,11 @@ class WatchersTest extends TestCase
 
             $guidance = implode("\n", array_merge(ReminderToolPrompt::lines(), WatcherToolPrompt::lines()));
             $this->assertStringContainsString('watcher', $guidance);
-            $this->assertStringContainsString('exact', $guidance);
+            $this->assertStringContainsString('create_watcher', $guidance);
+            $this->assertStringContainsString('still_open', $guidance);
+            $this->assertStringContainsString('hours=24', $guidance);
+            $this->assertStringContainsString('проверяй каждое утро почту', $guidance);
+            $this->assertStringContainsString('Jarvis-performed check', $guidance);
             $this->assertStringContainsString('ProactiveDispatchService', file_get_contents(base_path('app/Services/Productivity/ProactiveDispatchService.php')));
             $this->assertStringNotContainsString('ProactiveDispatchService', file_get_contents(base_path('app/Services/Watchers/WatcherEvaluationService.php')));
             $this->assertTrue(class_exists(ProactiveDispatchService::class));
@@ -467,9 +472,38 @@ class WatchersTest extends TestCase
         }
     }
 
-    /**
-     * @param  array<string, mixed>  $overrides
-     */
+    public function test_status_equals_with_hours_does_not_match_until_the_delay_passes(): void
+    {
+        $user = null;
+
+        try {
+            $user = $this->createTemporaryUser();
+            $now = CarbonImmutable::parse('2026-09-07 00:43:00', 'UTC');
+            CarbonImmutable::setTestNow($now);
+            $task = app(TaskService::class)->create($user, 'VC2 проверить новый билд');
+            $watcher = $this->createTaskWatcher($user, $task, [
+                'condition_type' => 'still_open',
+                'condition' => ['hours' => 24],
+                'mode' => 'one_shot',
+            ]);
+
+            $this->assertSame(WatcherConditionType::StatusEquals, $watcher->condition_type);
+            $this->assertSame(24, (int) ($watcher->condition_config['hours'] ?? 0));
+            $this->assertSame(0, WatcherOccurrence::query()->where('watcher_id', $watcher->id)->count());
+
+            app(WatcherEvaluationService::class)->evaluate($watcher->fresh());
+            $this->assertSame(0, WatcherOccurrence::query()->where('watcher_id', $watcher->id)->count());
+
+            CarbonImmutable::setTestNow($now->addHours(24));
+            app(WatcherEvaluationService::class)->evaluate($watcher->fresh());
+            $this->assertSame(1, WatcherOccurrence::query()->where('watcher_id', $watcher->id)->count());
+            $this->assertSame(WatcherStatus::Completed, $watcher->fresh()->status);
+        } finally {
+            CarbonImmutable::setTestNow();
+            $this->deleteTemporaryUser($user);
+        }
+    }
+
     public function test_one_shot_task_watcher_is_resolved_when_the_task_is_closed(): void
     {
         $user = null;

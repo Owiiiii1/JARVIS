@@ -69,11 +69,11 @@ final class WatcherService
             throw new WatcherException('invalid_config', 'Watcher trigger, source, and condition must be explicit.');
         }
 
-        $mode = ($input['mode'] ?? $input['recurring'] ?? null) === true || ($input['mode'] ?? '') === 'recurring'
+        $explicitMode = ($input['mode'] ?? $input['recurring'] ?? null) === true || ($input['mode'] ?? '') === 'recurring'
             ? WatcherMode::Recurring
             : (($input['one_shot'] ?? false) === true || ($input['mode'] ?? '') === 'one_shot'
                 ? WatcherMode::OneShot
-                : $this->defaultMode($trigger, $condition));
+                : null);
 
         $this->assertSourceCapability($user, $trigger);
         $this->assertLimits($user, $trigger);
@@ -82,7 +82,32 @@ final class WatcherService
         $conditionConfig = $this->boundConfig(is_array($input['condition'] ?? $input['condition_config'] ?? null) ? ($input['condition'] ?? $input['condition_config']) : []);
         $reactionConfig = $this->boundConfig(is_array($input['reaction_config'] ?? null) ? $input['reaction_config'] : []);
         $this->copySourceFilters($sourceConfig, $conditionConfig);
+
+        if (WatcherSchedule::isDigest($sourceConfig)) {
+            if (! isset($sourceConfig['query']) || trim((string) $sourceConfig['query']) === '') {
+                $sourceConfig['query'] = 'in:inbox';
+            }
+            $sourceConfig['digest'] = true;
+            $schedule = is_array($sourceConfig['schedule'] ?? null) ? $sourceConfig['schedule'] : [];
+            $schedule['kind'] = WatcherSchedule::KIND_DAILY_LOCAL;
+            $schedule['local_time'] = WatcherSchedule::localTime($sourceConfig);
+            $schedule['timezone'] = WatcherSchedule::timezoneFor($user, (string) ($schedule['timezone'] ?? 'UTC'));
+            $sourceConfig['schedule'] = $schedule;
+        }
+
         $this->assertBoundedSource($trigger, $sourceConfig, $conditionConfig);
+
+        $mode = $explicitMode ?? (WatcherSchedule::isDigest($sourceConfig)
+            ? WatcherMode::Recurring
+            : $this->defaultMode($trigger, $condition));
+
+        if ($condition === WatcherConditionType::StatusEquals && ! isset($conditionConfig['status']) && ! isset($conditionConfig['expected'])) {
+            $conditionConfig['status'] = 'open';
+        }
+
+        if (isset($input['hours']) && is_numeric($input['hours']) && ! isset($conditionConfig['hours'])) {
+            $conditionConfig['hours'] = max(1, (int) $input['hours']);
+        }
 
         $ids = $this->resolveRefs($user, $input, $sourceConfig);
 
@@ -107,8 +132,12 @@ final class WatcherService
             'condition_config' => $conditionConfig,
             'reaction_type' => $reaction,
             'reaction_config' => $reactionConfig,
-            'cooldown_seconds' => max(0, (int) ($input['cooldown_seconds'] ?? config('watchers.defaults.cooldown_seconds', 3600))),
-            'max_triggers_per_day' => max(1, (int) ($input['max_triggers_per_day'] ?? config('watchers.limits.max_triggers_per_day', 8))),
+            'cooldown_seconds' => max(0, (int) ($input['cooldown_seconds'] ?? (WatcherSchedule::isDigest($sourceConfig)
+                ? 0
+                : config('watchers.defaults.cooldown_seconds', 3600)))),
+            'max_triggers_per_day' => max(1, (int) ($input['max_triggers_per_day'] ?? (WatcherSchedule::isDigest($sourceConfig)
+                ? 3
+                : config('watchers.limits.max_triggers_per_day', 8)))),
             'aggregation_window_seconds' => max(0, (int) ($input['aggregation_window_seconds'] ?? config('watchers.defaults.aggregation_window_seconds', 300))),
             'next_check_at' => CarbonImmutable::now('UTC'),
             'cursor' => ['baseline_established' => false],
@@ -606,7 +635,7 @@ final class WatcherService
         $has = static fn (string $key): bool => isset($sourceConfig[$key]) && trim((string) $sourceConfig[$key]) !== '';
 
         match ($trigger) {
-            WatcherTriggerType::GmailMessage => ($has('query') || $has('sender') || $has('thread_id') || $has('subject') || isset($conditionConfig['sender']) || isset($conditionConfig['thread_id']))
+            WatcherTriggerType::GmailMessage => ($has('query') || $has('sender') || $has('thread_id') || $has('subject') || isset($conditionConfig['sender']) || isset($conditionConfig['thread_id']) || WatcherSchedule::isDigest($sourceConfig))
                 ? null
                 : throw new WatcherException('invalid_config', 'Gmail watchers need a thread, sender, subject, or query.'),
             WatcherTriggerType::GithubEvent => $has('repository')
@@ -625,7 +654,7 @@ final class WatcherService
      */
     private function boundConfig(array $config): array
     {
-        unset($config['token'], $config['access_token'], $config['body'], $config['raw']);
+        unset($config['token'], $config['access_token'], $config['body'], $config['raw'], $config['user_id'], $config['integration_account_id']);
 
         return WatcherSupport::boundMetadata($config);
     }

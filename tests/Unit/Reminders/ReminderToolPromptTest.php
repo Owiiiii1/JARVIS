@@ -20,6 +20,8 @@ class ReminderToolPromptTest extends TestCase
         $this->assertStringContainsString('complete_reminder', $text);
         $this->assertStringContainsString('cancel_reminder', $text);
         $this->assertStringContainsString('Never update a random reminder', $text);
+        $this->assertStringContainsString('create_watcher', $text);
+        $this->assertStringContainsString('напомни мне проверить почту', $text);
         $this->assertStringNotContainsString('telegram_not_connected', $text);
         $this->assertStringNotContainsString('Do not promise Web Push', $text);
         $this->assertStringNotContainsString('Recurring reminders are not supported yet', $text);

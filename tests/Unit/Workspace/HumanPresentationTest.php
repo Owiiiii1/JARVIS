@@ -5,10 +5,16 @@ namespace Tests\Unit\Workspace;
 use App\Enums\KnowledgeRelationType;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
+use App\Enums\WatcherConditionType;
+use App\Enums\WatcherMode;
+use App\Enums\WatcherReactionType;
+use App\Enums\WatcherTriggerType;
+use App\Models\Watcher;
 use App\Services\Workspace\Presentation\HumanMoment;
 use App\Services\Workspace\Presentation\HumanRelationLabel;
 use App\Services\Workspace\Presentation\HumanStatusLabel;
 use App\Services\Workspace\Presentation\HumanSynthesisText;
+use App\Services\Workspace\Presentation\HumanWatcherDescription;
 use Carbon\CarbonImmutable;
 use Tests\TestCase;
 
@@ -77,5 +83,43 @@ class HumanPresentationTest extends TestCase
         $this->assertSame('Срок наступает в ближайшие сутки', HumanSynthesisText::deadline(24));
         $this->assertSame('Сработала автоматизация «Проверка билда»', HumanSynthesisText::watcherTriggered('Проверка билда'));
         $this->assertStringNotContainsString('#', HumanSynthesisText::waitingTitle('Задача #254: Проверить авторизацию'));
+    }
+
+    public function test_still_open_tomorrow_watcher_names_the_delay(): void
+    {
+        $watcher = new Watcher([
+            'trigger_type' => WatcherTriggerType::TaskState,
+            'condition_type' => WatcherConditionType::StatusEquals,
+            'condition_config' => ['status' => 'open', 'hours' => 24],
+            'reaction_type' => WatcherReactionType::Notify,
+            'mode' => WatcherMode::OneShot,
+        ]);
+
+        $this->assertSame(
+            'Если «VC2 проверить новый билд» завтра всё ещё будет открытой, я сообщу вам.',
+            HumanWatcherDescription::sentence($watcher, ['task' => 'VC2 проверить новый билд']),
+        );
+    }
+
+    public function test_gmail_morning_digest_names_the_schedule_without_watcher_jargon(): void
+    {
+        $watcher = new Watcher([
+            'trigger_type' => WatcherTriggerType::GmailMessage,
+            'condition_type' => WatcherConditionType::NewItem,
+            'source_config' => [
+                'digest' => true,
+                'query' => 'in:inbox',
+                'schedule' => ['kind' => 'daily_local', 'local_time' => '08:00'],
+            ],
+            'reaction_type' => WatcherReactionType::Notify,
+            'mode' => WatcherMode::Recurring,
+        ]);
+
+        $this->assertSame(
+            'Каждое утро около 8:00 буду проверять Gmail и присылать короткую сводку новых писем.',
+            HumanWatcherDescription::sentence($watcher),
+        );
+        $this->assertStringNotContainsString('watcher', mb_strtolower(HumanWatcherDescription::sentence($watcher)));
+        $this->assertStringNotContainsString('gmail_message', HumanWatcherDescription::sentence($watcher));
     }
 }

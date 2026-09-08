@@ -33,11 +33,19 @@ final class WatcherSupport
         return hash('sha256', implode('|', array_map(static fn (string $part): string => trim($part), $parts)));
     }
 
-    public static function summary(?string $text): string
+    public static function summary(?string $text, ?int $max = null): string
     {
         $text = trim((string) preg_replace('/\s+/u', ' ', (string) $text));
 
-        return mb_substr($text, 0, max(40, (int) config('watchers.max_summary_chars', 400)));
+        return self::clip($text, $max);
+    }
+
+    public static function clip(?string $text, ?int $max = null): string
+    {
+        $text = trim((string) $text);
+        $limit = $max ?? max(40, (int) config('watchers.max_summary_chars', 400));
+
+        return mb_substr($text, 0, $limit);
     }
 
     public static function displayName(string $name): string
