@@ -12,6 +12,7 @@ use App\Models\ScheduledReport;
 use App\Models\Task;
 use App\Models\TelegramGroup;
 use App\Models\User;
+use App\Services\Integrations\Exceptions\IntegrationException;
 use App\Services\Integrations\Google\GoogleCalendarService;
 use App\Services\Integrations\Google\GoogleGmailService;
 use App\Services\Integrations\IntegrationAccountService;
@@ -21,6 +22,7 @@ use App\Services\Tasks\TaskLifecycle;
 use App\Services\Users\UserCapability;
 use Carbon\CarbonImmutable;
 use DateTimeZone;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 final class ScheduledReportCollector
@@ -246,7 +248,15 @@ final class ScheduledReportCollector
      */
     private function calendars(User $user, array $source, array $window, array &$errors): array
     {
-        if (! $user->canUseCapability(UserCapability::GOOGLE_CALENDAR) || $this->calendar === null || $this->accounts === null) {
+        if (! $user->canUseCapability(UserCapability::GOOGLE_CALENDAR)) {
+            $this->logSourceUnavailable('calendar', 'capability_missing');
+            $errors[] = 'Календарь сейчас недоступен.';
+
+            return [];
+        }
+
+        if ($this->calendar === null || $this->accounts === null) {
+            $this->logSourceUnavailable('calendar', 'service_unbound');
             $errors[] = 'Календарь сейчас недоступен.';
 
             return [];
@@ -255,6 +265,7 @@ final class ScheduledReportCollector
         try {
             $account = $this->accounts->getActiveAccount($user, 'google');
             if ($account === null) {
+                $this->logSourceUnavailable('calendar', 'no_google_account');
                 $errors[] = 'Календарь сейчас недоступен.';
 
                 return [];
@@ -284,7 +295,8 @@ final class ScheduledReportCollector
             }
 
             return $events;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            $this->logSourceUnavailable('calendar', $this->sourceErrorReason($exception));
             $errors[] = 'Календарь сейчас недоступен.';
 
             return [];
@@ -333,11 +345,19 @@ final class ScheduledReportCollector
     /**
      * @param  array{start: CarbonImmutable, end: CarbonImmutable}  $window
      * @param  list<string>  $errors
-     * @return list<array{sender: string, subject: string, bucket: string}>
+     * @return list<array{sender: string, subject: string, bucket: string, snippet: string}>
      */
     private function gmail(User $user, ScheduledReport $report, array $window, array &$errors): array
     {
-        if (! $user->canUseCapability(UserCapability::GMAIL) || $this->gmail === null || $this->accounts === null) {
+        if (! $user->canUseCapability(UserCapability::GMAIL)) {
+            $this->logSourceUnavailable('gmail', 'capability_missing');
+            $errors[] = 'Почта сейчас недоступна.';
+
+            return [];
+        }
+
+        if ($this->gmail === null || $this->accounts === null) {
+            $this->logSourceUnavailable('gmail', 'service_unbound');
             $errors[] = 'Почта сейчас недоступна.';
 
             return [];
@@ -346,6 +366,7 @@ final class ScheduledReportCollector
         try {
             $account = $this->accounts->getActiveAccount($user, 'google');
             if ($account === null) {
+                $this->logSourceUnavailable('gmail', 'no_google_account');
                 $errors[] = 'Почта сейчас недоступна.';
 
                 return [];
@@ -362,15 +383,21 @@ final class ScheduledReportCollector
 
                 $sender = (string) ($message['from'] ?? $message['sender'] ?? '');
                 $subject = (string) ($message['subject'] ?? $message['title'] ?? 'без темы');
+                $snippet = trim((string) ($message['snippet'] ?? ''));
+                if (mb_strlen($snippet) > 180) {
+                    $snippet = mb_substr($snippet, 0, 180);
+                }
                 $items[] = [
                     'sender' => $sender !== '' ? $sender : 'Неизвестный отправитель',
                     'subject' => $subject,
                     'bucket' => $this->mailBucket($sender, $subject),
+                    'snippet' => $snippet,
                 ];
             }
 
             return $items;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            $this->logSourceUnavailable('gmail', $this->sourceErrorReason($exception));
             $errors[] = 'Почта сейчас недоступна.';
 
             return [];
@@ -444,5 +471,20 @@ final class ScheduledReportCollector
             'telegram_groups' => 'Сводка по группам сейчас недоступна.',
             default => 'Часть источников сейчас недоступна.',
         };
+    }
+
+    private function sourceErrorReason(Throwable $exception): string
+    {
+        return $exception instanceof IntegrationException
+            ? $exception->error
+            : $exception::class;
+    }
+
+    private function logSourceUnavailable(string $source, string $reason): void
+    {
+        Log::info('scheduled_report.source_unavailable', [
+            'source' => $source,
+            'reason' => $reason,
+        ]);
     }
 }

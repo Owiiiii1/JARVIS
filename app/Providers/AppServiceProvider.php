@@ -8,6 +8,9 @@ use App\Policies\ProjectPolicy;
 use App\Policies\TelegramGroupPolicy;
 use App\Services\Ai\Contracts\AiChatGateway;
 use App\Services\Ai\ProviderAiChatGateway;
+use App\Services\Integrations\Google\GoogleCalendarService;
+use App\Services\Integrations\Google\GoogleGmailService;
+use App\Services\Integrations\IntegrationAccountService;
 use App\Services\Integrations\IntegrationRegistry;
 use App\Services\Integrations\Providers\ElevenLabsIntegrationProvider;
 use App\Services\Integrations\Providers\GitHubIntegrationProvider;
@@ -30,6 +33,8 @@ use App\Services\Reminders\MinishlinkWebPushSender;
 use App\Services\Reminders\PushPayloadBuilder;
 use App\Services\Reminders\PushSubscriptionService;
 use App\Services\Reminders\TelegramReminderSender;
+use App\Services\Reports\ScheduledReportCollector;
+use App\Services\Reports\ScheduledReportComposer;
 use App\Services\Synthesis\CrossSourceSynthesisService;
 use App\Services\Telegram\Contracts\CompletesTelegramUserTurn;
 use App\Services\Telegram\Contracts\LooksUpTelegramInbound;
@@ -270,10 +275,31 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
+        $this->app->singleton(ProductivityBriefCollector::class, function ($app): ProductivityBriefCollector {
+            return new ProductivityBriefCollector(
+                $app->make(CrossSourceSynthesisService::class),
+            );
+        });
+
         $this->app->singleton(ProductivityBriefService::class, function ($app): ProductivityBriefService {
             return new ProductivityBriefService(
                 $app->make(ProductivityBriefCollector::class),
                 new ProductivityBriefRenderer,
+                $app->make(SynthesizesProductivityBrief::class),
+            );
+        });
+
+        $this->app->singleton(ScheduledReportCollector::class, function ($app): ScheduledReportCollector {
+            return new ScheduledReportCollector(
+                $app->make(ProductivityBriefCollector::class),
+                $app->make(IntegrationAccountService::class),
+                $app->make(GoogleCalendarService::class),
+                $app->make(GoogleGmailService::class),
+            );
+        });
+
+        $this->app->singleton(ScheduledReportComposer::class, function ($app): ScheduledReportComposer {
+            return new ScheduledReportComposer(
                 $app->make(SynthesizesProductivityBrief::class),
             );
         });

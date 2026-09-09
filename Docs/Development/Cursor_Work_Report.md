@@ -1,3 +1,56 @@
+# Mail digest as spoken summary (2026-09-09)
+
+## Starting HEAD
+
+Uncommitted report-quality work on `main` after `682b8e1` (`feat: add scheduled composite reports`). No dependency changes.
+
+## Owner request
+
+09:00 mail+groups report arrived as a sender-subject list. Owner asked whether to rephrase the bot or fix the mechanism. Answer: mechanism. Chat already created `mail_groups_digest`.
+
+## Change
+
+- Deterministic digest is prose: count, important, other, noise-as-count, groups as a sentence.
+- Collector keeps a bounded Gmail `snippet` for compose; dispatch still unsets `body` / `snippet` / `text` before persist.
+- `mail_groups_digest` AI prompt writes a spoken summary; must not dump a list or invent facts. Short complete summaries are accepted. Truncated AI falls back to the prose digest.
+- Phrasing skip/fail logs reason codes only.
+
+Do not re-send today’s 09:00 slot. Next digest is 2026-09-10 09:00 Europe/Rome. Cursor did not call live Gmail or mutate Owner rows.
+
+## Tests authored but NOT executed
+
+Mail digest prose (not bullets), noise not listed, display names not raw noreply addresses, snippet in important fact, short spoken AI accepted, truncated AI falls back to prose. PHPUnit / `php artisan test` / Pest were **not** run.
+
+---
+
+# Morning report truncation + calendar DI (2026-09-09)
+
+## Starting HEAD
+
+`92b3170` (`feat: add telegram tts speed setting`). Branch `main`. No dependency changes. Not committed unless Owner asks.
+
+## Live production failure
+
+Owner 08:30 Europe/Rome report **#2** (`daily_plan`) delivered title `Утренний отчёт: планы на сегодня` and body `Доброе утро. Сводка на сегодня,` (31 chars). Run #1 status `partial`, `source_errors`: `Календарь сейчас недоступен.` Collector had two WOW Cleaning tasks; they never reached Telegram because AI rewrite replaced the deterministic brief.
+
+## Calendar was not disconnected
+
+Owner Google account **#479** (`owlnightmail@gmail.com`) is `connected` with `https://www.googleapis.com/auth/calendar` and Gmail scopes. Laravel 13 `Container::resolveClass()` returns a constructor default when the class is not bound. `ScheduledReportCollector` defaults `$calendar`, `$gmail`, `$accounts` to `null`, so production never called Google. Tests that `new ScheduledReportCollector` still simulate partial calendar failure.
+
+## Fixes
+
+- Bind `ScheduledReportCollector` (and `ProductivityBriefCollector` + synthesis) in `AppServiceProvider` with `$app->make(...)`.
+- Reject truncated/incomplete AI phrasing (`ProductivityBriefPhrasing`); keep the deterministic report. Same guard on briefs.
+- Log `scheduled_report.source_unavailable` with a reason code. No tokens, no event/mail bodies.
+
+Today’s 08:30 slot is consumed. Cursor did not re-send it, did not dispatch Owner reports, and did not call live Google.
+
+## Tests authored but NOT executed
+
+Truncated AI falls back (composer, brief, dispatch with task titles). Complete AI still used. Empty AI falls back. Container collector receives Calendar/Gmail/accounts. Existing bare-collector partial-failure test remains. PHPUnit / `php artisan test` / Pest were **not** run.
+
+---
+
 # Scheduled Reports
 
 ## Starting HEAD
@@ -129,6 +182,14 @@ B) 08:30 today plan, tasks + calendars
 C) 09:00 Gmail + Telegram groups
 
 Inspect three Report cards. No Gmail/Calendar watcher pretending to be those reports. Wait for the slot or an Owner-authorized preview later. Cursor did not run a live report.
+
+## Live chat break after deploy (Основной)
+
+Gemini rejected the whole tool list before any call:
+
+`GenerateContentRequest.tools[0].function_declarations[45].parameters.properties[sources].items: missing field.`
+
+`create_scheduled_report` / `update_scheduled_report` declared `sources` as ARRAY without `items`. Chat in Основной returned «Сейчас не удалось сформировать ответ» for every turn. Fixed by adding Gemini `items` / OBJECT `properties`. No Owner reports created by Cursor. Retry the 22:00 request in chat after deploy.
 
 ## Production safety
 

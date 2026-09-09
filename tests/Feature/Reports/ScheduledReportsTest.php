@@ -21,14 +21,18 @@ use App\Services\Ai\DTO\ToolCall;
 use App\Services\ConversationIntelligence\ConversationalEntity;
 use App\Services\ConversationIntelligence\WorkingContext;
 use App\Services\Conversations\ConversationService;
+use App\Services\Integrations\Google\GoogleCalendarService;
+use App\Services\Integrations\Google\GoogleGmailService;
 use App\Services\Integrations\IntegrationAccountService;
 use App\Services\Notifications\JarvisNotificationService;
 use App\Services\Notifications\NotificationUrlPolicy;
+use App\Services\Productivity\SynthesizesProductivityBrief;
 use App\Services\Reports\ScheduledReportCollector;
 use App\Services\Reports\ScheduledReportComposer;
 use App\Services\Reports\ScheduledReportDispatchService;
 use App\Services\Reports\ScheduledReportIntent;
 use App\Services\Reports\ScheduledReportService;
+use App\Services\Tasks\TaskService;
 use App\Services\Tools\CreateReminderTool;
 use App\Services\Tools\Reports\CreateScheduledReportTool;
 use App\Services\Tools\Reports\UpdateScheduledReportTool;
@@ -230,6 +234,66 @@ class ScheduledReportsTest extends TestCase
         }
     }
 
+    public function test_truncated_ai_phrasing_still_delivers_collected_tasks(): void
+    {
+        $user = null;
+
+        try {
+            $user = $this->owner();
+            CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-09-09 06:30:00', 'UTC'));
+            app(TaskService::class)->create(
+                $user,
+                'Заполнить материалы',
+                dueAt: CarbonImmutable::parse('2026-09-09 12:00:00', 'UTC'),
+            );
+            $report = app(ScheduledReportService::class)->create($user, [
+                'name' => 'Утренний отчёт: планы на сегодня',
+                'report_type' => 'daily_plan',
+                'period_mode' => 'today',
+                'local_time' => '08:30',
+                'sources' => [
+                    ['type' => 'tasks'],
+                    ['type' => 'google_calendar', 'calendar_scope' => 'all_relevant'],
+                ],
+                'delivery' => ['telegram' => false, 'web_notification' => true],
+            ]);
+            $report->forceFill(['next_run_at' => CarbonImmutable::now('UTC')])->save();
+
+            $dispatch = new ScheduledReportDispatchService(
+                new ScheduledReportCollector,
+                new ScheduledReportComposer($this->truncatedReportSynthesizer()),
+                app(JarvisNotificationService::class),
+                app(NotificationUrlPolicy::class),
+                null,
+            );
+            $run = $dispatch->run($report->fresh(), $user, CarbonImmutable::now('UTC'));
+
+            $this->assertNotNull($run);
+            $this->assertStringContainsString('Заполнить материалы', (string) $run->body);
+            $this->assertStringContainsString('Календарь сейчас недоступен', (string) $run->body);
+            $this->assertStringNotContainsString('Доброе утро. Сводка на сегодня,', (string) $run->body);
+            $notification = JarvisNotification::query()
+                ->where('user_id', $user->id)
+                ->where('source_type', 'scheduled_report')
+                ->first();
+            $this->assertNotNull($notification);
+            $this->assertStringContainsString('Заполнить материалы', (string) $notification->body);
+        } finally {
+            CarbonImmutable::setTestNow();
+            $this->deleteTemporaryUser($user);
+        }
+    }
+
+    public function test_container_collector_receives_google_calendar_and_gmail(): void
+    {
+        $collector = app(ScheduledReportCollector::class);
+        $reflection = new \ReflectionClass($collector);
+
+        $this->assertInstanceOf(IntegrationAccountService::class, $reflection->getProperty('accounts')->getValue($collector));
+        $this->assertInstanceOf(GoogleCalendarService::class, $reflection->getProperty('calendar')->getValue($collector));
+        $this->assertInstanceOf(GoogleGmailService::class, $reflection->getProperty('gmail')->getValue($collector));
+    }
+
     public function test_failed_create_does_not_claim_success(): void
     {
         $user = null;
@@ -376,6 +440,17 @@ class ScheduledReportsTest extends TestCase
         } finally {
             $this->deleteTemporaryUser($user);
         }
+    }
+
+    private function truncatedReportSynthesizer(): SynthesizesProductivityBrief
+    {
+        return new class implements SynthesizesProductivityBrief
+        {
+            public function synthesize(User $user, string $mode, string $deterministic, array $sources): ?string
+            {
+                return 'Доброе утро. Сводка на сегодня,';
+            }
+        };
     }
 
     private function owner(): User

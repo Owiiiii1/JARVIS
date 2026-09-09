@@ -75,7 +75,7 @@ Per-user opt-in in Workspace settings (Productivity). Defaults: **all off**, inc
 
 **Canonical named reports** are Scheduled Reports (chat-created, persisted `scheduled_reports`). Generic B.2 briefs stay the opt-in unnamed fallback. If the user already has an active `daily_plan` report, Daily Brief is skipped; an active `tomorrow_plan` skips Evening Review. Do not run a watcher digest, a generic brief, and a scheduled report for the same slot.
 
-Sources gathered first (owned tasks, reminders, Owner projects, recent notifications). Phase E.3 optionally adds bounded synthesis: waiting-for, commitments, project changes, top attention items. Optional bounded LLM phrasing. If AI fails: deterministic fallback text is still delivered. Calendar events may appear only when Google Calendar capability exists; a disconnected calendar does not cancel the report. Brief dispatch does **not** poll Google every 5 minutes.
+Sources gathered first (owned tasks, reminders, Owner projects, recent notifications). Phase E.3 optionally adds bounded synthesis: waiting-for, commitments, project changes, top attention items. Optional bounded LLM phrasing. If AI fails **or returns truncated/incomplete phrasing**, the deterministic text is still delivered. Calendar events may appear only when Google Calendar capability exists; a disconnected calendar does not cancel the report. Brief dispatch does **not** poll Google every 5 minutes.
 
 ### Scheduled Reports
 
@@ -83,7 +83,9 @@ Sources gathered first (owned tasks, reminders, Owner projects, recent notificat
 
 Tables: `scheduled_reports`, `scheduled_report_runs` (unique `scheduled_report_id` + `slot_key`).
 
-At local `daily_local` time Jarvis collects the configured sources, writes a grounded report, and delivers via Notification Center / Web Push and the existing Telegram reminder sender. Partial source failure still sends, with a natural note.
+At local `daily_local` time Jarvis collects the configured sources, writes a grounded report, and delivers via Notification Center / Web Push and the existing Telegram reminder sender. Partial source failure still sends, with a natural note. Truncated AI phrasing is discarded; the deterministic report is sent instead. The container binds Calendar / Gmail / IntegrationAccount into `ScheduledReportCollector` so optional constructor defaults cannot skip live Google. Source failures log `scheduled_report.source_unavailable` with a reason code (no tokens, no event/mail bodies). Skipped AI phrasing logs `scheduled_report.phrasing_skipped` with `empty` / `incomplete` / `too_short` (no mail text in logs).
+
+`mail_groups_digest` is a **spoken summary**, not a bullet list of `sender — subject`. Deterministic fallback groups important / other / noise (noise as a count). Gmail **snippets** (not bodies) may be used at compose time and are stripped from `scheduled_report_runs.collected`. LLM phrasing for this type must summarize and must not dump the list or invent facts. Owner does not need to rephrase the chat request to get this behavior.
 
 Types: `daily_plan` (period `today`), `tomorrow_plan` (period `tomorrow`), `mail_groups_digest` (period `since_previous_report`, first run last 24h), `custom_composite`.
 

@@ -1,6 +1,6 @@
 # Jarvis — current implementation snapshot
 
-**Date:** 2026-09-08 (Scheduled Reports — IMPLEMENTED / READY FOR OWNER VALIDATION)
+**Date:** 2026-09-09 (Scheduled Reports — morning body + calendar DI fix)
 **Host path:** `/var/www/jarvis`  
 **Public URL:** https://jarvis.owlsolutions.net  
 **GitHub:** https://github.com/Owiiiii1/JARVIS.git
@@ -222,7 +222,7 @@ Phase B.2 core Task Center flow as exercised in Core Daily Workflow: **MANUAL PA
 
 ## 8.2 Scheduled Reports
 
-**IMPLEMENTED / READY FOR OWNER VALIDATION.**
+**IMPLEMENTED / READY FOR OWNER VALIDATION** (routing + model). **LIVE BUG fixed 2026-09-09** (truncated AI body + calendar DI). **Mail digest** is a spoken summary, not a sender-subject list. Next 08:30 / 22:00 / 09:00 slots still need Owner confirmation.
 
 Named, persisted, multi-source reports at a known local time. Not a Reminder and not a Watcher. Chat tools `create_scheduled_report` / list / get / update / pause / resume / cancel. Workspace Center **Отчеты**. Scheduler `jarvis:reports:dispatch` every 5 minutes, idempotent per local date+time slot.
 
@@ -230,9 +230,13 @@ Canonical types: `daily_plan`, `tomorrow_plan`, `mail_groups_digest`, `custom_co
 
 Owner live failure (conversation Основной, 2026-09-08): Jarvis claimed three daily reports. Production objects were watchers #193 (calendar change, not 22:00 tomorrow plan), #194 (Gmail digest at 08:30), #191 (Gmail digest; no Telegram groups). Cursor did **not** mutate those rows. After deploy Owner should cancel them in Автоматизации and recreate via chat.
 
+**Owner live (2026-09-09 08:30 Europe/Rome):** report **#2** ran `partial`. Collector had the two WOW Cleaning tasks, but the delivered Telegram/notification body was the truncated AI greeting `Доброе утро. Сводка на сегодня,`. `source_errors` said calendar unavailable. Google account **#479** was connected with calendar scope; Laravel 13 skipped injecting `GoogleCalendarService` / `GoogleGmailService` / `IntegrationAccountService` because the collector constructor defaults them to `null` and those concretes were not bound. Fix: explicit `ScheduledReportCollector` binding; reject truncated/incomplete AI phrasing and keep the deterministic report. Today’s 08:30 slot is consumed (unique `slot_key`); Cursor did not re-send it.
+
+**Owner live (2026-09-09 09:00 Europe/Rome):** report **#3** (`mail_groups_digest`) succeeded and called Gmail (4 messages), but the body was a sender-subject list because the composer’s fallback is a list and AI phrasing did not land (`ai_phrased=false`). That is the intended gap of the first digest renderer, not a routing miss. **Fix:** digest text is a grounded prose summary (important vs other vs noise count; Gmail snippet at compose time only, never stored). AI prompt for `mail_groups_digest` writes a spoken digest instead of rewriting the list. Truncated AI still falls back to the prose summary. Today’s 09:00 slot is consumed; Cursor did not re-send it.
+
 Generic B.2 Productivity Briefs stay opt-in (default off). If an active Scheduled Report already covers daily_plan or tomorrow_plan, the matching brief mode is skipped so the two engines do not double-send.
 
-Cursor did not dispatch a live report, did not call Gmail/Calendar/Telegram APIs, and did not create Owner reports.
+Cursor did not dispatch a live report, did not call Gmail/Calendar/Telegram APIs, and did not create or mutate Owner reports.
 
 Panel presentation: one card per task with its schedule as the secondary line, priority only when high or urgent, an expandable subtask list with «X из Y подзадач выполнено», and a Workspace dialog («Выполнить всё» / «Вернуться») when a parent still has open subtasks. A subtask whose parent is already closed is listed in the active sections as «Подзадача задачи «…»» so nothing open is invisible. **MANUAL PASS** with Workspace Presentation after Scenario 8 revalidation. [WORKSPACE_PRESENTATION.md](WORKSPACE_PRESENTATION.md).
 

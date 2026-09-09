@@ -123,6 +123,25 @@ class ProductivityEngineTest extends TestCase
         $this->assertSame('Кратко: отчёт просрочен.', $phrased['text']);
     }
 
+    public function test_truncated_ai_phrasing_falls_back_to_deterministic_brief(): void
+    {
+        $truncated = new class implements SynthesizesProductivityBrief
+        {
+            public function synthesize(User $user, string $mode, string $deterministic, array $sources): ?string
+            {
+                return 'Доброе утро. Сводка на сегодня,';
+            }
+        };
+        $user = $this->user();
+        $task = $this->task(['due_at' => CarbonImmutable::parse('2026-09-06 10:00:00', 'UTC')]);
+        $now = CarbonImmutable::parse('2026-09-06 12:00:00', 'UTC');
+        $result = (new ProductivityBriefService(synthesizer: $truncated))->compose($user, ProductivityBriefMode::Daily, $now, [$task], []);
+
+        $this->assertFalse($result['ai_used']);
+        $this->assertStringContainsString('свой отчёт', $result['text']);
+        $this->assertStringNotContainsString('Доброе утро. Сводка на сегодня,', $result['text']);
+    }
+
     public function test_briefs_default_off_and_respect_local_time(): void
     {
         $settings = new UserProductivitySetting;

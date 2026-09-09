@@ -40,8 +40,9 @@ final class ProductivityBriefService
         if ($this->synthesizer !== null) {
             $phrased = $this->synthesizer->synthesize($user, $mode->value, $deterministic, $sources->toArray());
 
-            if (is_string($phrased) && trim($phrased) !== '') {
-                $text = trim($phrased);
+            $candidate = is_string($phrased) ? trim($phrased) : '';
+            if ($candidate !== '' && ProductivityBriefPhrasing::isComplete($candidate)) {
+                $text = $candidate;
                 $aiUsed = true;
             }
         }

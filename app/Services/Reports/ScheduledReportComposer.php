@@ -5,7 +5,9 @@ namespace App\Services\Reports;
 use App\Enums\ScheduledReportType;
 use App\Models\ScheduledReport;
 use App\Models\User;
+use App\Services\Productivity\ProductivityBriefPhrasing;
 use App\Services\Productivity\SynthesizesProductivityBrief;
+use Illuminate\Support\Facades\Log;
 
 final class ScheduledReportComposer
 {
@@ -31,9 +33,16 @@ final class ScheduledReportComposer
                 'errors' => $collected['errors'] ?? [],
             ]);
 
-            if (is_string($phrased) && trim($phrased) !== '') {
-                $text = trim($phrased);
+            $candidate = is_string($phrased) ? trim($phrased) : '';
+            $skip = $this->phrasingSkipReason($deterministic, $candidate, $report->report_type);
+            if ($skip === null) {
+                $text = $candidate;
                 $aiUsed = true;
+            } else {
+                Log::info('scheduled_report.phrasing_skipped', [
+                    'reason' => $skip,
+                    'report_type' => $report->report_type->value,
+                ]);
             }
         }
 
@@ -102,7 +111,7 @@ final class ScheduledReportComposer
     }
 
     /**
-     * @param  list<array{sender?: string, subject?: string, bucket?: string}>  $items
+     * @param  list<array{sender?: string, subject?: string, bucket?: string, snippet?: string}>  $items
      */
     private function mailSection(array $items): string
     {
@@ -122,23 +131,26 @@ final class ScheduledReportComposer
                 continue;
             }
 
-            $line = trim((string) ($item['sender'] ?? '')).' — '.trim((string) ($item['subject'] ?? 'без темы'));
+            $fact = $this->mailFact($item);
             if ($bucket === 'important') {
-                $important[] = $line;
+                $important[] = $fact;
             } else {
-                $normal[] = $line;
+                $normal[] = $fact;
             }
         }
 
-        $lines = ['Письма: '.count($items).'.'];
-        foreach (array_slice($important, 0, 5) as $line) {
-            $lines[] = '• '.$line;
+        $lines = [$this->mailCountLine(count($items))];
+        if ($important !== []) {
+            $lines[] = 'Важное: '.$this->joinFacts(array_slice($important, 0, 4)).'.';
         }
-        foreach (array_slice($normal, 0, 4) as $line) {
-            $lines[] = '• '.$line;
+        if ($normal !== []) {
+            $prefix = $important === [] ? 'Суть: ' : 'Ещё: ';
+            $lines[] = $prefix.$this->joinFacts(array_slice($normal, 0, 5)).'.';
         }
         if ($noise > 0) {
-            $lines[] = '• Рекламных или технических: '.$noise.'.';
+            $lines[] = $noise === 1
+                ? 'Одно рекламное или служебное, без действия.'
+                : 'Рекламных и служебных: '.$noise.', без действия.';
         }
 
         return implode("\n", $lines);
@@ -153,14 +165,116 @@ final class ScheduledReportComposer
             return 'В группах новой активности нет.';
         }
 
-        $lines = ['Группы:'];
+        $bits = [];
         foreach (array_slice($items, 0, 6) as $item) {
             $name = (string) ($item['group'] ?? 'Группа');
             $count = (int) ($item['count'] ?? 0);
-            $sample = trim((string) ($item['sample'] ?? ''));
-            $lines[] = '• '.$name.': '.$count.($sample !== '' ? ' — '.$sample : '');
+            $sample = $this->clip(trim((string) ($item['sample'] ?? '')), 80);
+            $bit = '«'.$name.'» — '.$count;
+            if ($sample !== '') {
+                $bit .= ', последнее: '.$sample;
+            }
+            $bits[] = $bit;
         }
 
-        return implode("\n", $lines);
+        $summary = 'В группах: '.implode('; ', $bits);
+        if (preg_match('/[.!?…]$/u', $summary) !== 1) {
+            $summary .= '.';
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param  array{sender?: string, subject?: string, snippet?: string}  $item
+     */
+    private function mailFact(array $item): string
+    {
+        $sender = $this->senderLabel((string) ($item['sender'] ?? ''));
+        $subject = trim((string) ($item['subject'] ?? 'без темы'));
+        if ($subject === '') {
+            $subject = 'без темы';
+        }
+
+        $fact = $sender.' — '.$subject;
+        $snippet = $this->clip(trim((string) ($item['snippet'] ?? '')), 120);
+        if ($snippet === '' || mb_stripos($snippet, $subject) !== false) {
+            return $fact;
+        }
+
+        return $fact.': '.$snippet;
+    }
+
+    /**
+     * @param  list<string>  $facts
+     */
+    private function joinFacts(array $facts): string
+    {
+        return implode('; ', $facts);
+    }
+
+    private function mailCountLine(int $count): string
+    {
+        if ($count === 1) {
+            return 'За период одно новое письмо.';
+        }
+
+        $mod100 = $count % 100;
+        $mod10 = $count % 10;
+        $word = 'писем';
+        if ($mod100 < 11 || $mod100 > 14) {
+            if ($mod10 === 1) {
+                $word = 'письмо';
+            } elseif ($mod10 >= 2 && $mod10 <= 4) {
+                $word = 'письма';
+            }
+        }
+
+        return 'За период '.$count.' новых '.$word.'.';
+    }
+
+    private function senderLabel(string $sender): string
+    {
+        $sender = trim($sender);
+        if ($sender === '') {
+            return 'Неизвестный отправитель';
+        }
+
+        if (preg_match('/^"?([^"<]+)"?\s*</u', $sender, $matches) === 1) {
+            $name = trim($matches[1]);
+            if ($name !== '') {
+                return $name;
+            }
+        }
+
+        return $sender;
+    }
+
+    private function clip(string $text, int $max): string
+    {
+        $text = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+        if ($text === '' || mb_strlen($text) <= $max) {
+            return $text;
+        }
+
+        return rtrim(mb_substr($text, 0, $max), " \t.,;:").'…';
+    }
+
+    private function phrasingSkipReason(string $deterministic, string $candidate, ScheduledReportType $type): ?string
+    {
+        if ($candidate === '') {
+            return 'empty';
+        }
+
+        if (! ProductivityBriefPhrasing::isComplete($candidate)) {
+            return 'incomplete';
+        }
+
+        if ($type !== ScheduledReportType::MailGroupsDigest
+            && ! ProductivityBriefPhrasing::isSubstantial($deterministic, $candidate)) {
+            return 'too_short';
+        }
+
+        return null;
     }
 }
